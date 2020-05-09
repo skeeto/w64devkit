@@ -11,6 +11,7 @@ ARG MAKE_VERSION=4.2
 ARG MINGW_VERSION=6.0.0
 ARG MPC_VERSION=1.1.0
 ARG MPFR_VERSION=4.0.2
+ARG NASM_VERSION=2.14.02
 ARG VIM_VERSION=8.1
 
 RUN apt-get update && apt-get install --yes --no-install-recommends \
@@ -27,6 +28,7 @@ RUN curl --insecure --location --remote-name-all \
     https://ftp.gnu.org/gnu/make/make-$MAKE_VERSION.tar.gz \
     https://frippery.org/files/busybox/busybox-w32-$BUSYBOX_VERSION.tgz \
     http://ftp.vim.org/pub/vim/unix/vim-$VIM_VERSION.tar.bz2 \
+    https://www.nasm.us/pub/nasm/releasebuilds/2.14.02/nasm-$NASM_VERSION.tar.xz \
     https://downloads.sourceforge.net/project/mingw-w64/mingw-w64/mingw-w64-release/mingw-w64-v$MINGW_VERSION.tar.bz2
 COPY SHA256SUMS .
 RUN sha256sum -c SHA256SUMS \
@@ -38,6 +40,7 @@ RUN sha256sum -c SHA256SUMS \
  && tar xJf mpfr-$MPFR_VERSION.tar.xz \
  && tar xzf make-$MAKE_VERSION.tar.gz \
  && tar xjf mingw-w64-v$MINGW_VERSION.tar.bz2 \
+ && tar xJf nasm-$NASM_VERSION.tar.xz \
  && tar xjf vim-$VIM_VERSION.tar.bz2
 
 # Build cross-compiler
@@ -253,6 +256,15 @@ RUN cp gvim.exe vim.exe $PREFIX/share/vim/
 RUN cp vimrun.exe xxd/xxd.exe $PREFIX/bin
 RUN echo '@%~dp0/../share/vim/gvim.exe %*' >$PREFIX/bin/gvim.bat
 RUN echo '@%~dp0/../share/vim/vim.exe %*' >$PREFIX/bin/vim.bat
+
+# NOTE: nasm's configure script is broken, so no out-of-source build
+WORKDIR /nasm-$NASM_VERSION
+RUN ./configure \
+        --host=x86_64-w64-mingw32 \
+        CFLAGS="-Os" \
+        LDFLAGS="-s"
+RUN make -j$(nproc)
+RUN cp nasm.exe ndisasm.exe $PREFIX/bin
 
 # Pack up a release
 
