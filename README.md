@@ -8,6 +8,7 @@ environment for compilation and linking. Included tools:
 * [Mingw-w64 GCC][w64] : compilers, linker, assembler
 * GNU Make : standard build tool
 * [busybox-w32][bb] : standard unix utilities, including sh
+* [Vim][vim]
 
 ## Build
 
@@ -58,5 +59,6 @@ file][zip].
 
 [bb]: https://frippery.org/busybox/
 [bug]: https://gcc.gnu.org/legacy-ml/gcc/2017-05/msg00219.html
+[vim]: https://www.vim.org/
 [w64]: http://mingw-w64.org/
 [zip]: https://tanzu.vmware.com/content/blog/barriers-to-deterministic-reproducible-zip-files

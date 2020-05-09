@@ -11,6 +11,7 @@ ARG MAKE_VERSION=4.2
 ARG MINGW_VERSION=6.0.0
 ARG MPC_VERSION=1.1.0
 ARG MPFR_VERSION=4.0.2
+ARG VIM_VERSION=8.1
 
 RUN apt-get update && apt-get install --yes --no-install-recommends \
   build-essential curl file libgmp-dev libmpc-dev libmpfr-dev m4 texinfo zip
@@ -25,6 +26,7 @@ RUN curl --insecure --location --remote-name-all \
     https://ftp.gnu.org/gnu/mpfr/mpfr-$MPFR_VERSION.tar.xz \
     https://ftp.gnu.org/gnu/make/make-$MAKE_VERSION.tar.gz \
     https://frippery.org/files/busybox/busybox-w32-$BUSYBOX_VERSION.tgz \
+    http://ftp.vim.org/pub/vim/unix/vim-$VIM_VERSION.tar.bz2 \
     https://downloads.sourceforge.net/project/mingw-w64/mingw-w64/mingw-w64-release/mingw-w64-v$MINGW_VERSION.tar.bz2
 COPY SHA256SUMS .
 RUN sha256sum -c SHA256SUMS \
@@ -35,7 +37,8 @@ RUN sha256sum -c SHA256SUMS \
  && tar xzf mpc-$MPC_VERSION.tar.gz \
  && tar xJf mpfr-$MPFR_VERSION.tar.xz \
  && tar xzf make-$MAKE_VERSION.tar.gz \
- && tar xjf mingw-w64-v$MINGW_VERSION.tar.bz2
+ && tar xjf mingw-w64-v$MINGW_VERSION.tar.bz2 \
+ && tar xjf vim-$VIM_VERSION.tar.bz2
 
 # Build cross-compiler
 
@@ -233,6 +236,23 @@ WORKDIR /busybox-w32
 RUN make mingw64_defconfig
 RUN make -j$(nproc)
 RUN cp busybox.exe $PREFIX/bin/
+
+# TODO: Either somehow use $VIM_VERSION or normalize the workdir
+WORKDIR /vim81/src
+RUN make -j$(nproc) -f Make_ming.mak \
+        ARCH=x86-64 OPTIMIZE=SIZE STATIC_STDCPLUS=yes \
+        UNDER_CYGWIN=yes CROSS=yes CROSS_COMPILE=x86_64-w64-mingw32- \
+        FEATURES=HUGE OLE=no IME=no NETBEANS=no
+RUN make -j$(nproc) -f Make_ming.mak \
+        ARCH=x86-64 OPTIMIZE=SIZE STATIC_STDCPLUS=yes \
+        UNDER_CYGWIN=yes CROSS=yes CROSS_COMPILE=x86_64-w64-mingw32- \
+        FEATURES=HUGE OLE=no IME=no NETBEANS=no \
+        GUI=no vim.exe
+RUN cp -r ../runtime $PREFIX/share/vim
+RUN cp gvim.exe vim.exe $PREFIX/share/vim/
+RUN cp vimrun.exe xxd/xxd.exe $PREFIX/bin
+RUN echo '@%~dp0/../share/vim/gvim.exe %*' >$PREFIX/bin/gvim.bat
+RUN echo '@%~dp0/../share/vim/vim.exe %*' >$PREFIX/bin/vim.bat
 
 # Pack up a release
 
