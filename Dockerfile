@@ -21,7 +21,7 @@ RUN apt-get update && apt-get install --yes --no-install-recommends \
 
 RUN curl --insecure --location --remote-name-all \
     https://ftp.gnu.org/gnu/binutils/binutils-$BINUTILS_VERSION.tar.xz \
-    https://ftp.gnu.org/gnu/gcc/gcc-10.1.0/gcc-$GCC_VERSION.tar.xz \
+    https://ftp.gnu.org/gnu/gcc/gcc-$GCC_VERSION/gcc-$GCC_VERSION.tar.xz \
     https://ftp.gnu.org/gnu/gmp/gmp-$GMP_VERSION.tar.xz \
     https://ftp.gnu.org/gnu/mpc/mpc-$MPC_VERSION.tar.gz \
     https://ftp.gnu.org/gnu/mpfr/mpfr-$MPFR_VERSION.tar.xz \
