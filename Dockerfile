@@ -237,6 +237,7 @@ RUN cp make.exe $PREFIX/bin/
 
 WORKDIR /busybox-w32
 RUN make mingw64_defconfig
+RUN sed -i '/\\007/d' libbb/lineedit.c
 RUN make -j$(nproc)
 RUN cp busybox.exe $PREFIX/bin/
 
