@@ -269,5 +269,6 @@ RUN cp nasm.exe ndisasm.exe $PREFIX/bin
 # Pack up a release
 
 WORKDIR /
+COPY README.md Dockerfile SHA256SUMS $PREFIX/
 ENV PREFIX=${PREFIX}
 CMD zip -q9Xr - $PREFIX
