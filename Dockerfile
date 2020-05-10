@@ -222,7 +222,7 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-libraries/winpthreads/configure \
 RUN make -j$(nproc)
 RUN make install
 
-RUN echo '@%~dp0/gcc.exe %*' >$PREFIX/bin/cc.bat
+RUN echo '@"%~dp0/gcc.exe" %*' >$PREFIX/bin/cc.bat
 
 # Build some extra development tools
 
@@ -254,8 +254,8 @@ RUN make -j$(nproc) -f Make_ming.mak \
 RUN cp -r ../runtime $PREFIX/share/vim
 RUN cp gvim.exe vim.exe $PREFIX/share/vim/
 RUN cp vimrun.exe xxd/xxd.exe $PREFIX/bin
-RUN echo '@%~dp0/../share/vim/gvim.exe %*' >$PREFIX/bin/gvim.bat
-RUN echo '@%~dp0/../share/vim/vim.exe %*' >$PREFIX/bin/vim.bat
+RUN echo '@"%~dp0/../share/vim/gvim.exe" %*' >$PREFIX/bin/gvim.bat
+RUN echo '@"%~dp0/../share/vim/vim.exe" %*' >$PREFIX/bin/vim.bat
 
 # NOTE: nasm's configure script is broken, so no out-of-source build
 WORKDIR /nasm-$NASM_VERSION
