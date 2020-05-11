@@ -282,5 +282,7 @@ RUN cp nasm.exe ndisasm.exe $PREFIX/bin
 
 WORKDIR /
 COPY README.md Dockerfile SHA256SUMS $PREFIX/
+RUN printf '@set PATH=%%~dp0\\bin;%%PATH%%\r\n@busybox sh -l\r\n' \
+        >$PREFIX/activate.bat
 ENV PREFIX=${PREFIX}
 CMD zip -q9Xr - $PREFIX

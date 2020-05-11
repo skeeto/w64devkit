@@ -41,6 +41,10 @@ as `make` without "installing" BusyBox into the `bin/` directory:
 
     busybox --install
 
+The distribution contains `activate.bat` that launches a console window
+with the path pre-configured and ready to go. It's an easy way to enter
+the development environment.
+
 ## Notes
 
 Due to [an old GCC bug][bug], we must build a cross-compiler to
