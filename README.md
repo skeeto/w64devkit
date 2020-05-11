@@ -15,7 +15,7 @@ Included tools:
 
 ## Build
 
-First build the image, then run it to produce a release .zip file:
+First build the image, then run it to produce a distribution .zip file:
 
     docker build -t w64devkit .
     docker run --rm w64devkit >w64devkit.zip
@@ -71,7 +71,8 @@ works for years that, once stable, may eventually resolve this issue.
 Even then, the parts of the build system that target Windows needlessly
 assumes a very specific environment (msys), and much of [Emacs' source
 very brittle][fpending]. Besides all that, Emacs is *huge* and including
-it would triple the size of the release. So Emacs will not be included.
+it would triple the size of the distribution. So Emacs will not be
+included.
 
 Since the build environment is so stable and predicable, it would be
 great for the .zip to be reproducible, i.e. builds by different people
