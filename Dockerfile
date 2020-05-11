@@ -1,7 +1,7 @@
 FROM debian:buster-slim
 
 ARG VERSION=1.0.1
-ARG PREFIX=/w64devkit-$VERSION
+ARG PREFIX=/w64devkit
 
 ARG BINUTILS_VERSION=2.34
 ARG BUSYBOX_VERSION=FRP-3445-g10e14d5eb
@@ -284,5 +284,6 @@ WORKDIR /
 COPY README.md Dockerfile SHA256SUMS $PREFIX/
 RUN printf '@set PATH=%%~dp0\\bin;%%PATH%%\r\n@busybox sh -l\r\n' \
         >$PREFIX/activate.bat
+RUN echo $VERSION >$PREFIX/VERSION.txt
 ENV PREFIX=${PREFIX}
 CMD zip -q9Xr - $PREFIX
