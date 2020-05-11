@@ -6,6 +6,7 @@ ARG PREFIX=/w64devkit-$VERSION
 ARG BINUTILS_VERSION=2.34
 ARG BUSYBOX_VERSION=FRP-3445-g10e14d5eb
 ARG GCC_VERSION=10.1.0
+ARG GDB_VERSION=9.1
 ARG GMP_VERSION=6.2.0
 ARG MAKE_VERSION=4.2
 ARG MINGW_VERSION=6.0.0
@@ -22,6 +23,7 @@ RUN apt-get update && apt-get install --yes --no-install-recommends \
 RUN curl --insecure --location --remote-name-all \
     https://ftp.gnu.org/gnu/binutils/binutils-$BINUTILS_VERSION.tar.xz \
     https://ftp.gnu.org/gnu/gcc/gcc-$GCC_VERSION/gcc-$GCC_VERSION.tar.xz \
+    https://ftp.gnu.org/gnu/gdb/gdb-$GDB_VERSION.tar.xz \
     https://ftp.gnu.org/gnu/gmp/gmp-$GMP_VERSION.tar.xz \
     https://ftp.gnu.org/gnu/mpc/mpc-$MPC_VERSION.tar.gz \
     https://ftp.gnu.org/gnu/mpfr/mpfr-$MPFR_VERSION.tar.xz \
@@ -35,6 +37,7 @@ RUN sha256sum -c SHA256SUMS \
  && tar xJf binutils-$BINUTILS_VERSION.tar.xz \
  && tar xzf busybox-w32-$BUSYBOX_VERSION.tgz \
  && tar xJf gcc-$GCC_VERSION.tar.xz \
+ && tar xJf gdb-$GDB_VERSION.tar.xz \
  && tar xJf gmp-$GMP_VERSION.tar.xz \
  && tar xzf mpc-$MPC_VERSION.tar.gz \
  && tar xJf mpfr-$MPFR_VERSION.tar.xz \
@@ -225,6 +228,14 @@ RUN make install
 RUN echo '@"%~dp0/gcc.exe" %*' >$PREFIX/bin/cc.bat
 
 # Build some extra development tools
+
+WORKDIR /gdb
+RUN /gdb-$GDB_VERSION/configure \
+        --host=x86_64-w64-mingw32 \
+        CFLAGS="-Os" \
+        LDFLAGS="-s"
+RUN make -j$(nproc)
+RUN cp gdb/gdb.exe $PREFIX/bin/
 
 WORKDIR /make
 RUN /make-$MAKE_VERSION/configure \

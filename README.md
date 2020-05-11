@@ -6,6 +6,7 @@ needed to use the tools themselves. It's merely used as reliable, clean
 environment for compilation and linking. Included tools:
 
 * [Mingw-w64 GCC][w64] : compilers, linker, assembler
+* GDB : debugger
 * GNU Make : standard build tool
 * [busybox-w32][bb] : standard unix utilities, including sh
 * [Vim][vim]
