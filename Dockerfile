@@ -5,6 +5,7 @@ ARG PREFIX=/w64devkit
 
 ARG BINUTILS_VERSION=2.34
 ARG BUSYBOX_VERSION=FRP-3445-g10e14d5eb
+ARG CTAGS_VERSION=20191013
 ARG GCC_VERSION=10.1.0
 ARG GDB_VERSION=9.1
 ARG GMP_VERSION=6.2.0
@@ -31,11 +32,13 @@ RUN curl --insecure --location --remote-name-all \
     https://frippery.org/files/busybox/busybox-w32-$BUSYBOX_VERSION.tgz \
     http://ftp.vim.org/pub/vim/unix/vim-$VIM_VERSION.tar.bz2 \
     https://www.nasm.us/pub/nasm/releasebuilds/2.14.02/nasm-$NASM_VERSION.tar.xz \
+    http://deb.debian.org/debian/pool/main/u/universal-ctags/universal-ctags_0+git$CTAGS_VERSION.orig.tar.gz \
     https://downloads.sourceforge.net/project/mingw-w64/mingw-w64/mingw-w64-release/mingw-w64-v$MINGW_VERSION.tar.bz2
 COPY SHA256SUMS .
 RUN sha256sum -c SHA256SUMS \
  && tar xJf binutils-$BINUTILS_VERSION.tar.xz \
  && tar xzf busybox-w32-$BUSYBOX_VERSION.tgz \
+ && tar xzf universal-ctags_0+git$CTAGS_VERSION.orig.tar.gz \
  && tar xJf gcc-$GCC_VERSION.tar.xz \
  && tar xJf gdb-$GDB_VERSION.tar.xz \
  && tar xJf gmp-$GMP_VERSION.tar.xz \
@@ -284,6 +287,13 @@ RUN ./configure \
         LDFLAGS="-s"
 RUN make -j$(nproc)
 RUN cp nasm.exe ndisasm.exe $PREFIX/bin
+
+WORKDIR /ctags-master
+RUN make -j$(nproc) -f mk_mingw.mak CC=gcc packcc.exe
+RUN make -j$(nproc) -f mk_mingw.mak \
+        CC=x86_64-w64-mingw32-gcc WINDRES=x86_64-w64-mingw32-windres \
+        OPT= CFLAGS=-Os LDFLAGS=-s
+RUN cp ctags.exe $PREFIX/bin/
 
 # Pack up a release
 

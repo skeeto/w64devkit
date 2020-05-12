@@ -11,6 +11,7 @@ Included tools:
 * [GNU Make][make] : standard build tool
 * [busybox-w32][bb] : standard unix utilities, including sh
 * [Vim][vim] : powerful text editor
+* [Universal Ctags][ctags] : source navigation
 * [NASM][nasm] : x86 assembler
 
 ## Build
@@ -88,6 +89,7 @@ file][zip].
 
 [bb]: https://frippery.org/busybox/
 [bug]: https://gcc.gnu.org/legacy-ml/gcc/2017-05/msg00219.html
+[ctags]: https://github.com/universal-ctags/ctags
 [dumper]: https://lwn.net/Articles/707615/
 [fpending]: http://git.savannah.gnu.org/cgit/emacs.git/tree/lib/fpending.c?h=emacs-26.3&id=96dd0196c28bc36779584e47fffcca433c9309cd
 [gdb]: https://www.gnu.org/software/gdb/
