@@ -74,6 +74,11 @@ very brittle][fpending]. Besides all that, Emacs is *huge* and including
 it would triple the size of the distribution. So Emacs will not be
 included.
 
+The distribution incidentally includes some man pages, and BusyBox
+includes an implementation of `man`. However it has external
+dependencies on `nroff` and `tbl`. I have not found a suitable
+implementation of these tools.
+
 Since the build environment is so stable and predicable, it would be
 great for the .zip to be reproducible, i.e. builds by different people
 are bit-for-bit identical. There are multiple reasons why this is not
