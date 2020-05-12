@@ -136,6 +136,7 @@ RUN /gmp-$GMP_VERSION/configure \
         --enable-static \
         --disable-shared \
         CFLAGS="-Os" \
+        CXXFLAGS="-Os" \
         LDFLAGS="-s"
 RUN make -j$(nproc)
 RUN make install
@@ -211,6 +212,7 @@ RUN /gcc-$GCC_VERSION/configure \
         --disable-multilib \
         --disable-nls \
         CFLAGS="-Os" \
+        CXXFLAGS="-Os" \
         LDFLAGS="-s"
 RUN make -j$(nproc)
 RUN make install
