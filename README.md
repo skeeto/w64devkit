@@ -10,8 +10,8 @@ Included tools:
 * [GDB][gdb] : debugger
 * [GNU Make][make] : standard build tool
 * [busybox-w32][bb] : standard unix utilities, including sh
-* [Vim][vim]
-* [NASM][nasm]
+* [Vim][vim] : powerful text editor
+* [NASM][nasm] : x86 assembler
 
 ## Build
 
