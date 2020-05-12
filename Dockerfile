@@ -235,6 +235,7 @@ WORKDIR /gdb
 RUN /gdb-$GDB_VERSION/configure \
         --host=x86_64-w64-mingw32 \
         CFLAGS="-Os" \
+        CXXFLAGS="-Os" \
         LDFLAGS="-s"
 RUN make -j$(nproc)
 RUN cp gdb/gdb.exe $PREFIX/bin/
