@@ -286,4 +286,4 @@ RUN printf '@set PATH=%%~dp0\\bin;%%PATH%%\r\n@busybox sh -l\r\n' \
         >$PREFIX/activate.bat
 RUN echo $VERSION >$PREFIX/VERSION.txt
 ENV PREFIX=${PREFIX}
-CMD zip -q9Xr - $PREFIX
+CMD zip -qXr - $PREFIX
