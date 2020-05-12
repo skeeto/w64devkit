@@ -7,8 +7,8 @@ used as reliable, clean environment for compilation and linking.
 Included tools:
 
 * [Mingw-w64 GCC][w64] : compilers, linker, assembler
-* GDB : debugger
-* GNU Make : standard build tool
+* [GDB][gdb] : debugger
+* [GNU Make][make] : standard build tool
 * [busybox-w32][bb] : standard unix utilities, including sh
 * [Vim][vim]
 * [NASM][nasm]
@@ -90,6 +90,8 @@ file][zip].
 [bug]: https://gcc.gnu.org/legacy-ml/gcc/2017-05/msg00219.html
 [dumper]: https://lwn.net/Articles/707615/
 [fpending]: http://git.savannah.gnu.org/cgit/emacs.git/tree/lib/fpending.c?h=emacs-26.3&id=96dd0196c28bc36779584e47fffcca433c9309cd
+[gdb]: https://www.gnu.org/software/gdb/
+[make]: https://www.gnu.org/software/make/
 [nasm]: https://www.nasm.us/
 [vim]: https://www.vim.org/
 [w64]: http://mingw-w64.org/
