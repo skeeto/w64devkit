@@ -14,7 +14,7 @@ ARG MINGW_VERSION=6.0.0
 ARG MPC_VERSION=1.1.0
 ARG MPFR_VERSION=4.0.2
 ARG NASM_VERSION=2.14.02
-ARG VIM_VERSION=8.1
+ARG VIM_VERSION=8.2
 
 RUN apt-get update && apt-get install --yes --no-install-recommends \
   build-essential curl file libgmp-dev libmpc-dev libmpfr-dev m4 texinfo zip
@@ -264,13 +264,13 @@ RUN make -j$(nproc)
 RUN cp busybox.exe $PREFIX/bin/
 
 # TODO: Either somehow use $VIM_VERSION or normalize the workdir
-WORKDIR /vim81/src
+WORKDIR /vim82/src
 RUN make -j$(nproc) -f Make_ming.mak \
-        ARCH=x86-64 OPTIMIZE=SIZE STATIC_STDCPLUS=yes \
+        ARCH=x86-64 OPTIMIZE=SIZE STATIC_STDCPLUS=yes HAS_GCC_EH=no \
         UNDER_CYGWIN=yes CROSS=yes CROSS_COMPILE=x86_64-w64-mingw32- \
         FEATURES=HUGE OLE=no IME=no NETBEANS=no
 RUN make -j$(nproc) -f Make_ming.mak \
-        ARCH=x86-64 OPTIMIZE=SIZE STATIC_STDCPLUS=yes \
+        ARCH=x86-64 OPTIMIZE=SIZE STATIC_STDCPLUS=yes HAS_GCC_EH=no \
         UNDER_CYGWIN=yes CROSS=yes CROSS_COMPILE=x86_64-w64-mingw32- \
         FEATURES=HUGE OLE=no IME=no NETBEANS=no \
         GUI=no vim.exe
