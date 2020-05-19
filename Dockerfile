@@ -66,7 +66,8 @@ RUN make install
 WORKDIR /x-mingw-headers
 RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-headers/configure \
         --prefix=/bootstrap/x86_64-w64-mingw32 \
-        --host=x86_64-w64-mingw32
+        --host=x86_64-w64-mingw32 \
+        --enable-secure-api
 RUN make -j$(nproc)
 RUN make install
 
@@ -178,7 +179,8 @@ WORKDIR /
 WORKDIR /mingw-headers
 RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-headers/configure \
         --prefix=$PREFIX/x86_64-w64-mingw32 \
-        --host=x86_64-w64-mingw32
+        --host=x86_64-w64-mingw32 \
+        --enable-secure-api
 RUN make -j$(nproc)
 RUN make install
 
