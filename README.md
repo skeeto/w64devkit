@@ -75,6 +75,10 @@ very brittle][fpending]. Besides all that, Emacs is *huge* and including
 it would triple the size of the distribution. So Emacs will not be
 included.
 
+What about sanitizer support? That would be fantastic, but unfortunately
+libsanitizer [has not yet been ported from MSVC to Mingw-w64](san)
+([also][san2]).
+
 Since the build environment is so stable and predicable, it would be
 great for the .zip to be reproducible, i.e. builds by different people
 are bit-for-bit identical. There are multiple reasons why this is not
@@ -90,6 +94,8 @@ file][zip].
 [gdb]: https://www.gnu.org/software/gdb/
 [make]: https://www.gnu.org/software/make/
 [nasm]: https://www.nasm.us/
+[san]: http://mingw-w64.org/doku.php/contribute#sanitizers_asan_tsan_usan
+[san2]: https://groups.google.com/forum/#!topic/address-sanitizer/q0e5EBVKZT4
 [vim]: https://www.vim.org/
 [w64]: http://mingw-w64.org/
 [zip]: https://tanzu.vmware.com/content/blog/barriers-to-deterministic-reproducible-zip-files
