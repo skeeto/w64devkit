@@ -83,7 +83,7 @@ RUN /gcc-$GCC_VERSION/configure \
         --disable-shared \
         --enable-languages=c,c++ \
         --enable-libgomp \
-        --enable-threads=win32 \
+        --enable-threads=posix \
         --enable-version-specific-runtime-libs \
         --disable-nls \
         --disable-multilib
@@ -212,7 +212,7 @@ RUN /gcc-$GCC_VERSION/configure \
         --with-mpfr-lib=/deps/lib \
         --enable-languages=c,c++ \
         --enable-libgomp \
-        --enable-threads=win32 \
+        --enable-threads=posix \
         --enable-version-specific-runtime-libs \
         --disable-multilib \
         --disable-nls \
