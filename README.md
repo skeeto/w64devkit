@@ -14,7 +14,8 @@ Included tools:
 * [Universal Ctags][ctags] : source navigation
 * [NASM][nasm] : x86 assembler
 
-The compiler supports both pthreads and C++11 threads.
+The compilers support pthreads, C++11 threads, and OpenMP. All included
+libraries are static.
 
 ## Build
 
