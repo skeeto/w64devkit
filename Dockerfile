@@ -84,6 +84,7 @@ RUN /gcc-$GCC_VERSION/configure \
         --enable-libgomp \
         --enable-threads=posix \
         --enable-version-specific-runtime-libs \
+        --disable-dependency-tracking \
         --disable-nls \
         --disable-multilib
 RUN make -j$(nproc) all-gcc
@@ -212,6 +213,7 @@ RUN /gcc-$GCC_VERSION/configure \
         --enable-libgomp \
         --enable-threads=posix \
         --enable-version-specific-runtime-libs \
+        --disable-dependency-tracking \
         --disable-multilib \
         --disable-nls \
         CFLAGS="-Os" \
