@@ -88,13 +88,28 @@ are bit-for-bit identical. There are multiple reasons why this is not
 currently the case, the least of which are [timestamps in the .zip
 file][zip].
 
+### License Crap
+
+When distributing binaries built using w64devkit, your .exe will almost
+certainly include parts of this distribution. For the GCC runtime,
+including OpenMP, you're covered by the [GCC Runtime Library
+Exception][gpl] so you do not need to worry about anything. However the
+Mingw-w64 runtime [has the usual software license crap][bs] and you
+might need to comply with various BSD-style licenses depending on the
+functionality used by your program: [MinGW-w64 runtime licensing][lic1]
+and [winpthreads license][lic2]. Good luck!
+
 
 [bb]: https://frippery.org/busybox/
+[bs]: https://www.rdegges.com/2016/i-dont-give-a-shit-about-licensing/
 [bug]: https://gcc.gnu.org/legacy-ml/gcc/2017-05/msg00219.html
 [ctags]: https://github.com/universal-ctags/ctags
 [dumper]: https://lwn.net/Articles/707615/
 [fpending]: http://git.savannah.gnu.org/cgit/emacs.git/tree/lib/fpending.c?h=emacs-26.3&id=96dd0196c28bc36779584e47fffcca433c9309cd
 [gdb]: https://www.gnu.org/software/gdb/
+[gpl]: https://www.gnu.org/licenses/gcc-exception-3.1.en.html
+[lic1]: https://sourceforge.net/p/mingw-w64/mingw-w64/ci/master/tree/COPYING.MinGW-w64-runtime/COPYING.MinGW-w64-runtime.txt
+[lic2]: https://sourceforge.net/p/mingw-w64/mingw-w64/ci/master/tree/mingw-w64-libraries/winpthreads/COPYING
 [make]: https://www.gnu.org/software/make/
 [nasm]: https://www.nasm.us/
 [san]: http://mingw-w64.org/doku.php/contribute#sanitizers_asan_tsan_usan
