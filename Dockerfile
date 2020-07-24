@@ -1,6 +1,6 @@
 FROM debian:buster-slim
 
-ARG VERSION=1.3.1
+ARG VERSION=1.4.0
 ARG PREFIX=/w64devkit
 
 ARG BINUTILS_VERSION=2.34
