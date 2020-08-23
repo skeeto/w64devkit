@@ -237,6 +237,10 @@ RUN make install
 
 RUN echo '@"%~dp0/gcc.exe" %*' >$PREFIX/bin/cc.bat
 
+# Enable non-broken, standards-compliant formatted output by default
+RUN sed -i '1s/^/#ifndef __USE_MINGW_ANSI_STDIO\n#  define __USE_MINGW_ANSI_STDIO 1\n#endif\n/' \
+        $PREFIX/x86_64-w64-mingw32/include/_mingw.h
+
 # Build some extra development tools
 
 WORKDIR /gdb
