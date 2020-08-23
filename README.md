@@ -90,14 +90,16 @@ file][zip].
 
 ### License Crap
 
-When distributing binaries built using w64devkit, your .exe will almost
-certainly include parts of this distribution. For the GCC runtime,
-including OpenMP, you're covered by the [GCC Runtime Library
-Exception][gpl] so you do not need to worry about anything. However the
-Mingw-w64 runtime [has the usual software license crap][bs] and you
-might need to comply with various BSD-style licenses depending on the
-functionality used by your program: [MinGW-w64 runtime licensing][lic1]
-and [winpthreads license][lic2]. Good luck!
+When distributing binaries built using w64devkit, your .exe will include
+parts of this distribution. For the GCC runtime, including OpenMP,
+you're covered by the [GCC Runtime Library Exception][gpl] so you do not
+need to worry about those. However the Mingw-w64 runtime [has the usual
+software license crap][bs] and you might need to comply with various
+BSD-style licenses depending on the functionality used by your program:
+[MinGW-w64 runtime licensing][lic1] and [winpthreads license][lic2]. To
+make this easy, w64devkit includes the complete set of licenses in the
+file `COPYING.MinGW-w64-runtime.txt`, which should be distributed with
+your binaries.
 
 
 [bb]: https://frippery.org/busybox/

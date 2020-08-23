@@ -307,6 +307,12 @@ RUN cp ctags.exe $PREFIX/bin/
 WORKDIR /
 RUN rm -rf $PREFIX/share/man/ $PREFIX/share/info/ $PREFIX/share/gcc-*
 COPY README.md Dockerfile SHA256SUMS $PREFIX/
+RUN cp /mingw-w64-v$MINGW_VERSION/COPYING.MinGW-w64-runtime/COPYING.MinGW-w64-runtime.txt \
+        $PREFIX/
+RUN printf "\n===========\nwinpthreads\n===========\n\n" \
+        >>$PREFIX/COPYING.MinGW-w64-runtime.txt .
+RUN cat /mingw-w64-v$MINGW_VERSION/mingw-w64-libraries/winpthreads/COPYING \
+        >>$PREFIX/COPYING.MinGW-w64-runtime.txt
 RUN printf '@set PATH=%%~dp0\\bin;%%PATH%%\r\n@busybox sh -l\r\n' \
         >$PREFIX/activate.bat
 RUN echo $VERSION >$PREFIX/VERSION.txt
