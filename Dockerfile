@@ -86,7 +86,10 @@ RUN /gcc-$GCC_VERSION/configure \
         --enable-version-specific-runtime-libs \
         --disable-dependency-tracking \
         --disable-nls \
-        --disable-multilib
+        --disable-multilib \
+        CFLAGS="-Os" \
+        CXXFLAGS="-Os" \
+        LDFLAGS="-s"
 RUN make -j$(nproc) all-gcc
 RUN make install-gcc
 
@@ -106,7 +109,9 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-libraries/winpthreads/configure \
         --with-sysroot=/bootstrap/x86_64-w64-mingw32 \
         --host=x86_64-w64-mingw32 \
         --enable-static \
-        --disable-shared
+        --disable-shared \
+        CFLAGS="-Os" \
+        LDFLAGS="-s"
 RUN make -j$(nproc)
 RUN make install
 
@@ -231,7 +236,9 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-libraries/winpthreads/configure \
         --with-sysroot=$PREFIX/x86_64-w64-mingw32 \
         --host=x86_64-w64-mingw32 \
         --enable-static \
-        --disable-shared
+        --disable-shared \
+        CFLAGS="-Os" \
+        LDFLAGS="-s"
 RUN make -j$(nproc)
 RUN make install
 
