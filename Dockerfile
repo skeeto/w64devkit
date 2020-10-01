@@ -221,6 +221,7 @@ RUN /gcc-$GCC_VERSION/configure \
         --disable-dependency-tracking \
         --disable-multilib \
         --disable-nls \
+        --enable-mingw-wildcard \
         CFLAGS="-Os" \
         CXXFLAGS="-Os" \
         LDFLAGS="-s"
