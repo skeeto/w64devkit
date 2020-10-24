@@ -22,13 +22,13 @@ RUN apt-get update && apt-get install --yes --no-install-recommends \
 # Download, verify, and unpack
 
 RUN curl --insecure --location --remote-name-all \
-    https://ftpmirror.gnu.org/gnu/binutils/binutils-$BINUTILS_VERSION.tar.xz \
-    https://ftpmirror.gnu.org/gnu/gcc/gcc-$GCC_VERSION/gcc-$GCC_VERSION.tar.xz \
-    https://ftpmirror.gnu.org/gnu/gdb/gdb-$GDB_VERSION.tar.xz \
-    https://ftpmirror.gnu.org/gnu/gmp/gmp-$GMP_VERSION.tar.xz \
-    https://ftpmirror.gnu.org/gnu/mpc/mpc-$MPC_VERSION.tar.gz \
-    https://ftpmirror.gnu.org/gnu/mpfr/mpfr-$MPFR_VERSION.tar.xz \
-    https://ftpmirror.gnu.org/gnu/make/make-$MAKE_VERSION.tar.gz \
+    https://ftp.gnu.org/gnu/binutils/binutils-$BINUTILS_VERSION.tar.xz \
+    https://ftp.gnu.org/gnu/gcc/gcc-$GCC_VERSION/gcc-$GCC_VERSION.tar.xz \
+    https://ftp.gnu.org/gnu/gdb/gdb-$GDB_VERSION.tar.xz \
+    https://ftp.gnu.org/gnu/gmp/gmp-$GMP_VERSION.tar.xz \
+    https://ftp.gnu.org/gnu/mpc/mpc-$MPC_VERSION.tar.gz \
+    https://ftp.gnu.org/gnu/mpfr/mpfr-$MPFR_VERSION.tar.xz \
+    https://ftp.gnu.org/gnu/make/make-$MAKE_VERSION.tar.gz \
     https://frippery.org/files/busybox/busybox-w32-$BUSYBOX_VERSION.tgz \
     http://ftp.vim.org/pub/vim/unix/vim-$VIM_VERSION.tar.bz2 \
     https://www.nasm.us/pub/nasm/releasebuilds/2.14.02/nasm-$NASM_VERSION.tar.xz \
