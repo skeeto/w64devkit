@@ -100,6 +100,8 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
         --prefix=/bootstrap/x86_64-w64-mingw32 \
         --with-sysroot=/bootstrap/x86_64-w64-mingw32 \
         --host=x86_64-w64-mingw32 \
+        --disable-dependency-tracking \
+        --disable-lib32 \
         CFLAGS="-Os" \
         LDFLAGS="-s"
 RUN make -j$(nproc)
@@ -195,6 +197,8 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
         --prefix=$PREFIX/x86_64-w64-mingw32 \
         --with-sysroot=$PREFIX/x86_64-w64-mingw32 \
         --host=x86_64-w64-mingw32 \
+        --disable-dependency-tracking \
+        --disable-lib32 \
         CFLAGS="-Os" \
         LDFLAGS="-s"
 RUN make -j$(nproc)
