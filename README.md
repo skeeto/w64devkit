@@ -79,7 +79,7 @@ it would triple the size of the distribution. So Emacs will not be
 included.
 
 What about sanitizer support? That would be fantastic, but unfortunately
-libsanitizer [has not yet been ported from MSVC to Mingw-w64](san)
+libsanitizer [has not yet been ported from MSVC to Mingw-w64][san]
 ([also][san2]).
 
 Since the build environment is so stable and predicable, it would be
