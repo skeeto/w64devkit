@@ -72,6 +72,18 @@ It's the only MinGW / Mingw-w64 distribution that produces binaries that
 do not depend on extra runtime DLLs. You will never need to distribute a
 DLL with your binary unless you explicitly choose to do so.
 
+## Optimized for size
+
+The language runtimes in w64devkit are optimized for size, so it produces
+particularly small binaries when programs are also optimized for size
+(`-Os`) during compilation. If your program only uses the `printf` family
+of functions with MSVC-compatable directivies (i.e. limited to C89), and
+you want even smaller binaries, you can avoid embdedding the Mingw-w64's
+improved implementation by setting `__USE_MINGW_ANSI_STDIO` to 0 before
+including any headers.
+
+    $ cc -Os -D__USE_MINGW_ANSI_STDIO=0 ...
+
 ## Fortran support
 
 Only C and C++ are included by default, but w64devkit also has full
