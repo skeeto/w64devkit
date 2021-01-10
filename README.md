@@ -1,9 +1,10 @@
 # Portable C and C++ Development Kit for x64 Windows
 
 w64devkit is a Dockerfile that builds from source a small, portable
-development suite for writing C and C++ applications on and for x64
-Windows. Docker is not needed to use the tools themselves. It's merely
-used as reliable, clean environment for compilation and linking.
+development suite for creating C and C++ applications on and for x64
+Windows. **It is the highest quality native toolchain for C, C++, and
+Fortran currently available on Windows.**
+
 Included tools:
 
 * [Mingw-w64 GCC][w64] : compilers, linker, assembler
@@ -15,7 +16,8 @@ Included tools:
 * [NASM][nasm] : x86 assembler
 
 The compilers support pthreads, C++11 threads, and OpenMP. All included
-libraries are static.
+libraries are static. Docker is not required to use the development kit.
+It's merely a reliable, clean environment for building the kit itself.
 
 ## Build
 
@@ -30,8 +32,13 @@ internet connection during the first couple minutes of the build.
 ## Usage
 
 The final .zip file contains tools in a typical unix-like configuration.
-Unzip the contents anywhere and add its `bin/` directory to your path.
-For example, while inside a console or batch script:
+Unzip the contents anywhere. Inside is an `activate.bat` that launches a
+console window with the environment configured and ready to go. It is the
+easiest way to enter the development environment, and requires no system
+changes.
+
+Alternatively, add the `bin/` directory to your path. For example, while
+inside a console or batch script:
 
     set PATH=c:\path\to\w64devkit\bin;%PATH%
 
@@ -45,9 +52,31 @@ as `make` without "installing" BusyBox into the `bin/` directory:
 
     busybox --install
 
-The distribution contains `activate.bat` that launches a console window
-with the path pre-configured and ready to go. It's an easy way to enter
-the development environment.
+This step is recommended.
+
+## Best of class
+
+What makes w64devkit the best? It is the *only* production-grade, native
+toolchain for Windows which:
+
+* Does not require installation. Run it anywhere as any user.
+
+* Does not require internet access during installation. The installers for
+  other toolchains are actually downloaders, and so must be online for at
+  least part of their installation process.
+
+* Supports C99 by default. The others have incomplete support or require
+  esoteric configurations in order to enable it.
+
+It's the only MinGW / Mingw-w64 distribution that produces binaries that
+do not depend on extra runtime DLLs. You will never need to distribute a
+DLL with your binary unless you explicitly choose to do so.
+
+## Fortran support
+
+Only C and C++ are included by default, but w64devkit also has full
+support for Fortran. To build a Fortran compiler, add `fortran` to the
+`--enable-languages` lines in the Dockerfile.
 
 ## Notes
 
@@ -59,24 +88,13 @@ Since the development kit is intended to be flexible, light, and
 portable — i.e. run from anywhere, in place, and no installation is
 necessary — the binaries are all optimized for size, not speed.
 
-I'd love to include Git, but unfortunately Git's build system is a
-disaster and doesn't support cross-compilation. It's also got weird
-dependencies like Perl. Git may be a fantastic and wonderful tool, but
-it's also kind of a mess.
+I'd love to include Git, but unfortunately Git's build system doesn't
+quite support cross-compilation, and it's hostile to installation-free
+.zip distribution (lots of symlinks).
 
 It would be nice to have a better shell like Bash. BusyBox's ash is
-limited, and the Windows port is even more limited and quite quirky.
-Unfortunately Bash's build system is a total mess and does not support
-cross-compilation.
-
-Emacs does not support cross-compilation, particularly due to its
-[fragile dumper][dumper]. There has been a "portable dumper" in the
-works for years that, once stable, may eventually resolve this issue.
-Even then, the parts of the build system that target Windows needlessly
-assumes a very specific environment (msys), and much of [Emacs' source
-very brittle][fpending]. Besides all that, Emacs is *huge* and including
-it would triple the size of the distribution. So Emacs will not be
-included.
+limited, and the Windows port is quirky even more limited. Unfortunately,
+neither Bash nor Zsh have native Windows support.
 
 What about sanitizer support? That would be fantastic, but unfortunately
 libsanitizer [has not yet been ported from MSVC to Mingw-w64][san]
@@ -88,26 +106,24 @@ are bit-for-bit identical. There are multiple reasons why this is not
 currently the case, the least of which are [timestamps in the .zip
 file][zip].
 
-### License Crap
+## Licenses
 
 When distributing binaries built using w64devkit, your .exe will include
-parts of this distribution. For the GCC runtime, including OpenMP,
-you're covered by the [GCC Runtime Library Exception][gpl] so you do not
-need to worry about those. However the Mingw-w64 runtime [has the usual
-software license crap][bs] and you might need to comply with various
-BSD-style licenses depending on the functionality used by your program:
-[MinGW-w64 runtime licensing][lic1] and [winpthreads license][lic2]. To
-make this easy, w64devkit includes the complete set of licenses in the
-file `COPYING.MinGW-w64-runtime.txt`, which should be distributed with
-your binaries.
+parts of this distribution. For the GCC runtime, including OpenMP, you're
+covered by the [GCC Runtime Library Exception][gpl] so you do not need to
+do anything. However the Mingw-w64 runtime [has the usual software license
+headaches][bs] and you may need to comply with various BSD-style licenses
+depending on the functionality used by your program: [MinGW-w64 runtime
+licensing][lic1] and [winpthreads license][lic2]. To make this easy,
+w64devkit includes the concatenated set of all licenses in the file
+`COPYING.MinGW-w64-runtime.txt`, which should be distributed with your
+binaries.
 
 
 [bb]: https://frippery.org/busybox/
 [bs]: https://www.rdegges.com/2016/i-dont-give-a-shit-about-licensing/
 [bug]: https://gcc.gnu.org/legacy-ml/gcc/2017-05/msg00219.html
 [ctags]: https://github.com/universal-ctags/ctags
-[dumper]: https://lwn.net/Articles/707615/
-[fpending]: http://git.savannah.gnu.org/cgit/emacs.git/tree/lib/fpending.c?h=emacs-26.3&id=96dd0196c28bc36779584e47fffcca433c9309cd
 [gdb]: https://www.gnu.org/software/gdb/
 [gpl]: https://www.gnu.org/licenses/gcc-exception-3.1.en.html
 [lic1]: https://sourceforge.net/p/mingw-w64/mingw-w64/ci/master/tree/COPYING.MinGW-w64-runtime/COPYING.MinGW-w64-runtime.txt
