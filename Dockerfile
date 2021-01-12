@@ -277,6 +277,8 @@ RUN cp make.exe $PREFIX/bin/
 
 WORKDIR /busybox-w32
 RUN make mingw64_defconfig
+RUN sed -ri 's/^(CONFIG_(XXD|AR|STRINGS|DPKG|DPKG_DEB|TEST2|RPM|VI))=y/\1=n/' \
+        .config
 RUN sed -i '/\\007/d' libbb/lineedit.c
 RUN make -j$(nproc)
 RUN cp busybox.exe $PREFIX/bin/
@@ -300,6 +302,8 @@ RUN printf '@set SHELL=\r\n@"%%~dp0/../share/vim/gvim.exe" %%*\r\n' \
         >$PREFIX/bin/gvim.bat
 RUN printf '@set SHELL=\r\n@"%%~dp0/../share/vim/vim.exe" %%*\r\n' \
         >$PREFIX/bin/vim.bat
+RUN printf '@set SHELL=\r\n@"%%~dp0/../share/vim/vim.exe" %%*\r\n' \
+        >$PREFIX/bin/vi.bat
 RUN printf '@vim -N -u NONE "+read %s" "+write" "%s"\r\n' \
         '$VIMRUNTIME/tutor/tutor' '%TMP%/tutor%RANDOM%' \
         >$PREFIX/bin/vimtutor.bat
