@@ -3,7 +3,7 @@ FROM debian:buster-slim
 ARG VERSION=1.5.0
 ARG PREFIX=/w64devkit
 
-ARG BINUTILS_VERSION=2.35.1
+ARG BINUTILS_VERSION=2.36
 ARG BUSYBOX_VERSION=FRP-3812-g12e14ebba
 ARG CTAGS_VERSION=20200824
 ARG GCC_VERSION=10.2.0
@@ -289,11 +289,11 @@ WORKDIR /vim82/src
 RUN make -j$(nproc) -f Make_ming.mak \
         ARCH=x86-64 OPTIMIZE=SIZE STATIC_STDCPLUS=yes HAS_GCC_EH=no \
         UNDER_CYGWIN=yes CROSS=yes CROSS_COMPILE=x86_64-w64-mingw32- \
-        FEATURES=HUGE OLE=no IME=no NETBEANS=no
+        FEATURES=HUGE OLE=no IME=no NETBEANS=no WINDRES_FLAGS=
 RUN make -j$(nproc) -f Make_ming.mak \
         ARCH=x86-64 OPTIMIZE=SIZE STATIC_STDCPLUS=yes HAS_GCC_EH=no \
         UNDER_CYGWIN=yes CROSS=yes CROSS_COMPILE=x86_64-w64-mingw32- \
-        FEATURES=HUGE OLE=no IME=no NETBEANS=no \
+        FEATURES=HUGE OLE=no IME=no NETBEANS=no WINDRES_FLAGS= \
         GUI=no vim.exe
 RUN rm -rf ../runtime/tutor/tutor.*
 RUN cp -r ../runtime $PREFIX/share/vim
