@@ -267,6 +267,7 @@ RUN make -j$(nproc)
 RUN cp gdb/gdb.exe $PREFIX/bin/
 
 WORKDIR /make
+RUN sed -i 's/"sh\.exe"/"sh.bat"/' /make-$MAKE_VERSION/job.c
 RUN /make-$MAKE_VERSION/configure \
         --host=x86_64-w64-mingw32 \
         --disable-nls \
@@ -283,6 +284,155 @@ RUN sed -ri 's/^(CONFIG_(XXD|AR|STRINGS|DPKG|DPKG_DEB|TEST2|RPM|VI))=y/\1=n/' \
 RUN sed -i '/\\007/d' libbb/lineedit.c
 RUN make -j$(nproc)
 RUN cp busybox.exe $PREFIX/bin/
+
+# Install all BusyBox commands as batch scripts (like busybox --install)
+RUN echo '@"%~dp0/busybox" arch %*' >$PREFIX/bin/arch.bat \
+ && echo '@"%~dp0/busybox" ash %*' >$PREFIX/bin/ash.bat \
+ && echo '@"%~dp0/busybox" awk %*' >$PREFIX/bin/awk.bat \
+ && echo '@"%~dp0/busybox" base32 %*' >$PREFIX/bin/base32.bat \
+ && echo '@"%~dp0/busybox" base64 %*' >$PREFIX/bin/base64.bat \
+ && echo '@"%~dp0/busybox" basename %*' >$PREFIX/bin/basename.bat \
+ && echo '@"%~dp0/busybox" bash %*' >$PREFIX/bin/bash.bat \
+ && echo '@"%~dp0/busybox" bunzip2 %*' >$PREFIX/bin/bunzip2.bat \
+ && echo '@"%~dp0/busybox" bzcat %*' >$PREFIX/bin/bzcat.bat \
+ && echo '@"%~dp0/busybox" bzip2 %*' >$PREFIX/bin/bzip2.bat \
+ && echo '@"%~dp0/busybox" cal %*' >$PREFIX/bin/cal.bat \
+ && echo '@"%~dp0/busybox" cat %*' >$PREFIX/bin/cat.bat \
+ && echo '@"%~dp0/busybox" chattr %*' >$PREFIX/bin/chattr.bat \
+ && echo '@"%~dp0/busybox" chmod %*' >$PREFIX/bin/chmod.bat \
+ && echo '@"%~dp0/busybox" cksum %*' >$PREFIX/bin/cksum.bat \
+ && echo '@"%~dp0/busybox" clear %*' >$PREFIX/bin/clear.bat \
+ && echo '@"%~dp0/busybox" cmp %*' >$PREFIX/bin/cmp.bat \
+ && echo '@"%~dp0/busybox" comm %*' >$PREFIX/bin/comm.bat \
+ && echo '@"%~dp0/busybox" cp %*' >$PREFIX/bin/cp.bat \
+ && echo '@"%~dp0/busybox" cpio %*' >$PREFIX/bin/cpio.bat \
+ && echo '@"%~dp0/busybox" cut %*' >$PREFIX/bin/cut.bat \
+ && echo '@"%~dp0/busybox" date %*' >$PREFIX/bin/date.bat \
+ && echo '@"%~dp0/busybox" dc %*' >$PREFIX/bin/dc.bat \
+ && echo '@"%~dp0/busybox" dd %*' >$PREFIX/bin/dd.bat \
+ && echo '@"%~dp0/busybox" df %*' >$PREFIX/bin/df.bat \
+ && echo '@"%~dp0/busybox" diff %*' >$PREFIX/bin/diff.bat \
+ && echo '@"%~dp0/busybox" dirname %*' >$PREFIX/bin/dirname.bat \
+ && echo '@"%~dp0/busybox" dos2unix %*' >$PREFIX/bin/dos2unix.bat \
+ && echo '@"%~dp0/busybox" du %*' >$PREFIX/bin/du.bat \
+ && echo '@"%~dp0/busybox" echo %*' >$PREFIX/bin/echo.bat \
+ && echo '@"%~dp0/busybox" ed %*' >$PREFIX/bin/ed.bat \
+ && echo '@"%~dp0/busybox" egrep %*' >$PREFIX/bin/egrep.bat \
+ && echo '@"%~dp0/busybox" env %*' >$PREFIX/bin/env.bat \
+ && echo '@"%~dp0/busybox" expand %*' >$PREFIX/bin/expand.bat \
+ && echo '@"%~dp0/busybox" expr %*' >$PREFIX/bin/expr.bat \
+ && echo '@"%~dp0/busybox" factor %*' >$PREFIX/bin/factor.bat \
+ && echo '@"%~dp0/busybox" false %*' >$PREFIX/bin/false.bat \
+ && echo '@"%~dp0/busybox" fgrep %*' >$PREFIX/bin/fgrep.bat \
+ && echo '@"%~dp0/busybox" find %*' >$PREFIX/bin/find.bat \
+ && echo '@"%~dp0/busybox" fold %*' >$PREFIX/bin/fold.bat \
+ && echo '@"%~dp0/busybox" fsync %*' >$PREFIX/bin/fsync.bat \
+ && echo '@"%~dp0/busybox" ftpget %*' >$PREFIX/bin/ftpget.bat \
+ && echo '@"%~dp0/busybox" ftpput %*' >$PREFIX/bin/ftpput.bat \
+ && echo '@"%~dp0/busybox" getopt %*' >$PREFIX/bin/getopt.bat \
+ && echo '@"%~dp0/busybox" grep %*' >$PREFIX/bin/grep.bat \
+ && echo '@"%~dp0/busybox" groups %*' >$PREFIX/bin/groups.bat \
+ && echo '@"%~dp0/busybox" gunzip %*' >$PREFIX/bin/gunzip.bat \
+ && echo '@"%~dp0/busybox" gzip %*' >$PREFIX/bin/gzip.bat \
+ && echo '@"%~dp0/busybox" hd %*' >$PREFIX/bin/hd.bat \
+ && echo '@"%~dp0/busybox" head %*' >$PREFIX/bin/head.bat \
+ && echo '@"%~dp0/busybox" hexdump %*' >$PREFIX/bin/hexdump.bat \
+ && echo '@"%~dp0/busybox" httpd %*' >$PREFIX/bin/httpd.bat \
+ && echo '@"%~dp0/busybox" iconv %*' >$PREFIX/bin/iconv.bat \
+ && echo '@"%~dp0/busybox" id %*' >$PREFIX/bin/id.bat \
+ && echo '@"%~dp0/busybox" inotifyd %*' >$PREFIX/bin/inotifyd.bat \
+ && echo '@"%~dp0/busybox" install %*' >$PREFIX/bin/install.bat \
+ && echo '@"%~dp0/busybox" ipcalc %*' >$PREFIX/bin/ipcalc.bat \
+ && echo '@"%~dp0/busybox" kill %*' >$PREFIX/bin/kill.bat \
+ && echo '@"%~dp0/busybox" killall %*' >$PREFIX/bin/killall.bat \
+ && echo '@"%~dp0/busybox" less %*' >$PREFIX/bin/less.bat \
+ && echo '@"%~dp0/busybox" link %*' >$PREFIX/bin/link.bat \
+ && echo '@"%~dp0/busybox" ln %*' >$PREFIX/bin/ln.bat \
+ && echo '@"%~dp0/busybox" logname %*' >$PREFIX/bin/logname.bat \
+ && echo '@"%~dp0/busybox" ls %*' >$PREFIX/bin/ls.bat \
+ && echo '@"%~dp0/busybox" lsattr %*' >$PREFIX/bin/lsattr.bat \
+ && echo '@"%~dp0/busybox" lzcat %*' >$PREFIX/bin/lzcat.bat \
+ && echo '@"%~dp0/busybox" lzma %*' >$PREFIX/bin/lzma.bat \
+ && echo '@"%~dp0/busybox" lzop %*' >$PREFIX/bin/lzop.bat \
+ && echo '@"%~dp0/busybox" lzopcat %*' >$PREFIX/bin/lzopcat.bat \
+ && echo '@"%~dp0/busybox" man %*' >$PREFIX/bin/man.bat \
+ && echo '@"%~dp0/busybox" md5sum %*' >$PREFIX/bin/md5sum.bat \
+ && echo '@"%~dp0/busybox" mkdir %*' >$PREFIX/bin/mkdir.bat \
+ && echo '@"%~dp0/busybox" mktemp %*' >$PREFIX/bin/mktemp.bat \
+ && echo '@"%~dp0/busybox" mv %*' >$PREFIX/bin/mv.bat \
+ && echo '@"%~dp0/busybox" nc %*' >$PREFIX/bin/nc.bat \
+ && echo '@"%~dp0/busybox" nl %*' >$PREFIX/bin/nl.bat \
+ && echo '@"%~dp0/busybox" od %*' >$PREFIX/bin/od.bat \
+ && echo '@"%~dp0/busybox" paste %*' >$PREFIX/bin/paste.bat \
+ && echo '@"%~dp0/busybox" patch %*' >$PREFIX/bin/patch.bat \
+ && echo '@"%~dp0/busybox" pgrep %*' >$PREFIX/bin/pgrep.bat \
+ && echo '@"%~dp0/busybox" pidof %*' >$PREFIX/bin/pidof.bat \
+ && echo '@"%~dp0/busybox" pipe_progress %*' >$PREFIX/bin/pipe_progress.bat \
+ && echo '@"%~dp0/busybox" pkill %*' >$PREFIX/bin/pkill.bat \
+ && echo '@"%~dp0/busybox" printenv %*' >$PREFIX/bin/printenv.bat \
+ && echo '@"%~dp0/busybox" printf %*' >$PREFIX/bin/printf.bat \
+ && echo '@"%~dp0/busybox" ps %*' >$PREFIX/bin/ps.bat \
+ && echo '@"%~dp0/busybox" pwd %*' >$PREFIX/bin/pwd.bat \
+ && echo '@"%~dp0/busybox" readlink %*' >$PREFIX/bin/readlink.bat \
+ && echo '@"%~dp0/busybox" realpath %*' >$PREFIX/bin/realpath.bat \
+ && echo '@"%~dp0/busybox" reset %*' >$PREFIX/bin/reset.bat \
+ && echo '@"%~dp0/busybox" rev %*' >$PREFIX/bin/rev.bat \
+ && echo '@"%~dp0/busybox" rm %*' >$PREFIX/bin/rm.bat \
+ && echo '@"%~dp0/busybox" rmdir %*' >$PREFIX/bin/rmdir.bat \
+ && echo '@"%~dp0/busybox" rpm2cpio %*' >$PREFIX/bin/rpm2cpio.bat \
+ && echo '@"%~dp0/busybox" sed %*' >$PREFIX/bin/sed.bat \
+ && echo '@"%~dp0/busybox" seq %*' >$PREFIX/bin/seq.bat \
+ && echo '@"%~dp0/busybox" sh %*' >$PREFIX/bin/sh.bat \
+ && echo '@"%~dp0/busybox" sha1sum %*' >$PREFIX/bin/sha1sum.bat \
+ && echo '@"%~dp0/busybox" sha256sum %*' >$PREFIX/bin/sha256sum.bat \
+ && echo '@"%~dp0/busybox" sha3sum %*' >$PREFIX/bin/sha3sum.bat \
+ && echo '@"%~dp0/busybox" sha512sum %*' >$PREFIX/bin/sha512sum.bat \
+ && echo '@"%~dp0/busybox" shred %*' >$PREFIX/bin/shred.bat \
+ && echo '@"%~dp0/busybox" shuf %*' >$PREFIX/bin/shuf.bat \
+ && echo '@"%~dp0/busybox" sleep %*' >$PREFIX/bin/sleep.bat \
+ && echo '@"%~dp0/busybox" sort %*' >$PREFIX/bin/sort.bat \
+ && echo '@"%~dp0/busybox" split %*' >$PREFIX/bin/split.bat \
+ && echo '@"%~dp0/busybox" ssl_client %*' >$PREFIX/bin/ssl_client.bat \
+ && echo '@"%~dp0/busybox" stat %*' >$PREFIX/bin/stat.bat \
+ && echo '@"%~dp0/busybox" su %*' >$PREFIX/bin/su.bat \
+ && echo '@"%~dp0/busybox" sum %*' >$PREFIX/bin/sum.bat \
+ && echo '@"%~dp0/busybox" tac %*' >$PREFIX/bin/tac.bat \
+ && echo '@"%~dp0/busybox" tail %*' >$PREFIX/bin/tail.bat \
+ && echo '@"%~dp0/busybox" tar %*' >$PREFIX/bin/tar.bat \
+ && echo '@"%~dp0/busybox" tee %*' >$PREFIX/bin/tee.bat \
+ && echo '@"%~dp0/busybox" test %*' >$PREFIX/bin/test.bat \
+ && echo '@"%~dp0/busybox" time %*' >$PREFIX/bin/time.bat \
+ && echo '@"%~dp0/busybox" timeout %*' >$PREFIX/bin/timeout.bat \
+ && echo '@"%~dp0/busybox" touch %*' >$PREFIX/bin/touch.bat \
+ && echo '@"%~dp0/busybox" tr %*' >$PREFIX/bin/tr.bat \
+ && echo '@"%~dp0/busybox" true %*' >$PREFIX/bin/true.bat \
+ && echo '@"%~dp0/busybox" truncate %*' >$PREFIX/bin/truncate.bat \
+ && echo '@"%~dp0/busybox" ts %*' >$PREFIX/bin/ts.bat \
+ && echo '@"%~dp0/busybox" ttysize %*' >$PREFIX/bin/ttysize.bat \
+ && echo '@"%~dp0/busybox" uname %*' >$PREFIX/bin/uname.bat \
+ && echo '@"%~dp0/busybox" uncompress %*' >$PREFIX/bin/uncompress.bat \
+ && echo '@"%~dp0/busybox" unexpand %*' >$PREFIX/bin/unexpand.bat \
+ && echo '@"%~dp0/busybox" uniq %*' >$PREFIX/bin/uniq.bat \
+ && echo '@"%~dp0/busybox" unix2dos %*' >$PREFIX/bin/unix2dos.bat \
+ && echo '@"%~dp0/busybox" unlink %*' >$PREFIX/bin/unlink.bat \
+ && echo '@"%~dp0/busybox" unlzma %*' >$PREFIX/bin/unlzma.bat \
+ && echo '@"%~dp0/busybox" unlzop %*' >$PREFIX/bin/unlzop.bat \
+ && echo '@"%~dp0/busybox" unxz %*' >$PREFIX/bin/unxz.bat \
+ && echo '@"%~dp0/busybox" unzip %*' >$PREFIX/bin/unzip.bat \
+ && echo '@"%~dp0/busybox" usleep %*' >$PREFIX/bin/usleep.bat \
+ && echo '@"%~dp0/busybox" uudecode %*' >$PREFIX/bin/uudecode.bat \
+ && echo '@"%~dp0/busybox" uuencode %*' >$PREFIX/bin/uuencode.bat \
+ && echo '@"%~dp0/busybox" watch %*' >$PREFIX/bin/watch.bat \
+ && echo '@"%~dp0/busybox" wc %*' >$PREFIX/bin/wc.bat \
+ && echo '@"%~dp0/busybox" wget %*' >$PREFIX/bin/wget.bat \
+ && echo '@"%~dp0/busybox" which %*' >$PREFIX/bin/which.bat \
+ && echo '@"%~dp0/busybox" whoami %*' >$PREFIX/bin/whoami.bat \
+ && echo '@"%~dp0/busybox" whois %*' >$PREFIX/bin/whois.bat \
+ && echo '@"%~dp0/busybox" xargs %*' >$PREFIX/bin/xargs.bat \
+ && echo '@"%~dp0/busybox" xz %*' >$PREFIX/bin/xz.bat \
+ && echo '@"%~dp0/busybox" xzcat %*' >$PREFIX/bin/xzcat.bat \
+ && echo '@"%~dp0/busybox" yes %*' >$PREFIX/bin/yes.bat \
+ && echo '@"%~dp0/busybox" zcat %*' >$PREFIX/bin/zcat.bat
 
 # TODO: Either somehow use $VIM_VERSION or normalize the workdir
 WORKDIR /vim82/src
