@@ -274,6 +274,7 @@ RUN /make-$MAKE_VERSION/configure \
         LDFLAGS="-s"
 RUN make -j$(nproc)
 RUN cp make.exe $PREFIX/bin/
+RUN echo '@"%~dp0/make.exe" %*' >$PREFIX/bin/mingw32-make.bat
 
 WORKDIR /busybox-w32
 RUN make mingw64_defconfig
