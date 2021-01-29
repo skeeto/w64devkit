@@ -13,7 +13,7 @@ ARG MAKE_VERSION=4.2
 ARG MINGW_VERSION=7.0.0
 ARG MPC_VERSION=1.2.1
 ARG MPFR_VERSION=4.1.0
-ARG NASM_VERSION=2.14.02
+ARG NASM_VERSION=2.15.05
 ARG VIM_VERSION=8.2
 
 RUN apt-get update && apt-get install --yes --no-install-recommends \
@@ -31,7 +31,7 @@ RUN curl --insecure --location --remote-name-all \
     https://ftp.gnu.org/gnu/make/make-$MAKE_VERSION.tar.gz \
     https://frippery.org/files/busybox/busybox-w32-$BUSYBOX_VERSION.tgz \
     http://ftp.vim.org/pub/vim/unix/vim-$VIM_VERSION.tar.bz2 \
-    https://www.nasm.us/pub/nasm/releasebuilds/2.14.02/nasm-$NASM_VERSION.tar.xz \
+    https://www.nasm.us/pub/nasm/releasebuilds/$NASM_VERSION/nasm-$NASM_VERSION.tar.xz \
     http://deb.debian.org/debian/pool/main/u/universal-ctags/universal-ctags_0+git$CTAGS_VERSION.orig.tar.gz \
     https://downloads.sourceforge.net/project/mingw-w64/mingw-w64/mingw-w64-release/mingw-w64-v$MINGW_VERSION.tar.bz2
 COPY SHA256SUMS .
