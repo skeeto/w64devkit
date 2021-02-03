@@ -92,21 +92,18 @@ support for Fortran. To build a Fortran compiler, add `fortran` to the
 
 ## Notes
 
-Due to [an old GCC bug][bug], we must build a cross-compiler to
-cross-compile GCC itself because, due to host contamination, GCC can
-only be correctly and safely cross-compiled by a matching version.
-
 Since the development kit is intended to be flexible, light, and
 portable — i.e. run from anywhere, in place, and no installation is
 necessary — the binaries are all optimized for size, not speed.
 
+Due to [an old GCC bug][bug], we must build a cross-compiler to
+cross-compile GCC itself because, due to host contamination, GCC can
+only be correctly and safely cross-compiled by a matching version.
+
 I'd love to include Git, but unfortunately Git's build system doesn't
 quite support cross-compilation, and it's hostile to installation-free
-.zip distribution (lots of symlinks).
-
-It would be nice to have a better shell like Bash. BusyBox's ash is
-limited, and the Windows port is quirky even more limited. Unfortunately,
-neither Bash nor Zsh have native Windows support.
+.zip distribution (lots of symlinks). A decent backup solution would be
+[Quilt][quilt], but it's written in Perl.
 
 What about sanitizer support? That would be fantastic, but unfortunately
 libsanitizer [has not yet been ported from MSVC to Mingw-w64][san]
@@ -142,6 +139,7 @@ binaries.
 [lic2]: https://sourceforge.net/p/mingw-w64/mingw-w64/ci/master/tree/mingw-w64-libraries/winpthreads/COPYING
 [make]: https://www.gnu.org/software/make/
 [nasm]: https://www.nasm.us/
+[quilt]: http://savannah.nongnu.org/projects/quilt
 [san]: http://mingw-w64.org/doku.php/contribute#sanitizers_asan_tsan_usan
 [san2]: https://groups.google.com/forum/#!topic/address-sanitizer/q0e5EBVKZT4
 [vim]: https://www.vim.org/
