@@ -51,6 +51,8 @@ RUN sha256sum -c SHA256SUMS \
 
 # Build cross-compiler
 
+WORKDIR /binutils-$BINUTILS_VERSION
+RUN sed -ri 's/(bfd_boolean insert_timestamp = )/\1!/' ld/emultempl/pe*.em
 WORKDIR /x-binutils
 RUN /binutils-$BINUTILS_VERSION/configure \
         --prefix=/bootstrap \
