@@ -339,7 +339,7 @@ RUN printf "\n===========\nwinpthreads\n===========\n\n" \
         >>$PREFIX/COPYING.MinGW-w64-runtime.txt .
 RUN cat /mingw-w64-v$MINGW_VERSION/mingw-w64-libraries/winpthreads/COPYING \
         >>$PREFIX/COPYING.MinGW-w64-runtime.txt
-RUN printf '@set PATH=%%~dp0\\bin;%%PATH%%\r\n@busybox sh -l\r\n' \
+RUN printf '@set PATH=%%~dp0bin;%%PATH%%\r\n@busybox --install 2>nul\r\n@busybox sh -l\r\n' \
         >$PREFIX/activate.bat
 RUN echo $VERSION >$PREFIX/VERSION.txt
 ENV PREFIX=${PREFIX}
