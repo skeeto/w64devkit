@@ -250,6 +250,7 @@ RUN make -j$(nproc)
 RUN make install
 
 RUN echo '@"%~dp0/gcc.exe" %*' >$PREFIX/bin/cc.bat
+RUN echo '@"%~dp0/gcc.exe" -std=c99 %*' >$PREFIX/bin/c99.bat
 
 # Enable non-broken, standards-compliant formatted output by default
 RUN sed -i '1s/^/#ifndef __USE_MINGW_ANSI_STDIO\n#  define __USE_MINGW_ANSI_STDIO 1\n#endif\n/' \
