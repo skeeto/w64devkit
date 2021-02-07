@@ -48,6 +48,7 @@ RUN sha256sum -c SHA256SUMS \
  && tar xjf mingw-w64-v$MINGW_VERSION.tar.bz2 \
  && tar xJf nasm-$NASM_VERSION.tar.xz \
  && tar xjf vim-$VIM_VERSION.tar.bz2
+COPY alias.c .
 
 # Build cross-compiler
 
@@ -237,7 +238,9 @@ RUN make -j$(nproc)
 RUN make install
 RUN rm -rf $PREFIX/x86_64-w64-mingw32/bin/ $PREFIX/bin/x86_64-w64-mingw32-* \
         $PREFIX/bin/ld.bfd.exe $PREFIX/bin/c++.exe
-RUN echo '@"%~dp0/g++.exe" %*' >$PREFIX/bin/c++.bat
+RUN x86_64-w64-mingw32-gcc -DEXE='L"g++.exe"' -DCMD='L"c++"' \
+        -s -Os -nostdlib -ffreestanding -o $PREFIX/bin/c++.exe \
+        /alias.c -lkernel32
 
 WORKDIR /winpthreads
 RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-libraries/winpthreads/configure \
@@ -251,8 +254,12 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-libraries/winpthreads/configure \
 RUN make -j$(nproc)
 RUN make install
 
-RUN echo '@"%~dp0/gcc.exe" %*' >$PREFIX/bin/cc.bat
-RUN echo '@"%~dp0/gcc.exe" -std=c99 %*' >$PREFIX/bin/c99.bat
+RUN x86_64-w64-mingw32-gcc -DEXE='L"gcc.exe"' -DCMD='L"cc"' \
+        -s -Os -nostdlib -ffreestanding -o $PREFIX/bin/cc.exe \
+        /alias.c -lkernel32
+RUN x86_64-w64-mingw32-gcc -DEXE='L"gcc.exe"' -DCMD='L"cc -std=c99"' \
+        -s -Os -nostdlib -ffreestanding -o $PREFIX/bin/c99.exe \
+        /alias.c -lkernel32
 
 # Enable non-broken, standards-compliant formatted output by default
 RUN sed -i '1s/^/#ifndef __USE_MINGW_ANSI_STDIO\n#  define __USE_MINGW_ANSI_STDIO 1\n#endif\n/' \
@@ -277,7 +284,9 @@ RUN /make-$MAKE_VERSION/configure \
         LDFLAGS="-s"
 RUN make -j$(nproc)
 RUN cp make.exe $PREFIX/bin/
-RUN echo '@"%~dp0/make.exe" %*' >$PREFIX/bin/mingw32-make.bat
+RUN x86_64-w64-mingw32-gcc -DEXE='L"make.exe"' -DCMD='L"make"' \
+        -s -Os -nostdlib -ffreestanding -o $PREFIX/bin/mingw32-make.exe \
+        /alias.c -lkernel32
 
 WORKDIR /busybox-w32
 RUN make mingw64_defconfig
@@ -332,7 +341,7 @@ RUN cp ctags.exe $PREFIX/bin/
 
 WORKDIR /
 RUN rm -rf $PREFIX/share/man/ $PREFIX/share/info/ $PREFIX/share/gcc-*
-COPY README.md Dockerfile SHA256SUMS $PREFIX/
+COPY README.md Dockerfile SHA256SUMS alias.c $PREFIX/
 RUN cp /mingw-w64-v$MINGW_VERSION/COPYING.MinGW-w64-runtime/COPYING.MinGW-w64-runtime.txt \
         $PREFIX/
 RUN printf "\n===========\nwinpthreads\n===========\n\n" \
