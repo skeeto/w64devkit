@@ -42,17 +42,9 @@ inside a console or batch script:
 
     set PATH=c:\path\to\w64devkit\bin;%PATH%
 
-Then to access a small unix environment:
+To start an interactive unix shell:
 
     busybox sh -l
-
-This will expose the rest of busybox's commands without further action.
-However, the unix environment will not be available to other tools such
-as `make` without "installing" BusyBox into the `bin/` directory:
-
-    busybox --install
-
-This step is recommended.
 
 ## Best of class
 
