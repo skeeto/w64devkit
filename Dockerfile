@@ -317,6 +317,8 @@ RUN printf '%s\n' arch ash awk base32 base64 basename bash bunzip2 bzcat \
 
 # TODO: Either somehow use $VIM_VERSION or normalize the workdir
 WORKDIR /vim82/src
+COPY vim-markdown-italics.patch $PREFIX/
+RUN patch -d.. -p1 <$PREFIX/vim-markdown-italics.patch
 RUN make -j$(nproc) -f Make_ming.mak \
         ARCH=x86-64 OPTIMIZE=SIZE STATIC_STDCPLUS=yes HAS_GCC_EH=no \
         UNDER_CYGWIN=yes CROSS=yes CROSS_COMPILE=x86_64-w64-mingw32- \
