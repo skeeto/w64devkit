@@ -290,7 +290,7 @@ RUN x86_64-w64-mingw32-gcc -DEXE='L"make.exe"' -DCMD='L"make"' \
 
 WORKDIR /busybox-w32
 RUN make mingw64_defconfig
-RUN sed -ri 's/^(CONFIG_(XXD|AR|STRINGS|DPKG|DPKG_DEB|TEST2|RPM|VI))=y/\1=n/' \
+RUN sed -ri 's/^(CONFIG_(XXD|AR|STRINGS|DPKG\w*|TEST2|RPM\w*|VI|FTP\w*))=y/\1=n/' \
         .config
 RUN sed -i '/\\007/d' libbb/lineedit.c
 RUN make -j$(nproc)
@@ -300,16 +300,16 @@ RUN cp busybox.exe $PREFIX/bin/
 RUN printf '%s\n' arch ash awk base32 base64 basename bash bunzip2 bzcat \
       bzip2 cal cat chattr chmod cksum clear cmp comm cp cpio cut date dc \
       dd df diff dirname dos2unix du echo ed egrep env expand expr factor \
-      false fgrep find fold fsync ftpget ftpput getopt grep groups gunzip \
-      gzip hd head hexdump httpd iconv id inotifyd install ipcalc kill \
-      killall less link ln logname ls lsattr lzcat lzma lzop lzopcat man \
-      md5sum mkdir mktemp mv nc nl od paste patch pgrep pidof pipe_progress \
-      pkill printenv printf ps pwd readlink realpath reset rev rm rmdir \
-      rpm2cpio sed seq sh sha1sum sha256sum sha3sum sha512sum shred shuf \
-      sleep sort split ssl_client stat su sum tac tail tar tee test time \
-      timeout touch tr true truncate ts ttysize uname uncompress unexpand \
-      uniq unix2dos unlink unlzma unlzop unxz unzip usleep uudecode \
-      uuencode watch wc wget which whoami whois xargs xz xzcat yes zcat \
+      false fgrep find fold fsync getopt grep groups gunzip gzip hd head \
+      hexdump httpd iconv id inotifyd install ipcalc kill killall less link \
+      ln logname ls lsattr lzcat lzma lzop lzopcat man md5sum mkdir mktemp \
+      mv nc nl od paste patch pgrep pidof pipe_progress pkill printenv \
+      printf ps pwd readlink realpath reset rev rm rmdir sed seq sh sha1sum \
+      sha256sum sha3sum sha512sum shred shuf sleep sort split ssl_client \
+      stat su sum tac tail tar tee test time timeout touch tr true truncate \
+      ts ttysize uname uncompress unexpand uniq unix2dos unlink unlzma \
+      unlzop unxz unzip usleep uudecode uuencode watch wc wget which whoami \
+      whois xargs xz xzcat yes zcat \
     | xargs -I{} -P$(nproc) \
           x86_64-w64-mingw32-gcc -DEXE='L"busybox.exe"' -DCMD="L\"{}\"" \
             -s -Os -nostdlib -ffreestanding -o $PREFIX/bin/{}.exe \
