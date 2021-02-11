@@ -2,8 +2,8 @@
 
 w64devkit is a Dockerfile that builds from source a small, portable
 development suite for creating C and C++ applications on and for x64
-Windows. **It is the highest quality native toolchain for C, C++, and
-Fortran currently available on Windows.**
+Windows. It is the highest quality native toolchain for C, C++, and
+Fortran currently available on Windows.
 
 Included tools:
 
@@ -44,25 +44,28 @@ inside a console or batch script:
 
 To start an interactive unix shell:
 
-    busybox sh -l
+    sh -l
 
 ## Best of class
 
-What makes w64devkit the best? It is the *only* production-grade, native
+What makes w64devkit the best? It is the only production-grade, native
 toolchain for Windows which:
 
 * Does not require installation. Run it anywhere as any user.
 
 * Does not require internet access during installation. The installers for
-  other toolchains are actually downloaders, and so must be online for at
-  least part of their installation process.
+  other toolchains are actually downloaders, or otherwise call home, and
+  so must be online for at least part of their installation process.
 
-* Supports C99 by default. The others have incomplete support or require
+It's one of a few that:
+
+* Supports C99 by default. Most others have incomplete support or require
   esoteric configurations in order to enable it.
 
-It's the only MinGW / Mingw-w64 distribution that produces binaries that
-do not depend on extra runtime DLLs. You will never need to distribute a
-DLL with your binary unless you explicitly choose to do so.
+* It's one of the few that supports static linking for the entire runtime.
+
+Finally it's by far the easiest toolchain to bootstrap, meaning it's the
+easiest to tweak and adjust for your own requirements.
 
 ## Optimized for size
 
@@ -95,7 +98,7 @@ only be correctly and safely cross-compiled by a matching version.
 I'd love to include Git, but unfortunately Git's build system doesn't
 quite support cross-compilation, and it's hostile to installation-free
 .zip distribution (lots of symlinks). A decent backup solution would be
-[Quilt][quilt], but it's written in Perl.
+[Quilt][quilt], but it's written in Bash and Perl.
 
 What about sanitizer support? That would be fantastic, but unfortunately
 libsanitizer [has not yet been ported from MSVC to Mingw-w64][san]
