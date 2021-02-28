@@ -362,6 +362,12 @@ RUN cp ctags.exe $PREFIX/bin/
 
 WORKDIR /
 RUN rm -rf $PREFIX/share/man/ $PREFIX/share/info/ $PREFIX/share/gcc-*
+COPY src/w64devkit.c src/w64devkit.ico $PREFIX/src/
+RUN printf "id ICON \"$PREFIX/src/w64devkit.ico\"" >w64devkit.rc \
+ && x86_64-w64-mingw32-windres -o w64devkit.o w64devkit.rc \
+ && x86_64-w64-mingw32-gcc -s -Os -nostdlib -ffreestanding \
+        -o $PREFIX/w64devkit.exe $PREFIX/src/w64devkit.c w64devkit.o \
+        -lkernel32
 COPY README.md Dockerfile $PREFIX/
 RUN cp /mingw-w64-v$MINGW_VERSION/COPYING.MinGW-w64-runtime/COPYING.MinGW-w64-runtime.txt \
         $PREFIX/

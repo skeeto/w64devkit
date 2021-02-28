@@ -32,10 +32,10 @@ internet connection during the first couple minutes of the build.
 ## Usage
 
 The final .zip file contains tools in a typical unix-like configuration.
-Unzip the contents anywhere. Inside is an `activate.bat` that launches a
-console window with the environment configured and ready to go. It is the
-easiest way to enter the development environment, and requires no system
-changes.
+Unzip the contents anywhere. Inside is `w64devkit.exe` (or `activate.bat`)
+that launches a console window with the environment configured and ready
+to go. It is the easiest way to enter the development environment, and
+requires no system changes.
 
 Alternatively, add the `bin/` directory to your path. For example, while
 inside a console or batch script:
