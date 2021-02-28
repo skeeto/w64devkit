@@ -238,7 +238,7 @@ RUN make -j$(nproc)
 RUN make install
 RUN rm -rf $PREFIX/x86_64-w64-mingw32/bin/ $PREFIX/bin/x86_64-w64-mingw32-* \
         $PREFIX/bin/ld.bfd.exe $PREFIX/bin/c++.exe
-RUN x86_64-w64-mingw32-gcc -DEXE='L"g++.exe"' -DCMD='L"c++"' \
+RUN x86_64-w64-mingw32-gcc -DEXE=g++.exe -DCMD=c++ \
         -s -Os -nostdlib -ffreestanding -o $PREFIX/bin/c++.exe \
         $PREFIX/alias.c -lkernel32
 
@@ -254,10 +254,10 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-libraries/winpthreads/configure \
 RUN make -j$(nproc)
 RUN make install
 
-RUN x86_64-w64-mingw32-gcc -DEXE='L"gcc.exe"' -DCMD='L"cc"' \
+RUN x86_64-w64-mingw32-gcc -DEXE=gcc.exe -DCMD=cc \
         -s -Os -nostdlib -ffreestanding -o $PREFIX/bin/cc.exe \
         $PREFIX/alias.c -lkernel32
-RUN x86_64-w64-mingw32-gcc -DEXE='L"gcc.exe"' -DCMD='L"cc -std=c99"' \
+RUN x86_64-w64-mingw32-gcc -DEXE=gcc.exe -DCMD="cc -std=c99" \
         -s -Os -nostdlib -ffreestanding -o $PREFIX/bin/c99.exe \
         $PREFIX/alias.c -lkernel32
 
@@ -284,7 +284,7 @@ RUN /make-$MAKE_VERSION/configure \
         LDFLAGS="-s"
 RUN make -j$(nproc)
 RUN cp make.exe $PREFIX/bin/
-RUN x86_64-w64-mingw32-gcc -DEXE='L"make.exe"' -DCMD='L"make"' \
+RUN x86_64-w64-mingw32-gcc -DEXE=make.exe -DCMD=make \
         -s -Os -nostdlib -ffreestanding -o $PREFIX/bin/mingw32-make.exe \
         $PREFIX/alias.c -lkernel32
 
@@ -311,7 +311,7 @@ RUN printf '%s\n' arch ash awk base32 base64 basename bash bunzip2 bzcat \
       unlzop unxz unzip usleep uudecode uuencode watch wc wget which whoami \
       whois xargs xz xzcat yes zcat \
     | xargs -I{} -P$(nproc) \
-          x86_64-w64-mingw32-gcc -DEXE='L"busybox.exe"' -DCMD="L\"{}\"" \
+          x86_64-w64-mingw32-gcc -DEXE=busybox.exe -DCMD={} \
             -s -Os -nostdlib -ffreestanding -o $PREFIX/bin/{}.exe \
             $PREFIX/alias.c -lkernel32
 

@@ -5,7 +5,7 @@
  * EXE as the target executable, and define CMD as the argv[0] replacement,
  * including additional arguments. Example:
  *
- *   $ gcc -DEXE='L"target.exe"' -DCMD='L"argv0 argv1..."' \
+ *   $ gcc -DEXE="target.exe" -DCMD="argv0 argv1..." \
  *         -s -Os -nostdlib -ffreestanding -o alias.exe alias.c -lkernel32
  *
  * Program is compiled freestanding in order to be as small as possible.
@@ -14,6 +14,10 @@
 
 #define FATAL "fatal: w64devkit alias failed\n"
 #define COUNTOF(a) (sizeof(a) / sizeof(0[a]))
+#define LSTR(s) XSTR(s)
+#define XSTR(s) L ## # s
+#define LEXE LSTR(EXE)
+#define LCMD LSTR(CMD)
 
 static size_t
 xstrlen(WCHAR *s)
@@ -76,18 +80,18 @@ int WINAPI
 mainCRTStartup(void)
 {
     /* Replace alias module with adjacent target. */
-    WCHAR exe[MAX_PATH + COUNTOF(EXE)];
+    WCHAR exe[MAX_PATH + COUNTOF(LEXE)];
     GetModuleFileNameW(0, exe, MAX_PATH);
     WCHAR *file = findfile(exe);
-    xmemcpy(file, EXE, sizeof(EXE));
+    xmemcpy(file, LEXE, sizeof(LEXE));
 
     /* Produce a new command line string with new argv[0]. */
     WCHAR *args = findargs(GetCommandLineW());
     size_t argslen = xstrlen(args);
-    size_t cmdlen = COUNTOF(CMD) + argslen - 1;
+    size_t cmdlen = COUNTOF(LCMD) + argslen - 1;
     WCHAR *cmd = HeapAlloc(GetProcessHeap(), 0, sizeof(WCHAR)*cmdlen);
-    xmemcpy(cmd, CMD, sizeof(WCHAR)*(COUNTOF(CMD) - 1));
-    xmemcpy(cmd + COUNTOF(CMD) - 1, args, sizeof(WCHAR)*argslen);
+    xmemcpy(cmd, LCMD, sizeof(WCHAR)*(COUNTOF(LCMD) - 1));
+    xmemcpy(cmd + COUNTOF(LCMD) - 1, args, sizeof(WCHAR)*argslen);
 
     /* Run target with identical startup but with above changes. */
     STARTUPINFOW si;
