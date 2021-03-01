@@ -34,8 +34,8 @@ RUN curl --insecure --location --remote-name-all \
     https://www.nasm.us/pub/nasm/releasebuilds/$NASM_VERSION/nasm-$NASM_VERSION.tar.xz \
     http://deb.debian.org/debian/pool/main/u/universal-ctags/universal-ctags_0+git$CTAGS_VERSION.orig.tar.gz \
     https://downloads.sourceforge.net/project/mingw-w64/mingw-w64/mingw-w64-release/mingw-w64-v$MINGW_VERSION.tar.bz2
-COPY SHA256SUMS .
-RUN sha256sum -c SHA256SUMS \
+COPY src/SHA256SUMS $PREFIX/src/
+RUN sha256sum -c $PREFIX/src/SHA256SUMS \
  && tar xJf binutils-$BINUTILS_VERSION.tar.xz \
  && tar xzf busybox-w32-$BUSYBOX_VERSION.tgz \
  && tar xzf universal-ctags_0+git$CTAGS_VERSION.orig.tar.gz \
@@ -48,7 +48,7 @@ RUN sha256sum -c SHA256SUMS \
  && tar xjf mingw-w64-v$MINGW_VERSION.tar.bz2 \
  && tar xJf nasm-$NASM_VERSION.tar.xz \
  && tar xjf vim-$VIM_VERSION.tar.bz2
-COPY alias.c $PREFIX/
+COPY src/alias.c $PREFIX/src/
 
 # Build cross-compiler
 
@@ -240,7 +240,7 @@ RUN rm -rf $PREFIX/x86_64-w64-mingw32/bin/ $PREFIX/bin/x86_64-w64-mingw32-* \
         $PREFIX/bin/ld.bfd.exe $PREFIX/bin/c++.exe
 RUN x86_64-w64-mingw32-gcc -DEXE=g++.exe -DCMD=c++ \
         -s -Os -nostdlib -ffreestanding -o $PREFIX/bin/c++.exe \
-        $PREFIX/alias.c -lkernel32
+        $PREFIX/src/alias.c -lkernel32
 
 WORKDIR /winpthreads
 RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-libraries/winpthreads/configure \
@@ -256,10 +256,10 @@ RUN make install
 
 RUN x86_64-w64-mingw32-gcc -DEXE=gcc.exe -DCMD=cc \
         -s -Os -nostdlib -ffreestanding -o $PREFIX/bin/cc.exe \
-        $PREFIX/alias.c -lkernel32
+        $PREFIX/src/alias.c -lkernel32
 RUN x86_64-w64-mingw32-gcc -DEXE=gcc.exe -DCMD="cc -std=c99" \
         -s -Os -nostdlib -ffreestanding -o $PREFIX/bin/c99.exe \
-        $PREFIX/alias.c -lkernel32
+        $PREFIX/src/alias.c -lkernel32
 
 # Enable non-broken, standards-compliant formatted output by default
 RUN sed -i '1s/^/#ifndef __USE_MINGW_ANSI_STDIO\n#  define __USE_MINGW_ANSI_STDIO 1\n#endif\n/' \
@@ -286,7 +286,7 @@ RUN make -j$(nproc)
 RUN cp make.exe $PREFIX/bin/
 RUN x86_64-w64-mingw32-gcc -DEXE=make.exe -DCMD=make \
         -s -Os -nostdlib -ffreestanding -o $PREFIX/bin/mingw32-make.exe \
-        $PREFIX/alias.c -lkernel32
+        $PREFIX/src/alias.c -lkernel32
 
 WORKDIR /busybox-w32
 RUN make mingw64_defconfig
@@ -313,12 +313,12 @@ RUN printf '%s\n' arch ash awk base32 base64 basename bash bunzip2 bzcat \
     | xargs -I{} -P$(nproc) \
           x86_64-w64-mingw32-gcc -DEXE=busybox.exe -DCMD={} \
             -s -Os -nostdlib -ffreestanding -o $PREFIX/bin/{}.exe \
-            $PREFIX/alias.c -lkernel32
+            $PREFIX/src/alias.c -lkernel32
 
 # TODO: Either somehow use $VIM_VERSION or normalize the workdir
 WORKDIR /vim82/src
-COPY vim-markdown-italics.patch $PREFIX/
-RUN patch -d.. -p1 <$PREFIX/vim-markdown-italics.patch
+COPY src/vim-markdown-italics.patch $PREFIX/src/
+RUN patch -d.. -p1 <$PREFIX/src/vim-markdown-italics.patch
 RUN make -j$(nproc) -f Make_ming.mak \
         ARCH=x86-64 OPTIMIZE=SIZE STATIC_STDCPLUS=yes HAS_GCC_EH=no \
         UNDER_CYGWIN=yes CROSS=yes CROSS_COMPILE=x86_64-w64-mingw32- \
@@ -362,7 +362,7 @@ RUN cp ctags.exe $PREFIX/bin/
 
 WORKDIR /
 RUN rm -rf $PREFIX/share/man/ $PREFIX/share/info/ $PREFIX/share/gcc-*
-COPY README.md Dockerfile SHA256SUMS $PREFIX/
+COPY README.md Dockerfile $PREFIX/
 RUN cp /mingw-w64-v$MINGW_VERSION/COPYING.MinGW-w64-runtime/COPYING.MinGW-w64-runtime.txt \
         $PREFIX/
 RUN printf "\n===========\nwinpthreads\n===========\n\n" \
