@@ -1,0 +1,15 @@
+In Mingw-w64 allow __rdtsc to be a macro or a built-in
+
+GCC 11.1.0 now defines __rdtsc as a macro instead of a built-in.
+
+--- a/mingw-w64-crt/intrincs/rdtsc.c
++++ b/mingw-w64-crt/intrincs/rdtsc.c
+@@ -11,7 +11,7 @@
+   #define __has_builtin(x) 0
+ #endif
+ 
+-#if !__has_builtin(__rdtsc)
++#if !defined(__rdtsc) && !__has_builtin(__rdtsc)
+ unsigned __int64 __rdtsc(void)
+ {
+ #ifdef _WIN64

@@ -6,7 +6,7 @@ ARG PREFIX=/w64devkit
 ARG BINUTILS_VERSION=2.36.1
 ARG BUSYBOX_VERSION=FRP-3812-g12e14ebba
 ARG CTAGS_VERSION=20200824
-ARG GCC_VERSION=10.3.0
+ARG GCC_VERSION=11.1.0
 ARG GDB_VERSION=10.1
 ARG GMP_VERSION=6.2.0
 ARG MAKE_VERSION=4.2
@@ -48,7 +48,8 @@ RUN sha256sum -c $PREFIX/src/SHA256SUMS \
  && tar xjf mingw-w64-v$MINGW_VERSION.tar.bz2 \
  && tar xJf nasm-$NASM_VERSION.tar.xz \
  && tar xjf vim-$VIM_VERSION.tar.bz2
-COPY src/alias.c $PREFIX/src/
+COPY src/alias.c src/gcc-11-rdtsc.patch $PREFIX/src/
+RUN patch -d/mingw-w64-v$MINGW_VERSION -p1 <$PREFIX/src/gcc-11-rdtsc.patch
 
 # Build cross-compiler
 
