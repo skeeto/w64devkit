@@ -10,7 +10,7 @@ ARG GCC_VERSION=11.1.0
 ARG GDB_VERSION=10.1
 ARG GMP_VERSION=6.2.0
 ARG MAKE_VERSION=4.2
-ARG MINGW_VERSION=7.0.0
+ARG MINGW_VERSION=8.0.2
 ARG MPC_VERSION=1.2.1
 ARG MPFR_VERSION=4.1.0
 ARG NASM_VERSION=2.15.05
@@ -48,8 +48,7 @@ RUN sha256sum -c $PREFIX/src/SHA256SUMS \
  && tar xjf mingw-w64-v$MINGW_VERSION.tar.bz2 \
  && tar xJf nasm-$NASM_VERSION.tar.xz \
  && tar xjf vim-$VIM_VERSION.tar.bz2
-COPY src/alias.c src/gcc-11-rdtsc.patch $PREFIX/src/
-RUN patch -d/mingw-w64-v$MINGW_VERSION -p1 <$PREFIX/src/gcc-11-rdtsc.patch
+COPY src/alias.c $PREFIX/src/
 
 # Build cross-compiler
 
@@ -261,10 +260,6 @@ RUN x86_64-w64-mingw32-gcc -DEXE=gcc.exe -DCMD=cc \
 RUN x86_64-w64-mingw32-gcc -DEXE=gcc.exe -DCMD="cc -std=c99" \
         -s -Os -nostdlib -ffreestanding -o $PREFIX/bin/c99.exe \
         $PREFIX/src/alias.c -lkernel32
-
-# Enable non-broken, standards-compliant formatted output by default
-RUN sed -i '1s/^/#ifndef __USE_MINGW_ANSI_STDIO\n#  define __USE_MINGW_ANSI_STDIO 1\n#endif\n/' \
-        $PREFIX/x86_64-w64-mingw32/include/_mingw.h
 
 # Build some extra development tools
 
