@@ -285,6 +285,8 @@ RUN x86_64-w64-mingw32-gcc -DEXE=make.exe -DCMD=make \
         $PREFIX/src/alias.c -lkernel32
 
 WORKDIR /busybox-w32
+COPY src/disable-empty-complete.patch $PREFIX/src/
+RUN patch -p1 <$PREFIX/src/disable-empty-complete.patch
 RUN make mingw64_defconfig
 RUN sed -ri 's/^(CONFIG_(XXD|AR|STRINGS|DPKG\w*|TEST2|RPM\w*|VI|FTP\w*))=y/\1=n/' \
         .config
