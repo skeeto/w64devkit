@@ -231,6 +231,9 @@ RUN /gcc-$GCC_VERSION/configure \
         --disable-multilib \
         --disable-nls \
         --enable-mingw-wildcard \
+        CFLAGS_FOR_TARGET="-Os" \
+        CXXFLAGS_FOR_TARGET="-Os" \
+        LDFLAGS_FOR_TARGET="-s" \
         CFLAGS="-Os" \
         CXXFLAGS="-Os" \
         LDFLAGS="-s"
