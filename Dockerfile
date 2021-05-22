@@ -9,7 +9,7 @@ ARG GCC_VERSION=11.2.0
 ARG GDB_VERSION=10.2
 ARG GMP_VERSION=6.2.1
 ARG MAKE_VERSION=4.2
-ARG MINGW_VERSION=8.0.2
+ARG MINGW_VERSION=9.0.0
 ARG MPC_VERSION=1.2.1
 ARG MPFR_VERSION=4.1.0
 ARG NASM_VERSION=2.15.05
@@ -288,7 +288,7 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-tools/gendef/configure \
 WORKDIR /gdb
 RUN /gdb-$GDB_VERSION/configure \
         --host=$ARCH \
-        CFLAGS="-Os" \
+        CFLAGS="-Os -D_WIN32_WINNT=0x502" \
         CXXFLAGS="-Os" \
         LDFLAGS="-s" \
  && make MAKEINFO=true -j$(nproc) \
@@ -320,6 +320,7 @@ RUN cat $PREFIX/src/busybox-*.patch | patch -p1 \
  && sed -ri 's/^(CONFIG_VI)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_XXD)=y/\1=n/' .config \
  && make -j$(nproc) CROSS_COMPILE=$ARCH- \
+    CONFIG_EXTRA_CFLAGS="-D_WIN32_WINNT=0x502" \
  && cp busybox.exe $PREFIX/bin/
 
 # Create BusyBox command aliases (like "busybox --install")
