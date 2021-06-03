@@ -266,6 +266,14 @@ RUN x86_64-w64-mingw32-gcc -DEXE=gcc.exe -DCMD="cc -std=c99" \
 
 # Build some extra development tools
 
+WORKDIR /mingw-tools/gendef
+RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-tools/gendef/configure \
+        --host=x86_64-w64-mingw32 \
+        CFLAGS="-Os" \
+        LDFLAGS="-s"
+RUN make -j$(nproc)
+RUN cp gendef.exe $PREFIX/bin/
+
 WORKDIR /gdb
 RUN /gdb-$GDB_VERSION/configure \
         --host=x86_64-w64-mingw32 \
