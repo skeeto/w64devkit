@@ -341,7 +341,7 @@ RUN rm -rf ../runtime/tutor/tutor.*
 RUN cp -r ../runtime $PREFIX/share/vim
 RUN cp gvim.exe vim.exe $PREFIX/share/vim/
 RUN cp vimrun.exe xxd/xxd.exe $PREFIX/bin
-RUN printf '@set SHELL=\r\n@"%%~dp0/../share/vim/gvim.exe" %%*\r\n' \
+RUN printf '@set SHELL=\r\n@start "" "%%~dp0/../share/vim/gvim.exe" %%*\r\n' \
         >$PREFIX/bin/gvim.bat
 RUN printf '@set SHELL=\r\n@"%%~dp0/../share/vim/vim.exe" %%*\r\n' \
         >$PREFIX/bin/vim.bat
