@@ -3,7 +3,7 @@ FROM debian:buster-slim
 ARG VERSION=1.8.0
 ARG PREFIX=/w64devkit
 
-ARG BINUTILS_VERSION=2.36.1
+ARG BINUTILS_VERSION=2.37
 ARG BUSYBOX_VERSION=FRP-3812-g12e14ebba
 ARG CTAGS_VERSION=20200824
 ARG GCC_VERSION=11.1.0
@@ -54,6 +54,8 @@ COPY src/alias.c $PREFIX/src/
 
 WORKDIR /binutils-$BINUTILS_VERSION
 RUN sed -ri 's/(bfd_boolean insert_timestamp = )/\1!/' ld/emultempl/pe*.em
+COPY src/binutils-fix-uint.patch $PREFIX/src/
+RUN patch -p1 <$PREFIX/src/binutils-fix-uint.patch
 WORKDIR /x-binutils
 RUN /binutils-$BINUTILS_VERSION/configure \
         --prefix=/bootstrap \
