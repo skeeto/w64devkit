@@ -1,6 +1,6 @@
 --- a/libbb/lineedit.c
 +++ b/libbb/lineedit.c
-@@ -864,6 +864,14 @@
+@@ -860,6 +860,14 @@
  	const char *basecmd;
  	char *dirbuf = NULL;
  

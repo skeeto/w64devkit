@@ -1,0 +1,35 @@
+From 54d2ea4b479acb19580f90d70fb94e3329ac5d24 Mon Sep 17 00:00:00 2001
+From: Ron Yorston <rmy@pobox.com>
+Date: Sun, 1 Aug 2021 14:42:02 +0100
+Subject: [PATCH] ash: reset ANSI emulation at prompt
+
+It appears that MSYS2/Cygwin applications turn off virtual terminal
+processing.  This caused literal ANSI escape sequences to be echoed
+in the shell, which assumed the console state it had applied would
+remain unchanged.
+
+Add a call to skip_ansi_emulation(TRUE) before issuing a shell
+prompt to ensure that the state is correct.
+
+GitHub issue #223.
+---
+ shell/ash.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/shell/ash.c b/shell/ash.c
+index 08e34d6e7..28f74e8a8 100644
+--- a/shell/ash.c
++++ b/shell/ash.c
+@@ -3005,6 +3005,9 @@ setprompt_if(smallint do_set, int whichprompt)
+ 	default:                        /* 0 */
+ 		prompt = nullstr;
+ 	}
++#if ENABLE_PLATFORM_MINGW32
++	skip_ansi_emulation(TRUE);
++#endif
+ #if ENABLE_ASH_EXPAND_PRMT
+ 	pushstackmark(&smark, stackblocksize());
+ 	putprompt(expandstr(prompt, PSSYNTAX));
+-- 
+2.30.2
+

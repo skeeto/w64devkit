@@ -4,7 +4,7 @@ ARG VERSION=1.8.0
 ARG PREFIX=/w64devkit
 
 ARG BINUTILS_VERSION=2.37
-ARG BUSYBOX_VERSION=FRP-3812-g12e14ebba
+ARG BUSYBOX_VERSION=FRP-4264-gc79f13025
 ARG CTAGS_VERSION=20200824
 ARG GCC_VERSION=11.2.0
 ARG GDB_VERSION=10.2
@@ -298,29 +298,35 @@ RUN x86_64-w64-mingw32-gcc -DEXE=make.exe -DCMD=make \
         $PREFIX/src/alias.c -lkernel32
 
 WORKDIR /busybox-w32
-COPY src/disable-empty-complete.patch $PREFIX/src/
-RUN patch -p1 <$PREFIX/src/disable-empty-complete.patch
+COPY src/busybox-*.patch $PREFIX/src/
+RUN cat $PREFIX/src/busybox-*.patch | patch -p1
 RUN make mingw64_defconfig
-RUN sed -ri 's/^(CONFIG_(XXD|AR|STRINGS|DPKG\w*|TEST2|RPM\w*|VI|FTP\w*))=y/\1=n/' \
-        .config
-RUN sed -i '/\\007/d' libbb/lineedit.c
+RUN sed -ri 's/^(CONFIG_AR)=y/\1=n/' .config \
+ && sed -ri 's/^(CONFIG_ASCII)=y/\1=n/' .config \
+ && sed -ri 's/^(CONFIG_DPKG\w*)=y/\1=n/' .config \
+ && sed -ri 's/^(CONFIG_FTP\w*)=y/\1=n/' .config \
+ && sed -ri 's/^(CONFIG_RPM\w*)=y/\1=n/' .config \
+ && sed -ri 's/^(CONFIG_STRINGS)=y/\1=n/' .config \
+ && sed -ri 's/^(CONFIG_TEST2)=y/\1=n/' .config \
+ && sed -ri 's/^(CONFIG_VI)=y/\1=n/' .config \
+ && sed -ri 's/^(CONFIG_XXD)=y/\1=n/' .config
 RUN make -j$(nproc)
 RUN cp busybox.exe $PREFIX/bin/
 
 # Create BusyBox command aliases (like "busybox --install")
-RUN printf '%s\n' arch ash awk base32 base64 basename bash bunzip2 bzcat \
-      bzip2 cal cat chattr chmod cksum clear cmp comm cp cpio cut date dc \
-      dd df diff dirname dos2unix du echo ed egrep env expand expr factor \
-      false fgrep find fold fsync getopt grep groups gunzip gzip hd head \
-      hexdump httpd iconv id inotifyd install ipcalc kill killall less link \
-      ln logname ls lsattr lzcat lzma lzop lzopcat man md5sum mkdir mktemp \
-      mv nc nl od paste patch pgrep pidof pipe_progress pkill printenv \
-      printf ps pwd readlink realpath reset rev rm rmdir sed seq sh sha1sum \
-      sha256sum sha3sum sha512sum shred shuf sleep sort split ssl_client \
-      stat su sum tac tail tar tee test time timeout touch tr true truncate \
-      ts ttysize uname uncompress unexpand uniq unix2dos unlink unlzma \
-      unlzop unxz unzip usleep uudecode uuencode watch wc wget which whoami \
-      whois xargs xz xzcat yes zcat \
+RUN printf '%s\n' arch ash awk base32 base64 basename bash bc bunzip2 bzcat \
+      bzip2 cal cat chattr chmod cksum clear cmp comm cp cpio crc32 cut date \
+      dc dd df diff dirname dos2unix du echo ed egrep env expand expr factor \
+      false fgrep find fold free fsync getopt grep groups gunzip gzip hd \
+      head hexdump httpd iconv id inotifyd install ipcalc kill killall less \
+      link ln logname ls lsattr lzcat lzma lzop lzopcat man md5sum mkdir \
+      mktemp mv nc nl nproc od paste patch pgrep pidof pipe_progress pkill \
+      printenv printf ps pwd readlink realpath reset rev rm rmdir sed seq sh \
+      sha1sum sha256sum sha3sum sha512sum shred shuf sleep sort split \
+      ssl_client stat su sum sync tac tail tar tee test time timeout touch \
+      tr true truncate ts ttysize uname uncompress unexpand uniq unix2dos \
+      unlink unlzma unlzop unxz unzip uptime usleep uudecode uuencode watch \
+      wc wget which whoami whois xargs xz xzcat yes zcat \
     | xargs -I{} -P$(nproc) \
           x86_64-w64-mingw32-gcc -DEXE=busybox.exe -DCMD={} \
             -s -Os -nostdlib -ffreestanding -o $PREFIX/bin/{}.exe \
