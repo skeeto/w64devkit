@@ -1,4 +1,4 @@
-FROM debian:buster-slim
+FROM debian:bullseye-slim
 
 ARG VERSION=1.8.0 \
     PREFIX=/w64devkit \
