@@ -241,7 +241,7 @@ RUN /gcc-$GCC_VERSION/configure \
 RUN make -j$(nproc)
 RUN make install
 RUN rm -rf $PREFIX/x86_64-w64-mingw32/bin/ $PREFIX/bin/x86_64-w64-mingw32-* \
-        $PREFIX/bin/ld.bfd.exe $PREFIX/bin/c++.exe
+        $PREFIX/bin/ld.bfd.exe $PREFIX/bin/c++.exe $PREFIX/bin/lto-dump.exe
 RUN x86_64-w64-mingw32-gcc -DEXE=g++.exe -DCMD=c++ \
         -s -Os -nostdlib -ffreestanding -o $PREFIX/bin/c++.exe \
         $PREFIX/src/alias.c -lkernel32
