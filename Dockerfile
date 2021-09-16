@@ -84,6 +84,7 @@ RUN /gcc-$GCC_VERSION/configure \
         --target=x86_64-w64-mingw32 \
         --enable-static \
         --disable-shared \
+        --with-pic \
         --enable-languages=c,c++ \
         --enable-libgomp \
         --enable-threads=posix \
@@ -218,6 +219,7 @@ RUN /gcc-$GCC_VERSION/configure \
         --host=x86_64-w64-mingw32 \
         --enable-static \
         --disable-shared \
+        --with-pic \
         --with-gmp-include=/deps/include \
         --with-gmp-lib=/deps/lib \
         --with-mpc-include=/deps/include \

@@ -2,8 +2,8 @@
 
 w64devkit is a Dockerfile that builds from source a small, portable
 development suite for creating C and C++ applications on and for x64
-Windows. It is the highest quality native toolchain for C and C++
-currently available on Windows.
+Windows. It is the highest quality native toolchain for C, C++, and
+Fortran currently available on Windows.
 
 Included tools:
 
@@ -78,6 +78,12 @@ improved implementation by setting `__USE_MINGW_ANSI_STDIO` to 0 before
 including any headers.
 
     $ cc -Os -D__USE_MINGW_ANSI_STDIO=0 ...
+
+## Fortran support
+
+Only C and C++ are included by default, but w64devkit also has full
+support for Fortran. To build a Fortran compiler, add `fortran` to the
+`--enable-languages` lines in the Dockerfile.
 
 ## Notes
 
