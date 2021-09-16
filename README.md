@@ -1,9 +1,8 @@
 # Portable C and C++ Development Kit for x64 Windows
 
-w64devkit is a Dockerfile that builds from source a small, portable
+[w64devkit][] is a Dockerfile that builds from source a small, portable
 development suite for creating C and C++ applications on and for x64
-Windows. It is the highest quality native toolchain for C, C++, and
-Fortran currently available on Windows.
+Windows. See "Releases" for pre-built, ready-to-use kits.
 
 Included tools:
 
@@ -15,9 +14,10 @@ Included tools:
 * [Universal Ctags][ctags] : source navigation
 * [NASM][nasm] : x86 assembler
 
-The compilers support pthreads, C++11 threads, and OpenMP. All included
-libraries are static. Docker is not required to use the development kit.
-It's merely a reliable, clean environment for building the kit itself.
+The toolchain includes pthreads, C++11 threads, and OpenMP. All included
+runtime components are static. **Docker/Podman is not required to use the
+development kit**. It's merely a reliable, clean environment for building
+the kit itself.
 
 ## Build
 
@@ -46,26 +46,21 @@ To start an interactive unix shell:
 
     sh -l
 
-## Best of class
+## Main features
 
-What makes w64devkit the best? It is the only production-grade, native
-toolchain for Windows which:
+* No installation required. Run it anywhere as any user. Simply delete
+  when no longer needed.
 
-* Does not require installation. Run it anywhere as any user.
+* Fully offline. No internet access is ever required or attempted.
 
-* Does not require internet access during installation. The installers for
-  other toolchains are actually downloaders, or otherwise call home, and
-  so must be online for at least part of their installation process.
+* A focus on static linking all runtime components. The runtime is
+  optimized for size.
 
-It's one of a few that:
+* Trivial to build from source, meaning it's easy to tweak and adjust any
+  part of the kit for your own requirements.
 
-* Supports C99 by default. Most others have incomplete support or require
-  esoteric configurations in order to enable it.
-
-* It's one of the few that supports static linking for the entire runtime.
-
-Finally it's by far the easiest toolchain to bootstrap, meaning it's the
-easiest to tweak and adjust for your own requirements.
+* [Complements Go](https://nullprogram.com/blog/2021/06/29/) for cgo and
+  bootstrapping.
 
 ## Optimized for size
 
@@ -91,13 +86,8 @@ Since the development kit is intended to be flexible, light, and
 portable — i.e. run from anywhere, in place, and no installation is
 necessary — the binaries are all optimized for size, not speed.
 
-Due to [an old GCC bug][bug], we must build a cross-compiler to
-cross-compile GCC itself because, due to host contamination, GCC can
-only be correctly and safely cross-compiled by a matching version.
-
 I'd love to include Git, but unfortunately Git's build system doesn't
-quite support cross-compilation, and it's hostile to installation-free
-.zip distribution (lots of symlinks). A decent backup solution would be
+quite support cross-compilation. A decent alternative would be
 [Quilt][quilt], but it's written in Bash and Perl.
 
 What about sanitizer support? That would be fantastic, but unfortunately
@@ -126,9 +116,9 @@ binaries.
 
 [bb]: https://frippery.org/busybox/
 [bs]: https://www.rdegges.com/2016/i-dont-give-a-shit-about-licensing/
-[bug]: https://gcc.gnu.org/legacy-ml/gcc/2017-05/msg00219.html
 [ctags]: https://github.com/universal-ctags/ctags
 [gdb]: https://www.gnu.org/software/gdb/
+[go]: https://nullprogram.com/blog/2021/06/29/
 [gpl]: https://www.gnu.org/licenses/gcc-exception-3.1.en.html
 [lic1]: https://sourceforge.net/p/mingw-w64/mingw-w64/ci/master/tree/COPYING.MinGW-w64-runtime/COPYING.MinGW-w64-runtime.txt
 [lic2]: https://sourceforge.net/p/mingw-w64/mingw-w64/ci/master/tree/mingw-w64-libraries/winpthreads/COPYING
@@ -139,4 +129,5 @@ binaries.
 [san2]: https://groups.google.com/forum/#!topic/address-sanitizer/q0e5EBVKZT4
 [vim]: https://www.vim.org/
 [w64]: http://mingw-w64.org/
+[w64devkit]: https://github.com/skeeto/w64devkit
 [zip]: https://tanzu.vmware.com/content/blog/barriers-to-deterministic-reproducible-zip-files
