@@ -67,6 +67,10 @@ RUN /binutils-$BINUTILS_VERSION/configure \
 RUN make -j$(nproc)
 RUN make install
 
+# Fixes i686 Windows XP regression
+# https://sourceforge.net/p/mingw-w64/bugs/821/
+RUN sed -i /OpenThreadToken/d /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/lib32/kernel32.def
+
 WORKDIR /x-mingw-headers
 RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-headers/configure \
         --prefix=/bootstrap/x86_64-w64-mingw32 \
