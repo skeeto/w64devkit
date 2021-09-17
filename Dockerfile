@@ -130,7 +130,6 @@ RUN make install
 
 # Cross-compile GCC
 
-WORKDIR /
 WORKDIR /binutils
 RUN /binutils-$BINUTILS_VERSION/configure \
         --prefix=$PREFIX \
@@ -145,7 +144,6 @@ RUN /binutils-$BINUTILS_VERSION/configure \
 RUN make -j$(nproc)
 RUN make install
 
-WORKDIR /
 WORKDIR /gmp
 RUN /gmp-$GMP_VERSION/configure \
         --prefix=/deps \
@@ -159,7 +157,6 @@ RUN /gmp-$GMP_VERSION/configure \
 RUN make -j$(nproc)
 RUN make install
 
-WORKDIR /
 WORKDIR /mpfr
 RUN /mpfr-$MPFR_VERSION/configure \
         --prefix=/deps \
@@ -173,7 +170,6 @@ RUN /mpfr-$MPFR_VERSION/configure \
 RUN make -j$(nproc)
 RUN make install
 
-WORKDIR /
 WORKDIR /mpc
 RUN /mpc-$MPC_VERSION/configure \
         --prefix=/deps \
@@ -189,7 +185,6 @@ RUN /mpc-$MPC_VERSION/configure \
 RUN make -j$(nproc)
 RUN make install
 
-WORKDIR /
 WORKDIR /mingw-headers
 RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-headers/configure \
         --prefix=$PREFIX/x86_64-w64-mingw32 \
@@ -209,9 +204,8 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
 RUN make -j$(nproc)
 RUN make install
 
-WORKDIR /
-RUN sed -i 's#=/mingw/include#=/include#' gcc-$GCC_VERSION/gcc/config.gcc
 WORKDIR /gcc
+RUN sed -i 's#=/mingw/include#=/include#' /gcc-$GCC_VERSION/gcc/config.gcc
 RUN /gcc-$GCC_VERSION/configure \
         --prefix=$PREFIX \
         --with-sysroot=$PREFIX \
