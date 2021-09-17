@@ -2,6 +2,7 @@ FROM debian:bullseye-slim
 
 ARG VERSION=1.9.0 \
     PREFIX=/w64devkit \
+    ARCH=x86_64-w64-mingw32 \
     BINUTILS_VERSION=2.37 \
     BUSYBOX_VERSION=FRP-4264-gc79f13025 \
     CTAGS_VERSION=20200824 \
@@ -59,7 +60,7 @@ WORKDIR /x-binutils
 RUN /binutils-$BINUTILS_VERSION/configure \
         --prefix=/bootstrap \
         --with-sysroot=/bootstrap \
-        --target=x86_64-w64-mingw32 \
+        --target=$ARCH \
         --disable-nls \
         --enable-static \
         --disable-shared \
@@ -73,19 +74,19 @@ RUN sed -i /OpenThreadToken/d /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/lib32/ker
 
 WORKDIR /x-mingw-headers
 RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-headers/configure \
-        --prefix=/bootstrap/x86_64-w64-mingw32 \
-        --host=x86_64-w64-mingw32
+        --prefix=/bootstrap/$ARCH \
+        --host=$ARCH
 RUN make -j$(nproc)
 RUN make install
 
 WORKDIR /bootstrap
-RUN ln -s x86_64-w64-mingw32 mingw
+RUN ln -s $ARCH mingw
 
 WORKDIR /x-gcc
 RUN /gcc-$GCC_VERSION/configure \
         --prefix=/bootstrap \
         --with-sysroot=/bootstrap \
-        --target=x86_64-w64-mingw32 \
+        --target=$ARCH \
         --enable-static \
         --disable-shared \
         --with-pic \
@@ -106,11 +107,12 @@ ENV PATH="/bootstrap/bin:${PATH}"
 
 WORKDIR /x-mingw-crt
 RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
-        --prefix=/bootstrap/x86_64-w64-mingw32 \
-        --with-sysroot=/bootstrap/x86_64-w64-mingw32 \
-        --host=x86_64-w64-mingw32 \
+        --prefix=/bootstrap/$ARCH \
+        --with-sysroot=/bootstrap/$ARCH \
+        --host=$ARCH \
         --disable-dependency-tracking \
         --disable-lib32 \
+        --enable-lib64 \
         CFLAGS="-Os" \
         LDFLAGS="-s"
 RUN make -j$(nproc)
@@ -118,9 +120,9 @@ RUN make install
 
 WORKDIR /x-winpthreads
 RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-libraries/winpthreads/configure \
-        --prefix=/bootstrap/x86_64-w64-mingw32 \
-        --with-sysroot=/bootstrap/x86_64-w64-mingw32 \
-        --host=x86_64-w64-mingw32 \
+        --prefix=/bootstrap/$ARCH \
+        --with-sysroot=/bootstrap/$ARCH \
+        --host=$ARCH \
         --enable-static \
         --disable-shared \
         CFLAGS="-Os" \
@@ -138,8 +140,8 @@ WORKDIR /binutils
 RUN /binutils-$BINUTILS_VERSION/configure \
         --prefix=$PREFIX \
         --with-sysroot=$PREFIX \
-        --host=x86_64-w64-mingw32 \
-        --target=x86_64-w64-mingw32 \
+        --host=$ARCH \
+        --target=$ARCH \
         --disable-nls \
         --enable-static \
         --disable-shared \
@@ -151,7 +153,7 @@ RUN make install
 WORKDIR /gmp
 RUN /gmp-$GMP_VERSION/configure \
         --prefix=/deps \
-        --host=x86_64-w64-mingw32 \
+        --host=$ARCH \
         --disable-assembly \
         --enable-static \
         --disable-shared \
@@ -164,7 +166,7 @@ RUN make install
 WORKDIR /mpfr
 RUN /mpfr-$MPFR_VERSION/configure \
         --prefix=/deps \
-        --host=x86_64-w64-mingw32 \
+        --host=$ARCH \
         --with-gmp-include=/deps/include \
         --with-gmp-lib=/deps/lib \
         --enable-static \
@@ -177,7 +179,7 @@ RUN make install
 WORKDIR /mpc
 RUN /mpc-$MPC_VERSION/configure \
         --prefix=/deps \
-        --host=x86_64-w64-mingw32 \
+        --host=$ARCH \
         --with-gmp-include=/deps/include \
         --with-gmp-lib=/deps/lib \
         --with-mpfr-include=/deps/include \
@@ -191,18 +193,19 @@ RUN make install
 
 WORKDIR /mingw-headers
 RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-headers/configure \
-        --prefix=$PREFIX/x86_64-w64-mingw32 \
-        --host=x86_64-w64-mingw32
+        --prefix=$PREFIX/$ARCH \
+        --host=$ARCH
 RUN make -j$(nproc)
 RUN make install
 
 WORKDIR /mingw-crt
 RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
-        --prefix=$PREFIX/x86_64-w64-mingw32 \
-        --with-sysroot=$PREFIX/x86_64-w64-mingw32 \
-        --host=x86_64-w64-mingw32 \
+        --prefix=$PREFIX/$ARCH \
+        --with-sysroot=$PREFIX/$ARCH \
+        --host=$ARCH \
         --disable-dependency-tracking \
         --disable-lib32 \
+        --enable-lib64 \
         CFLAGS="-Os" \
         LDFLAGS="-s"
 RUN make -j$(nproc)
@@ -213,8 +216,8 @@ RUN sed -i 's#=/mingw/include#=/include#' /gcc-$GCC_VERSION/gcc/config.gcc
 RUN /gcc-$GCC_VERSION/configure \
         --prefix=$PREFIX \
         --with-sysroot=$PREFIX \
-        --target=x86_64-w64-mingw32 \
-        --host=x86_64-w64-mingw32 \
+        --target=$ARCH \
+        --host=$ARCH \
         --enable-static \
         --disable-shared \
         --with-pic \
@@ -240,17 +243,17 @@ RUN /gcc-$GCC_VERSION/configure \
         LDFLAGS="-s"
 RUN make -j$(nproc)
 RUN make install
-RUN rm -rf $PREFIX/x86_64-w64-mingw32/bin/ $PREFIX/bin/x86_64-w64-mingw32-* \
+RUN rm -rf $PREFIX/$ARCH/bin/ $PREFIX/bin/$ARCH-* \
         $PREFIX/bin/ld.bfd.exe $PREFIX/bin/c++.exe $PREFIX/bin/lto-dump.exe
-RUN x86_64-w64-mingw32-gcc -DEXE=g++.exe -DCMD=c++ \
+RUN $ARCH-gcc -DEXE=g++.exe -DCMD=c++ \
         -s -Os -nostdlib -ffreestanding -o $PREFIX/bin/c++.exe \
         $PREFIX/src/alias.c -lkernel32
 
 WORKDIR /winpthreads
 RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-libraries/winpthreads/configure \
-        --prefix=$PREFIX/x86_64-w64-mingw32 \
-        --with-sysroot=$PREFIX/x86_64-w64-mingw32 \
-        --host=x86_64-w64-mingw32 \
+        --prefix=$PREFIX/$ARCH \
+        --with-sysroot=$PREFIX/$ARCH \
+        --host=$ARCH \
         --enable-static \
         --disable-shared \
         CFLAGS="-Os" \
@@ -258,10 +261,10 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-libraries/winpthreads/configure \
 RUN make -j$(nproc)
 RUN make install
 
-RUN x86_64-w64-mingw32-gcc -DEXE=gcc.exe -DCMD=cc \
+RUN $ARCH-gcc -DEXE=gcc.exe -DCMD=cc \
         -s -Os -nostdlib -ffreestanding -o $PREFIX/bin/cc.exe \
         $PREFIX/src/alias.c -lkernel32
-RUN x86_64-w64-mingw32-gcc -DEXE=gcc.exe -DCMD="cc -std=c99" \
+RUN $ARCH-gcc -DEXE=gcc.exe -DCMD="cc -std=c99" \
         -s -Os -nostdlib -ffreestanding -o $PREFIX/bin/c99.exe \
         $PREFIX/src/alias.c -lkernel32
 
@@ -269,7 +272,7 @@ RUN x86_64-w64-mingw32-gcc -DEXE=gcc.exe -DCMD="cc -std=c99" \
 
 WORKDIR /mingw-tools/gendef
 RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-tools/gendef/configure \
-        --host=x86_64-w64-mingw32 \
+        --host=$ARCH \
         CFLAGS="-Os" \
         LDFLAGS="-s"
 RUN make -j$(nproc)
@@ -277,7 +280,7 @@ RUN cp gendef.exe $PREFIX/bin/
 
 WORKDIR /gdb
 RUN /gdb-$GDB_VERSION/configure \
-        --host=x86_64-w64-mingw32 \
+        --host=$ARCH \
         CFLAGS="-Os" \
         CXXFLAGS="-Os" \
         LDFLAGS="-s"
@@ -286,13 +289,13 @@ RUN cp gdb/gdb.exe $PREFIX/bin/
 
 WORKDIR /make
 RUN /make-$MAKE_VERSION/configure \
-        --host=x86_64-w64-mingw32 \
+        --host=$ARCH \
         --disable-nls \
         CFLAGS="-I/make-$MAKE_VERSION/glob -Os" \
         LDFLAGS="-s"
 RUN make -j$(nproc)
 RUN cp make.exe $PREFIX/bin/
-RUN x86_64-w64-mingw32-gcc -DEXE=make.exe -DCMD=make \
+RUN $ARCH-gcc -DEXE=make.exe -DCMD=make \
         -s -Os -nostdlib -ffreestanding -o $PREFIX/bin/mingw32-make.exe \
         $PREFIX/src/alias.c -lkernel32
 
@@ -309,7 +312,7 @@ RUN sed -ri 's/^(CONFIG_AR)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_TEST2)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_VI)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_XXD)=y/\1=n/' .config
-RUN make -j$(nproc)
+RUN make -j$(nproc) CROSS_COMPILE=$ARCH-
 RUN cp busybox.exe $PREFIX/bin/
 
 # Create BusyBox command aliases (like "busybox --install")
@@ -327,7 +330,7 @@ RUN printf '%s\n' arch ash awk base32 base64 basename bash bc bunzip2 bzcat \
       unlink unlzma unlzop unxz unzip uptime usleep uudecode uuencode watch \
       wc wget which whoami whois xargs xz xzcat yes zcat \
     | xargs -I{} -P$(nproc) \
-          x86_64-w64-mingw32-gcc -DEXE=busybox.exe -DCMD={} \
+          $ARCH-gcc -DEXE=busybox.exe -DCMD={} \
             -s -Os -nostdlib -ffreestanding -o $PREFIX/bin/{}.exe \
             $PREFIX/src/alias.c -lkernel32
 
@@ -335,13 +338,13 @@ RUN printf '%s\n' arch ash awk base32 base64 basename bash bc bunzip2 bzcat \
 WORKDIR /vim82/src
 COPY src/vim-markdown-italics.patch $PREFIX/src/
 RUN patch -d.. -p1 <$PREFIX/src/vim-markdown-italics.patch
-RUN make -j$(nproc) -f Make_ming.mak \
-        ARCH=x86-64 OPTIMIZE=SIZE STATIC_STDCPLUS=yes HAS_GCC_EH=no \
-        UNDER_CYGWIN=yes CROSS=yes CROSS_COMPILE=x86_64-w64-mingw32- \
+RUN ARCH= make -j$(nproc) -f Make_ming.mak \
+        OPTIMIZE=SIZE STATIC_STDCPLUS=yes HAS_GCC_EH=no \
+        UNDER_CYGWIN=yes CROSS=yes CROSS_COMPILE=$ARCH- \
         FEATURES=HUGE OLE=no IME=no NETBEANS=no WINDRES_FLAGS=
-RUN make -j$(nproc) -f Make_ming.mak \
-        ARCH=x86-64 OPTIMIZE=SIZE STATIC_STDCPLUS=yes HAS_GCC_EH=no \
-        UNDER_CYGWIN=yes CROSS=yes CROSS_COMPILE=x86_64-w64-mingw32- \
+RUN ARCH= make -j$(nproc) -f Make_ming.mak \
+        OPTIMIZE=SIZE STATIC_STDCPLUS=yes HAS_GCC_EH=no \
+        UNDER_CYGWIN=yes CROSS=yes CROSS_COMPILE=$ARCH- \
         FEATURES=HUGE OLE=no IME=no NETBEANS=no WINDRES_FLAGS= \
         GUI=no vim.exe
 RUN rm -rf ../runtime/tutor/tutor.*
@@ -361,7 +364,7 @@ RUN printf '@vim -N -u NONE "+read %s" "+write" "%s"\r\n' \
 # NOTE: nasm's configure script is broken, so no out-of-source build
 WORKDIR /nasm-$NASM_VERSION
 RUN ./configure \
-        --host=x86_64-w64-mingw32 \
+        --host=$ARCH \
         CFLAGS="-Os" \
         LDFLAGS="-s"
 RUN make -j$(nproc)
@@ -370,7 +373,7 @@ RUN cp nasm.exe ndisasm.exe $PREFIX/bin
 WORKDIR /ctags-master
 RUN make -j$(nproc) -f mk_mingw.mak CC=gcc packcc.exe
 RUN make -j$(nproc) -f mk_mingw.mak \
-        CC=x86_64-w64-mingw32-gcc WINDRES=x86_64-w64-mingw32-windres \
+        CC=$ARCH-gcc WINDRES=$ARCH-windres \
         OPT= CFLAGS=-Os LDFLAGS=-s
 RUN cp ctags.exe $PREFIX/bin/
 
@@ -380,8 +383,8 @@ WORKDIR /
 RUN rm -rf $PREFIX/share/man/ $PREFIX/share/info/ $PREFIX/share/gcc-*
 COPY src/w64devkit.c src/w64devkit.ico $PREFIX/src/
 RUN printf "id ICON \"$PREFIX/src/w64devkit.ico\"" >w64devkit.rc \
- && x86_64-w64-mingw32-windres -o w64devkit.o w64devkit.rc \
- && x86_64-w64-mingw32-gcc -s -Os -nostdlib -ffreestanding \
+ && $ARCH-windres -o w64devkit.o w64devkit.rc \
+ && $ARCH-gcc -s -Os -nostdlib -ffreestanding \
         -o $PREFIX/w64devkit.exe $PREFIX/src/w64devkit.c w64devkit.o \
         -lkernel32
 COPY README.md Dockerfile $PREFIX/
