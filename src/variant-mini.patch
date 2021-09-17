@@ -1,0 +1,24 @@
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -227,7 +227,7 @@ RUN /gcc-$GCC_VERSION/configure \
+         --with-mpc-lib=/deps/lib \
+         --with-mpfr-include=/deps/include \
+         --with-mpfr-lib=/deps/lib \
+-        --enable-languages=c,c++ \
++        --enable-languages=c \
+         --enable-libgomp \
+         --enable-threads=posix \
+         --enable-version-specific-runtime-libs \
+@@ -244,10 +244,8 @@ RUN /gcc-$GCC_VERSION/configure \
+ RUN make -j$(nproc)
+ RUN make install
+ RUN rm -rf $PREFIX/$ARCH/bin/ $PREFIX/bin/$ARCH-* \
+-        $PREFIX/bin/ld.bfd.exe $PREFIX/bin/c++.exe $PREFIX/bin/lto-dump.exe
+-RUN $ARCH-gcc -DEXE=g++.exe -DCMD=c++ \
+-        -s -Os -nostdlib -ffreestanding -o $PREFIX/bin/c++.exe \
+-        $PREFIX/src/alias.c -lkernel32
++        $PREFIX/bin/ld.bfd.exe $PREFIX/bin/c++.exe $PREFIX/bin/lto-dump.exe \
++        $PREFIX/bin/c++filt.exe
+ 
+ WORKDIR /winpthreads
+ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-libraries/winpthreads/configure \

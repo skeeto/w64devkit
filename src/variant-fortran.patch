@@ -1,0 +1,20 @@
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -90,7 +90,7 @@ RUN /gcc-$GCC_VERSION/configure \
+         --enable-static \
+         --disable-shared \
+         --with-pic \
+-        --enable-languages=c,c++ \
++        --enable-languages=c,c++,fortran \
+         --enable-libgomp \
+         --enable-threads=posix \
+         --enable-version-specific-runtime-libs \
+@@ -227,7 +227,7 @@ RUN /gcc-$GCC_VERSION/configure \
+         --with-mpc-lib=/deps/lib \
+         --with-mpfr-include=/deps/include \
+         --with-mpfr-lib=/deps/lib \
+-        --enable-languages=c,c++ \
++        --enable-languages=c,c++,fortran \
+         --enable-libgomp \
+         --enable-threads=posix \
+         --enable-version-specific-runtime-libs \

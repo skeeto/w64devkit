@@ -1,0 +1,35 @@
+diff --git a/Dockerfile b/Dockerfile
+index 3abe79d..b2a4b97 100644
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -2,7 +2,7 @@ FROM debian:bullseye-slim
+ 
+ ARG VERSION=1.9.0 \
+     PREFIX=/w64devkit \
+-    ARCH=x86_64-w64-mingw32 \
++    ARCH=i686-w64-mingw32 \
+     BINUTILS_VERSION=2.37 \
+     BUSYBOX_VERSION=FRP-4264-gc79f13025 \
+     CTAGS_VERSION=20200824 \
+@@ -111,8 +111,8 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
+         --with-sysroot=/bootstrap/$ARCH \
+         --host=$ARCH \
+         --disable-dependency-tracking \
+-        --disable-lib32 \
+-        --enable-lib64 \
++        --enable-lib32 \
++        --disable-lib64 \
+         CFLAGS="-Os" \
+         LDFLAGS="-s"
+ RUN make -j$(nproc)
+@@ -204,8 +204,8 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
+         --with-sysroot=$PREFIX/$ARCH \
+         --host=$ARCH \
+         --disable-dependency-tracking \
+-        --disable-lib32 \
+-        --enable-lib64 \
++        --enable-lib32 \
++        --disable-lib64 \
+         CFLAGS="-Os" \
+         LDFLAGS="-s"
+ RUN make -j$(nproc)
