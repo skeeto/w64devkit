@@ -371,6 +371,7 @@ RUN make -j$(nproc)
 RUN cp nasm.exe ndisasm.exe $PREFIX/bin
 
 WORKDIR /ctags-master
+RUN sed -i /RT_MANIFEST/d win32/ctags.rc
 RUN make -j$(nproc) -f mk_mingw.mak CC=gcc packcc.exe
 RUN make -j$(nproc) -f mk_mingw.mak \
         CC=$ARCH-gcc WINDRES=$ARCH-windres \
