@@ -260,12 +260,20 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-libraries/winpthreads/configure \
  && make -j$(nproc) \
  && make install
 
+# Create various tool aliases
 RUN $ARCH-gcc -DEXE=gcc.exe -DCMD=cc \
         -s -Os -nostdlib -ffreestanding -o $PREFIX/bin/cc.exe \
         $PREFIX/src/alias.c -lkernel32 \
  && $ARCH-gcc -DEXE=gcc.exe -DCMD="cc -std=c99" \
         -s -Os -nostdlib -ffreestanding -o $PREFIX/bin/c99.exe \
-        $PREFIX/src/alias.c -lkernel32
+        $PREFIX/src/alias.c -lkernel32 \
+ && printf '%s\n' addr2line ar as c++filt cpp dlltool dllwrap elfedit g++ \
+      gcc gcc-ar gcc-nm gcc-ranlib gcov gcov-dump gcov-tool ld nm objcopy \
+      objdump ranlib readelf size strings strip windmc windres \
+    | xargs -I{} -P$(nproc) \
+          $ARCH-gcc -DEXE={}.exe -DCMD=$ARCH-{} \
+            -s -Os -nostdlib -ffreestanding -o $PREFIX/bin/$ARCH-{}.exe \
+            $PREFIX/src/alias.c -lkernel32
 
 # Build some extra development tools
 
