@@ -47,7 +47,7 @@ RUN sha256sum -c $PREFIX/src/SHA256SUMS \
  && tar xjf mingw-w64-v$MINGW_VERSION.tar.bz2 \
  && tar xJf nasm-$NASM_VERSION.tar.xz \
  && tar xjf vim-$VIM_VERSION.tar.bz2
-COPY src/alias.c $PREFIX/src/
+COPY src/w64devkit.c src/w64devkit.ico src/alias.c $PREFIX/src/
 
 ARG ARCH=x86_64-w64-mingw32
 
@@ -64,9 +64,9 @@ RUN /binutils-$BINUTILS_VERSION/configure \
         --target=$ARCH \
         --disable-nls \
         --with-static-standard-libraries \
-        --disable-multilib
-RUN make -j$(nproc)
-RUN make install
+        --disable-multilib \
+ && make -j$(nproc) \
+ && make install
 
 # Fixes i686 Windows XP regression
 # https://sourceforge.net/p/mingw-w64/bugs/821/
@@ -75,9 +75,9 @@ RUN sed -i /OpenThreadToken/d /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/lib32/ker
 WORKDIR /x-mingw-headers
 RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-headers/configure \
         --prefix=/bootstrap/$ARCH \
-        --host=$ARCH
-RUN make -j$(nproc)
-RUN make install
+        --host=$ARCH \
+ && make -j$(nproc) \
+ && make install
 
 WORKDIR /bootstrap
 RUN ln -s $ARCH mingw
@@ -99,9 +99,9 @@ RUN /gcc-$GCC_VERSION/configure \
         --disable-multilib \
         CFLAGS="-Os" \
         CXXFLAGS="-Os" \
-        LDFLAGS="-s"
-RUN make -j$(nproc) all-gcc
-RUN make install-gcc
+        LDFLAGS="-s" \
+ && make -j$(nproc) all-gcc \
+ && make install-gcc
 
 ENV PATH="/bootstrap/bin:${PATH}"
 
@@ -114,9 +114,9 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
         --disable-lib32 \
         --enable-lib64 \
         CFLAGS="-Os" \
-        LDFLAGS="-s"
-RUN make -j$(nproc)
-RUN make install
+        LDFLAGS="-s" \
+ && make -j$(nproc) \
+ && make install
 
 WORKDIR /x-winpthreads
 RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-libraries/winpthreads/configure \
@@ -126,13 +126,13 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-libraries/winpthreads/configure \
         --enable-static \
         --disable-shared \
         CFLAGS="-Os" \
-        LDFLAGS="-s"
-RUN make -j$(nproc)
-RUN make install
+        LDFLAGS="-s" \
+ && make -j$(nproc) \
+ && make install
 
 WORKDIR /x-gcc
-RUN make -j$(nproc)
-RUN make install
+RUN make -j$(nproc) \
+ && make install
 
 # Cross-compile GCC
 
@@ -145,9 +145,9 @@ RUN /binutils-$BINUTILS_VERSION/configure \
         --disable-nls \
         --with-static-standard-libraries \
         CFLAGS="-Os" \
-        LDFLAGS="-s"
-RUN make -j$(nproc)
-RUN make install
+        LDFLAGS="-s" \
+ && make -j$(nproc) \
+ && make install
 
 WORKDIR /gmp
 RUN /gmp-$GMP_VERSION/configure \
@@ -158,9 +158,9 @@ RUN /gmp-$GMP_VERSION/configure \
         --disable-shared \
         CFLAGS="-Os" \
         CXXFLAGS="-Os" \
-        LDFLAGS="-s"
-RUN make -j$(nproc)
-RUN make install
+        LDFLAGS="-s" \
+ && make -j$(nproc) \
+ && make install
 
 WORKDIR /mpfr
 RUN /mpfr-$MPFR_VERSION/configure \
@@ -171,9 +171,9 @@ RUN /mpfr-$MPFR_VERSION/configure \
         --enable-static \
         --disable-shared \
         CFLAGS="-Os" \
-        LDFLAGS="-s"
-RUN make -j$(nproc)
-RUN make install
+        LDFLAGS="-s" \
+ && make -j$(nproc) \
+ && make install
 
 WORKDIR /mpc
 RUN /mpc-$MPC_VERSION/configure \
@@ -186,16 +186,16 @@ RUN /mpc-$MPC_VERSION/configure \
         --enable-static \
         --disable-shared \
         CFLAGS="-Os" \
-        LDFLAGS="-s"
-RUN make -j$(nproc)
-RUN make install
+        LDFLAGS="-s" \
+ && make -j$(nproc) \
+ && make install
 
 WORKDIR /mingw-headers
 RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-headers/configure \
         --prefix=$PREFIX/$ARCH \
-        --host=$ARCH
-RUN make -j$(nproc)
-RUN make install
+        --host=$ARCH \
+ && make -j$(nproc) \
+ && make install
 
 WORKDIR /mingw-crt
 RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
@@ -206,13 +206,13 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
         --disable-lib32 \
         --enable-lib64 \
         CFLAGS="-Os" \
-        LDFLAGS="-s"
-RUN make -j$(nproc)
-RUN make install
+        LDFLAGS="-s" \
+ && make -j$(nproc) \
+ && make install
 
 WORKDIR /gcc
-RUN sed -i 's#=/mingw/include#=/include#' /gcc-$GCC_VERSION/gcc/config.gcc
-RUN /gcc-$GCC_VERSION/configure \
+RUN sed -i 's#=/mingw/include#=/include#' /gcc-$GCC_VERSION/gcc/config.gcc \
+ && /gcc-$GCC_VERSION/configure \
         --prefix=$PREFIX \
         --with-sysroot=$PREFIX \
         --target=$ARCH \
@@ -239,12 +239,12 @@ RUN /gcc-$GCC_VERSION/configure \
         LDFLAGS_FOR_TARGET="-s" \
         CFLAGS="-Os" \
         CXXFLAGS="-Os" \
-        LDFLAGS="-s"
-RUN make -j$(nproc)
-RUN make install
-RUN rm -rf $PREFIX/$ARCH/bin/ $PREFIX/bin/$ARCH-* \
-        $PREFIX/bin/ld.bfd.exe $PREFIX/bin/c++.exe $PREFIX/bin/lto-dump.exe
-RUN $ARCH-gcc -DEXE=g++.exe -DCMD=c++ \
+        LDFLAGS="-s" \
+ && make -j$(nproc) \
+ && make install \
+ && rm -rf $PREFIX/$ARCH/bin/ $PREFIX/bin/$ARCH-* \
+        $PREFIX/bin/ld.bfd.exe $PREFIX/bin/c++.exe $PREFIX/bin/lto-dump.exe \
+ && $ARCH-gcc -DEXE=g++.exe -DCMD=c++ \
         -s -Os -nostdlib -ffreestanding -o $PREFIX/bin/c++.exe \
         $PREFIX/src/alias.c -lkernel32
 
@@ -256,14 +256,14 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-libraries/winpthreads/configure \
         --enable-static \
         --disable-shared \
         CFLAGS="-Os" \
-        LDFLAGS="-s"
-RUN make -j$(nproc)
-RUN make install
+        LDFLAGS="-s" \
+ && make -j$(nproc) \
+ && make install
 
 RUN $ARCH-gcc -DEXE=gcc.exe -DCMD=cc \
         -s -Os -nostdlib -ffreestanding -o $PREFIX/bin/cc.exe \
-        $PREFIX/src/alias.c -lkernel32
-RUN $ARCH-gcc -DEXE=gcc.exe -DCMD="cc -std=c99" \
+        $PREFIX/src/alias.c -lkernel32 \
+ && $ARCH-gcc -DEXE=gcc.exe -DCMD="cc -std=c99" \
         -s -Os -nostdlib -ffreestanding -o $PREFIX/bin/c99.exe \
         $PREFIX/src/alias.c -lkernel32
 
@@ -273,36 +273,36 @@ WORKDIR /mingw-tools/gendef
 RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-tools/gendef/configure \
         --host=$ARCH \
         CFLAGS="-Os" \
-        LDFLAGS="-s"
-RUN make -j$(nproc)
-RUN cp gendef.exe $PREFIX/bin/
+        LDFLAGS="-s" \
+ && make -j$(nproc) \
+ && cp gendef.exe $PREFIX/bin/
 
 WORKDIR /gdb
 RUN /gdb-$GDB_VERSION/configure \
         --host=$ARCH \
         CFLAGS="-Os" \
         CXXFLAGS="-Os" \
-        LDFLAGS="-s"
-RUN make -j$(nproc)
-RUN cp gdb/gdb.exe $PREFIX/bin/
+        LDFLAGS="-s" \
+ && make -j$(nproc) \
+ && cp gdb/gdb.exe $PREFIX/bin/
 
 WORKDIR /make
 RUN /make-$MAKE_VERSION/configure \
         --host=$ARCH \
         --disable-nls \
         CFLAGS="-I/make-$MAKE_VERSION/glob -Os" \
-        LDFLAGS="-s"
-RUN make -j$(nproc)
-RUN cp make.exe $PREFIX/bin/
-RUN $ARCH-gcc -DEXE=make.exe -DCMD=make \
+        LDFLAGS="-s" \
+ && make -j$(nproc) \
+ && cp make.exe $PREFIX/bin/ \
+ && $ARCH-gcc -DEXE=make.exe -DCMD=make \
         -s -Os -nostdlib -ffreestanding -o $PREFIX/bin/mingw32-make.exe \
         $PREFIX/src/alias.c -lkernel32
 
 WORKDIR /busybox-w32
 COPY src/busybox-*.patch $PREFIX/src/
-RUN cat $PREFIX/src/busybox-*.patch | patch -p1
-RUN make mingw64_defconfig
-RUN sed -ri 's/^(CONFIG_AR)=y/\1=n/' .config \
+RUN cat $PREFIX/src/busybox-*.patch | patch -p1 \
+ && make mingw64_defconfig \
+ && sed -ri 's/^(CONFIG_AR)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_ASCII)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_DPKG\w*)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_FTP\w*)=y/\1=n/' .config \
@@ -310,9 +310,9 @@ RUN sed -ri 's/^(CONFIG_AR)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_STRINGS)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_TEST2)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_VI)=y/\1=n/' .config \
- && sed -ri 's/^(CONFIG_XXD)=y/\1=n/' .config
-RUN make -j$(nproc) CROSS_COMPILE=$ARCH-
-RUN cp busybox.exe $PREFIX/bin/
+ && sed -ri 's/^(CONFIG_XXD)=y/\1=n/' .config \
+ && make -j$(nproc) CROSS_COMPILE=$ARCH- \
+ && cp busybox.exe $PREFIX/bin/
 
 # Create BusyBox command aliases (like "busybox --install")
 RUN printf '%s\n' arch ash awk base32 base64 basename bash bc bunzip2 bzcat \
@@ -336,27 +336,27 @@ RUN printf '%s\n' arch ash awk base32 base64 basename bash bc bunzip2 bzcat \
 # TODO: Either somehow use $VIM_VERSION or normalize the workdir
 WORKDIR /vim82/src
 COPY src/vim-markdown-italics.patch $PREFIX/src/
-RUN patch -d.. -p1 <$PREFIX/src/vim-markdown-italics.patch
-RUN ARCH= make -j$(nproc) -f Make_ming.mak \
-        OPTIMIZE=SIZE STATIC_STDCPLUS=yes HAS_GCC_EH=no \
-        UNDER_CYGWIN=yes CROSS=yes CROSS_COMPILE=$ARCH- \
-        FEATURES=HUGE OLE=no IME=no NETBEANS=no WINDRES_FLAGS=
-RUN ARCH= make -j$(nproc) -f Make_ming.mak \
+RUN patch -d.. -p1 <$PREFIX/src/vim-markdown-italics.patch \
+ && ARCH= make -j$(nproc) -f Make_ming.mak \
         OPTIMIZE=SIZE STATIC_STDCPLUS=yes HAS_GCC_EH=no \
         UNDER_CYGWIN=yes CROSS=yes CROSS_COMPILE=$ARCH- \
         FEATURES=HUGE OLE=no IME=no NETBEANS=no WINDRES_FLAGS= \
-        GUI=no vim.exe
-RUN rm -rf ../runtime/tutor/tutor.*
-RUN cp -r ../runtime $PREFIX/share/vim
-RUN cp gvim.exe vim.exe $PREFIX/share/vim/
-RUN cp vimrun.exe xxd/xxd.exe $PREFIX/bin
-RUN printf '@set SHELL=\r\n@start "" "%%~dp0/../share/vim/gvim.exe" %%*\r\n' \
-        >$PREFIX/bin/gvim.bat
-RUN printf '@set SHELL=\r\n@"%%~dp0/../share/vim/vim.exe" %%*\r\n' \
-        >$PREFIX/bin/vim.bat
-RUN printf '@set SHELL=\r\n@"%%~dp0/../share/vim/vim.exe" %%*\r\n' \
-        >$PREFIX/bin/vi.bat
-RUN printf '@vim -N -u NONE "+read %s" "+write" "%s"\r\n' \
+ && ARCH= make -j$(nproc) -f Make_ming.mak \
+        OPTIMIZE=SIZE STATIC_STDCPLUS=yes HAS_GCC_EH=no \
+        UNDER_CYGWIN=yes CROSS=yes CROSS_COMPILE=$ARCH- \
+        FEATURES=HUGE OLE=no IME=no NETBEANS=no WINDRES_FLAGS= \
+        GUI=no vim.exe \
+ && rm -rf ../runtime/tutor/tutor.* \
+ && cp -r ../runtime $PREFIX/share/vim \
+ && cp gvim.exe vim.exe $PREFIX/share/vim/ \
+ && cp vimrun.exe xxd/xxd.exe $PREFIX/bin \
+ && printf '@set SHELL=\r\n@start "" "%%~dp0/../share/vim/gvim.exe" %%*\r\n' \
+        >$PREFIX/bin/gvim.bat \
+ && printf '@set SHELL=\r\n@"%%~dp0/../share/vim/vim.exe" %%*\r\n' \
+        >$PREFIX/bin/vim.bat \
+ && printf '@set SHELL=\r\n@"%%~dp0/../share/vim/vim.exe" %%*\r\n' \
+        >$PREFIX/bin/vi.bat \
+ && printf '@vim -N -u NONE "+read %s" "+write" "%s"\r\n' \
         '$VIMRUNTIME/tutor/tutor' '%TMP%/tutor%RANDOM%' \
         >$PREFIX/bin/vimtutor.bat
 
@@ -365,37 +365,36 @@ WORKDIR /nasm-$NASM_VERSION
 RUN ./configure \
         --host=$ARCH \
         CFLAGS="-Os" \
-        LDFLAGS="-s"
-RUN make -j$(nproc)
-RUN cp nasm.exe ndisasm.exe $PREFIX/bin
+        LDFLAGS="-s" \
+ && make -j$(nproc) \
+ && cp nasm.exe ndisasm.exe $PREFIX/bin
 
 WORKDIR /ctags-master
-RUN sed -i /RT_MANIFEST/d win32/ctags.rc
-RUN make -j$(nproc) -f mk_mingw.mak CC=gcc packcc.exe
-RUN make -j$(nproc) -f mk_mingw.mak \
+RUN sed -i /RT_MANIFEST/d win32/ctags.rc \
+ && make -j$(nproc) -f mk_mingw.mak CC=gcc packcc.exe \
+ && make -j$(nproc) -f mk_mingw.mak \
         CC=$ARCH-gcc WINDRES=$ARCH-windres \
-        OPT= CFLAGS=-Os LDFLAGS=-s
-RUN cp ctags.exe $PREFIX/bin/
+        OPT= CFLAGS=-Os LDFLAGS=-s \
+ && cp ctags.exe $PREFIX/bin/
 
 # Pack up a release
 
 WORKDIR /
 RUN rm -rf $PREFIX/share/man/ $PREFIX/share/info/ $PREFIX/share/gcc-*
-COPY src/w64devkit.c src/w64devkit.ico $PREFIX/src/
+COPY README.md Dockerfile $PREFIX/
 RUN printf "id ICON \"$PREFIX/src/w64devkit.ico\"" >w64devkit.rc \
  && $ARCH-windres -o w64devkit.o w64devkit.rc \
  && $ARCH-gcc -s -Os -nostdlib -ffreestanding \
         -o $PREFIX/w64devkit.exe $PREFIX/src/w64devkit.c w64devkit.o \
-        -lkernel32
-COPY README.md Dockerfile $PREFIX/
-RUN cp /mingw-w64-v$MINGW_VERSION/COPYING.MinGW-w64-runtime/COPYING.MinGW-w64-runtime.txt \
-        $PREFIX/
-RUN printf "\n===========\nwinpthreads\n===========\n\n" \
-        >>$PREFIX/COPYING.MinGW-w64-runtime.txt .
-RUN cat /mingw-w64-v$MINGW_VERSION/mingw-w64-libraries/winpthreads/COPYING \
-        >>$PREFIX/COPYING.MinGW-w64-runtime.txt
-RUN printf '@set PATH=%%~dp0bin;%%PATH%%\r\n@busybox sh -l\r\n' \
-        >$PREFIX/activate.bat
-RUN echo $VERSION >$PREFIX/VERSION.txt
+        -lkernel32 \
+ && cp /mingw-w64-v$MINGW_VERSION/COPYING.MinGW-w64-runtime/COPYING.MinGW-w64-runtime.txt \
+        $PREFIX/ \
+ && printf "\n===========\nwinpthreads\n===========\n\n" \
+        >>$PREFIX/COPYING.MinGW-w64-runtime.txt . \
+ && cat /mingw-w64-v$MINGW_VERSION/mingw-w64-libraries/winpthreads/COPYING \
+        >>$PREFIX/COPYING.MinGW-w64-runtime.txt \
+ && printf '@set PATH=%%~dp0bin;%%PATH%%\r\n@busybox sh -l\r\n' \
+        >$PREFIX/activate.bat \
+ && echo $VERSION >$PREFIX/VERSION.txt
 ENV PREFIX=${PREFIX}
 CMD zip -qXr - $PREFIX
