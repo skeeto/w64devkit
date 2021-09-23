@@ -62,8 +62,7 @@ RUN /binutils-$BINUTILS_VERSION/configure \
         --with-sysroot=/bootstrap \
         --target=$ARCH \
         --disable-nls \
-        --enable-static \
-        --disable-shared \
+        --with-static-standard-libraries \
         --disable-multilib
 RUN make -j$(nproc)
 RUN make install
@@ -143,8 +142,7 @@ RUN /binutils-$BINUTILS_VERSION/configure \
         --host=$ARCH \
         --target=$ARCH \
         --disable-nls \
-        --enable-static \
-        --disable-shared \
+        --with-static-standard-libraries \
         CFLAGS="-Os" \
         LDFLAGS="-s"
 RUN make -j$(nproc)
