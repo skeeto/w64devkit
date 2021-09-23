@@ -2,7 +2,6 @@ FROM debian:bullseye-slim
 
 ARG VERSION=1.9.0 \
     PREFIX=/w64devkit \
-    ARCH=x86_64-w64-mingw32 \
     BINUTILS_VERSION=2.37 \
     BUSYBOX_VERSION=FRP-4264-gc79f13025 \
     CTAGS_VERSION=20200824 \
@@ -49,6 +48,8 @@ RUN sha256sum -c $PREFIX/src/SHA256SUMS \
  && tar xJf nasm-$NASM_VERSION.tar.xz \
  && tar xjf vim-$VIM_VERSION.tar.bz2
 COPY src/alias.c $PREFIX/src/
+
+ARG ARCH=x86_64-w64-mingw32
 
 # Build cross-compiler
 

@@ -1,14 +1,14 @@
 --- a/Dockerfile
 +++ b/Dockerfile
-@@ -2,7 +2,7 @@ FROM debian:bullseye-slim
+@@ -49,7 +49,7 @@ RUN sha256sum -c $PREFIX/src/SHA256SUMS \
+  && tar xjf vim-$VIM_VERSION.tar.bz2
+ COPY src/alias.c $PREFIX/src/
  
- ARG VERSION=1.9.0 \
-     PREFIX=/w64devkit \
--    ARCH=x86_64-w64-mingw32 \
-+    ARCH=i686-w64-mingw32 \
-     BINUTILS_VERSION=2.37 \
-     BUSYBOX_VERSION=FRP-4264-gc79f13025 \
-     CTAGS_VERSION=20200824 \
+-ARG ARCH=x86_64-w64-mingw32
++ARG ARCH=i686-w64-mingw32
+ 
+ # Build cross-compiler
+ 
 @@ -87,6 +87,7 @@ RUN /gcc-$GCC_VERSION/configure \
          --prefix=/bootstrap \
          --with-sysroot=/bootstrap \
@@ -28,7 +28,7 @@
          CFLAGS="-Os" \
          LDFLAGS="-s"
  RUN make -j$(nproc)
-@@ -204,8 +205,8 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
+@@ -203,8 +204,8 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
          --with-sysroot=$PREFIX/$ARCH \
          --host=$ARCH \
          --disable-dependency-tracking \
@@ -39,7 +39,7 @@
          CFLAGS="-Os" \
          LDFLAGS="-s"
  RUN make -j$(nproc)
-@@ -218,6 +219,7 @@ RUN /gcc-$GCC_VERSION/configure \
+@@ -217,6 +218,7 @@ RUN /gcc-$GCC_VERSION/configure \
          --with-sysroot=$PREFIX \
          --target=$ARCH \
          --host=$ARCH \
