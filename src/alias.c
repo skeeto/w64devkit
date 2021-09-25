@@ -5,10 +5,13 @@
  * EXE as the target executable, and define CMD as the argv[0] replacement,
  * including additional arguments. Example:
  *
- *   $ gcc -DEXE="target.exe" -DCMD="argv0 argv1..." \
- *         -s -Os -nostdlib -ffreestanding -o alias.exe alias.c -lkernel32
+ *   $ gcc -DEXE="target.exe" -DCMD="argv0 argv1" -Os -ffreestanding \
+ *         -s -nostdlib -Wl,--file-alignment,16,--section-alignment,16 \
+ *         -o alias.exe alias.c -lkernel32
  *
  * Program is compiled freestanding in order to be as small as possible.
+ *
+ * This is free and unencumbered software released into the public domain.
  */
 #include <windows.h>
 

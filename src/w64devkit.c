@@ -1,10 +1,16 @@
 /* Tiny, standalone launcher for w64devkit
- * cc -s -Os -nostdlib -ffreestanding -o w64devkit.exe w64devkit.c -lkernel32
  * This avoids running a misbehaving monitor cmd.exe in the background.
+ *
+ * $ gcc -DVERSION="$VERSION" -Os -ffreestanding -s -nostdlib \
+ *       -o w64devkit.exe w64devkit.c -lkernel32
+ *
+ * This is free and unencumbered software released into the public domain.
  */
 #include <windows.h>
 
 #define COUNTOF(a) (sizeof(a) / sizeof(0[a]))
+#define LSTR(s) XSTR(s)
+#define XSTR(s) L ## # s
 #define MAX_VAR 32767
 
 enum err {ERR_PATH, ERR_EXEC};
@@ -53,6 +59,13 @@ mainCRTStartup(void)
     static const WCHAR bin[] = L"bin;";
     GetModuleFileNameW(0, path, MAX_PATH);
     WCHAR *tail = findfile(path);
+    {
+        /* Set W64DEVKIT_HOME to this module's directory */
+        int save = tail[-1];
+        tail[-1] = 0;
+        SetEnvironmentVariableW(L"W64DEVKIT_HOME", path); // ignore errors
+        tail[-1] = save;
+    }
     lmemmove(tail, bin, COUNTOF(bin));
     size_t binlen = tail - path + COUNTOF(bin) - 1;
 
@@ -61,6 +74,10 @@ mainCRTStartup(void)
     if (!SetEnvironmentVariableW(L"PATH", path)) {
         return fatal(ERR_PATH);
     }
+
+    #ifdef VERSION
+    SetEnvironmentVariableW(L"W64DEVKIT", LSTR(VERSION)); // ignore errors
+    #endif
 
     /* Start a BusyBox login shell */
     STARTUPINFOW si;

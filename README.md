@@ -32,17 +32,18 @@ internet connection during the first couple minutes of the build.
 ## Usage
 
 The final .zip file contains tools in a typical unix-like configuration.
-Unzip the contents anywhere. Inside is `w64devkit.exe` that launches a
+Unzip the contents anywhere. Inside is `w64devkit.exe`, which launches a
 console window with the environment configured and ready to go. It is the
 easiest way to enter the development environment, and requires no system
-changes.
+changes. It also sets two extra environment variables: `W64DEVKIT_HOME` to
+the installation root and `W64DEVKIT` to the version.
 
-Alternatively, add the `bin/` directory to your path. For example, while
-inside a console or batch script:
+Alternatively, add the `bin/` directory to your path. For example, inside
+a `cmd.exe` console or batch script:
 
     set PATH=c:\path\to\w64devkit\bin;%PATH%
 
-To start an interactive unix shell:
+Then to start an interactive unix shell:
 
     sh -l
 

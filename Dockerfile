@@ -393,7 +393,7 @@ RUN rm -rf $PREFIX/share/man/ $PREFIX/share/info/ $PREFIX/share/gcc-* \
 COPY README.md Dockerfile $PREFIX/
 RUN printf "id ICON \"$PREFIX/src/w64devkit.ico\"" >w64devkit.rc \
  && $ARCH-windres -o w64devkit.o w64devkit.rc \
- && $ARCH-gcc -s -Os -nostdlib -ffreestanding \
+ && $ARCH-gcc -DVERSION=$VERSION -Os -ffreestanding -s -nostdlib \
         -o $PREFIX/w64devkit.exe $PREFIX/src/w64devkit.c w64devkit.o \
         -lkernel32 \
  && cp /mingw-w64-v$MINGW_VERSION/COPYING.MinGW-w64-runtime/COPYING.MinGW-w64-runtime.txt \
