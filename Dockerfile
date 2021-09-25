@@ -388,7 +388,8 @@ RUN sed -i /RT_MANIFEST/d win32/ctags.rc \
 # Pack up a release
 
 WORKDIR /
-RUN rm -rf $PREFIX/share/man/ $PREFIX/share/info/ $PREFIX/share/gcc-*
+RUN rm -rf $PREFIX/share/man/ $PREFIX/share/info/ $PREFIX/share/gcc-* \
+ && rm -rf $PREFIX/lib/*.a $PREFIX/lib/*.la $PREFIX/include/*.h
 COPY README.md Dockerfile $PREFIX/
 RUN printf "id ICON \"$PREFIX/src/w64devkit.ico\"" >w64devkit.rc \
  && $ARCH-windres -o w64devkit.o w64devkit.rc \
