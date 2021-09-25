@@ -18,3 +18,12 @@
          --enable-libgomp \
          --enable-threads=posix \
          --enable-version-specific-runtime-libs \
+@@ -269,7 +269,7 @@ RUN $ARCH-gcc -DEXE=gcc.exe -DCMD=cc \
+         $PREFIX/src/alias.c -lkernel32 \
+  && printf '%s\n' addr2line ar as c++filt cpp dlltool dllwrap elfedit g++ \
+       gcc gcc-ar gcc-nm gcc-ranlib gcov gcov-dump gcov-tool ld nm objcopy \
+-      objdump ranlib readelf size strings strip windmc windres \
++      objdump ranlib readelf size strings strip windmc windres gfortran \
+     | xargs -I{} -P$(nproc) \
+           $ARCH-gcc -DEXE={}.exe -DCMD=$ARCH-{} \
+             -s -Os -nostdlib -ffreestanding -o $PREFIX/bin/$ARCH-{}.exe \
