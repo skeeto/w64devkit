@@ -401,8 +401,6 @@ RUN printf "id ICON \"$PREFIX/src/w64devkit.ico\"" >w64devkit.rc \
         >>$PREFIX/COPYING.MinGW-w64-runtime.txt . \
  && cat /mingw-w64-v$MINGW_VERSION/mingw-w64-libraries/winpthreads/COPYING \
         >>$PREFIX/COPYING.MinGW-w64-runtime.txt \
- && printf '@set PATH=%%~dp0bin;%%PATH%%\r\n@busybox sh -l\r\n' \
-        >$PREFIX/activate.bat \
  && echo $VERSION >$PREFIX/VERSION.txt
 ENV PREFIX=${PREFIX}
 CMD zip -qXr - $PREFIX
