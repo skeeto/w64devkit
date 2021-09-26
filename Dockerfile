@@ -16,7 +16,7 @@ ARG VERSION=1.9.0 \
     VIM_VERSION=8.2
 
 RUN apt-get update && apt-get install --yes --no-install-recommends \
-  build-essential curl file libgmp-dev libmpc-dev libmpfr-dev m4 texinfo zip
+  build-essential curl libgmp-dev libmpc-dev libmpfr-dev m4 zip
 
 # Download, verify, and unpack
 
@@ -65,8 +65,8 @@ RUN /binutils-$BINUTILS_VERSION/configure \
         --disable-nls \
         --with-static-standard-libraries \
         --disable-multilib \
- && make -j$(nproc) \
- && make install
+ && make MAKEINFO=true -j$(nproc) \
+ && make MAKEINFO=true install
 
 # Fixes i686 Windows XP regression
 # https://sourceforge.net/p/mingw-w64/bugs/821/
@@ -146,8 +146,8 @@ RUN /binutils-$BINUTILS_VERSION/configure \
         --with-static-standard-libraries \
         CFLAGS="-Os" \
         LDFLAGS="-s" \
- && make -j$(nproc) \
- && make install
+ && make MAKEINFO=true -j$(nproc) \
+ && make MAKEINFO=true install
 
 WORKDIR /gmp
 RUN /gmp-$GMP_VERSION/configure \
@@ -291,7 +291,7 @@ RUN /gdb-$GDB_VERSION/configure \
         CFLAGS="-Os" \
         CXXFLAGS="-Os" \
         LDFLAGS="-s" \
- && make -j$(nproc) \
+ && make MAKEINFO=true -j$(nproc) \
  && cp gdb/gdb.exe $PREFIX/bin/
 
 WORKDIR /make
