@@ -81,6 +81,41 @@ Only C and C++ are included by default, but w64devkit also has full
 support for Fortran. To build a Fortran compiler, add `fortran` to the
 `--enable-languages` lines in the Dockerfile.
 
+## Recommended downloadable, offline documentation
+
+With a few exceptions, such as Vim's built-in documentation (`:help`),
+w64devkit does not include documentation. However, you need not forgo
+offline documentation alongside your offline development tools. This is a
+list of recommended, no-cost, downloadable documentation complementing
+w64devkit's capabilities. In rough order of importance:
+
+* [cppreference][doc-cpp] (HTML), friendly documentation for the C and C++
+  standard libraries.
+
+* [GCC manuals][doc-gcc] (PDF, HTML), to reference GCC features,
+  especially built-ins, intrinsics, and command line switches.
+
+* [Win32 Help File][doc-win32] (CHM) is old, but official, Windows API
+  documentation. Unfortunately much is missing, such as Winsock. (Offline
+  Windows documentation has always been very hard to come by.)
+
+* [C and C++ Standards (drafts)][doc-std] (PDF), for figuring out how
+  corner cases are intended to work.
+
+* [Intel Intrinsics Guide][doc-intr] (interactive HTML), a great resource
+  when working with SIMD intrinsics. (Search for "Download" on the left.)
+
+* [GNU Make manual][doc-make] (PDF, HTML)
+
+* [GDB manual][doc-gdb] (PDF)
+
+* [BusyBox man pages][doc-bb] (TXT), though everything here is also
+  available via `-h` option inside w64devkit.
+
+* [Intel Software Developer Manuals][doc-intel] (PDF), for referencing x86
+  instructions, when either studying compiler output with `objdump`, or
+  writing assembly with `nasm` or `as`.
+
 ## Notes
 
 Since the development kit is intended to be flexible, light, and
@@ -118,6 +153,15 @@ binaries.
 [bb]: https://frippery.org/busybox/
 [bs]: https://www.rdegges.com/2016/i-dont-give-a-shit-about-licensing/
 [ctags]: https://github.com/universal-ctags/ctags
+[doc-bb]: https://busybox.net/downloads/BusyBox.txt
+[doc-cpp]: https://en.cppreference.com/w/Cppreference:Archives
+[doc-gcc]: https://gcc.gnu.org/onlinedocs/
+[doc-gdb]: https://sourceware.org/gdb/current/onlinedocs/gdb.pdf
+[doc-intel]: https://software.intel.com/content/www/us/en/develop/articles/intel-sdm.html
+[doc-intr]: https://software.intel.com/sites/landingpage/IntrinsicsGuide/
+[doc-make]: https://www.gnu.org/software/make/manual/
+[doc-std]: https://stackoverflow.com/a/83763
+[doc-win32]: http://laurencejackson.com/win32/
 [gdb]: https://www.gnu.org/software/gdb/
 [go]: https://nullprogram.com/blog/2021/06/29/
 [gpl]: https://www.gnu.org/licenses/gcc-exception-3.1.en.html
