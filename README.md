@@ -107,10 +107,14 @@ w64devkit's capabilities. In rough order of importance:
 
 * [GNU Make manual][doc-make] (PDF, HTML)
 
+* [GNU Binutils manuals][doc-ld] (PDF, HTML), particularly `ld` and `as`.
+
 * [GDB manual][doc-gdb] (PDF)
 
 * [BusyBox man pages][doc-bb] (TXT), though everything here is also
   available via `-h` option inside w64devkit.
+
+* [NASM manual][doc-nasm] (PDF)
 
 * [Intel Software Developer Manuals][doc-intel] (PDF), for referencing x86
   instructions, when either studying compiler output with `objdump`, or
@@ -159,7 +163,9 @@ binaries.
 [doc-gdb]: https://sourceware.org/gdb/current/onlinedocs/gdb.pdf
 [doc-intel]: https://software.intel.com/content/www/us/en/develop/articles/intel-sdm.html
 [doc-intr]: https://software.intel.com/sites/landingpage/IntrinsicsGuide/
+[doc-ld]: https://sourceware.org/binutils/docs/
 [doc-make]: https://www.gnu.org/software/make/manual/
+[doc-nasm]: https://www.nasm.us/docs.php
 [doc-std]: https://stackoverflow.com/a/83763
 [doc-win32]: http://laurencejackson.com/win32/
 [gdb]: https://www.gnu.org/software/gdb/
