@@ -1,6 +1,6 @@
 FROM debian:bullseye-slim
 
-ARG VERSION=1.9.0 \
+ARG VERSION=1.10.0 \
     PREFIX=/w64devkit \
     BINUTILS_VERSION=2.37 \
     BUSYBOX_VERSION=FRP-4264-gc79f13025 \
