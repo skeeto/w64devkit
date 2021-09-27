@@ -7,7 +7,7 @@ ARG BUSYBOX_VERSION=FRP-4716-g31467ddfc
 ARG CTAGS_VERSION=20200824
 ARG EXPAT_VERSION=2.4.8
 ARG GCC_VERSION=12.2.0
-ARG GDB_VERSION=10.2
+ARG GDB_VERSION=11.1
 ARG GMP_VERSION=6.2.1
 ARG MAKE_VERSION=4.2
 ARG MINGW_VERSION=10.0.0
@@ -318,6 +318,7 @@ WORKDIR /gdb
 RUN /gdb-$GDB_VERSION/configure \
         --host=$ARCH \
         --with-libexpat-prefix=/deps \
+        --with-libgmp-prefix=/deps \
         CFLAGS="-Os -D_WIN32_WINNT=0x502" \
         CXXFLAGS="-Os" \
         LDFLAGS="-s" \
