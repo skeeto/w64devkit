@@ -79,7 +79,7 @@ cleanup() {
     $dryrun git stash pop
     $dryrun docker rmi --no-prune $target || true
 }
-trap cleanup exit
+trap cleanup INT TERM
 
 $dryrun git stash
 for build in $builds; do
@@ -103,3 +103,5 @@ if [ $compact = yes ]; then
     printf "%s$suffix.zip\n" $builds \
         | xargs -I{} -P$(nproc) $dryrun advzip -z4 {}
 fi
+
+cleanup
