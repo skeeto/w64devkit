@@ -2,7 +2,7 @@ FROM debian:bullseye-slim
 
 ARG VERSION=1.11.0
 ARG PREFIX=/w64devkit
-ARG BINUTILS_VERSION=2.37
+ARG BINUTILS_VERSION=2.38
 ARG BUSYBOX_VERSION=FRP-4621-gf3c5e8bc3
 ARG CTAGS_VERSION=20200824
 ARG GCC_VERSION=11.2.0
@@ -54,9 +54,7 @@ ARG ARCH=x86_64-w64-mingw32
 # Build cross-compiler
 
 WORKDIR /binutils-$BINUTILS_VERSION
-RUN sed -ri 's/(bfd_boolean insert_timestamp = )/\1!/' ld/emultempl/pe*.em
-COPY src/binutils-fix-uint.patch $PREFIX/src/
-RUN patch -p1 <$PREFIX/src/binutils-fix-uint.patch
+RUN sed -ri 's/(static bool insert_timestamp = )/\1!/' ld/emultempl/pe*.em
 WORKDIR /x-binutils
 RUN /binutils-$BINUTILS_VERSION/configure \
         --prefix=/bootstrap \
