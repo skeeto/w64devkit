@@ -43,13 +43,10 @@ findargs(WCHAR *s)
 {
     if (s[0] == 34) {
         /* quoted argv[0] */
-        s++;
-        for (int e = 0; ; s++) {
+        for (s++;; s++) {
             switch (*s) {
             case  0: return s;
-            case 34: if (!e) return s + 1; break;
-            case 92: e = !e; break;
-            default: e = 0;
+            case 34: return s + 1;
             }
         }
     } else {
@@ -58,8 +55,6 @@ findargs(WCHAR *s)
             switch (*s) {
             case  0:
             case  9:
-            case 10:
-            case 13:
             case 32: return s;
             }
         }
