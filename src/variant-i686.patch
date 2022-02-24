@@ -15,7 +15,7 @@ index 6904cde..5fd64c0 100644
  RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-headers/configure \
          --prefix=/bootstrap/$ARCH \
          --host=$ARCH \
-+        --with-default-win32-winnt=_WIN32_WINNT_WINXP \
++        --with-default-win32-winnt=0x0501 \
   && make -j$(nproc) \
   && make install
  
@@ -42,7 +42,7 @@ index 6904cde..5fd64c0 100644
  RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-headers/configure \
          --prefix=$PREFIX/$ARCH \
          --host=$ARCH \
-+        --with-default-win32-winnt=_WIN32_WINNT_WINXP \
++        --with-default-win32-winnt=0x0501 \
   && make -j$(nproc) \
   && make install
  
