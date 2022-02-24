@@ -1,3 +1,5 @@
+diff --git a/Dockerfile b/Dockerfile
+index 6904cde..5fd64c0 100644
 --- a/Dockerfile
 +++ b/Dockerfile
 @@ -49,7 +49,7 @@ RUN sha256sum -c $PREFIX/src/SHA256SUMS \
@@ -9,7 +11,15 @@
  
  # Build cross-compiler
  
-@@ -87,6 +87,7 @@ RUN /gcc-$GCC_VERSION/configure \
+@@ -76,6 +76,7 @@ WORKDIR /x-mingw-headers
+ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-headers/configure \
+         --prefix=/bootstrap/$ARCH \
+         --host=$ARCH \
++        --with-default-win32-winnt=_WIN32_WINNT_WINXP \
+  && make -j$(nproc) \
+  && make install
+ 
+@@ -87,6 +88,7 @@ RUN /gcc-$GCC_VERSION/configure \
          --prefix=/bootstrap \
          --with-sysroot=/bootstrap \
          --target=$ARCH \
@@ -17,7 +27,7 @@
          --enable-static \
          --disable-shared \
          --with-pic \
-@@ -111,8 +112,8 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
+@@ -111,8 +113,8 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
          --with-sysroot=/bootstrap/$ARCH \
          --host=$ARCH \
          --disable-dependency-tracking \
@@ -28,7 +38,15 @@
          CFLAGS="-Os" \
          LDFLAGS="-s" \
   && make -j$(nproc) \
-@@ -203,8 +204,8 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
+@@ -194,6 +196,7 @@ WORKDIR /mingw-headers
+ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-headers/configure \
+         --prefix=$PREFIX/$ARCH \
+         --host=$ARCH \
++        --with-default-win32-winnt=_WIN32_WINNT_WINXP \
+  && make -j$(nproc) \
+  && make install
+ 
+@@ -203,8 +206,8 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
          --with-sysroot=$PREFIX/$ARCH \
          --host=$ARCH \
          --disable-dependency-tracking \
@@ -39,7 +57,7 @@
          CFLAGS="-Os" \
          LDFLAGS="-s" \
   && make -j$(nproc) \
-@@ -217,6 +218,7 @@ RUN sed -i 's#=/mingw/include#=/include#' /gcc-$GCC_VERSION/gcc/config.gcc \
+@@ -217,6 +220,7 @@ RUN sed -i 's#=/mingw/include#=/include#' /gcc-$GCC_VERSION/gcc/config.gcc \
          --with-sysroot=$PREFIX \
          --target=$ARCH \
          --host=$ARCH \
