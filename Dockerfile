@@ -233,6 +233,7 @@ RUN sed -i 's#=/mingw/include#=/include#' /gcc-$GCC_VERSION/gcc/config.gcc \
         --disable-dependency-tracking \
         --disable-multilib \
         --disable-nls \
+        --disable-win32-registry \
         --enable-mingw-wildcard \
         CFLAGS_FOR_TARGET="-Os" \
         CXXFLAGS_FOR_TARGET="-Os" \
