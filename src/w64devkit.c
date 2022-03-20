@@ -1,8 +1,9 @@
 /* Tiny, standalone launcher for w64devkit
  * This avoids running a misbehaving monitor cmd.exe in the background.
  *
- * $ gcc -DVERSION="$VERSION" -Os -ffreestanding -s -nostdlib \
- *       -o w64devkit.exe w64devkit.c -lkernel32
+ * $ gcc -DVERSION="$VERSION" \
+ *       -Os -ffreestanding -fno-ident -fno-asynchronous-unwind-tables \
+ *       -s -nostdlib -o w64devkit.exe w64devkit.c -lkernel32
  *
  * This is free and unencumbered software released into the public domain.
  */
