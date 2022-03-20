@@ -9,21 +9,23 @@
          --enable-libgomp \
          --enable-threads=posix \
          --enable-version-specific-runtime-libs \
-@@ -244,9 +244,7 @@ RUN sed -i 's#=/mingw/include#=/include#' /gcc-$GCC_VERSION/gcc/config.gcc \
+@@ -245,11 +245,7 @@ RUN sed -i 's#=/mingw/include#=/include#' /gcc-$GCC_VERSION/gcc/config.gcc \
   && make install \
   && rm -rf $PREFIX/$ARCH/bin/ $PREFIX/bin/$ARCH-* \
          $PREFIX/bin/ld.bfd.exe $PREFIX/bin/c++.exe $PREFIX/bin/lto-dump.exe \
 - && $ARCH-gcc -DEXE=g++.exe -DCMD=c++ \
--        -s -Os -nostdlib -ffreestanding -o $PREFIX/bin/c++.exe \
+-        -Os -ffreestanding -fno-ident -fno-asynchronous-unwind-tables \
+-        -s -nostdlib \
+-        -o $PREFIX/bin/c++.exe \
 -        $PREFIX/src/alias.c -lkernel32
 +        $PREFIX/bin/c++filt.exe
  
  WORKDIR /winpthreads
  RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-libraries/winpthreads/configure \
-@@ -267,7 +265,7 @@ RUN $ARCH-gcc -DEXE=gcc.exe -DCMD=cc \
-  && $ARCH-gcc -DEXE=gcc.exe -DCMD="cc -std=c99" \
-         -s -Os -nostdlib -ffreestanding -o $PREFIX/bin/c99.exe \
-         $PREFIX/src/alias.c -lkernel32 \
+@@ -272,7 +268,7 @@ RUN $ARCH-gcc -DEXE=gcc.exe -DCMD=cc \
+         -Os -ffreestanding -fno-ident -fno-asynchronous-unwind-tables \
+         -s -nostdlib \
+         -o $PREFIX/bin/c99.exe $PREFIX/src/alias.c -lkernel32 \
 - && printf '%s\n' addr2line ar as c++filt cpp dlltool dllwrap elfedit g++ \
 + && printf '%s\n' addr2line ar as cpp dlltool dllwrap elfedit \
        gcc gcc-ar gcc-nm gcc-ranlib gcov gcov-dump gcov-tool ld nm objcopy \
