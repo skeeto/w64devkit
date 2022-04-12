@@ -58,7 +58,7 @@ RUN sed -ri 's/(static bool insert_timestamp = )/\1!/' ld/emultempl/pe*.em
 WORKDIR /x-binutils
 RUN /binutils-$BINUTILS_VERSION/configure \
         --prefix=/bootstrap \
-        --with-sysroot=/bootstrap \
+        --with-sysroot=/bootstrap/$ARCH \
         --target=$ARCH \
         --disable-nls \
         --with-static-standard-libraries \
@@ -137,7 +137,7 @@ RUN make -j$(nproc) \
 WORKDIR /binutils
 RUN /binutils-$BINUTILS_VERSION/configure \
         --prefix=$PREFIX \
-        --with-sysroot=$PREFIX \
+        --with-sysroot=$PREFIX/$ARCH \
         --host=$ARCH \
         --target=$ARCH \
         --disable-nls \
@@ -212,7 +212,7 @@ WORKDIR /gcc
 RUN sed -i 's#=/mingw/include#=/include#' /gcc-$GCC_VERSION/gcc/config.gcc \
  && /gcc-$GCC_VERSION/configure \
         --prefix=$PREFIX \
-        --with-sysroot=$PREFIX \
+        --with-sysroot=$PREFIX/$ARCH \
         --target=$ARCH \
         --host=$ARCH \
         --enable-static \

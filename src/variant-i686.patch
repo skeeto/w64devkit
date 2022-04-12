@@ -58,7 +58,7 @@ index 6904cde..5fd64c0 100644
          LDFLAGS="-s" \
   && make -j$(nproc) \
 @@ -217,6 +220,7 @@ RUN sed -i 's#=/mingw/include#=/include#' /gcc-$GCC_VERSION/gcc/config.gcc \
-         --with-sysroot=$PREFIX \
+         --with-sysroot=$PREFIX/$ARCH \
          --target=$ARCH \
          --host=$ARCH \
 +        --with-arch=pentium4 \
