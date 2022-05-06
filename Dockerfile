@@ -5,7 +5,7 @@ ARG PREFIX=/w64devkit
 ARG BINUTILS_VERSION=2.38
 ARG BUSYBOX_VERSION=FRP-4621-gf3c5e8bc3
 ARG CTAGS_VERSION=20200824
-ARG GCC_VERSION=11.3.0
+ARG GCC_VERSION=12.1.0
 ARG GDB_VERSION=10.2
 ARG GMP_VERSION=6.2.1
 ARG MAKE_VERSION=4.2
@@ -208,6 +208,18 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
  && make -j$(nproc) \
  && make install
 
+WORKDIR /winpthreads
+RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-libraries/winpthreads/configure \
+        --prefix=$PREFIX/$ARCH \
+        --with-sysroot=$PREFIX/$ARCH \
+        --host=$ARCH \
+        --enable-static \
+        --disable-shared \
+        CFLAGS="-Os" \
+        LDFLAGS="-s" \
+ && make -j$(nproc) \
+ && make install
+
 WORKDIR /gcc
 RUN sed -i 's#=/mingw/include#=/include#' /gcc-$GCC_VERSION/gcc/config.gcc \
  && /gcc-$GCC_VERSION/configure \
@@ -248,18 +260,6 @@ RUN sed -i 's#=/mingw/include#=/include#' /gcc-$GCC_VERSION/gcc/config.gcc \
         -s -nostdlib \
         -o $PREFIX/bin/c++.exe \
         $PREFIX/src/alias.c -lkernel32
-
-WORKDIR /winpthreads
-RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-libraries/winpthreads/configure \
-        --prefix=$PREFIX/$ARCH \
-        --with-sysroot=$PREFIX/$ARCH \
-        --host=$ARCH \
-        --enable-static \
-        --disable-shared \
-        CFLAGS="-Os" \
-        LDFLAGS="-s" \
- && make -j$(nproc) \
- && make install
 
 # Create various tool aliases
 RUN $ARCH-gcc -DEXE=gcc.exe -DCMD=cc \
