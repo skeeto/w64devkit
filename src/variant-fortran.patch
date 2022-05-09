@@ -1,6 +1,6 @@
 --- a/Dockerfile
 +++ b/Dockerfile
-@@ -90,7 +90,7 @@ RUN /gcc-$GCC_VERSION/configure \
+@@ -88,7 +88,7 @@ RUN /gcc-$GCC_VERSION/configure \
          --enable-static \
          --disable-shared \
          --with-pic \
@@ -9,7 +9,7 @@
          --enable-libgomp \
          --enable-threads=posix \
          --enable-version-specific-runtime-libs \
-@@ -226,7 +226,7 @@ RUN sed -i 's#=/mingw/include#=/include#' /gcc-$GCC_VERSION/gcc/config.gcc \
+@@ -236,7 +236,7 @@ RUN sed -i 's#=/mingw/include#=/include#' /gcc-$GCC_VERSION/gcc/config.gcc \
          --with-mpc-lib=/deps/lib \
          --with-mpfr-include=/deps/include \
          --with-mpfr-lib=/deps/lib \
@@ -18,7 +18,7 @@
          --enable-libgomp \
          --enable-threads=posix \
          --enable-version-specific-runtime-libs \
-@@ -274,7 +274,7 @@ RUN $ARCH-gcc -DEXE=gcc.exe -DCMD=cc \
+@@ -272,7 +272,7 @@ RUN $ARCH-gcc -DEXE=gcc.exe -DCMD=cc \
          -o $PREFIX/bin/c99.exe $PREFIX/src/alias.c -lkernel32 \
   && printf '%s\n' addr2line ar as c++filt cpp dlltool dllwrap elfedit g++ \
        gcc gcc-ar gcc-nm gcc-ranlib gcov gcov-dump gcov-tool ld nm objcopy \
