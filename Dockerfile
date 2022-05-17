@@ -5,6 +5,7 @@ ARG PREFIX=/w64devkit
 ARG BINUTILS_VERSION=2.38
 ARG BUSYBOX_VERSION=FRP-4621-gf3c5e8bc3
 ARG CTAGS_VERSION=20200824
+ARG EXPAT_VERSION=2.4.8
 ARG GCC_VERSION=12.1.0
 ARG GDB_VERSION=10.2
 ARG GMP_VERSION=6.2.1
@@ -24,6 +25,7 @@ RUN curl --insecure --location --remote-name-all \
     https://ftp.gnu.org/gnu/binutils/binutils-$BINUTILS_VERSION.tar.xz \
     https://ftp.gnu.org/gnu/gcc/gcc-$GCC_VERSION/gcc-$GCC_VERSION.tar.xz \
     https://ftp.gnu.org/gnu/gdb/gdb-$GDB_VERSION.tar.xz \
+    https://fossies.org/linux/www/expat-$EXPAT_VERSION.tar.xz \
     https://ftp.gnu.org/gnu/gmp/gmp-$GMP_VERSION.tar.xz \
     https://ftp.gnu.org/gnu/mpc/mpc-$MPC_VERSION.tar.gz \
     https://ftp.gnu.org/gnu/mpfr/mpfr-$MPFR_VERSION.tar.xz \
@@ -40,6 +42,7 @@ RUN sha256sum -c $PREFIX/src/SHA256SUMS \
  && tar xzf universal-ctags_0+git$CTAGS_VERSION.orig.tar.gz \
  && tar xJf gcc-$GCC_VERSION.tar.xz \
  && tar xJf gdb-$GDB_VERSION.tar.xz \
+ && tar xJf expat-$EXPAT_VERSION.tar.xz \
  && tar xJf gmp-$GMP_VERSION.tar.xz \
  && tar xzf mpc-$MPC_VERSION.tar.gz \
  && tar xJf mpfr-$MPFR_VERSION.tar.xz \
@@ -289,9 +292,23 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-tools/gendef/configure \
  && make -j$(nproc) \
  && cp gendef.exe $PREFIX/bin/
 
+WORKDIR /expat
+RUN /expat-$EXPAT_VERSION/configure \
+        --prefix=/deps \
+        --host=$ARCH \
+        --disable-shared \
+        --without-docbook \
+        --without-examples \
+        --without-tests \
+        CFLAGS="-Os" \
+        LDFLAGS="-s" \
+ && make -j$(nproc) \
+ && make install
+
 WORKDIR /gdb
 RUN /gdb-$GDB_VERSION/configure \
         --host=$ARCH \
+        --with-libexpat-prefix=/deps \
         CFLAGS="-Os -D_WIN32_WINNT=0x502" \
         CXXFLAGS="-Os" \
         LDFLAGS="-s" \
