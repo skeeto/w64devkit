@@ -339,10 +339,12 @@ RUN cat $PREFIX/src/busybox-*.patch | patch -p1 \
  && sed -ri 's/^(CONFIG_ASCII)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_DPKG\w*)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_FTP\w*)=y/\1=n/' .config \
+ && sed -ri 's/^(CONFIG_LINK)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_MAN)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_RPM\w*)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_STRINGS)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_TEST2)=y/\1=n/' .config \
+ && sed -ri 's/^(CONFIG_UNLINK)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_VI)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_XXD)=y/\1=n/' .config \
  && make -j$(nproc) CROSS_COMPILE=$ARCH- \
@@ -355,13 +357,13 @@ RUN printf '%s\n' arch ash awk base32 base64 basename bash bc bunzip2 bzcat \
       dc dd df diff dirname dos2unix du echo ed egrep env expand expr factor \
       false fgrep find fold free fsync getopt grep groups gunzip gzip hd \
       head hexdump httpd iconv id inotifyd install ipcalc kill killall less \
-      link ln logname ls lsattr lzcat lzma lzop lzopcat md5sum mkdir \
+      ln logname ls lsattr lzcat lzma lzop lzopcat md5sum mkdir \
       mktemp mv nc nl nproc od paste patch pgrep pidof pipe_progress pkill \
       printenv printf ps pwd readlink realpath reset rev rm rmdir sed seq sh \
       sha1sum sha256sum sha3sum sha512sum shred shuf sleep sort split \
       ssl_client stat su sum sync tac tail tar tee test time timeout touch \
       tr true truncate ts ttysize uname uncompress unexpand uniq unix2dos \
-      unlink unlzma unlzop unxz unzip uptime usleep uudecode uuencode watch \
+      unlzma unlzop unxz unzip uptime usleep uudecode uuencode watch \
       wc wget which whoami whois xargs xz xzcat yes zcat \
     | xargs -I{} -P$(nproc) \
           $ARCH-gcc -DEXE=busybox.exe -DCMD={} \
