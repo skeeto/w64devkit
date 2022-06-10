@@ -3,7 +3,7 @@ FROM debian:bullseye-slim
 ARG VERSION=1.14.0
 ARG PREFIX=/w64devkit
 ARG BINUTILS_VERSION=2.38
-ARG BUSYBOX_VERSION=FRP-4621-gf3c5e8bc3
+ARG BUSYBOX_VERSION=FRP-4716-g31467ddfc
 ARG CTAGS_VERSION=20200824
 ARG EXPAT_VERSION=2.4.8
 ARG GCC_VERSION=12.1.0
@@ -344,6 +344,7 @@ RUN cat $PREFIX/src/busybox-*.patch | patch -p1 \
  && sed -ri 's/^(CONFIG_RPM\w*)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_STRINGS)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_TEST2)=y/\1=n/' .config \
+ && sed -ri 's/^(CONFIG_TSORT)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_UNLINK)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_VI)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_XXD)=y/\1=n/' .config \
@@ -356,8 +357,8 @@ RUN printf '%s\n' arch ash awk base32 base64 basename bash bc bunzip2 bzcat \
       bzip2 cal cat chattr chmod cksum clear cmp comm cp cpio crc32 cut date \
       dc dd df diff dirname dos2unix du echo ed egrep env expand expr factor \
       false fgrep find fold free fsync getopt grep groups gunzip gzip hd \
-      head hexdump httpd iconv id inotifyd install ipcalc kill killall less \
-      ln logname ls lsattr lzcat lzma lzop lzopcat md5sum mkdir \
+      head hexdump httpd iconv id inotifyd install ipcalc jn kill killall \
+      less ln logname ls lsattr lzcat lzma lzop lzopcat md5sum mkdir \
       mktemp mv nc nl nproc od paste patch pgrep pidof pipe_progress pkill \
       printenv printf ps pwd readlink realpath reset rev rm rmdir sed seq sh \
       sha1sum sha256sum sha3sum sha512sum shred shuf sleep sort split \
