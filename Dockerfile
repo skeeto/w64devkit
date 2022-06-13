@@ -288,7 +288,9 @@ RUN $ARCH-gcc -DEXE=gcc.exe -DCMD=cc \
 # Build some extra development tools
 
 WORKDIR /mingw-tools/gendef
-RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-tools/gendef/configure \
+COPY src/gendef-silent.patch $PREFIX/src/
+RUN patch -d/mingw-w64-v$MINGW_VERSION -p1 <$PREFIX/src/gendef-silent.patch \
+ && /mingw-w64-v$MINGW_VERSION/mingw-w64-tools/gendef/configure \
         --host=$ARCH \
         CFLAGS="-Os" \
         LDFLAGS="-s" \
