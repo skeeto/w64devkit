@@ -50,7 +50,8 @@ RUN sha256sum -c $PREFIX/src/SHA256SUMS \
  && tar xjf mingw-w64-v$MINGW_VERSION.tar.bz2 \
  && tar xJf nasm-$NASM_VERSION.tar.xz \
  && tar xjf vim-$VIM_VERSION.tar.bz2
-COPY src/w64devkit.c src/w64devkit.ico src/alias.c $PREFIX/src/
+COPY src/w64devkit.c src/w64devkit.ico src/alias.c src/debugbreak.c \
+     $PREFIX/src/
 
 ARG ARCH=x86_64-w64-mingw32
 
@@ -430,6 +431,11 @@ RUN printf "id ICON \"$PREFIX/src/w64devkit.ico\"" >w64devkit.rc \
         -Os -ffreestanding -fno-ident -fno-asynchronous-unwind-tables \
         -s -nostdlib \
         -o $PREFIX/w64devkit.exe $PREFIX/src/w64devkit.c w64devkit.o \
+        -lkernel32 \
+ && $ARCH-gcc \
+        -Os -fno-ident -fno-asynchronous-unwind-tables \
+        -s -nostdlib \
+        -o $PREFIX/bin/debugbreak.exe $PREFIX/src/debugbreak.c \
         -lkernel32 \
  && cp /mingw-w64-v$MINGW_VERSION/COPYING.MinGW-w64-runtime/COPYING.MinGW-w64-runtime.txt \
         $PREFIX/ \
