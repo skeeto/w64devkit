@@ -1,15 +1,15 @@
 --- a/Dockerfile
 +++ b/Dockerfile
-@@ -49,7 +49,7 @@ RUN sha256sum -c $PREFIX/src/SHA256SUMS \
-  && tar xjf vim-$VIM_VERSION.tar.bz2
- COPY src/w64devkit.c src/w64devkit.ico src/alias.c $PREFIX/src/
+@@ -53,7 +53,7 @@ RUN sha256sum -c $PREFIX/src/SHA256SUMS \
+ COPY src/w64devkit.c src/w64devkit.ico src/alias.c src/debugbreak.c \
+      $PREFIX/src/
  
 -ARG ARCH=x86_64-w64-mingw32
 +ARG ARCH=i686-w64-mingw32
  
  # Build cross-compiler
  
-@@ -74,6 +74,7 @@ WORKDIR /x-mingw-headers
+@@ -78,6 +78,7 @@ WORKDIR /x-mingw-headers
  RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-headers/configure \
          --prefix=/bootstrap/$ARCH \
          --host=$ARCH \
@@ -17,7 +17,7 @@
   && make -j$(nproc) \
   && make install
  
-@@ -85,6 +86,7 @@ RUN /gcc-$GCC_VERSION/configure \
+@@ -89,6 +90,7 @@ RUN /gcc-$GCC_VERSION/configure \
          --prefix=/bootstrap \
          --with-sysroot=/bootstrap \
          --target=$ARCH \
@@ -25,7 +25,7 @@
          --enable-static \
          --disable-shared \
          --with-pic \
-@@ -109,8 +111,8 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
+@@ -116,8 +118,8 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
          --with-sysroot=/bootstrap/$ARCH \
          --host=$ARCH \
          --disable-dependency-tracking \
@@ -36,7 +36,7 @@
          CFLAGS="-Os" \
          LDFLAGS="-s" \
   && make -j$(nproc) \
-@@ -192,6 +194,7 @@ WORKDIR /mingw-headers
+@@ -199,6 +201,7 @@ WORKDIR /mingw-headers
  RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-headers/configure \
          --prefix=$PREFIX/$ARCH \
          --host=$ARCH \
@@ -44,7 +44,7 @@
   && make -j$(nproc) \
   && make install
  
-@@ -201,8 +204,8 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
+@@ -208,8 +211,8 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
          --with-sysroot=$PREFIX/$ARCH \
          --host=$ARCH \
          --disable-dependency-tracking \
@@ -55,7 +55,7 @@
          CFLAGS="-Os" \
          LDFLAGS="-s" \
   && make -j$(nproc) \
-@@ -227,6 +230,7 @@ RUN sed -i 's#=/mingw/include#=/include#' /gcc-$GCC_VERSION/gcc/config.gcc \
+@@ -234,6 +237,7 @@ RUN sed -i 's#=/mingw/include#=/include#' /gcc-$GCC_VERSION/gcc/config.gcc \
          --with-sysroot=$PREFIX/$ARCH \
          --target=$ARCH \
          --host=$ARCH \
