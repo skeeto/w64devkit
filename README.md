@@ -130,9 +130,11 @@ I'd love to include Git, but unfortunately Git's build system doesn't
 quite support cross-compilation. A decent alternative would be
 [Quilt][quilt], but it's written in Bash and Perl.
 
-What about sanitizer support? That would be fantastic, but unfortunately
-libsanitizer [has not yet been ported from MSVC to Mingw-w64][san]
-([also][san2]).
+Neither Address Sanitizer (ASan) nor Thread Sanitizer (TSan) [has been
+ported to Mingw-w64][san] ([also][san2]), but Undefined Behavior Sanitizer
+(UBSan) works perfectly under GDB. With both `-fsanitize=undefined` and
+`-fsanitize-undefined-trap-on-error`, GDB will [break precisely][break] on
+undefined behavior, and it does not require linking with libsanitizer.
 
 Since the build environment is so stable and predicable, it would be
 great for the .zip to be reproducible, i.e. builds by different people
@@ -155,6 +157,7 @@ binaries.
 
 
 [bb]: https://frippery.org/busybox/
+[break]: https://nullprogram.com/blog/2022/06/26/
 [bs]: https://www.rdegges.com/2016/i-dont-give-a-shit-about-licensing/
 [ctags]: https://github.com/universal-ctags/ctags
 [doc-bb]: https://busybox.net/downloads/BusyBox.txt
