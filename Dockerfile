@@ -381,16 +381,12 @@ RUN patch -d.. -p1 <$PREFIX/src/vim-markdown-italics.patch \
  && ARCH= make -j$(nproc) -f Make_ming.mak \
         OPTIMIZE=SIZE STATIC_STDCPLUS=yes HAS_GCC_EH=no \
         UNDER_CYGWIN=yes CROSS=yes CROSS_COMPILE=$ARCH- \
-        FEATURES=HUGE OLE=no IME=no NETBEANS=no WINDRES_FLAGS= \
- && ARCH= make -j$(nproc) -f Make_ming.mak \
-        OPTIMIZE=SIZE STATIC_STDCPLUS=yes HAS_GCC_EH=no \
-        UNDER_CYGWIN=yes CROSS=yes CROSS_COMPILE=$ARCH- \
-        FEATURES=HUGE OLE=no IME=no NETBEANS=no WINDRES_FLAGS= \
-        GUI=no vim.exe \
+        FEATURES=HUGE VIMDLL=yes NETBEANS=no WINDRES_FLAGS= \
+ && $ARCH-strip vimrun.exe \
  && rm -rf ../runtime/tutor/tutor.* \
  && cp -r ../runtime $PREFIX/share/vim \
- && cp gvim.exe vim.exe $PREFIX/share/vim/ \
- && cp vimrun.exe xxd/xxd.exe $PREFIX/bin \
+ && cp vimrun.exe gvim.exe vim.exe *.dll $PREFIX/share/vim/ \
+ && cp xxd/xxd.exe $PREFIX/bin \
  && printf '@set SHELL=\r\n@start "" "%%~dp0/../share/vim/gvim.exe" %%*\r\n' \
         >$PREFIX/bin/gvim.bat \
  && printf '@set SHELL=\r\n@"%%~dp0/../share/vim/vim.exe" %%*\r\n' \
