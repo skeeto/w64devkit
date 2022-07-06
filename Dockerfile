@@ -14,7 +14,7 @@ ARG MINGW_VERSION=10.0.0
 ARG MPC_VERSION=1.2.1
 ARG MPFR_VERSION=4.1.0
 ARG NASM_VERSION=2.15.05
-ARG VIM_VERSION=8.2
+ARG VIM_VERSION=9.0
 
 RUN apt-get update && apt-get install --yes --no-install-recommends \
   build-essential curl libgmp-dev libmpc-dev libmpfr-dev m4 zip
@@ -376,13 +376,11 @@ RUN printf '%s\n' arch ash awk base32 base64 basename bash bc bunzip2 bzcat \
             -o $PREFIX/bin/{}.exe $PREFIX/src/alias.c -lkernel32
 
 # TODO: Either somehow use $VIM_VERSION or normalize the workdir
-WORKDIR /vim82/src
-COPY src/vim-markdown-italics.patch $PREFIX/src/
-RUN patch -d.. -p1 <$PREFIX/src/vim-markdown-italics.patch \
- && ARCH= make -j$(nproc) -f Make_ming.mak \
+WORKDIR /vim90/src
+RUN ARCH= make -j$(nproc) -f Make_ming.mak \
         OPTIMIZE=SIZE STATIC_STDCPLUS=yes HAS_GCC_EH=no \
         UNDER_CYGWIN=yes CROSS=yes CROSS_COMPILE=$ARCH- \
-        FEATURES=HUGE VIMDLL=yes NETBEANS=no WINDRES_FLAGS= \
+        FEATURES=HUGE VIMDLL=yes NETBEANS=no WINVER=0x0501 \
  && $ARCH-strip vimrun.exe \
  && rm -rf ../runtime/tutor/tutor.* \
  && cp -r ../runtime $PREFIX/share/vim \
