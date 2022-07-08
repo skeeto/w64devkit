@@ -13,6 +13,7 @@ Included tools:
 * [Vim][vim] : powerful text editor
 * [Universal Ctags][ctags] : source navigation
 * [NASM][nasm] : x86 assembler
+* [Cppcheck][cppcheck] : static code analysis
 
 The toolchain includes pthreads, C++11 threads, and OpenMP. All included
 runtime components are static. **Docker/Podman is not required to use the
@@ -74,6 +75,24 @@ improved implementation by setting `__USE_MINGW_ANSI_STDIO` to 0 before
 including any headers.
 
     $ cc -Os -D__USE_MINGW_ANSI_STDIO=0 ...
+
+## Cppcheck tips
+
+Use `--library=windows` for programs calling the Win32 API directly, which
+adds additional checks. In general, the following configuration is a good
+default for programs developed using w64devkit:
+
+    $ cppcheck --quiet -j$(nproc) --library=windows \
+               --suppress=uninitvar --enable=portability,performance .
+
+A "strict" check that is more thorough, but more false positives:
+
+    $ cppcheck --quiet -j$(nproc) --library=windows \
+          --enable=portability,performance,style \
+          --suppress=uninitvar --suppress=unusedStructMember \
+          --suppress=constVariable --suppress=shadowVariable \
+          --suppress=variableScope --suppress=constParameter \
+          --suppress=shadowArgument --suppress=knownConditionTrueFalse .
 
 ## Fortran support
 
@@ -159,6 +178,7 @@ binaries.
 [bb]: https://frippery.org/busybox/
 [break]: https://nullprogram.com/blog/2022/06/26/
 [bs]: https://www.rdegges.com/2016/i-dont-give-a-shit-about-licensing/
+[cppcheck]: https://cppcheck.sourceforge.io/
 [ctags]: https://github.com/universal-ctags/ctags
 [doc-bb]: https://busybox.net/downloads/BusyBox.txt
 [doc-cpp]: https://en.cppreference.com/w/Cppreference:Archives
