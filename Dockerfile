@@ -14,6 +14,7 @@ ARG MINGW_VERSION=10.0.0
 ARG MPC_VERSION=1.2.1
 ARG MPFR_VERSION=4.1.0
 ARG NASM_VERSION=2.15.05
+ARG CPPCHECK_VERSION=2.8
 ARG VIM_VERSION=9.0
 
 RUN apt-get update && apt-get install --yes --no-install-recommends \
@@ -21,7 +22,7 @@ RUN apt-get update && apt-get install --yes --no-install-recommends \
 
 # Download, verify, and unpack
 
-RUN curl --insecure --location --remote-name-all \
+RUN curl --insecure --location --remote-name-all --remote-header-name \
     https://ftp.gnu.org/gnu/binutils/binutils-$BINUTILS_VERSION.tar.xz \
     https://ftp.gnu.org/gnu/gcc/gcc-$GCC_VERSION/gcc-$GCC_VERSION.tar.xz \
     https://ftp.gnu.org/gnu/gdb/gdb-$GDB_VERSION.tar.xz \
@@ -34,7 +35,8 @@ RUN curl --insecure --location --remote-name-all \
     http://ftp.vim.org/pub/vim/unix/vim-$VIM_VERSION.tar.bz2 \
     https://www.nasm.us/pub/nasm/releasebuilds/$NASM_VERSION/nasm-$NASM_VERSION.tar.xz \
     http://deb.debian.org/debian/pool/main/u/universal-ctags/universal-ctags_0+git$CTAGS_VERSION.orig.tar.gz \
-    https://downloads.sourceforge.net/project/mingw-w64/mingw-w64/mingw-w64-release/mingw-w64-v$MINGW_VERSION.tar.bz2
+    https://downloads.sourceforge.net/project/mingw-w64/mingw-w64/mingw-w64-release/mingw-w64-v$MINGW_VERSION.tar.bz2 \
+    https://github.com/danmar/cppcheck/archive/$CPPCHECK_VERSION.tar.gz
 COPY src/SHA256SUMS $PREFIX/src/
 RUN sha256sum -c $PREFIX/src/SHA256SUMS \
  && tar xJf binutils-$BINUTILS_VERSION.tar.xz \
@@ -49,7 +51,8 @@ RUN sha256sum -c $PREFIX/src/SHA256SUMS \
  && tar xzf make-$MAKE_VERSION.tar.gz \
  && tar xjf mingw-w64-v$MINGW_VERSION.tar.bz2 \
  && tar xJf nasm-$NASM_VERSION.tar.xz \
- && tar xjf vim-$VIM_VERSION.tar.bz2
+ && tar xjf vim-$VIM_VERSION.tar.bz2 \
+ && tar xzf cppcheck-$CPPCHECK_VERSION.tar.gz
 COPY src/w64devkit.c src/w64devkit.ico src/alias.c src/debugbreak.c \
      $PREFIX/src/
 
@@ -412,6 +415,20 @@ RUN sed -i /RT_MANIFEST/d win32/ctags.rc \
         CC=$ARCH-gcc WINDRES=$ARCH-windres \
         OPT= CFLAGS=-Os LDFLAGS=-s \
  && cp ctags.exe $PREFIX/bin/
+
+WORKDIR /cppcheck-$CPPCHECK_VERSION
+RUN $ARCH-g++ -Os -s -o cppcheck.exe \
+    -Ilib -Iexternals/simplecpp -Iexternals/tinyxml2 -Iexternals/picojson \
+    cli/*.cpp lib/*.cpp \
+    externals/tinyxml2/tinyxml2.cpp externals/simplecpp/simplecpp.cpp \
+    -lshlwapi \
+ && mkdir $PREFIX/share/cppcheck/ \
+ && cp -r cppcheck.exe cfg/ $PREFIX/share/cppcheck \
+ && $ARCH-gcc -DEXE=../share/cppcheck/cppcheck.exe -DCMD=cppcheck \
+        -Os -ffreestanding -fno-ident -fno-asynchronous-unwind-tables \
+        -s -nostdlib \
+        -o $PREFIX/bin/cppcheck.exe \
+        $PREFIX/src/alias.c -lkernel32
 
 # Pack up a release
 
