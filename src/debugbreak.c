@@ -7,52 +7,94 @@
 //
 // Mingw-w64:
 //   gcc -Os -fno-ident -fno-asynchronous-unwind-tables -s -nostdlib
-//       -o debugbreak.exe debugbreak.c -lkernel32
+//       -o debugbreak.exe debugbreak.c -lkernel32 -lshell32
 //
 // MSVC:
 //   cl /GS- /Os debugbreak.c
 //
 // This is free and unencumbered software released into the public domain.
-#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <tlhelp32.h>
 #if defined(_MSC_VER)
 #  pragma comment(lib, "kernel32")
+#  pragma comment(lib, "shell32")
 #  pragma comment(linker, "/subsystem:console")
 #endif
 
-// Try to put data in .text to pack the binary even smaller.
-#if __GNUC__
-#  define STATIC __attribute__((section(".text.data"))) static const
-#else
-#  define STATIC static const
-#endif
+static const char usage[] =
+"Usage: debugbreak [-h] [-k] \n"
+"  raise a breakpoint exception in all Win32 debuggees\n"
+"  -h    print this usage message\n"
+"  -k    terminate debugees rather than breakpoint\n";
 
-STATIC char usage[] =
-"Usage: debugbreak\n"
-"  raise a breakpoint exception in all Win32 debuggees\n";
+struct wgetopt {
+    wchar_t *optarg;
+    int optind, optopt, optpos;
+};
 
-int WINAPI
+static int
+wgetopt(struct wgetopt *x, int argc, wchar_t **argv, char *optstring)
+{
+    wchar_t *arg = argv[!x->optind ? (x->optind += !!argc) : x->optind];
+    if (arg && arg[0] == '-' && arg[1] == '-' && !arg[2]) {
+        x->optind++;
+        return -1;
+    } else if (!arg || arg[0] != '-' || ((arg[1] < '0' || arg[1] > '9') &&
+                                         (arg[1] < 'A' || arg[1] > 'Z') &&
+                                         (arg[1] < 'a' || arg[1] > 'z'))) {
+        return -1;
+    } else {
+        while (*optstring && arg[x->optpos+1] != *optstring) {
+            optstring++;
+        }
+        x->optopt = arg[x->optpos+1];
+        if (!*optstring) {
+            return '?';
+        } else if (optstring[1] == ':') {
+            if (arg[x->optpos+2]) {
+                x->optarg = arg + x->optpos + 2;
+                x->optind++;
+                x->optpos = 0;
+                return x->optopt;
+            } else if (argv[x->optind+1]) {
+                x->optarg = argv[x->optind+1];
+                x->optind += 2;
+                x->optpos = 0;
+                return x->optopt;
+            } else {
+                return ':';
+            }
+        } else {
+            if (!arg[++x->optpos+1]) {
+                x->optind++;
+                x->optpos = 0;
+            }
+            return x->optopt;
+        }
+    }
+}
+
+int
 mainCRTStartup(void)
 {
-    // Skip argv[0] and space separator. This avoids linking shell32.dll
-    // for CommandLineToArgvW just to count the arguments.
-    wchar_t *cmd = GetCommandLineW();
-    switch (*cmd) {
-    default : for (; *cmd && *cmd != '\t' && *cmd != ' '; cmd++);
-              break;
-    case '"': for (cmd++; *cmd && *cmd != '"'; cmd++);
-              cmd += !!*cmd;
-    }
-    for (; *cmd == '\t' || *cmd == ' '; cmd++);
+    DWORD n;
+    HANDLE h;
+    wchar_t **argv;
+    int option, argc;
+    struct wgetopt wgo = {0, 0, 0, 0};
+    enum {MODE_BREAK, MODE_TERM} mode = MODE_BREAK;
 
-    // Print usage and fail if argc > 1. The program's purpose will be
-    // more discoverable, including responding to -h/--help.
-    if (*cmd) {
-        DWORD n;
-        HANDLE h = GetStdHandle(STD_ERROR_HANDLE);
-        WriteFile(h, usage, sizeof(usage)-1, &n, 0);
-        return 1;
+    argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+    while ((option = wgetopt(&wgo, argc, argv, "hk")) != -1) {
+        switch (option) {
+        case 'k': mode = MODE_TERM;
+                  break;
+        case 'h': h = GetStdHandle(STD_OUTPUT_HANDLE);
+                  return !WriteFile(h, usage, sizeof(usage)-1, &n, 0);
+        case '?': h = GetStdHandle(STD_ERROR_HANDLE);
+                  WriteFile(h, usage, sizeof(usage)-1, &n, 0);
+                  return 1;
+        }
     }
 
     // Cannot fail with this configuration
@@ -66,10 +108,20 @@ mainCRTStartup(void)
         // it changes in the future.
         HANDLE h = OpenProcess(PROCESS_ALL_ACCESS, 0, p.th32ProcessID);
         if (h) {
-            // If the process has no debugger attached, nothing happens.
-            // Otherwise this would require CheckRemoteDebuggerPresent to
-            // avoid terminating normal processes.
-            DebugBreakProcess(h);
+            BOOL b;
+            switch (mode) {
+            case MODE_BREAK:
+                // If the process has no debugger attached, nothing happens.
+                // Otherwise this would require CheckRemoteDebuggerPresent to
+                // avoid terminating normal processes.
+                DebugBreakProcess(h);
+                break;
+            case MODE_TERM:
+                if (CheckRemoteDebuggerPresent(h, &b) && b) {
+                    TerminateProcess(h, 1);
+                }
+                break;
+            }
             CloseHandle(h);
         }
     }
