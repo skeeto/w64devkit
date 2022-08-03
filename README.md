@@ -145,6 +145,12 @@ Since the development kit is intended to be flexible, light, and
 portable — i.e. run from anywhere, in place, and no installation is
 necessary — the binaries are all optimized for size, not speed.
 
+`$HOME` can be set through the adjacent `w64devkit.ini` configuration, and
+may even be relative to the `w64devkit/` directory. This is useful for
+encapsulating the entire development environment, with home directory, on
+removable, even read-only, media. Use a `.profile` in the home directory
+to configure the environment further.
+
 I'd love to include Git, but unfortunately Git's build system doesn't
 quite support cross-compilation. A decent alternative would be
 [Quilt][quilt], but it's written in Bash and Perl.

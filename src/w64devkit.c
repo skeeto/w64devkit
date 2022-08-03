@@ -8,6 +8,7 @@
  *
  * This is free and unencumbered software released into the public domain.
  */
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
 #define COUNTOF(a) (sizeof(a) / sizeof(0[a]))
@@ -52,6 +53,53 @@ findfile(WCHAR *s)
     }
 }
 
+/* Read and process "w64devkit.home" from "w64devkit.ini". Environment
+ * variables are expanded, and if relative, the result is converted into
+ * an absolute path. The destination length must be MAX_PATH. If this
+ * fails for any reason, the string will be zero length.
+ *
+ * Before calling, the current working directory must be changed to the
+ * location of w64devkit.exe.
+ */
+static void
+homeconfig(WCHAR *path)
+{
+    char home[MAX_PATH*3];    /* UTF-8 MAX_PATH */
+    WCHAR whome[MAX_PATH*2];  /* extra room for variables */
+    WCHAR expanded[MAX_PATH];
+
+    /* If anything fails, leave empty. */
+    path[0] = 0;
+
+    /* Windows thinks this is a narrow, "ANSI"-encoded file, but it's
+     * really UTF-8. It's decoded to UTF-16 after reading. This means
+     * the INI path must be a narrow string, hence the requirement of
+     * changing the current directory before this call, in case the
+     * INI's absolute path contains non-ASCII characters.
+     *
+     * NOTE(Chris): This Win32 function works fine for now, but in the
+     * future I may replace it with a simple, embedded INI parser. I
+     * already have one written and available in my scratch repository.
+     */
+    GetPrivateProfileStringA(
+        "w64devkit",
+        "home",
+        0,
+        home,
+        sizeof(home),
+        "./w64devkit.ini"
+    );
+    if (!MultiByteToWideChar(CP_UTF8, 0, home, -1, whome, MAX_PATH*2)) {
+        return;
+    }
+
+    /* Process INI string into a final HOME path */
+    if (ExpandEnvironmentStringsW(whome, expanded, MAX_PATH) > MAX_PATH) {
+        return;
+    }
+    GetFullPathNameW(expanded, MAX_PATH, path, 0);
+}
+
 int WINAPI
 mainCRTStartup(void)
 {
@@ -66,6 +114,15 @@ mainCRTStartup(void)
         int save = tail[-1];
         tail[-1] = 0;
         SetEnvironmentVariableW(L"W64DEVKIT_HOME", path); // ignore errors
+
+        /* Maybe set HOME from w64devkit.ini */
+        if (SetCurrentDirectoryW(path)) {
+            WCHAR home[MAX_PATH];
+            homeconfig(home);
+            if (home[0]) {
+                SetEnvironmentVariableW(L"HOME", home); // ignore errors
+            }
+        }
         tail[-1] = save;
     }
     lmemmove(tail, bin, COUNTOF(bin));
