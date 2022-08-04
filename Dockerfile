@@ -439,6 +439,7 @@ COPY README.md Dockerfile $PREFIX/
 RUN printf "id ICON \"$PREFIX/src/w64devkit.ico\"" >w64devkit.rc \
  && $ARCH-windres -o w64devkit.o w64devkit.rc \
  && $ARCH-gcc -DVERSION=$VERSION \
+        -mno-stack-arg-probe -Xlinker --stack=0x10000,0x10000 \
         -Os -ffreestanding -fno-ident -fno-asynchronous-unwind-tables \
         -s -nostdlib \
         -o $PREFIX/w64devkit.exe $PREFIX/src/w64devkit.c w64devkit.o \

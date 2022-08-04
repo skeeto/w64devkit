@@ -2,6 +2,7 @@
  * This avoids running a misbehaving monitor cmd.exe in the background.
  *
  * $ gcc -DVERSION="$VERSION" \
+ *       -mno-stack-arg-probe -Xlinker --stack=0x10000,0x10000 \
  *       -Os -ffreestanding -fno-ident -fno-asynchronous-unwind-tables \
  *       -s -nostdlib -o w64devkit.exe w64devkit.c -lkernel32
  *
@@ -54,7 +55,7 @@ findfile(WCHAR *s)
 int WINAPI
 mainCRTStartup(void)
 {
-    static WCHAR path[MAX_PATH + MAX_VAR];
+    WCHAR path[MAX_PATH + MAX_VAR];
 
     /* Construct a path to bin/ directory */
     static const WCHAR bin[] = L"bin;";
