@@ -76,24 +76,6 @@ including any headers.
 
     $ cc -Os -D__USE_MINGW_ANSI_STDIO=0 ...
 
-## Cppcheck tips
-
-Use `--library=windows` for programs calling the Win32 API directly, which
-adds additional checks. In general, the following configuration is a good
-default for programs developed using w64devkit:
-
-    $ cppcheck --quiet -j$(nproc) --library=windows \
-               --suppress=uninitvar --enable=portability,performance .
-
-A "strict" check that is more thorough, but more false positives:
-
-    $ cppcheck --quiet -j$(nproc) --library=windows \
-          --enable=portability,performance,style \
-          --suppress=uninitvar --suppress=unusedStructMember \
-          --suppress=constVariable --suppress=shadowVariable \
-          --suppress=variableScope --suppress=constParameter \
-          --suppress=shadowArgument --suppress=knownConditionTrueFalse .
-
 ## Fortran support
 
 Only C and C++ are included by default, but w64devkit also has full
@@ -138,6 +120,24 @@ w64devkit's capabilities. In rough order of importance:
 * [Intel Software Developer Manuals][doc-intel] (PDF), for referencing x86
   instructions, when either studying compiler output with `objdump`, or
   writing assembly with `nasm` or `as`.
+
+## Cppcheck tips
+
+Use `--library=windows` for programs calling the Win32 API directly, which
+adds additional checks. In general, the following configuration is a good
+default for programs developed using w64devkit:
+
+    $ cppcheck --quiet -j$(nproc) --library=windows \
+               --suppress=uninitvar --enable=portability,performance .
+
+A "strict" check that is more thorough, but more false positives:
+
+    $ cppcheck --quiet -j$(nproc) --library=windows \
+          --enable=portability,performance,style \
+          --suppress=uninitvar --suppress=unusedStructMember \
+          --suppress=constVariable --suppress=shadowVariable \
+          --suppress=variableScope --suppress=constParameter \
+          --suppress=shadowArgument --suppress=knownConditionTrueFalse .
 
 ## Notes
 
