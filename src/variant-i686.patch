@@ -1,6 +1,6 @@
 --- a/Dockerfile
 +++ b/Dockerfile
-@@ -53,7 +53,7 @@ RUN sha256sum -c $PREFIX/src/SHA256SUMS \
+@@ -56,7 +56,7 @@ RUN sha256sum -c $PREFIX/src/SHA256SUMS \
  COPY src/w64devkit.c src/w64devkit.ico src/alias.c src/debugbreak.c \
       $PREFIX/src/
  
@@ -9,7 +9,7 @@
  
  # Build cross-compiler
  
-@@ -78,6 +78,7 @@ WORKDIR /x-mingw-headers
+@@ -81,6 +81,7 @@ WORKDIR /x-mingw-headers
  RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-headers/configure \
          --prefix=/bootstrap/$ARCH \
          --host=$ARCH \
@@ -17,7 +17,7 @@
   && make -j$(nproc) \
   && make install
  
-@@ -89,6 +90,7 @@ RUN /gcc-$GCC_VERSION/configure \
+@@ -92,6 +93,7 @@ RUN /gcc-$GCC_VERSION/configure \
          --prefix=/bootstrap \
          --with-sysroot=/bootstrap \
          --target=$ARCH \
@@ -25,7 +25,7 @@
          --enable-static \
          --disable-shared \
          --with-pic \
-@@ -116,8 +118,8 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
+@@ -119,8 +121,8 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
          --with-sysroot=/bootstrap/$ARCH \
          --host=$ARCH \
          --disable-dependency-tracking \
@@ -36,7 +36,7 @@
          CFLAGS="-Os" \
          LDFLAGS="-s" \
   && make -j$(nproc) \
-@@ -199,6 +201,7 @@ WORKDIR /mingw-headers
+@@ -202,6 +204,7 @@ WORKDIR /mingw-headers
  RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-headers/configure \
          --prefix=$PREFIX/$ARCH \
          --host=$ARCH \
@@ -44,7 +44,7 @@
   && make -j$(nproc) \
   && make install
  
-@@ -208,8 +211,8 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
+@@ -211,8 +214,8 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
          --with-sysroot=$PREFIX/$ARCH \
          --host=$ARCH \
          --disable-dependency-tracking \
@@ -55,7 +55,7 @@
          CFLAGS="-Os" \
          LDFLAGS="-s" \
   && make -j$(nproc) \
-@@ -234,6 +237,7 @@ RUN sed -i 's#=/mingw/include#=/include#' /gcc-$GCC_VERSION/gcc/config.gcc \
+@@ -237,6 +240,7 @@ RUN sed -i 's#=/mingw/include#=/include#' /gcc-$GCC_VERSION/gcc/config.gcc \
          --with-sysroot=$PREFIX/$ARCH \
          --target=$ARCH \
          --host=$ARCH \
