@@ -141,10 +141,6 @@ A "strict" check that is more thorough, but more false positives:
 
 ## Notes
 
-Since the development kit is intended to be flexible, light, and
-portable — i.e. run from anywhere, in place, and no installation is
-necessary — the binaries are all optimized for size, not speed.
-
 `$HOME` can be set through the adjacent `w64devkit.ini` configuration, and
 may even be relative to the `w64devkit/` directory. This is useful for
 encapsulating the entire development environment, with home directory, on
@@ -160,6 +156,10 @@ ported to Mingw-w64][san] ([also][san2]), but Undefined Behavior Sanitizer
 (UBSan) works perfectly under GDB. With both `-fsanitize=undefined` and
 `-fsanitize-undefined-trap-on-error`, GDB will [break precisely][break] on
 undefined behavior, and it does not require linking with libsanitizer.
+
+The kit includes a unique [`debugbreak` command][debugbreak]. It causes
+all debugee processes to break in the debugger, like using Windows' F12
+debugger hotkey. This is especially useful for console subsystem programs.
 
 Since the build environment is so stable and predicable, it would be
 great for the .zip to be reproducible, i.e. builds by different people
@@ -186,6 +186,7 @@ binaries.
 [bs]: https://www.rdegges.com/2016/i-dont-give-a-shit-about-licensing/
 [cppcheck]: https://cppcheck.sourceforge.io/
 [ctags]: https://github.com/universal-ctags/ctags
+[debugbreak]: https://nullprogram.com/blog/2022/07/31/
 [doc-bb]: https://busybox.net/downloads/BusyBox.txt
 [doc-cpp]: https://en.cppreference.com/w/Cppreference:Archives
 [doc-gcc]: https://gcc.gnu.org/onlinedocs/
