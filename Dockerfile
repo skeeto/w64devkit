@@ -317,7 +317,8 @@ RUN /expat-$EXPAT_VERSION/configure \
  && make install
 
 WORKDIR /gdb
-RUN /gdb-$GDB_VERSION/configure \
+RUN sed -i 's/quiet = 0/quiet = 1/' /gdb-$GDB_VERSION/gdb/main.c \
+ && /gdb-$GDB_VERSION/configure \
         --host=$ARCH \
         --with-libexpat-prefix=/deps \
         --with-libgmp-prefix=/deps \
