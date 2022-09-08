@@ -88,7 +88,9 @@ WORKDIR /bootstrap
 RUN ln -s $ARCH mingw
 
 WORKDIR /x-gcc
-RUN /gcc-$GCC_VERSION/configure \
+COPY src/gcc-*.patch $PREFIX/src/
+RUN cat $PREFIX/src/gcc-*.patch | patch -d/gcc-$GCC_VERSION -p1 \
+ && /gcc-$GCC_VERSION/configure \
         --prefix=/bootstrap \
         --with-sysroot=/bootstrap \
         --target=$ARCH \
