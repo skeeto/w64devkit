@@ -421,11 +421,8 @@ RUN sed -i /RT_MANIFEST/d win32/ctags.rc \
  && cp ctags.exe $PREFIX/bin/
 
 WORKDIR /cppcheck-$CPPCHECK_VERSION
-RUN $ARCH-g++ -Os -s -o cppcheck.exe \
-    -Ilib -Iexternals/simplecpp -Iexternals/tinyxml2 -Iexternals/picojson \
-    cli/*.cpp lib/*.cpp \
-    externals/tinyxml2/tinyxml2.cpp externals/simplecpp/simplecpp.cpp \
-    -lshlwapi \
+COPY src/cppcheck.mak $PREFIX/src/
+RUN make -f $PREFIX/src/cppcheck.mak -j$(nproc) CXX=$ARCH-g++ \
  && mkdir $PREFIX/share/cppcheck/ \
  && cp -r cppcheck.exe cfg/ $PREFIX/share/cppcheck \
  && $ARCH-gcc -DEXE=../share/cppcheck/cppcheck.exe -DCMD=cppcheck \
