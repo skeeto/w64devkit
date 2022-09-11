@@ -4,5 +4,5 @@ obj      := $(src:.cpp=.o)
 CXXFLAGS := -Os -Ilib $(addprefix -I,$(ext))
 LDFLAGS  := -s
 LDLIBS   := -lshlwapi
-cppcheck$(EXE): $(obj)
+cppcheck.exe: $(obj)
 	$(CXX) $(LDFLAGS) -o $@ $(obj) $(LDLIBS)
