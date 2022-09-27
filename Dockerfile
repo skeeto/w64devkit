@@ -268,27 +268,25 @@ RUN sed -i 's#=/mingw/include#=/include#' /gcc-$GCC_VERSION/gcc/config.gcc \
  && rm -rf $PREFIX/$ARCH/bin/ $PREFIX/bin/$ARCH-* \
         $PREFIX/bin/ld.bfd.exe $PREFIX/bin/c++.exe $PREFIX/bin/lto-dump.exe \
  && $ARCH-gcc -DEXE=g++.exe -DCMD=c++ \
-        -Os -ffreestanding -fno-ident -fno-asynchronous-unwind-tables \
-        -s -nostdlib \
+        -Os -fno-asynchronous-unwind-tables \
+        -Wl,--gc-sections -s -nostdlib \
         -o $PREFIX/bin/c++.exe \
         $PREFIX/src/alias.c -lkernel32
 
 # Create various tool aliases
 RUN $ARCH-gcc -DEXE=gcc.exe -DCMD=cc \
-        -Os -ffreestanding -fno-ident -fno-asynchronous-unwind-tables \
-        -s -nostdlib \
+        -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
         -o $PREFIX/bin/cc.exe $PREFIX/src/alias.c -lkernel32 \
  && $ARCH-gcc -DEXE=gcc.exe -DCMD="cc -std=c99" \
-        -Os -ffreestanding -fno-ident -fno-asynchronous-unwind-tables \
-        -s -nostdlib \
+        -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
         -o $PREFIX/bin/c99.exe $PREFIX/src/alias.c -lkernel32 \
  && printf '%s\n' addr2line ar as c++filt cpp dlltool dllwrap elfedit g++ \
       gcc gcc-ar gcc-nm gcc-ranlib gcov gcov-dump gcov-tool ld nm objcopy \
       objdump ranlib readelf size strings strip windmc windres \
     | xargs -I{} -P$(nproc) \
           $ARCH-gcc -DEXE={}.exe -DCMD=$ARCH-{} \
-            -Os -ffreestanding -fno-ident -fno-asynchronous-unwind-tables \
-            -s -nostdlib \
+            -Os -fno-asynchronous-unwind-tables \
+            -Wl,--gc-sections -s -nostdlib \
             -o $PREFIX/bin/$ARCH-{}.exe $PREFIX/src/alias.c -lkernel32
 
 # Build some extra development tools
@@ -337,8 +335,8 @@ RUN /make-$MAKE_VERSION/configure \
  && make -j$(nproc) \
  && cp make.exe $PREFIX/bin/ \
  && $ARCH-gcc -DEXE=make.exe -DCMD=make \
-        -Os -ffreestanding -fno-ident -fno-asynchronous-unwind-tables \
-        -s -nostdlib \
+        -Os -fno-asynchronous-unwind-tables \
+        -Wl,--gc-sections -s -nostdlib \
         -o $PREFIX/bin/mingw32-make.exe $PREFIX/src/alias.c -lkernel32
 
 WORKDIR /busybox-w32
@@ -378,8 +376,8 @@ RUN printf '%s\n' arch ash awk base32 base64 basename bash bc bunzip2 bzcat \
       wc wget which whoami whois xargs xz xzcat yes zcat \
     | xargs -I{} -P$(nproc) \
           $ARCH-gcc -DEXE=busybox.exe -DCMD={} \
-            -Os -ffreestanding -fno-ident -fno-asynchronous-unwind-tables \
-            -s -nostdlib \
+            -Os -fno-asynchronous-unwind-tables \
+            -Wl,--gc-sections -s -nostdlib \
             -o $PREFIX/bin/{}.exe $PREFIX/src/alias.c -lkernel32
 
 # TODO: Either somehow use $VIM_VERSION or normalize the workdir
@@ -426,8 +424,7 @@ RUN make -f $PREFIX/src/cppcheck.mak -j$(nproc) CXX=$ARCH-g++ \
  && mkdir $PREFIX/share/cppcheck/ \
  && cp -r cppcheck.exe cfg/ $PREFIX/share/cppcheck \
  && $ARCH-gcc -DEXE=../share/cppcheck/cppcheck.exe -DCMD=cppcheck \
-        -Os -ffreestanding -fno-ident -fno-asynchronous-unwind-tables \
-        -s -nostdlib \
+        -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
         -o $PREFIX/bin/cppcheck.exe \
         $PREFIX/src/alias.c -lkernel32
 
@@ -441,13 +438,13 @@ RUN printf "id ICON \"$PREFIX/src/w64devkit.ico\"" >w64devkit.rc \
  && $ARCH-windres -o w64devkit.o w64devkit.rc \
  && $ARCH-gcc -DVERSION=$VERSION \
         -mno-stack-arg-probe -Xlinker --stack=0x10000,0x10000 \
-        -Os -ffreestanding -fno-ident -fno-asynchronous-unwind-tables \
-        -s -nostdlib \
+        -Os -fno-asynchronous-unwind-tables \
+        -Wl,--gc-sections -s -nostdlib \
         -o $PREFIX/w64devkit.exe $PREFIX/src/w64devkit.c w64devkit.o \
         -lkernel32 \
  && $ARCH-gcc \
-        -Os -fno-ident -fno-asynchronous-unwind-tables \
-        -s -nostdlib \
+        -Os -fno-asynchronous-unwind-tables \
+        -Wl,--gc-sections -s -nostdlib \
         -o $PREFIX/bin/debugbreak.exe $PREFIX/src/debugbreak.c \
         -lkernel32 \
  && cp /mingw-w64-v$MINGW_VERSION/COPYING.MinGW-w64-runtime/COPYING.MinGW-w64-runtime.txt \

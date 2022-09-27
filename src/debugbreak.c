@@ -6,7 +6,7 @@
 // such as when it's stuck in an infinite loop.
 //
 // Mingw-w64:
-//   gcc -Os -fno-ident -fno-asynchronous-unwind-tables -s -nostdlib
+//   gcc -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib
 //       -o debugbreak.exe debugbreak.c -lkernel32
 //
 // MSVC:
@@ -32,7 +32,7 @@ STATIC char usage[] =
 "Usage: debugbreak\n"
 "  raise a breakpoint exception in all Win32 debuggees\n";
 
-int WINAPI
+int
 mainCRTStartup(void)
 {
     // Skip argv[0] and space separator. This avoids linking shell32.dll

@@ -1,65 +1,37 @@
 --- a/Dockerfile
 +++ b/Dockerfile
-@@ -56,7 +56,7 @@ RUN sha256sum -c $PREFIX/src/SHA256SUMS \
- COPY src/w64devkit.c src/w64devkit.ico src/alias.c src/debugbreak.c \
-      $PREFIX/src/
+@@ -58,3 +58,3 @@ COPY src/w64devkit.c src/w64devkit.ico src/alias.c src/debugbreak.c \
  
 -ARG ARCH=x86_64-w64-mingw32
 +ARG ARCH=i686-w64-mingw32
  
- # Build cross-compiler
- 
-@@ -81,6 +81,7 @@ WORKDIR /x-mingw-headers
- RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-headers/configure \
-         --prefix=/bootstrap/$ARCH \
+@@ -83,2 +83,3 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-headers/configure \
          --host=$ARCH \
 +        --with-default-win32-winnt=0x0501 \
   && make -j$(nproc) \
-  && make install
- 
-@@ -92,6 +93,7 @@ RUN /gcc-$GCC_VERSION/configure \
-         --prefix=/bootstrap \
-         --with-sysroot=/bootstrap \
+@@ -96,2 +97,3 @@ RUN cat $PREFIX/src/gcc-*.patch | patch -d/gcc-$GCC_VERSION -p1 \
          --target=$ARCH \
 +        --with-arch=pentium4 \
          --enable-static \
-         --disable-shared \
-         --with-pic \
-@@ -119,8 +121,8 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
-         --with-sysroot=/bootstrap/$ARCH \
-         --host=$ARCH \
+@@ -123,4 +125,4 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
          --disable-dependency-tracking \
 -        --disable-lib32 \
 -        --enable-lib64 \
 +        --enable-lib32 \
 +        --disable-lib64 \
          CFLAGS="-Os" \
-         LDFLAGS="-s" \
-  && make -j$(nproc) \
-@@ -202,6 +204,7 @@ WORKDIR /mingw-headers
- RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-headers/configure \
-         --prefix=$PREFIX/$ARCH \
+@@ -206,2 +208,3 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-headers/configure \
          --host=$ARCH \
 +        --with-default-win32-winnt=0x0501 \
   && make -j$(nproc) \
-  && make install
- 
-@@ -211,8 +214,8 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
-         --with-sysroot=$PREFIX/$ARCH \
-         --host=$ARCH \
+@@ -215,4 +218,4 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
          --disable-dependency-tracking \
 -        --disable-lib32 \
 -        --enable-lib64 \
 +        --enable-lib32 \
 +        --disable-lib64 \
          CFLAGS="-Os" \
-         LDFLAGS="-s" \
-  && make -j$(nproc) \
-@@ -237,6 +240,7 @@ RUN sed -i 's#=/mingw/include#=/include#' /gcc-$GCC_VERSION/gcc/config.gcc \
-         --with-sysroot=$PREFIX/$ARCH \
-         --target=$ARCH \
+@@ -241,2 +244,3 @@ RUN sed -i 's#=/mingw/include#=/include#' /gcc-$GCC_VERSION/gcc/config.gcc \
          --host=$ARCH \
 +        --with-arch=pentium4 \
          --enable-static \
-         --disable-shared \
-         --with-pic \

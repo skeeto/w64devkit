@@ -6,11 +6,11 @@
  * including additional arguments. Example:
  *
  *   $ gcc -DEXE="target.exe" -DCMD="argv0 argv1" \
- *         -Os -ffreestanding -fno-ident -fno-asynchronous-unwind-tables \
- *         -s -nostdlib -Wl,--file-alignment,16,--section-alignment,16 \
+ *         -Os -fno-asynchronous-unwind-tables \
+ *         -Wl,--gc-sections -s -nostdlib \
  *         -o alias.exe alias.c -lkernel32
  *
- * Program is compiled freestanding in order to be as small as possible.
+ * This program is compiled CRT-free in order to be as small as possible.
  *
  * This is free and unencumbered software released into the public domain.
  */
@@ -76,7 +76,7 @@ findfile(WCHAR *s)
     }
 }
 
-int WINAPI
+int
 mainCRTStartup(void)
 {
     /* Replace alias module with adjacent target. */

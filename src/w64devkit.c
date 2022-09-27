@@ -3,7 +3,7 @@
  *
  * $ gcc -DVERSION="$VERSION" \
  *       -mno-stack-arg-probe -Xlinker --stack=0x10000,0x10000 \
- *       -Os -ffreestanding -fno-ident -fno-asynchronous-unwind-tables \
+ *       -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections \
  *       -s -nostdlib -o w64devkit.exe w64devkit.c -lkernel32
  *
  * This is free and unencumbered software released into the public domain.
@@ -100,7 +100,7 @@ homeconfig(WCHAR *path)
     GetFullPathNameW(expanded, MAX_PATH, path, 0);
 }
 
-int WINAPI
+int
 mainCRTStartup(void)
 {
     WCHAR path[MAX_PATH + MAX_VAR];
