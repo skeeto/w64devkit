@@ -2,8 +2,8 @@
  *
  * Unlike batch script aliases, this program will not produce an annoying
  * and useless "Terminate batch job (Y/N)" prompt. When compiling, define
- * EXE as the target executable, and define CMD as the argv[0] replacement,
- * including additional arguments. Example:
+ * EXE as the target executable (relative or absolute path), and define CMD
+ * as the argv[0] replacement, including additional arguments. Example:
  *
  *   $ gcc -DEXE="target.exe" -DCMD="argv0 argv1" \
  *         -Os -fno-asynchronous-unwind-tables \
@@ -81,9 +81,15 @@ mainCRTStartup(void)
 {
     /* Replace alias module with adjacent target. */
     WCHAR exe[MAX_PATH + COUNTOF(LEXE)];
-    GetModuleFileNameW(0, exe, MAX_PATH);
-    WCHAR *file = findfile(exe);
-    xmemcpy(file, LEXE, sizeof(LEXE));
+    if (LEXE[1] != ':') {
+        /* EXE looks like a relative path */
+        GetModuleFileNameW(0, exe, MAX_PATH);
+        WCHAR *file = findfile(exe);
+        xmemcpy(file, LEXE, sizeof(LEXE));
+    } else {
+        /* EXE looks like an absolute path */
+        xmemcpy(exe, LEXE, sizeof(LEXE));
+    }
 
     /* Produce a new command line string with new argv[0]. */
     WCHAR *args = findargs(GetCommandLineW());
