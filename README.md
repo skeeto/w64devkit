@@ -69,8 +69,8 @@ Then to start an interactive unix shell:
 The language runtimes in w64devkit are optimized for size, so it produces
 particularly small binaries when programs are also optimized for size
 (`-Os`) during compilation. If your program only uses the `printf` family
-of functions with MSVC-compatable directivies (i.e. limited to C89), and
-you want even smaller binaries, you can avoid embdedding the Mingw-w64's
+of functions with MSVC-compatible directives (i.e. limited to C89), and
+you want even smaller binaries, you can avoid embedding the Mingw-w64's
 improved implementation by setting `__USE_MINGW_ANSI_STDIO` to 0 before
 including any headers.
 
