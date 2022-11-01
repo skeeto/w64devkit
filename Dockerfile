@@ -14,6 +14,7 @@ ARG MINGW_VERSION=10.0.0
 ARG MPC_VERSION=1.2.1
 ARG MPFR_VERSION=4.1.0
 ARG NASM_VERSION=2.15.05
+ARG PDCURSES_VERSION=3.9
 ARG CPPCHECK_VERSION=2.8
 ARG VIM_VERSION=9.0
 
@@ -36,6 +37,7 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
     https://www.nasm.us/pub/nasm/releasebuilds/$NASM_VERSION/nasm-$NASM_VERSION.tar.xz \
     http://deb.debian.org/debian/pool/main/u/universal-ctags/universal-ctags_0+git$CTAGS_VERSION.orig.tar.gz \
     https://downloads.sourceforge.net/project/mingw-w64/mingw-w64/mingw-w64-release/mingw-w64-v$MINGW_VERSION.tar.bz2 \
+    https://downloads.sourceforge.net/project/pdcurses/pdcurses/$PDCURSES_VERSION/PDCurses-$PDCURSES_VERSION.tar.gz \
     https://github.com/danmar/cppcheck/archive/$CPPCHECK_VERSION.tar.gz
 COPY src/SHA256SUMS $PREFIX/src/
 RUN sha256sum -c $PREFIX/src/SHA256SUMS \
@@ -50,6 +52,7 @@ RUN sha256sum -c $PREFIX/src/SHA256SUMS \
  && tar xJf mpfr-$MPFR_VERSION.tar.xz \
  && tar xzf make-$MAKE_VERSION.tar.gz \
  && tar xjf mingw-w64-v$MINGW_VERSION.tar.bz2 \
+ && tar xzf PDCurses-$PDCURSES_VERSION.tar.gz \
  && tar xJf nasm-$NASM_VERSION.tar.xz \
  && tar xjf vim-$VIM_VERSION.tar.bz2 \
  && tar xzf cppcheck-$CPPCHECK_VERSION.tar.gz
@@ -315,15 +318,22 @@ RUN /expat-$EXPAT_VERSION/configure \
  && make -j$(nproc) \
  && make install
 
+WORKDIR /PDCurses-$PDCURSES_VERSION
+RUN make -j$(nproc) -C wincon \
+        CFLAGS="-I.. -Os -DPDC_WIDE" CC=$ARCH-gcc pdcurses.a \
+ && cp wincon/pdcurses.a /deps/lib/libcurses.a \
+ && cp curses.h /deps/include
+
 WORKDIR /gdb
 RUN sed -i 's/quiet = 0/quiet = 1/' /gdb-$GDB_VERSION/gdb/main.c \
  && /gdb-$GDB_VERSION/configure \
         --host=$ARCH \
         --with-libexpat-prefix=/deps \
         --with-libgmp-prefix=/deps \
-        CFLAGS="-Os -D_WIN32_WINNT=0x502" \
-        CXXFLAGS="-Os" \
-        LDFLAGS="-s" \
+        --enable-tui \
+        CFLAGS="-Os -D_WIN32_WINNT=0x502 -DPDC_WIDE" \
+        CXXFLAGS="-Os -DPDC_WIDE" \
+        LDFLAGS="-s -L/deps/lib" \
  && make MAKEINFO=true -j$(nproc) \
  && cp gdb/gdb.exe $PREFIX/bin/
 
