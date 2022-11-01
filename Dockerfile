@@ -9,7 +9,7 @@ ARG EXPAT_VERSION=2.5.0
 ARG GCC_VERSION=12.2.0
 ARG GDB_VERSION=11.1
 ARG GMP_VERSION=6.2.1
-ARG MAKE_VERSION=4.2
+ARG MAKE_VERSION=4.4
 ARG MINGW_VERSION=10.0.0
 ARG MPC_VERSION=1.2.1
 ARG MPFR_VERSION=4.1.0
@@ -331,7 +331,7 @@ WORKDIR /make
 RUN /make-$MAKE_VERSION/configure \
         --host=$ARCH \
         --disable-nls \
-        CFLAGS="-I/make-$MAKE_VERSION/glob -Os" \
+        CFLAGS="-Os" \
         LDFLAGS="-s" \
  && make -j$(nproc) \
  && cp make.exe $PREFIX/bin/ \
