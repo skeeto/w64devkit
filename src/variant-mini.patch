@@ -1,11 +1,11 @@
 --- a/Dockerfile
 +++ b/Dockerfile
-@@ -250,3 +250,3 @@ RUN sed -i 's#=/mingw/include#=/include#' /gcc-$GCC_VERSION/gcc/config.gcc \
+@@ -254,3 +254,3 @@ RUN sed -i 's#=/mingw/include#=/include#' /gcc-$GCC_VERSION/gcc/config.gcc \
          --with-mpfr-lib=/deps/lib \
 -        --enable-languages=c,c++ \
 +        --enable-languages=c \
          --enable-libgomp \
-@@ -269,7 +269,3 @@ RUN sed -i 's#=/mingw/include#=/include#' /gcc-$GCC_VERSION/gcc/config.gcc \
+@@ -273,7 +273,3 @@ RUN sed -i 's#=/mingw/include#=/include#' /gcc-$GCC_VERSION/gcc/config.gcc \
          $PREFIX/bin/ld.bfd.exe $PREFIX/bin/c++.exe $PREFIX/bin/lto-dump.exe \
 - && $ARCH-gcc -DEXE=g++.exe -DCMD=c++ \
 -        -Os -fno-asynchronous-unwind-tables \
@@ -14,7 +14,7 @@
 -        $PREFIX/src/alias.c -lkernel32
 +        $PREFIX/bin/c++filt.exe
  
-@@ -282,3 +278,3 @@ RUN $ARCH-gcc -DEXE=gcc.exe -DCMD=cc \
+@@ -286,3 +282,3 @@ RUN $ARCH-gcc -DEXE=gcc.exe -DCMD=cc \
          -o $PREFIX/bin/c99.exe $PREFIX/src/alias.c -lkernel32 \
 - && printf '%s\n' addr2line ar as c++filt cpp dlltool dllwrap elfedit g++ \
 + && printf '%s\n' addr2line ar as cpp dlltool dllwrap elfedit \
