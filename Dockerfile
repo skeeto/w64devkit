@@ -320,7 +320,7 @@ RUN /expat-$EXPAT_VERSION/configure \
 
 WORKDIR /PDCurses-$PDCURSES_VERSION
 RUN make -j$(nproc) -C wincon \
-        CFLAGS="-I.. -Os -DPDC_WIDE" CC=$ARCH-gcc pdcurses.a \
+        CC=$ARCH-gcc AR=$ARCH-ar CFLAGS="-I.. -Os -DPDC_WIDE" pdcurses.a \
  && cp wincon/pdcurses.a /deps/lib/libcurses.a \
  && cp curses.h /deps/include
 
