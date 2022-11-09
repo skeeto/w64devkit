@@ -237,10 +237,10 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-libraries/winpthreads/configure \
  && make install
 
 WORKDIR /gcc
-RUN sed -i 's#=/mingw/include#=/include#' /gcc-$GCC_VERSION/gcc/config.gcc \
- && /gcc-$GCC_VERSION/configure \
+RUN /gcc-$GCC_VERSION/configure \
         --prefix=$PREFIX \
         --with-sysroot=$PREFIX/$ARCH \
+        --with-native-system-header-dir=/include \
         --target=$ARCH \
         --host=$ARCH \
         --enable-static \
