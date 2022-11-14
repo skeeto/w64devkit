@@ -370,6 +370,7 @@ RUN cat $PREFIX/src/busybox-*.patch | patch -p1 \
  && make -j$(nproc) CROSS_COMPILE=$ARCH- \
     CONFIG_EXTRA_CFLAGS="-D_WIN32_WINNT=0x502" \
  && cp busybox.exe $PREFIX/bin/
+COPY bin/busybox.exe.manifest $PREFIX/bin/
 
 # Create BusyBox command aliases (like "busybox --install")
 RUN printf '%s\n' arch ash awk base32 base64 basename bash bc bunzip2 bzcat \

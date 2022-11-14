@@ -138,6 +138,9 @@ mainCRTStartup(void)
     SetEnvironmentVariableW(L"W64DEVKIT", LSTR(VERSION)); // ignore errors
     #endif
 
+    /* BusyBox will be in UTF-8 code page: prepare the console for it */
+    SetConsoleOutputCP(CP_UTF8);
+
     /* Start a BusyBox login shell */
     STARTUPINFOW si;
     GetStartupInfoW(&si);
