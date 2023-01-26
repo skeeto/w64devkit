@@ -56,7 +56,8 @@ RUN sha256sum -c $PREFIX/src/SHA256SUMS \
  && tar xJf nasm-$NASM_VERSION.tar.xz \
  && tar xjf vim-$VIM_VERSION.tar.bz2 \
  && tar xzf cppcheck-$CPPCHECK_VERSION.tar.gz
-COPY src/w64devkit.c src/w64devkit.ico src/alias.c src/debugbreak.c \
+COPY src/w64devkit.c src/w64devkit.ico \
+     src/alias.c src/debugbreak.c src/pkg-config.c \
      $PREFIX/src/
 
 ARG ARCH=x86_64-w64-mingw32
@@ -458,6 +459,12 @@ RUN printf "id ICON \"$PREFIX/src/w64devkit.ico\"" >w64devkit.rc \
         -Wl,--gc-sections -s -nostdlib \
         -o $PREFIX/bin/debugbreak.exe $PREFIX/src/debugbreak.c \
         -lkernel32 \
+ && $ARCH-gcc \
+        -Os -fwhole-program -fno-asynchronous-unwind-tables \
+        -Wl,--gc-sections -s -nostdlib -DPKG_CONFIG_PREFIX="\"/$ARCH\"" \
+        -o $PREFIX/bin/pkg-config.exe $PREFIX/src/pkg-config.c \
+        -lkernel32 \
+ && mkdir -p $PREFIX/$ARCH/lib/pkgconfig \
  && cp /mingw-w64-v$MINGW_VERSION/COPYING.MinGW-w64-runtime/COPYING.MinGW-w64-runtime.txt \
         $PREFIX/ \
  && printf "\n===========\nwinpthreads\n===========\n\n" \
