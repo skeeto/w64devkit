@@ -6,41 +6,51 @@
 
 // Fundamental definitions
 
-#define VERSION "0.30.0"
+#define VERSION "0.30.1"
 
 typedef int Size;
 #define Size_MASK ((unsigned)-1)
 #define Size_MAX  ((Size)(Size_MASK>>1) - (ALIGN-1))
 
+#define SIZEOF(x) (Size)(sizeof(x))
+#define ALIGN SIZEOF(void *)
+#define COUNTOF(a) (SIZEOF(a)/SIZEOF(a[0]))
+
 typedef int Bool;
 typedef unsigned char Byte;
 
 #if __GNUC__
-#  define TRAP __builtin_trap()
-#  define NORETURN __attribute__((noreturn))
+  #define TRAP __builtin_trap()
+  #define NORETURN __attribute__((noreturn))
 #elif _MSC_VER
-#  define TRAP __debugbreak()
-#  define NORETURN __declspec(noreturn)
+  #define TRAP __debugbreak()
+  #define NORETURN __declspec(noreturn)
 #else
-#  define TRAP *(volatile int *)0 = 0
-#  define NORETURN
+  #define TRAP *(volatile int *)0 = 0
+  #define NORETURN
 #endif
 
 #ifdef DEBUG
-#  define ASSERT(c) if (!(c)) TRAP
+  #define ASSERT(c) if (!(c)) TRAP
 #else
-#  define ASSERT(c)
+  #define ASSERT(c)
 #endif
-#define SIZEOF(x) (Size)(sizeof(x))
-#define ALIGN SIZEOF(void *)
-#define COUNTOF(a) (SIZEOF(a)/SIZEOF(a[0]))
-#define S(s) (Str){(Byte *)s, SIZEOF(s)-1}
-#define Z(s) (Str){(Byte *)s, SIZEOF(s)}
 
 typedef struct {
     Byte *s;
     Size len;
 } Str;
+
+#ifdef __cplusplus
+  #define S(s) makestr((Byte *)s, SIZEOF(s)-1)
+  static inline Str makestr(Byte *s, Size len)
+  {
+      Str r = {s, len};
+      return r;
+  }
+#else
+  #define S(s) (Str){(Byte *)s, SIZEOF(s)-1}
+#endif
 
 typedef struct {
     Str mem;
@@ -148,7 +158,7 @@ static void *allocarray(Arena *a, Size size, Size count)
 
 static Str newstr(Arena *a, Size len)
 {
-    Str r = {alloc(a, len), len};
+    Str r = {(Byte *)alloc(a, len), len};
     return r;
 }
 
@@ -346,7 +356,7 @@ static void *treapinsert(Arena *a, Treap **t, Str key, Size size)
     if (!a) {
         return 0;  // "only browsing, thanks"
     }
-    Treap *node = zalloc(a, size);
+    Treap *node = (Treap *)zalloc(a, size);
     node->key = key;
     node->parent = parent;
     *target = node;
@@ -394,7 +404,8 @@ static Out newoutput(Arena *a, int fd, Size len)
 
 static Out newnullout(void)
 {
-    Out out = {.fd=-1};
+    Out out = {0};
+    out.fd = -1;
     return out;
 }
 
@@ -480,7 +491,7 @@ typedef struct {
 // a valid empty environment.
 static Str *insert(Arena *a, Env *e, Str name)
 {
-    Var *var = treapinsert(a, &e->vars, name, SIZEOF(Var));
+    Var *var = (Var *)treapinsert(a, &e->vars, name, SIZEOF(*var));
     return var ? &var->value : 0;
 }
 
@@ -518,9 +529,9 @@ static Str basename(Str path)
 static Str buildpath(Arena *a, Str dir, Str pc)
 {
     Str sep = S("/");
-    Str suffix = Z(".pc");
+    Str suffix = S(".pc\0");
     Size pathlen = dir.len + sep.len + pc.len + suffix.len;
-    Str path = {alloc(a, pathlen), pathlen};
+    Str path = newstr(a, pathlen);
     Str p = path;
     p = copy(p, dir);
     p = copy(p, sep);
@@ -586,7 +597,7 @@ typedef struct {
 // space in the set for a new package.
 static Pkg *locate(Arena *a, Pkgs *t, Str realname)
 {
-    Pkg *p = treapinsert(a, &t->pkgs, realname, SIZEOF(Pkg));
+    Pkg *p = (Pkg *)treapinsert(a, &t->pkgs, realname, SIZEOF(*p));
     if (!p->realname.s) {
         t->count++;
         p->realname = realname;
@@ -651,7 +662,9 @@ static ParseResult parsepackage(Arena *a, Str src)
 {
     Byte *p = src.s;
     Byte *e = src.s + src.len;
-    ParseResult result = {.status=Parse_OK, .pkg={.contents=src}};
+    ParseResult result = {0};
+    result.status = Parse_OK;
+    result.pkg.contents = src;
 
     while (p < e) {
         for (; p<e && whitespace(*p); p++) {}
@@ -680,10 +693,9 @@ static ParseResult parsepackage(Arena *a, Str src)
         case '=':
             field = insert(a, &result.pkg.env, name);
             if (field->s) {
-                ParseResult dup = {
-                    .dupname = name,
-                    .status = Parse_DUPVARABLE,
-                };
+                ParseResult dup = {0};
+                dup.dupname = name;
+                dup.status = Parse_DUPVARABLE;
                 return dup;
             }
             break;
@@ -691,10 +703,9 @@ static ParseResult parsepackage(Arena *a, Str src)
         case ':':
             field = fieldbyname(&result.pkg, name);
             if (field && field->s) {
-                ParseResult dup = {
-                    .dupname = name,
-                    .status = Parse_DUPFIELD,
-                };
+                ParseResult dup = {0};
+                dup.dupname = name;
+                dup.status = Parse_DUPFIELD;
                 return dup;
             }
             break;
@@ -785,17 +796,21 @@ typedef struct {
 static OptionResult nextoption(OptionParser *p)
 {
     if (p->index == p->nargs) {
-        OptionResult r = {.ok=0};
+        OptionResult r = {0};
         return r;
     }
 
     Str arg = p->args[p->index++];
     if (arg.len<2 || arg.s[0]!='-') {
-        OptionResult r = {.arg=arg, .ok=1};
+        OptionResult r = {0};
+        r.arg = arg;
+        r.ok = 1;
         return r;
     }
 
-    OptionResult r = {.isoption=1, .ok=1};
+    OptionResult r = {0};
+    r.isoption = 1;
+    r.ok = 1;
     arg = cuthead(arg, 1);
     Cut c = cut(arg, '=');
     if (c.ok) {
@@ -818,13 +833,13 @@ static Str getargopt(Out *err, OptionParser *p, Str option)
 static void usage(Out *out)
 {
     static const char usage[] =
-    "u-config " VERSION " https://github.com/skeeto/u-config "
-    "(released into the public domain)\n"
+    "u-config " VERSION " https://github.com/skeeto/u-config\n"
+    "free and unencumbered software released into the public domain\n"
     "usage: pkg-config [OPTIONS...] [PACKAGES...]\n"
     "  --cflags, --cflags-only-I, --cflags-only-other\n"
     "  --define-prefix, --dont-define-prefix\n"
     "  --define-variable=NAME=VALUE, --variable=NAME\n"
-    "  --exists\n"
+    "  --exists, --validate\n"
     "  --keep-system-cflags, --keep-system-libs\n"
     "  --libs, --libs-only-L, --libs-only-l, --libs-only-other\n"
     "  --maximum-traverse-depth=N\n"
@@ -832,9 +847,14 @@ static void usage(Out *out)
     "  --msvc-syntax\n"
     "  --newlines\n"
     "  --static\n"
-    "  --validate\n"
     "  --with-path=PATH\n"
-    "  -h, --help, --version\n";
+    "  -h, --help, --version\n"
+    "environment:\n"
+    "  PKG_CONFIG_PATH\n"
+    "  PKG_CONFIG_LIBDIR\n"
+    "  PKG_CONFIG_TOP_BUILD_DIR\n"
+    "  PKG_CONFIG_SYSTEM_INCLUDE_PATH\n"
+    "  PKG_CONFIG_SYSTEM_LIBRARY_PATH\n";
     outstr(out, S(usage));
 }
 
@@ -851,13 +871,14 @@ typedef struct {
 
 static Search newsearch(Byte delim)
 {
-    Search r = {.delim=delim};
+    Search r = {0};
+    r.delim = delim;
     return r;
 }
 
 static void appenddir(Arena *a, Search *dirs, Str dir)
 {
-    SearchNode *node = alloc(a, SIZEOF(*node));
+    SearchNode *node = (SearchNode *)alloc(a, SIZEOF(*node));
     node->dir = dir;
     node->next = 0;
     if (dirs->tail) {
@@ -927,10 +948,11 @@ static Str readpackage(Arena *a, Out *err, Str path, Str realname)
         );
     }
 
+    Str null = {0};
     MapFileResult m = os_mapfile(a, path);
     switch (m.status) {
     case MapFile_NOTFOUND:
-        return (Str){0, 0};
+        return null;
 
     case MapFile_READERR:
         outstr(err, S("pkg-config: "));
@@ -946,7 +968,7 @@ static Str readpackage(Arena *a, Out *err, Str path, Str realname)
         return m.contents;
     }
     ASSERT(0);
-    return (Str){0, 0};
+    return null;
 }
 
 static void expand(Out *out, Out *err, Env *global, Pkg *p, Str str)
@@ -1253,7 +1275,7 @@ typedef enum {
     VersionOp_LTE,
     VersionOp_EQ,
     VersionOp_GTE,
-    VersionOp_GT,
+    VersionOp_GT
 } VersionOp;
 
 static VersionOp parseop(Str s)
@@ -1283,7 +1305,8 @@ static Str opname(VersionOp op)
     case VersionOp_GT:  return S(">");
     }
     ASSERT(0);
-    return (Str){0, 0};
+    Str null = {0};
+    return null;
 }
 
 static Bool validcompare(VersionOp op, int result)
@@ -1319,7 +1342,7 @@ static Processor newprocessor(Config *c, Out *err, Env *g, Pkgs *pkgs)
     appendpath(a, &search, c->envpath);
     appendpath(a, &search, c->fixedpath);
     int maxdepth = (unsigned)-1 >> 1;
-    Processor proc = {err, search, g, pkgs, 0, maxdepth, 0, 1, 1};
+    Processor proc = {err, search, g, pkgs, 0, maxdepth, VersionOp_ERR, 1, 1};
     return proc;
 }
 
@@ -1398,7 +1421,7 @@ static void process(Arena *a, Processor *proc, Str arg)
     stack[0].last = proc->last;
     stack[0].depth = 0;
     stack[0].flags = Pkg_DIRECT | Pkg_PUBLIC;
-    stack[0].op = 0;
+    stack[0].op = VersionOp_ERR;
 
     while (top >= 0) {
         ProcState *s = stack + top;
@@ -1430,7 +1453,7 @@ static void process(Arena *a, Processor *proc, Str arg)
                 os_fail();
             }
             s->last = 0;
-            s->op = 0;
+            s->op = VersionOp_ERR;
             continue;
         }
 
@@ -1465,7 +1488,7 @@ static void process(Arena *a, Processor *proc, Str arg)
                     stack[top].last = 0;
                     stack[top].depth = depth;
                     stack[top].flags = (flags & ~Pkg_DIRECT) | flags;
-                    stack[top].op = 0;
+                    stack[top].op = VersionOp_ERR;
                 }
             }
         } else {
@@ -1484,13 +1507,13 @@ static void process(Arena *a, Processor *proc, Str arg)
                 stack[top].last = 0;
                 stack[top].depth = depth;
                 stack[top].flags = 0;
-                stack[top].op = 0;
+                stack[top].op = VersionOp_ERR;
                 top++;
                 stack[top].arg = pkg->requires;
                 stack[top].last = 0;
                 stack[top].depth = depth;
                 stack[top].flags = (flags & ~Pkg_DIRECT) | flags;
-                stack[top].op = 0;
+                stack[top].op = VersionOp_ERR;
             }
         }
         pkg->flags |= flags;
@@ -1512,7 +1535,7 @@ typedef enum {
     Filter_L,
     Filter_l,
     Filter_OTHERC,
-    Filter_OTHERL,
+    Filter_OTHERL
 } Filter;
 
 static Bool filterok(Filter f, Str arg)
@@ -1570,7 +1593,7 @@ typedef struct {
 // Try to insert the string into the set, returning true on success.
 static Bool insertstr(Arena *a, StrSet *set, Str s)
 {
-    StrSetEntry *e = treapinsert(a, &set->set, s, SIZEOF(StrSetEntry));
+    StrSetEntry *e = (StrSetEntry *)treapinsert(a, &set->set, s, SIZEOF(*e));
     if (!e->present) {
         e->present = 1;
         return 1;
@@ -1599,16 +1622,27 @@ static void insertsyspath(OutConfig *conf, Str path, Byte delim, Byte flag)
 {
     Byte flagbuf[] = {'-', flag};
     Str prefix = {flagbuf, SIZEOF(flagbuf)};
+
     while (path.len) {
-        Arena snapshot = *conf->arena;
+        // Allocations are tentative and may be discarded
+        Arena save = *conf->arena;
+
         Cut c = cut(path, delim);
         Str dir = c.head;
         path = c.tail;
         if (!dir.len) {
             continue;
         }
-        Str syspath = newstr(&snapshot, prefix.len+dir.len);
+
+        // Prepend option flag
+        Str syspath = newstr(&save, prefix.len+dir.len);
         copy(copy(syspath, prefix), dir);
+
+        // Process as an argument, as though being printed
+        syspath = maybequote(&save, syspath);
+        DequoteResult dr = dequote(&save, syspath);
+        syspath = dr.arg;
+
         // NOTE(NRK): Technically, the path doesn't need to follow the flag
         // immediately e.g `-I /usr/include` (notice the space between -I and
         // the include dir!).
@@ -1617,8 +1651,8 @@ static void insertsyspath(OutConfig *conf, Str path, Byte delim, Byte flag)
         // handling this edge-case. As a proof that this should be fine in
         // practice, `pkgconf` which is used by many distros, also doesn't
         // handle it.
-        if (insertstr(&snapshot, &conf->seen, syspath)) {
-            *conf->arena = snapshot;
+        if (dr.ok && !dr.tail.len && insertstr(&save, &conf->seen, syspath)) {
+            *conf->arena = save;
         }
     }
 }
@@ -1703,7 +1737,7 @@ static void appmain(Config conf)
     *insert(a, &global, S("pc_sysrootdir")) = S("/");
     *insert(a, &global, S("pc_top_builddir")) = conf.top_builddir;
 
-    Str *args = allocarray(a, SIZEOF(Str), conf.nargs);
+    Str *args = (Str *)allocarray(a, SIZEOF(Str), conf.nargs);
     Size nargs = 0;
 
     for (OptionParser opts = newoptionparser(conf.args, conf.nargs);;) {
@@ -2048,16 +2082,31 @@ static int cmdline_to_argv8(unsigned short *cmd, char **argv)
 #endif
 
 #ifdef _MSC_VER
-  #define ENTRYPOINT
+  #ifdef __cplusplus
+    #define EXTERN extern "C"
+  #else
+    #define EXTERN
+  #endif
   #pragma comment(lib, "kernel32.lib")
   #pragma comment(linker, "/subsystem:console")
-  #pragma function(memset)
-  void *memset(void *d, int c, size_t n) { __stosb(d, (BYTE)c, n); return d; }
+  #if _MSC_VER >= 1400
+    #pragma function(memset)
+    void *memset(void *d, int c, size_t n)
+    {
+        __stosb((BYTE *)d, (BYTE)c, n);
+        return d;
+    }
+  #endif
 #elif __GNUC__
-  #define ENTRYPOINT __attribute__((externally_visible))
+  #ifdef __cplusplus
+    #define EXTERN extern "C" __attribute__((externally_visible))
+  #else
+    #define EXTERN __attribute__((externally_visible))
+  #endif
   // NOTE: These functions are required at higher GCC optimization
   // levels. Placing them in their own section allows them to be
   // ommitted via -Wl,--gc-sections when unused.
+  EXTERN
   __attribute__((section(".text.memcpy")))
   void *memcpy(void *d, const void *s, size_t n)
   {
@@ -2071,6 +2120,7 @@ static int cmdline_to_argv8(unsigned short *cmd, char **argv)
       );
       return r;
   }
+  EXTERN
   __attribute__((section(".text.strlen")))
   size_t strlen(const char *s)
   {
@@ -2089,7 +2139,8 @@ static Arena newarena_(void)
     #if DEBUG
     cap = 1<<21;
     #endif
-    arena.mem.s = VirtualAlloc(0, cap, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
+    DWORD type = MEM_COMMIT | MEM_RESERVE;
+    arena.mem.s = (Byte *)VirtualAlloc(0, cap, type, PAGE_READWRITE);
     arena.mem.len = arena.mem.s ? cap : 0;
     shredfree(&arena);
     return arena;
@@ -2105,7 +2156,7 @@ static Str fromwide_(Arena *a, WCHAR *w, Size wlen)
     return s;
 }
 
-static Str fromenv_(Arena *a, WCHAR *name)
+static Str fromenv_(Arena *a, const WCHAR *name)
 {
     // NOTE: maximum environment variable size is 2**15-1, so this
     // cannot fail if the variable actually exists
@@ -2160,7 +2211,7 @@ static Str fromcstr_(char *z)
     return s;
 }
 
-ENTRYPOINT
+EXTERN
 int mainCRTStartup(void)
 {
     Config conf = {0};
@@ -2173,9 +2224,10 @@ int mainCRTStartup(void)
     HANDLE err = GetStdHandle(STD_ERROR_HANDLE);
     error_is_console = GetConsoleMode(err, &dummy);
 
-    char **argv = allocarray(a, SIZEOF(*argv), CMDLINE_ARGV_MAX);
-    conf.nargs = cmdline_to_argv8(GetCommandLineW(), argv) - 1;
-    conf.args = allocarray(a, SIZEOF(Str), conf.nargs);
+    char **argv = (char **)allocarray(a, SIZEOF(*argv), CMDLINE_ARGV_MAX);
+    unsigned short *cmdline = (unsigned short *)GetCommandLineW();
+    conf.nargs = cmdline_to_argv8(cmdline, argv) - 1;
+    conf.args = (Str *)allocarray(a, SIZEOF(Str), conf.nargs);
     for (Size i = 0; i < conf.nargs; i++) {
         conf.args[i] = fromcstr_(argv[i+1]);
     }
@@ -2207,7 +2259,7 @@ static MapFileResult os_mapfile(Arena *a, Str path)
         CP_UTF8, 0, (char *)path.s, path.len, wpath, MAX_PATH
     );
     if (!wlen) {
-        MapFileResult r = {.status=MapFile_NOTFOUND};
+        MapFileResult r = {{0, 0}, MapFile_NOTFOUND};
         return r;
     }
 
@@ -2221,32 +2273,38 @@ static MapFileResult os_mapfile(Arena *a, Str path)
         0
     );
     if (h == INVALID_HANDLE_VALUE) {
-        MapFileResult r = {.status=MapFile_NOTFOUND};
+        MapFileResult r = {{0, 0}, MapFile_NOTFOUND};
         return r;
     }
 
     DWORD hi, lo = GetFileSize(h, &hi);
     if (hi || lo>Size_MAX) {
         CloseHandle(h);
-        MapFileResult r = {.status=MapFile_READERR};
+        MapFileResult r = {{0, 0}, MapFile_READERR};
+        return r;
+    } else if (!lo) {
+        CloseHandle(h);
+        // Cannot map an empty file, so use the arena for a zero-size
+        // allocation, distinguishing it from a null string.
+        MapFileResult r = {newstr(a, 0), MapFile_OK};
         return r;
     }
 
-    HANDLE *map = CreateFileMapping(h, 0, PAGE_READONLY, 0, lo, 0);
+    HANDLE map = CreateFileMappingA(h, 0, PAGE_READONLY, 0, lo, 0);
     CloseHandle(h);
     if (!map) {
-        MapFileResult r = {.status=MapFile_READERR};
+        MapFileResult r = {{0, 0}, MapFile_READERR};
         return r;
     }
 
     void *p = MapViewOfFile(map, FILE_MAP_READ, 0, 0, lo);
     CloseHandle(map);
     if (!p) {
-        MapFileResult r = {.status=MapFile_READERR};
+        MapFileResult r = {{0, 0}, MapFile_READERR};
         return r;
     }
 
-    MapFileResult r = {{p, (Size)lo}, MapFile_OK};
+    MapFileResult r = {{(Byte *)p, (Size)lo}, MapFile_OK};
     return r;
 }
 
