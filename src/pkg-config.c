@@ -6,7 +6,7 @@
 
 // Fundamental definitions
 
-#define VERSION "0.30.1"
+#define VERSION "0.30.2"
 
 typedef int Size;
 #define Size_MASK ((unsigned)-1)
@@ -858,14 +858,33 @@ static void usage(Out *out)
     outstr(out, S(usage));
 }
 
-typedef struct SearchNode {
-    struct SearchNode *next;
-    Str dir;
-} SearchNode;
+typedef struct StrListNode {
+    struct StrListNode *next;
+    Str entry;
+} StrListNode;
 
 typedef struct {
-    SearchNode *head;
-    SearchNode *tail;
+    StrListNode *head;
+    StrListNode *tail;
+} StrList;
+
+static void append(Arena *a, StrList *list, Str str)
+{
+    StrListNode *node = (StrListNode *)alloc(a, SIZEOF(*node));
+    node->next = 0;
+    node->entry = str;
+    if (list->tail) {
+        ASSERT(list->head);
+        list->tail->next = node;
+    } else {
+        ASSERT(!list->tail);
+        list->head = node;
+    }
+    list->tail = node;
+}
+
+typedef struct {
+    StrList list;
     Byte delim;
 } Search;
 
@@ -876,28 +895,13 @@ static Search newsearch(Byte delim)
     return r;
 }
 
-static void appenddir(Arena *a, Search *dirs, Str dir)
-{
-    SearchNode *node = (SearchNode *)alloc(a, SIZEOF(*node));
-    node->dir = dir;
-    node->next = 0;
-    if (dirs->tail) {
-        ASSERT(dirs->head);
-        dirs->tail->next = node;
-    } else {
-        ASSERT(!dirs->tail);
-        dirs->head = node;
-    }
-    dirs->tail = node;
-}
-
 static void appendpath(Arena *a, Search *dirs, Str path)
 {
     while (path.len) {
         Cut c = cut(path, dirs->delim);
         Str dir = c.head;
         if (dir.len) {
-            appenddir(a, dirs, dir);
+            append(a, &dirs->list, dir);
         }
         path = c.tail;
     }
@@ -905,15 +909,15 @@ static void appendpath(Arena *a, Search *dirs, Str path)
 
 static void prependpath(Arena *a, Search *dirs, Str path)
 {
-    if (!dirs->head) {
+    if (!dirs->list.head) {
         // Empty, so appending is the same a prepending
         appendpath(a, dirs, path);
     } else {
-        // Append to an empty Search, then transplant it
+        // Append to an empty Search, then transplant in front
         Search temp = newsearch(dirs->delim);
         appendpath(a, &temp, path);
-        temp.tail->next = dirs->head;
-        dirs->head = temp.head;
+        temp.list.tail->next = dirs->list.head;
+        dirs->list.head = temp.list.head;
     }
 }
 
@@ -1064,8 +1068,8 @@ static Pkg findpackage(Arena *a, Search *dirs, Out *err, Str realname)
         }
     }
 
-    for (SearchNode *n = dirs->head; n && !contents.s; n = n->next) {
-        path = buildpath(a, n->dir, realname);
+    for (StrListNode *n = dirs->list.head; n && !contents.s; n = n->next) {
+        path = buildpath(a, n->entry, realname);
         contents = readpackage(a, err, path, realname);
         path = cuttail(path, 1);  // remove null terminator
     }
@@ -1583,50 +1587,83 @@ static void msvcize(Out *out, Str arg)
 
 typedef struct {
     Treap node;
-    Bool present;
-} StrSetEntry;
+    Size position;
+} ArgsNode;
 
 typedef struct {
-    Treap *set;
-} StrSet;
+    StrList list;
+    Treap *map;
+    Size count;
+} Args;
 
-// Try to insert the string into the set, returning true on success.
-static Bool insertstr(Arena *a, StrSet *set, Str s)
+static Bool dedupable(Str arg)
 {
-    StrSetEntry *e = (StrSetEntry *)treapinsert(a, &set->set, s, SIZEOF(*e));
-    if (!e->present) {
-        e->present = 1;
+    // Do not count "-I" or "-L" with detached argument
+    if (arg.len<3 || arg.s[0]!='-') {
+        return 0;
+    } else if (equals(arg, S("-pthread"))) {
         return 1;
+    }
+    Str flags = S("DILflm");
+    for (Size i = 0; i < flags.len; i++) {
+        if (arg.s[1] == flags.s[i]) {
+            return 1;
+        }
     }
     return 0;
 }
 
+static void appendarg(Arena *a, Args *args, Str arg)
+{
+    Size position = args->count++;
+    append(a, &args->list, arg);
+    if (dedupable(arg)) {
+        ArgsNode *n = (ArgsNode *)treapinsert(a, &args->map, arg, SIZEOF(*n));
+        if (!n->position || startswith(arg, S("-l"))) {
+            // Zero position reserved for null, so bias it by 1
+            n->position = 1 + position;
+        }
+    }
+}
+
+static void excludearg(Arena *a, Args *args, Str arg)
+{
+    ArgsNode *n = (ArgsNode *)treapinsert(a, &args->map, arg, SIZEOF(*n));
+    n->position = -1;  // i.e. position before first argument
+}
+
+// Is this the correct position for the given argument?
+static Bool inposition(Args *args, Str arg, Size position)
+{
+    ArgsNode *n = (ArgsNode *)treapinsert(0, &args->map, arg, SIZEOF(*n));
+    return !n || n->position==position+1;
+}
+
 typedef struct {
     Arena *arena;
-    Out *out;
-    Out *err;
-    Size count;
-    StrSet seen;
+    Size *argcount;
+    Args args;
     Filter filter;
     Bool msvc;
     Byte delim;
-} OutConfig;
+} FieldWriter;
 
-static OutConfig newoutconf(Arena *a, Out *out, Out *err)
+static FieldWriter newfieldwriter(Arena *a, Filter filter, Size *argcount)
 {
-    OutConfig r = {a, out, err, 0, {0}, Filter_ANY, 0, ' '};
-    return r;
+    FieldWriter w = {0};
+    w.arena = a;
+    w.filter = filter;
+    w.argcount = argcount;
+    return w;
 }
 
-static void insertsyspath(OutConfig *conf, Str path, Byte delim, Byte flag)
+static void insertsyspath(FieldWriter *w, Str path, Byte delim, Byte flag)
 {
+    Arena *a = w->arena;
     Byte flagbuf[] = {'-', flag};
     Str prefix = {flagbuf, SIZEOF(flagbuf)};
 
     while (path.len) {
-        // Allocations are tentative and may be discarded
-        Arena save = *conf->arena;
-
         Cut c = cut(path, delim);
         Str dir = c.head;
         path = c.tail;
@@ -1635,12 +1672,12 @@ static void insertsyspath(OutConfig *conf, Str path, Byte delim, Byte flag)
         }
 
         // Prepend option flag
-        Str syspath = newstr(&save, prefix.len+dir.len);
+        Str syspath = newstr(a, prefix.len+dir.len);
         copy(copy(syspath, prefix), dir);
 
         // Process as an argument, as though being printed
-        syspath = maybequote(&save, syspath);
-        DequoteResult dr = dequote(&save, syspath);
+        syspath = maybequote(a, syspath);
+        DequoteResult dr = dequote(a, syspath);
         syspath = dr.arg;
 
         // NOTE(NRK): Technically, the path doesn't need to follow the flag
@@ -1651,40 +1688,49 @@ static void insertsyspath(OutConfig *conf, Str path, Byte delim, Byte flag)
         // handling this edge-case. As a proof that this should be fine in
         // practice, `pkgconf` which is used by many distros, also doesn't
         // handle it.
-        if (dr.ok && !dr.tail.len && insertstr(&save, &conf->seen, syspath)) {
-            *conf->arena = save;
+        if (dr.ok && !dr.tail.len) {
+            excludearg(a, &w->args, syspath);
         }
     }
 }
 
-// Process the field while writing it to the output.
-static void fieldout(OutConfig *conf, Pkg *p, Str field)
+static void appendfield(Out *err, FieldWriter *w, Pkg *p, Str field)
 {
-    Arena *a = conf->arena;
-    Filter f = conf->filter;
+    Arena *a = w->arena;
+    Filter f = w->filter;
     while (field.len) {
-        Arena tentative = *a;
-        DequoteResult r = dequote(&tentative, field);
+        DequoteResult r = dequote(a, field);
         if (!r.ok) {
-            outstr(conf->err, S("pkg-config: "));
-            outstr(conf->err, S("unmatched quote in '"));
-            outstr(conf->err, p->realname);
-            outstr(conf->err, S("'\n"));
-            flush(conf->err);
+            outstr(err, S("pkg-config: "));
+            outstr(err, S("unmatched quote in '"));
+            outstr(err, p->realname);
+            outstr(err, S("'\n"));
+            flush(err);
             os_fail();
         }
-        if (filterok(f, r.arg) && insertstr(&tentative, &conf->seen, r.arg)) {
-            *a = tentative;  // keep the allocations
-            if (conf->count++) {
-                outbyte(conf->out, conf->delim);
-            }
-            if (conf->msvc) {
-                msvcize(conf->out, r.arg);
-            } else {
-                outstr(conf->out, r.arg);
-            }
+        if (filterok(f, r.arg)) {
+            appendarg(a, &w->args, r.arg);
         }
         field = r.tail;
+    }
+}
+
+static void writeargs(Out *out, FieldWriter *w)
+{
+    Size position = 0;
+    Byte delim = w->delim ? w->delim : ' ';
+    for (StrListNode *n = w->args.list.head; n; n = n->next) {
+        Str arg = n->entry;
+        if (inposition(&w->args, arg, position++)) {
+            if ((*w->argcount)++) {
+                outbyte(out, delim);
+            }
+            if (w->msvc) {
+                msvcize(out, arg);
+            } else {
+                outstr(out, arg);
+            }
+        }
     }
 }
 
@@ -1715,12 +1761,14 @@ static void appmain(Config conf)
     Out out = newoutput(a, 1, 1<<12);
     Out err = newoutput(a, 2, 1<<7);
     Processor proc = newprocessor(&conf, &err, &global, &pkgs);
-    OutConfig outconf = newoutconf(a, &out, &err);
+    Size argcount = 0;
 
+    Bool msvc = 0;
     Bool libs = 0;
     Bool cflags = 0;
     Bool silent = 0;
     Bool static_ = 0;
+    Byte argdelim = ' ';
     Bool modversion = 0;
     Bool print_sysinc = 0;
     Bool print_syslib = 0;
@@ -1819,7 +1867,7 @@ static void appmain(Config conf)
             proc.maxdepth = parseuint(r.value, 1000);
 
         } else if (equals(r.arg, S("-msvc-syntax"))) {
-            outconf.msvc = 1;
+            msvc = 1;
 
         } else if (equals(r.arg, S("-define-variable"))) {
             if (!r.value.s) {
@@ -1837,7 +1885,7 @@ static void appmain(Config conf)
             *insert(a, &global, c.head) = c.tail;
 
         } else if (equals(r.arg, S("-newlines"))) {
-            outconf.delim = '\n';
+            argdelim = '\n';
 
         } else if (equals(r.arg, S("-exists"))) {
             // The check already happens, just disable the messages
@@ -1879,14 +1927,6 @@ static void appmain(Config conf)
         err = newnullout();
     }
 
-    if (!print_sysinc) {
-        insertsyspath(&outconf, conf.sys_incpath, conf.delim, 'I');
-    }
-
-    if (!print_syslib) {
-        insertsyspath(&outconf, conf.sys_libpath, conf.delim, 'L');
-    }
-
     for (Size i = 0; i < nargs; i++) {
         process(a, &proc, args[i]);
     }
@@ -1921,22 +1961,36 @@ static void appmain(Config conf)
     }
 
     if (cflags) {
-        outconf.filter = filterc;
-        for (Pkg *p = pkgs.head; p; p = p->list) {
-            fieldout(&outconf, p, p->cflags);
+        Arena temp = *a;  // auto-free when done
+        FieldWriter fw = newfieldwriter(&temp, filterc, &argcount);
+        fw.delim = argdelim;
+        fw.msvc = msvc;
+        if (!print_sysinc) {
+            insertsyspath(&fw, conf.sys_incpath, conf.delim, 'I');
         }
+        for (Pkg *p = pkgs.head; p; p = p->list) {
+            appendfield(&err, &fw, p, p->cflags);
+        }
+        writeargs(&out, &fw);
     }
 
     if (libs) {
-        outconf.filter = filterl;
+        Arena temp = *a;  // auto-free when done
+        FieldWriter fw = newfieldwriter(&temp, filterl, &argcount);
+        fw.delim = argdelim;
+        fw.msvc = msvc;
+        if (!print_syslib) {
+            insertsyspath(&fw, conf.sys_libpath, conf.delim, 'L');
+        }
         for (Pkg *p = pkgs.head; p; p = p->list) {
             if (static_) {
-                fieldout(&outconf, p, p->libs);
-                fieldout(&outconf, p, p->libsprivate);
+                appendfield(&err, &fw, p, p->libs);
+                appendfield(&err, &fw, p, p->libsprivate);
             } else if (p->flags & Pkg_PUBLIC) {
-                fieldout(&outconf, p, p->libs);
+                appendfield(&err, &fw, p, p->libs);
             }
         }
+        writeargs(&out, &fw);
     }
 
     if (cflags || libs) {
