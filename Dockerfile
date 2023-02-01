@@ -464,6 +464,9 @@ RUN printf "id ICON \"$PREFIX/src/w64devkit.ico\"" >w64devkit.rc \
         -Wl,--gc-sections -s -nostdlib -DPKG_CONFIG_PREFIX="\"/$ARCH\"" \
         -o $PREFIX/bin/pkg-config.exe $PREFIX/src/pkg-config.c \
         -lkernel32 \
+ && $ARCH-gcc -DEXE=pkg-config.exe -DCMD=pkg-config \
+        -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
+        -o $PREFIX/bin/$ARCH-pkg-config.exe $PREFIX/src/alias.c -lkernel32 \
  && mkdir -p $PREFIX/$ARCH/lib/pkgconfig \
  && cp /mingw-w64-v$MINGW_VERSION/COPYING.MinGW-w64-runtime/COPYING.MinGW-w64-runtime.txt \
         $PREFIX/ \
