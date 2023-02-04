@@ -15,7 +15,7 @@ ARG MPC_VERSION=1.2.1
 ARG MPFR_VERSION=4.1.0
 ARG NASM_VERSION=2.15.05
 ARG PDCURSES_VERSION=3.9
-ARG CPPCHECK_VERSION=2.8
+ARG CPPCHECK_VERSION=2.10
 ARG VIM_VERSION=9.0
 
 RUN apt-get update && apt-get install --yes --no-install-recommends \
@@ -431,8 +431,9 @@ RUN sed -i /RT_MANIFEST/d win32/ctags.rc \
  && cp ctags.exe $PREFIX/bin/
 
 WORKDIR /cppcheck-$CPPCHECK_VERSION
-COPY src/cppcheck.mak $PREFIX/src/
-RUN make -f $PREFIX/src/cppcheck.mak -j$(nproc) CXX=$ARCH-g++ \
+COPY src/cppcheck.mak src/cppcheck-*.patch $PREFIX/src/
+RUN cat $PREFIX/src/cppcheck-*.patch | patch -p1 \
+ && make -f $PREFIX/src/cppcheck.mak -j$(nproc) CXX=$ARCH-g++ \
  && mkdir $PREFIX/share/cppcheck/ \
  && cp -r cppcheck.exe cfg/ $PREFIX/share/cppcheck \
  && $ARCH-gcc -DEXE=../share/cppcheck/cppcheck.exe -DCMD=cppcheck \

@@ -1,0 +1,7 @@
+--- a/cli/cmdlineparser.cpp
++++ b/cli/cmdlineparser.cpp
+@@ -131,3 +131,3 @@
+ #if defined(_WIN64) || defined(_WIN32)
+-bool CmdLineParser::SHOW_DEF_PLATFORM_MSG = true;
++bool CmdLineParser::SHOW_DEF_PLATFORM_MSG = false;
+ #endif
