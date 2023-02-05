@@ -219,7 +219,7 @@ binaries.
 [doc-make]: https://www.gnu.org/software/make/manual/
 [doc-nasm]: https://www.nasm.us/docs.php
 [doc-std]: https://stackoverflow.com/a/83763
-[doc-win32]: http://laurencejackson.com/win32/
+[doc-win32]: https://web.archive.org/web/20220922051031/http://www.laurencejackson.com/win32/
 [gdb]: https://www.gnu.org/software/gdb/
 [go]: https://nullprogram.com/blog/2021/06/29/
 [gpl]: https://www.gnu.org/licenses/gcc-exception-3.1.en.html
