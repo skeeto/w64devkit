@@ -1,37 +1,37 @@
 --- a/Dockerfile
 +++ b/Dockerfile
-@@ -61,3 +61,3 @@ COPY src/w64devkit.c src/w64devkit.ico src/alias.c src/debugbreak.c \
+@@ -62,3 +62,3 @@ COPY src/w64devkit.c src/w64devkit.ico \
  
 -ARG ARCH=x86_64-w64-mingw32
 +ARG ARCH=i686-w64-mingw32
  
-@@ -86,2 +86,3 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-headers/configure \
+@@ -87,2 +87,3 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-headers/configure \
          --host=$ARCH \
 +        --with-default-win32-winnt=0x0501 \
   && make -j$(nproc) \
-@@ -99,2 +100,3 @@ RUN cat $PREFIX/src/gcc-*.patch | patch -d/gcc-$GCC_VERSION -p1 \
+@@ -100,2 +101,3 @@ RUN cat $PREFIX/src/gcc-*.patch | patch -d/gcc-$GCC_VERSION -p1 \
          --target=$ARCH \
 +        --with-arch=pentium4 \
          --enable-static \
-@@ -126,4 +128,4 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
+@@ -127,4 +129,4 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
          --disable-dependency-tracking \
 -        --disable-lib32 \
 -        --enable-lib64 \
 +        --enable-lib32 \
 +        --disable-lib64 \
          CFLAGS="-Os" \
-@@ -210,2 +212,3 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-headers/configure \
+@@ -211,2 +213,3 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-headers/configure \
          --host=$ARCH \
 +        --with-default-win32-winnt=0x0501 \
   && make -j$(nproc) \
-@@ -219,4 +222,4 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
+@@ -220,4 +223,4 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
          --disable-dependency-tracking \
 -        --disable-lib32 \
 -        --enable-lib64 \
 +        --enable-lib32 \
 +        --disable-lib64 \
          CFLAGS="-Os" \
-@@ -231,2 +234,3 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-libraries/winpthreads/configure \
+@@ -246,2 +249,3 @@ RUN /gcc-$GCC_VERSION/configure \
          --host=$ARCH \
 +        --with-arch=pentium4 \
          --enable-static \
