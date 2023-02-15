@@ -3,7 +3,7 @@ FROM debian:bullseye-slim
 ARG VERSION=1.18.0
 ARG PREFIX=/w64devkit
 ARG BINUTILS_VERSION=2.39
-ARG BUSYBOX_VERSION=FRP-4784-g5507c8744
+ARG BUSYBOX_VERSION=FRP-4881-ga6c5fd4eb
 ARG CTAGS_VERSION=20200824
 ARG EXPAT_VERSION=2.5.0
 ARG GCC_VERSION=12.2.0
@@ -362,6 +362,7 @@ RUN cat $PREFIX/src/busybox-*.patch | patch -p1 \
  && sed -ri 's/^(CONFIG_LINK)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_MAN)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_MAKE)=y/\1=n/' .config \
+ && sed -ri 's/^(CONFIG_PDPMAKE)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_RPM\w*)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_STRINGS)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_TEST2)=y/\1=n/' .config \
