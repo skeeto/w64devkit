@@ -7,7 +7,7 @@ ARG BUSYBOX_VERSION=FRP-4882-g6e0a6b7e5
 ARG CTAGS_VERSION=20200824
 ARG EXPAT_VERSION=2.5.0
 ARG GCC_VERSION=12.2.0
-ARG GDB_VERSION=11.2
+ARG GDB_VERSION=13.1
 ARG GMP_VERSION=6.2.1
 ARG LIBICONV_VERSION=1.17
 ARG MAKE_VERSION=4.4
@@ -351,7 +351,7 @@ RUN sed -i 's/quiet = 0/quiet = 1/' /gdb-$GDB_VERSION/gdb/main.c \
         CXXFLAGS="-Os -DPDC_WIDE" \
         LDFLAGS="-s -L/deps/lib" \
  && make MAKEINFO=true -j$(nproc) \
- && cp gdb/gdb.exe $PREFIX/bin/
+ && cp gdb/.libs/gdb.exe $PREFIX/bin/
 
 WORKDIR /make
 RUN /make-$MAKE_VERSION/configure \
