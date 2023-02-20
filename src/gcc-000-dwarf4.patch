@@ -1,7 +1,0 @@
---- a/gcc/common.opt
-+++ b/gcc/common.opt
-@@ -3290,3 +3290,3 @@
- gdwarf-
--Common Driver Joined UInteger Var(dwarf_version) Init(5) Negative(gstabs)
-+Common Driver Joined UInteger Var(dwarf_version) Init(4) Negative(gstabs)
- Generate debug information in DWARF v2 (or later) format.
