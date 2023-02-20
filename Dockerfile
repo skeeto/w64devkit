@@ -9,6 +9,7 @@ ARG EXPAT_VERSION=2.5.0
 ARG GCC_VERSION=12.2.0
 ARG GDB_VERSION=11.2
 ARG GMP_VERSION=6.2.1
+ARG LIBICONV_VERSION=1.17
 ARG MAKE_VERSION=4.4
 ARG MINGW_VERSION=10.0.0
 ARG MPC_VERSION=1.2.1
@@ -32,6 +33,7 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
     https://ftp.gnu.org/gnu/mpc/mpc-$MPC_VERSION.tar.gz \
     https://ftp.gnu.org/gnu/mpfr/mpfr-$MPFR_VERSION.tar.xz \
     https://ftp.gnu.org/gnu/make/make-$MAKE_VERSION.tar.gz \
+    https://ftp.gnu.org/gnu/libiconv/libiconv-$LIBICONV_VERSION.tar.gz \
     https://frippery.org/files/busybox/busybox-w32-$BUSYBOX_VERSION.tgz \
     http://ftp.vim.org/pub/vim/unix/vim-$VIM_VERSION.tar.bz2 \
     https://www.nasm.us/pub/nasm/releasebuilds/$NASM_VERSION/nasm-$NASM_VERSION.tar.xz \
@@ -47,6 +49,7 @@ RUN sha256sum -c $PREFIX/src/SHA256SUMS \
  && tar xJf gcc-$GCC_VERSION.tar.xz \
  && tar xJf gdb-$GDB_VERSION.tar.xz \
  && tar xJf expat-$EXPAT_VERSION.tar.xz \
+ && tar xzf libiconv-$LIBICONV_VERSION.tar.gz \
  && tar xJf gmp-$GMP_VERSION.tar.xz \
  && tar xzf mpc-$MPC_VERSION.tar.gz \
  && tar xJf mpfr-$MPFR_VERSION.tar.xz \
@@ -325,12 +328,24 @@ RUN make -j$(nproc) -C wincon \
  && cp wincon/pdcurses.a /deps/lib/libcurses.a \
  && cp curses.h /deps/include
 
+WORKDIR /libiconv
+RUN /libiconv-$LIBICONV_VERSION/configure \
+        --prefix=/deps \
+        --host=$ARCH \
+        --disable-nls \
+        --disable-shared \
+        CFLAGS="-Os" \
+        LDFLAGS="-s" \
+ && make -j$(nproc) \
+ && make install
+
 WORKDIR /gdb
 RUN sed -i 's/quiet = 0/quiet = 1/' /gdb-$GDB_VERSION/gdb/main.c \
  && /gdb-$GDB_VERSION/configure \
         --host=$ARCH \
         --with-libexpat-prefix=/deps \
         --with-libgmp-prefix=/deps \
+        --with-libiconv-prefix=/deps \
         --enable-tui \
         CFLAGS="-Os -D_WIN32_WINNT=0x502 -DPDC_WIDE" \
         CXXFLAGS="-Os -DPDC_WIDE" \
