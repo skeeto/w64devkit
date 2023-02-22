@@ -345,7 +345,7 @@ RUN sed -i 's/quiet = 0/quiet = 1/' /gdb-$GDB_VERSION/gdb/main.c \
         --with-libgmp-prefix=/deps \
         --with-libiconv-prefix=/deps \
         --enable-tui \
-        CFLAGS="-Os -D_WIN32_WINNT=0x502 -DPDC_WIDE" \
+        CFLAGS="-Os -DPDC_WIDE" \
         CXXFLAGS="-Os -DPDC_WIDE" \
         LDFLAGS="-s -L/deps/lib" \
  && make MAKEINFO=true -j$(nproc) \
