@@ -4,7 +4,7 @@ ARG VERSION=1.18.0
 ARG PREFIX=/w64devkit
 ARG BINUTILS_VERSION=2.39
 ARG BUSYBOX_VERSION=FRP-4882-g6e0a6b7e5
-ARG CTAGS_VERSION=20200824
+ARG CTAGS_VERSION=6.0.0
 ARG EXPAT_VERSION=2.5.0
 ARG GCC_VERSION=12.2.0
 ARG GDB_VERSION=13.1
@@ -37,7 +37,7 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
     https://frippery.org/files/busybox/busybox-w32-$BUSYBOX_VERSION.tgz \
     http://ftp.vim.org/pub/vim/unix/vim-$VIM_VERSION.tar.bz2 \
     https://www.nasm.us/pub/nasm/releasebuilds/$NASM_VERSION/nasm-$NASM_VERSION.tar.xz \
-    http://deb.debian.org/debian/pool/main/u/universal-ctags/universal-ctags_0+git$CTAGS_VERSION.orig.tar.gz \
+    https://github.com/universal-ctags/ctags/archive/refs/tags/v$CTAGS_VERSION.tar.gz \
     https://downloads.sourceforge.net/project/mingw-w64/mingw-w64/mingw-w64-release/mingw-w64-v$MINGW_VERSION.tar.bz2 \
     https://downloads.sourceforge.net/project/pdcurses/pdcurses/$PDCURSES_VERSION/PDCurses-$PDCURSES_VERSION.tar.gz \
     https://github.com/danmar/cppcheck/archive/$CPPCHECK_VERSION.tar.gz
@@ -45,7 +45,7 @@ COPY src/SHA256SUMS $PREFIX/src/
 RUN sha256sum -c $PREFIX/src/SHA256SUMS \
  && tar xJf binutils-$BINUTILS_VERSION.tar.xz \
  && tar xzf busybox-w32-$BUSYBOX_VERSION.tgz \
- && tar xzf universal-ctags_0+git$CTAGS_VERSION.orig.tar.gz \
+ && tar xzf ctags-$CTAGS_VERSION.tar.gz \
  && tar xJf gcc-$GCC_VERSION.tar.xz \
  && tar xJf gdb-$GDB_VERSION.tar.xz \
  && tar xJf expat-$EXPAT_VERSION.tar.xz \
@@ -437,7 +437,7 @@ RUN ./configure \
  && make -j$(nproc) \
  && cp nasm.exe ndisasm.exe $PREFIX/bin
 
-WORKDIR /ctags-master
+WORKDIR /ctags-$CTAGS_VERSION
 RUN sed -i /RT_MANIFEST/d win32/ctags.rc \
  && make -j$(nproc) -f mk_mingw.mak CC=gcc packcc.exe \
  && make -j$(nproc) -f mk_mingw.mak \
