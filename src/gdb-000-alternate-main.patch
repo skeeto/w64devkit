@@ -1,0 +1,26 @@
+--- a/gdb/symtab.c
++++ b/gdb/symtab.c
+@@ -6300,6 +6300,23 @@
+   if (symbol_found_p)
+     return;
+ 
++  if (gdbarch_osabi (target_gdbarch ()) == GDB_OSABI_WINDOWS)
++    {
++      static const char *const mains[] = {
++	"wmain", "WinMain", "wWinMain", "WinMainCRTStartup", "mainCRTStartup"
++      };
++      for (const char *main : mains)
++        {
++	  struct bound_minimal_symbol msym;
++	  msym = lookup_minimal_symbol (main, NULL, NULL);
++	  if (msym.minsym != NULL)
++	    {
++	      set_main_name (main, language_unknown);
++	      return;
++	    }
++	}
++    }
++
+   set_main_name ("main", language_unknown);
+ }
+ 

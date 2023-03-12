@@ -338,7 +338,9 @@ RUN /libiconv-$LIBICONV_VERSION/configure \
  && make install
 
 WORKDIR /gdb
-RUN sed -i 's/quiet = 0/quiet = 1/' /gdb-$GDB_VERSION/gdb/main.c \
+COPY src/gdb-*.patch $PREFIX/src/
+RUN cat $PREFIX/src/gdb-*.patch | patch -d/gdb-$GDB_VERSION -p1 \
+ && sed -i 's/quiet = 0/quiet = 1/' /gdb-$GDB_VERSION/gdb/main.c \
  && /gdb-$GDB_VERSION/configure \
         --host=$ARCH \
         --with-libexpat-prefix=/deps \
