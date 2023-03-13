@@ -7,7 +7,7 @@
 +  if (gdbarch_osabi (target_gdbarch ()) == GDB_OSABI_WINDOWS)
 +    {
 +      static const char *const mains[] = {
-+	"wmain", "WinMain", "wWinMain", "WinMainCRTStartup", "mainCRTStartup"
++	"wmain", "WinMain", "wWinMain", "main", "WinMainCRTStartup", "mainCRTStartup"
 +      };
 +      for (const char *main : mains)
 +        {
