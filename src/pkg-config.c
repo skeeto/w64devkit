@@ -6,14 +6,13 @@
 
 // Fundamental definitions
 
-#define VERSION "0.31.0"
+#define VERSION "0.31.1"
 
 typedef int Size;
 #define Size_MASK ((unsigned)-1)
-#define Size_MAX  ((Size)(Size_MASK>>1) - (ALIGN-1))
+#define Size_MAX  ((Size)(Size_MASK >> 1))
 
 #define SIZEOF(x) (Size)(sizeof(x))
-#define ALIGN SIZEOF(void *)
 #define COUNTOF(a) (SIZEOF(a)/SIZEOF(a[0]))
 
 typedef int Bool;
@@ -135,14 +134,13 @@ static Str fillstr(Str s, Byte b)
 static void *alloc(Arena *a, Size size)
 {
     ASSERT(size >= 0);
-    ASSERT(size <= Size_MAX);
-    size += -size & (ALIGN - 1);
+    Size align = -size & (SIZEOF(void *) - 1);
     Size avail = a->mem.len - a->off;
-    if (avail < size) {
+    if (avail-align < size) {
         oom();
     }
     Byte *p = a->mem.s + a->off;
-    a->off += size;
+    a->off += size + align;
     return p;
 }
 
@@ -2207,10 +2205,82 @@ static int cmdline_to_argv8(unsigned short *cmd, char **argv)
     return argc;
 }
 
+// Win32 API: windows.h replacement, halves build times
+
+typedef int BOOL;
+typedef void *HANDLE;
+typedef unsigned DWORD;
+#if __GNUC__  // in MSVC size_t is a built-in type
+  typedef __SIZE_TYPE__ size_t;
+#endif
+#if !__cplusplus || (_MSC_VER && !_NATIVE_WCHAR_T_DEFINED)
+  // NOTE: wchar_t is a built-in type in C++, except older versions of
+  // Visual Studio are not so C++-compliant without /Zc:wchar_t.
+  typedef unsigned short wchar_t;
+#endif
+
+#define CP_UTF8 65001
+
+#define FILE_ATTRIBUTE_NORMAL 0x80
+
+#define FILE_MAP_READ 4
+
+#define FILE_SHARE_DELETE 4
+#define FILE_SHARE_READ   1
+#define FILE_SHARE_WRITE  2
+
+#define GENERIC_READ 0x80000000
+
+#define INVALID_HANDLE_VALUE ((HANDLE)-1)
+
+#define MAX_PATH 260
+
+#define MEM_COMMIT  0x1000
+#define MEM_RESERVE 0x2000
+
+#define OPEN_EXISTING 3
+
+#define PAGE_READONLY  2
+#define PAGE_READWRITE 4
+
+#define STD_ERROR_HANDLE  -12
+#define STD_OUTPUT_HANDLE -11
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+__declspec(dllimport) HANDLE __stdcall CreateFileW(
+    wchar_t *, DWORD, DWORD, void *, DWORD, DWORD, HANDLE);
+__declspec(dllimport) BOOL __stdcall CloseHandle(HANDLE);
+__declspec(dllimport) HANDLE __stdcall CreateFileMappingA(
+    HANDLE, void *, DWORD, DWORD, DWORD, char *);
+__declspec(dllimport) int __stdcall MultiByteToWideChar(
+    unsigned, DWORD, char *, int, wchar_t *, int);
+__declspec(dllimport) wchar_t *__stdcall GetCommandLineW(void);
+__declspec(dllimport) BOOL __stdcall GetConsoleMode(HANDLE, DWORD *);
+__declspec(dllimport) DWORD __stdcall GetEnvironmentVariableW(
+    const wchar_t *, wchar_t *, DWORD);
+__declspec(dllimport) DWORD __stdcall GetFileSize(HANDLE, DWORD *);
+__declspec(dllimport) DWORD __stdcall GetModuleFileNameW(
+    HANDLE, wchar_t *, DWORD);
+__declspec(dllimport) HANDLE __stdcall GetStdHandle(DWORD);
+__declspec(dllimport) void *__stdcall MapViewOfFile(
+    HANDLE, DWORD, DWORD, DWORD, size_t);
+__declspec(dllimport) void *__stdcall VirtualAlloc(
+    void *, size_t, DWORD, DWORD);
+__declspec(dllimport) int __stdcall WideCharToMultiByte(
+    unsigned, DWORD, wchar_t *, int, char *, int, char *, BOOL *);
+__declspec(dllimport) BOOL __stdcall WriteConsoleW(
+    HANDLE, wchar_t *, DWORD, DWORD *, void *);
+__declspec(dllimport) BOOL __stdcall WriteFile(
+    HANDLE, void *, DWORD, DWORD *, void *);
+__declspec(dllimport) __declspec(noreturn) void __stdcall ExitProcess(DWORD);
+#ifdef __cplusplus
+}
+#endif
+
 // Win32 platform layer for u-config
 // This is free and unencumbered software released into the public domain.
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
 
 #ifndef PKG_CONFIG_PREFIX
 #  define PKG_CONFIG_PREFIX
@@ -2222,21 +2292,36 @@ static int cmdline_to_argv8(unsigned short *cmd, char **argv)
   #else
     #define EXTERN
   #endif
+  #define ENTRYPOINT EXTERN
   #pragma comment(lib, "kernel32.lib")
   #pragma comment(linker, "/subsystem:console")
-  #if _MSC_VER >= 1400
-    #pragma function(memset)
-    void *memset(void *d, int c, size_t n)
-    {
-        __stosb((BYTE *)d, (BYTE)c, n);
-        return d;
-    }
-  #endif
+  EXTERN void *memset(void *, int, size_t);
+  #pragma function(memset)
+  EXTERN void *memset(void *d, int c, size_t n)
+  {
+      char *dst = (char *)d;
+      for (; n; n--) *dst++ = (char)c;
+      return d;
+  }
+  EXTERN void *memcpy(void *, const void *, size_t);
+  #pragma function(memcpy)
+  EXTERN void *memcpy(void *d, const void *s, size_t n)
+  {
+      char *dst = (char *)d;
+      char *src = (char *)s;
+      for (; n; n--) *dst++ = *src++;
+      return d;
+  }
 #elif __GNUC__
   #ifdef __cplusplus
     #define EXTERN extern "C" __attribute__((externally_visible))
   #else
     #define EXTERN __attribute__((externally_visible))
+  #endif
+  #if __i686__
+    #define ENTRYPOINT EXTERN __attribute__((force_align_arg_pointer))
+  #else
+    #define ENTRYPOINT EXTERN
   #endif
   // NOTE: These functions are required at higher GCC optimization
   // levels. Placing them in their own section allows them to be
@@ -2281,7 +2366,7 @@ static Arena newarena_(void)
     return arena;
 }
 
-static Str fromwide_(Arena *a, WCHAR *w, Size wlen)
+static Str fromwide_(Arena *a, wchar_t *w, Size wlen)
 {
     // NOTE: consider replacing the Win32 UTF-8 encoder/decoder with an
     // embedded WTF-8 encoder/decoder
@@ -2291,11 +2376,11 @@ static Str fromwide_(Arena *a, WCHAR *w, Size wlen)
     return s;
 }
 
-static Str fromenv_(Arena *a, const WCHAR *name)
+static Str fromenv_(Arena *a, const wchar_t *name)
 {
     // NOTE: maximum environment variable size is 2**15-1, so this
     // cannot fail if the variable actually exists
-    static WCHAR w[1<<15];
+    static wchar_t w[1<<15];
     DWORD wlen = GetEnvironmentVariableW(name, w, sizeof(w));
     if (!wlen) {
         Str r = {0};
@@ -2306,7 +2391,7 @@ static Str fromenv_(Arena *a, const WCHAR *name)
 
 static Str installdir_(Arena *a)
 {
-    WCHAR exe[MAX_PATH];
+    wchar_t exe[MAX_PATH];
     Size len = GetModuleFileNameW(0, exe, MAX_PATH);
     for (Size i = 0; i < len; i++) {
         if (exe[i] == '\\') {
@@ -2346,7 +2431,7 @@ static Str fromcstr_(char *z)
     return s;
 }
 
-EXTERN
+ENTRYPOINT
 int mainCRTStartup(void)
 {
     Config conf = {0};
@@ -2389,7 +2474,7 @@ static MapFileResult os_mapfile(Arena *a, Str path)
     ASSERT(path.len > 0);
     ASSERT(!path.s[path.len-1]);
 
-    WCHAR wpath[MAX_PATH];
+    wchar_t wpath[MAX_PATH];
     int wlen = MultiByteToWideChar(
         CP_UTF8, 0, (char *)path.s, path.len, wpath, MAX_PATH
     );
@@ -2456,7 +2541,7 @@ static void os_write(int fd, Str s)
     DWORD n;
 
     if (fd==2 && error_is_console) {
-        static WCHAR tmp[1<<12];
+        static wchar_t tmp[1<<12];
         int len = MultiByteToWideChar(
             CP_UTF8, 0, (char *)s.s, s.len, tmp, sizeof(tmp)
         );
