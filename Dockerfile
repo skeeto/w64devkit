@@ -351,7 +351,7 @@ RUN cat $PREFIX/src/gdb-*.patch | patch -d/gdb-$GDB_VERSION -p1 \
         CXXFLAGS="-Os -DPDC_WIDE" \
         LDFLAGS="-s -L/deps/lib" \
  && make MAKEINFO=true -j$(nproc) \
- && cp gdb/.libs/gdb.exe $PREFIX/bin/
+ && cp gdb/.libs/gdb.exe gdbserver/gdbserver.exe $PREFIX/bin/
 
 WORKDIR /make
 RUN /make-$MAKE_VERSION/configure \
