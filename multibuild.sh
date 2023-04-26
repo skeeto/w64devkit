@@ -101,7 +101,7 @@ done
 
 if [ $compact = yes ]; then
     printf "%s$suffix.zip\n" $builds \
-        | xargs -I{} -P$(nproc) $dryrun advzip -z4 {}
+        | xargs -I{} -P$(nproc) $dryrun advzip -z3 {}
 fi
 
 cleanup
