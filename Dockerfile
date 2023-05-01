@@ -152,7 +152,9 @@ RUN make -j$(nproc) \
 # Cross-compile GCC
 
 WORKDIR /binutils
-RUN /binutils-$BINUTILS_VERSION/configure \
+COPY src/binutils-*.patch $PREFIX/src/
+RUN cat $PREFIX/src/binutils-*.patch | patch -d/binutils-$BINUTILS_VERSION -p1 \
+ && /binutils-$BINUTILS_VERSION/configure \
         --prefix=$PREFIX \
         --with-sysroot=$PREFIX/$ARCH \
         --host=$ARCH \
