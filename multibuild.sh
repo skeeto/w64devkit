@@ -16,7 +16,7 @@ suffix="$(git describe --exact-match 2>/dev/null | tr v - || true)"
 
 usage() {
     cat <<EOF
-usage: multibuild.sh [-48abfhmnq] [-s SUFFIX]
+usage: multibuild.sh [-48abfhmnOs] [-s SUFFIX]
   -4         Enable i686 build (default: no)
   -8         Enable x86_64 build (default: auto)
   -a         All: Enable all builds
@@ -30,7 +30,7 @@ usage: multibuild.sh [-48abfhmnq] [-s SUFFIX]
 EOF
 }
 
-while getopts 48abfhmnqs: opt; do
+while getopts 48abfhmnOs: opt; do
     case $opt in
         4) arch="$arch w64devkit-i686";;
         8) arch="$arch w64devkit";;
