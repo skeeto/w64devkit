@@ -9,7 +9,7 @@
 
 set -e
 arch=""
-compact=auto
+compact=no
 dryrun=
 flavors=""
 suffix="$(git describe --exact-match 2>/dev/null | tr v - || true)"
@@ -25,8 +25,8 @@ usage: multibuild.sh [-48abfhmnq] [-s SUFFIX]
   -h         Print this help message
   -m         Enable mini build (default: no)
   -n         Dry run, print commands but do nothing
+  -O         Compact with advzip (default: no, less compatible)
   -s SUFFIX  Append a version suffix (e.g. "-s -1.2.3", default:auto)
-  -q         Quick: do no compact with advzip (default: auto)
 EOF
 }
 
@@ -40,8 +40,8 @@ while getopts 48abfhmnqs: opt; do
         h) usage; exit 0;;
         m) flavors="$flavors -mini";;
         n) dryrun=echo;;
+        O) compact=yes;;
         s) suffix="$OPTARG";;
-        q) compact=no;;
         ?) usage >&2; exit 1;;
     esac
 done
@@ -51,12 +51,6 @@ if [ $# -gt 0 ]; then
     printf 'multibuild.sh: Too many arguments\n' >&2
     usage >&2
     exit 1
-fi
-
-if [ $compact = auto ] && command -v advzip >/dev/null 2>&1; then
-    compact=yes
-else
-    compact=no
 fi
 
 if [ -z "$arch" ]; then

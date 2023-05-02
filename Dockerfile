@@ -496,4 +496,4 @@ RUN printf "id ICON \"$PREFIX/src/w64devkit.ico\"" >w64devkit.rc \
         >>$PREFIX/COPYING.MinGW-w64-runtime.txt \
  && echo $VERSION >$PREFIX/VERSION.txt
 ENV PREFIX=${PREFIX}
-CMD zip -qXr - $PREFIX
+CMD zip -q9Xr - $PREFIX
