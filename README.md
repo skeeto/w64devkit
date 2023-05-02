@@ -176,8 +176,8 @@ quite support cross-compilation. A decent alternative would be
 Neither Address Sanitizer (ASan) nor Thread Sanitizer (TSan) [has been
 ported to Mingw-w64][san] ([also][san2]), but Undefined Behavior Sanitizer
 (UBSan) works perfectly under GDB. With both `-fsanitize=undefined` and
-`-fsanitize-undefined-trap-on-error`, GDB will [break precisely][break] on
-undefined behavior, and it does not require linking with libsanitizer.
+`-fsanitize-trap`, GDB will [break precisely][break] on undefined
+behavior, and it does not require linking with libsanitizer.
 
 The kit includes a unique [`debugbreak` command][debugbreak]. It causes
 all debugee processes to break in the debugger, like using Windows' F12
