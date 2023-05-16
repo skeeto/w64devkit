@@ -9,18 +9,24 @@ ARG EXPAT_VERSION=2.5.0
 ARG GCC_VERSION=13.1.0
 ARG GDB_VERSION=13.1
 ARG GMP_VERSION=6.2.1
+ARG GPG_VERSION=2.4.1
+ARG LIBASSUAN_VERSION=2.5.5
+ARG LIBGCRYPT_VERSION=1.10.2
+ARG LIBGPGERROR_VERSION=1.47
 ARG LIBICONV_VERSION=1.17
+ARG LIBKSBA_VERSION=1.6.3
 ARG MAKE_VERSION=4.4
 ARG MINGW_VERSION=11.0.0
 ARG MPC_VERSION=1.2.1
 ARG MPFR_VERSION=4.1.0
 ARG NASM_VERSION=2.15.05
+ARG NPTH_VERSION=1.6
 ARG PDCURSES_VERSION=3.9
 ARG CPPCHECK_VERSION=2.10
 ARG VIM_VERSION=9.0
 
 RUN apt-get update && apt-get install --yes --no-install-recommends \
-  build-essential curl libgmp-dev libmpc-dev libmpfr-dev m4 zip
+  build-essential curl gettext libgmp-dev libmpc-dev libmpfr-dev m4 zip
 
 # Download, verify, and unpack
 
@@ -40,7 +46,13 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
     https://github.com/universal-ctags/ctags/archive/refs/tags/v$CTAGS_VERSION.tar.gz \
     https://downloads.sourceforge.net/project/mingw-w64/mingw-w64/mingw-w64-release/mingw-w64-v$MINGW_VERSION.tar.bz2 \
     https://downloads.sourceforge.net/project/pdcurses/pdcurses/$PDCURSES_VERSION/PDCurses-$PDCURSES_VERSION.tar.gz \
-    https://github.com/danmar/cppcheck/archive/$CPPCHECK_VERSION.tar.gz
+    https://github.com/danmar/cppcheck/archive/$CPPCHECK_VERSION.tar.gz \
+    https://gnupg.org/ftp/gcrypt/gnupg/gnupg-$GPG_VERSION.tar.bz2 \
+    https://gnupg.org/ftp/gcrypt/gpgrt/libgpg-error-$LIBGPGERROR_VERSION.tar.bz2 \
+    https://gnupg.org/ftp/gcrypt/libgcrypt/libgcrypt-$LIBGCRYPT_VERSION.tar.bz2 \
+    https://gnupg.org/ftp/gcrypt/libassuan/libassuan-$LIBASSUAN_VERSION.tar.bz2 \
+    https://gnupg.org/ftp/gcrypt/libksba/libksba-$LIBKSBA_VERSION.tar.bz2 \
+    https://gnupg.org/ftp/gcrypt/npth/npth-$NPTH_VERSION.tar.bz2
 COPY src/SHA256SUMS $PREFIX/src/
 RUN sha256sum -c $PREFIX/src/SHA256SUMS \
  && tar xJf binutils-$BINUTILS_VERSION.tar.xz \
@@ -58,7 +70,13 @@ RUN sha256sum -c $PREFIX/src/SHA256SUMS \
  && tar xzf PDCurses-$PDCURSES_VERSION.tar.gz \
  && tar xJf nasm-$NASM_VERSION.tar.xz \
  && tar xjf vim-$VIM_VERSION.tar.bz2 \
- && tar xzf cppcheck-$CPPCHECK_VERSION.tar.gz
+ && tar xzf cppcheck-$CPPCHECK_VERSION.tar.gz \
+ && tar xjf gnupg-$GPG_VERSION.tar.bz2 \
+ && tar xjf libgpg-error-$LIBGPGERROR_VERSION.tar.bz2 \
+ && tar xjf libgcrypt-$LIBGCRYPT_VERSION.tar.bz2 \
+ && tar xjf libassuan-$LIBASSUAN_VERSION.tar.bz2 \
+ && tar xjf libksba-$LIBKSBA_VERSION.tar.bz2 \
+ && tar xjf npth-$NPTH_VERSION.tar.bz2
 COPY src/w64devkit.c src/w64devkit.ico \
      src/alias.c src/debugbreak.c src/pkg-config.c \
      $PREFIX/src/
@@ -459,6 +477,69 @@ RUN cat $PREFIX/src/cppcheck-*.patch | patch -p1 \
         -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
         -o $PREFIX/bin/cppcheck.exe \
         $PREFIX/src/alias.c -lkernel32
+
+WORKDIR /libgpg-error-$LIBGPGERROR_VERSION
+RUN ./configure \
+        --prefix=$PREFIX \
+        --enable-install-gpg-error-config \
+        --host=x86_64-w64-mingw32 \
+        CFLAGS="-Os" \
+        LDFLAGS="-s" \
+ && make -j$(nproc) \
+ && make install
+
+WORKDIR /libgcrypt-$LIBGCRYPT_VERSION
+RUN ./configure \
+        --prefix=$PREFIX \
+        --with-libgpg-error-prefix=$PREFIX \
+        --host=x86_64-w64-mingw32 \
+        CFLAGS="-I/libgpg-error-$LIBGPGERROR_VERSION/src -Os" \
+        LDFLAGS="-s -L$PREFIX/lib" \
+ && make -j$(nproc) \
+ && make install
+
+WORKDIR /libassuan-$LIBASSUAN_VERSION
+RUN ./configure \
+        --prefix=$PREFIX \
+        --with-libgpg-error-prefix=$PREFIX \
+        --host=x86_64-w64-mingw32 \
+        CFLAGS="-I/libgpg-error-$LIBGPGERROR_VERSION/src -Os" \
+        LDFLAGS="-s -L$PREFIX/lib" \
+ && make -j$(nproc) \
+ && make install
+
+WORKDIR /libksba-$LIBKSBA_VERSION
+RUN ./configure \
+        --prefix=$PREFIX \
+        --with-libgpg-error-prefix=$PREFIX \
+        --host=x86_64-w64-mingw32 \
+        CFLAGS="-I/libgpg-error-$LIBGPGERROR_VERSION/src -Os" \
+        LDFLAGS="-s -L$PREFIX/lib" \
+ && make -j$(nproc) \
+ && make install
+
+WORKDIR /npth-$NPTH_VERSION
+RUN ./configure \
+        --prefix=$PREFIX \
+        --host=x86_64-w64-mingw32 \
+        CFLAGS="-Os" \
+        LDFLAGS="-s" \
+ && make -j$(nproc) \
+ && make install
+
+WORKDIR /gnupg-$GPG_VERSION
+RUN ./configure \
+        --prefix=$PREFIX \
+        --with-libgpg-error-prefix=$PREFIX \
+        --with-libgcrypt-prefix=$PREFIX \
+        --with-libassuan-prefix=$PREFIX \
+        --with-libksba-prefix=$PREFIX \
+        --with-npth-prefix=$PREFIX \
+        --host=x86_64-w64-mingw32 \
+        CFLAGS="-I/libgpg-error-$LIBGPGERROR_VERSION/src -I/libgcrypt-$LIBGCRYPT_VERSION/src -I/libassuan-$LIBASSUAN_VERSION/src -I/libksba-$LIBKSBA_VERSION/src -I/npth-$NPTH_VERSION/src -Os" \
+        LDFLAGS="-s -L$PREFIX/lib" \
+ && make -j$(nproc) \
+ && make install
 
 # Pack up a release
 
