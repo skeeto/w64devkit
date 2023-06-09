@@ -240,6 +240,17 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-libraries/winpthreads/configure \
  && make -j$(nproc) \
  && make install
 
+WORKDIR /libiconv
+RUN /libiconv-$LIBICONV_VERSION/configure \
+        --prefix=/deps \
+        --host=$ARCH \
+        --disable-nls \
+        --disable-shared \
+        CFLAGS="-Os" \
+        LDFLAGS="-s" \
+ && make -j$(nproc) \
+ && make install
+
 WORKDIR /gcc
 RUN /gcc-$GCC_VERSION/configure \
         --prefix=$PREFIX \
@@ -256,6 +267,7 @@ RUN /gcc-$GCC_VERSION/configure \
         --with-mpc-lib=/deps/lib \
         --with-mpfr-include=/deps/include \
         --with-mpfr-lib=/deps/lib \
+        --with-libiconv-prefix=/deps \
         --enable-languages=c,c++ \
         --enable-libgomp \
         --enable-threads=posix \
@@ -327,17 +339,6 @@ RUN make -j$(nproc) -C wincon \
         CC=$ARCH-gcc AR=$ARCH-ar CFLAGS="-I.. -Os -DPDC_WIDE" pdcurses.a \
  && cp wincon/pdcurses.a /deps/lib/libcurses.a \
  && cp curses.h /deps/include
-
-WORKDIR /libiconv
-RUN /libiconv-$LIBICONV_VERSION/configure \
-        --prefix=/deps \
-        --host=$ARCH \
-        --disable-nls \
-        --disable-shared \
-        CFLAGS="-Os" \
-        LDFLAGS="-s" \
- && make -j$(nproc) \
- && make install
 
 WORKDIR /gdb
 COPY src/gdb-*.patch $PREFIX/src/
