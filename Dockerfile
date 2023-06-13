@@ -90,6 +90,7 @@ WORKDIR /x-mingw-headers
 RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-headers/configure \
         --prefix=/bootstrap/$ARCH \
         --host=$ARCH \
+        --with-default-msvcrt=msvcrt-os \
  && make -j$(nproc) \
  && make install
 
@@ -127,6 +128,7 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
         --prefix=/bootstrap/$ARCH \
         --with-sysroot=/bootstrap/$ARCH \
         --host=$ARCH \
+        --with-default-msvcrt=msvcrt-os \
         --disable-dependency-tracking \
         --disable-lib32 \
         --enable-lib64 \
@@ -212,6 +214,7 @@ WORKDIR /mingw-headers
 RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-headers/configure \
         --prefix=$PREFIX/$ARCH \
         --host=$ARCH \
+        --with-default-msvcrt=msvcrt-os \
  && make -j$(nproc) \
  && make install
 
@@ -220,6 +223,7 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
         --prefix=$PREFIX/$ARCH \
         --with-sysroot=$PREFIX/$ARCH \
         --host=$ARCH \
+        --with-default-msvcrt=msvcrt-os \
         --disable-dependency-tracking \
         --disable-lib32 \
         --enable-lib64 \
