@@ -18,9 +18,10 @@ ARG NASM_VERSION=2.15.05
 ARG PDCURSES_VERSION=3.9
 ARG CPPCHECK_VERSION=2.10
 ARG VIM_VERSION=9.0
+ARG CMAKE_VERSION=3.27.0-rc2
 
 RUN apt-get update && apt-get install --yes --no-install-recommends \
-  build-essential curl libgmp-dev libmpc-dev libmpfr-dev m4 zip
+  build-essential curl libgmp-dev libmpc-dev libmpfr-dev m4 zip cmake
 
 # Download, verify, and unpack
 
@@ -40,7 +41,8 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
     https://github.com/universal-ctags/ctags/archive/refs/tags/v$CTAGS_VERSION.tar.gz \
     https://downloads.sourceforge.net/project/mingw-w64/mingw-w64/mingw-w64-release/mingw-w64-v$MINGW_VERSION.tar.bz2 \
     https://downloads.sourceforge.net/project/pdcurses/pdcurses/$PDCURSES_VERSION/PDCurses-$PDCURSES_VERSION.tar.gz \
-    https://github.com/danmar/cppcheck/archive/$CPPCHECK_VERSION.tar.gz
+    https://github.com/danmar/cppcheck/archive/$CPPCHECK_VERSION.tar.gz \
+    https://github.com/Kitware/CMake/releases/download/v$CMAKE_VERSION/cmake-$CMAKE_VERSION.tar.gz
 COPY src/SHA256SUMS $PREFIX/src/
 RUN sha256sum -c $PREFIX/src/SHA256SUMS \
  && tar xJf binutils-$BINUTILS_VERSION.tar.xz \
@@ -58,7 +60,8 @@ RUN sha256sum -c $PREFIX/src/SHA256SUMS \
  && tar xzf PDCurses-$PDCURSES_VERSION.tar.gz \
  && tar xJf nasm-$NASM_VERSION.tar.xz \
  && tar xjf vim-$VIM_VERSION.tar.bz2 \
- && tar xzf cppcheck-$CPPCHECK_VERSION.tar.gz
+ && tar xzf cppcheck-$CPPCHECK_VERSION.tar.gz \
+ && tar xzf cmake-$CMAKE_VERSION.tar.gz
 COPY src/w64devkit.c src/w64devkit.ico \
      src/alias.c src/debugbreak.c src/pkg-config.c \
      $PREFIX/src/
@@ -463,6 +466,22 @@ RUN cat $PREFIX/src/cppcheck-*.patch | patch -p1 \
         -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
         -o $PREFIX/bin/cppcheck.exe \
         $PREFIX/src/alias.c -lkernel32
+
+WORKDIR /cmake-$CMAKE_VERSION
+RUN cmake \
+        -DCMAKE_SYSTEM_NAME=Windows \
+        -DCMAKE_C_COMPILER=$ARCH-gcc \
+        -DCMAKE_CXX_COMPILER=$ARCH-g++ \
+        -DCMAKE_USE_OPENSSL=OFF \
+        -DHAVE_LINUX_TCP_H=OFF \
+        -DHAVE_ARPA_INET_H=OFF \
+        -DHAVE_NETINET_IN_H=OFF \
+        -DBUILD_SHARED_LIBS=OFF \
+        -DCMAKE_BUILD_TYPE=MinSizeRel \
+        -DCMAKE_EXE_LINKER_FLAGS="-static" \
+        -DCMAKE_INSTALL_PREFIX=$PREFIX \
+ && make -j$(nproc) \
+ && make install
 
 # Pack up a release
 
