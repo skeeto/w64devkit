@@ -27,8 +27,9 @@ First build the image, then run it to produce a distribution .zip file:
     docker build -t w64devkit .
     docker run --rm w64devkit >w64devkit.zip
 
-This takes about half an hour on modern systems. You will need an
-internet connection during the first couple minutes of the build.
+This takes about half an hour on modern systems. You will need an internet
+connection during the first few minutes of the build. **Note:** Do not use
+PowerShell because it lacks file redirection.
 
 ## Usage
 
