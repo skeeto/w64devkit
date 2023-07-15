@@ -1,0 +1,74 @@
+diff --git a/compat/win32/trace2_win32_process_info.c b/compat/win32/trace2_win32_process_info.c
+index a4e33768f4..438af8f818 100644
+--- a/compat/win32/trace2_win32_process_info.c
++++ b/compat/win32/trace2_win32_process_info.c
+@@ -3,8 +3,8 @@
+ #include "../../repository.h"
+ #include "../../trace2.h"
+ #include "lazyload.h"
+-#include <Psapi.h>
+-#include <tlHelp32.h>
++#include <psapi.h>
++#include <tlhelp32.h>
+ 
+ /*
+  * An arbitrarily chosen value to limit the size of the ancestor
+diff --git a/config.mak.uname b/config.mak.uname
+index 64c44db805..0dd2b673f2 100644
+--- a/config.mak.uname
++++ b/config.mak.uname
+@@ -4,7 +4,7 @@
+ # Microsoft's Safe Exception Handling in libraries (such as zlib).
+ # Typically required for VS2013+/32-bit compilation on Vista+ versions.
+ 
+-uname_S := $(shell sh -c 'uname -s 2>/dev/null || echo not')
++uname_S := MINGW
+ uname_M := $(shell sh -c 'uname -m 2>/dev/null || echo not')
+ uname_O := $(shell sh -c 'uname -o 2>/dev/null || echo not')
+ uname_R := $(shell sh -c 'uname -r 2>/dev/null || echo not')
+@@ -677,7 +677,7 @@ ifeq ($(uname_S),MINGW)
+ 	EXTLIBS += -lws2_32
+ 	GITLIBS += git.res
+ 	PTHREAD_LIBS =
+-	RC = windres -O coff
++	RC = $(WINDRES) -O coff
+ 	NATIVE_CRLF = YesPlease
+ 	X = .exe
+ 	# MSys2
+@@ -689,12 +689,12 @@ ifeq ($(uname_S),MINGW)
+ 		BASIC_LDFLAGS += -Wl,--dynamicbase
+ 	endif
+ 	ifeq (MINGW32,$(MSYSTEM))
+-		prefix = /mingw32
++		#prefix = /mingw32
+ 		HOST_CPU = i686
+ 		BASIC_LDFLAGS += -Wl,--pic-executable,-e,_mainCRTStartup
+ 	endif
+ 	ifeq (MINGW64,$(MSYSTEM))
+-		prefix = /mingw64
++		#prefix = /mingw64
+ 		HOST_CPU = x86_64
+ 		BASIC_LDFLAGS += -Wl,--pic-executable,-e,mainCRTStartup
+ 	else
+@@ -709,7 +709,7 @@ ifeq ($(uname_S),MINGW)
+ 	INTERNAL_QSORT = YesPlease
+ 	HAVE_LIBCHARSET_H = YesPlease
+ 	USE_GETTEXT_SCHEME = fallthrough
+-	USE_LIBPCRE = YesPlease
++	#USE_LIBPCRE = YesPlease
+ 	USE_NED_ALLOCATOR = YesPlease
+ 	ifeq (/mingw64,$(subst 32,64,$(prefix)))
+ 		# Move system config into top-level /etc/
+diff --git a/wrapper.c b/wrapper.c
+index 67f5f5dbe1..5dc48e815a 100644
+--- a/wrapper.c
++++ b/wrapper.c
+@@ -17,7 +17,7 @@ static intmax_t count_fsync_hardware_flush;
+ #ifdef HAVE_RTLGENRANDOM
+ /* This is required to get access to RtlGenRandom. */
+ #define SystemFunction036 NTAPI SystemFunction036
+-#include <NTSecAPI.h>
++#include <ntsecapi.h>
+ #undef SystemFunction036
+ #endif
+ 

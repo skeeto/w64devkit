@@ -1,43 +1,48 @@
 --- a/Dockerfile
 +++ b/Dockerfile
-@@ -65,3 +65,3 @@ COPY src/w64devkit.c src/w64devkit.ico \
+@@ -74,3 +74,3 @@ COPY src/w64devkit.c src/w64devkit.ico \
  
 -ARG ARCH=x86_64-w64-mingw32
 +ARG ARCH=i686-w64-mingw32
  
-@@ -93,2 +93,3 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-headers/configure \
+@@ -102,2 +102,3 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-headers/configure \
          --with-default-msvcrt=msvcrt-os \
 +        --with-default-win32-winnt=0x0501 \
   && make -j$(nproc) \
-@@ -99,2 +100,5 @@ RUN ln -s $ARCH mingw
+@@ -108,2 +109,5 @@ RUN ln -s $ARCH mingw
  
 +# Disable UTF-8 manifest for Windows XP (#58)
 +RUN echo >/gcc-$GCC_VERSION/gcc/config/i386/winnt-utf8.manifest
 +
  WORKDIR /x-gcc
-@@ -104,2 +108,3 @@ RUN /gcc-$GCC_VERSION/configure \
+@@ -113,2 +117,3 @@ RUN /gcc-$GCC_VERSION/configure \
          --target=$ARCH \
 +        --with-arch=pentium4 \
          --enable-static \
-@@ -132,4 +137,4 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
+@@ -141,4 +146,4 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
          --disable-dependency-tracking \
 -        --disable-lib32 \
 -        --enable-lib64 \
 +        --enable-lib32 \
 +        --disable-lib64 \
          CFLAGS="-Os" \
-@@ -217,2 +222,3 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-headers/configure \
+@@ -226,2 +231,3 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-headers/configure \
          --with-default-msvcrt=msvcrt-os \
 +        --with-default-win32-winnt=0x0501 \
   && make -j$(nproc) \
-@@ -227,4 +233,4 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
+@@ -236,4 +242,4 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
          --disable-dependency-tracking \
 -        --disable-lib32 \
 -        --enable-lib64 \
 +        --enable-lib32 \
 +        --disable-lib64 \
          CFLAGS="-Os" \
-@@ -239,2 +245,3 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-libraries/winpthreads/configure \
+@@ -248,2 +254,3 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-libraries/winpthreads/configure \
          --host=$ARCH \
 +        --with-arch=pentium4 \
          --enable-static \
+@@ -512,3 +519,3 @@ RUN cat $PREFIX/src/git-*.patch | patch -p1 \
+        NO_GITWEB=1 \
+-       MSYSTEM=MINGW64 \
++       MSYSTEM=MINGW32 \
+        CFLAGS="-Os -I/deps/include/" \
