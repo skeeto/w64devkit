@@ -16,14 +16,13 @@ suffix="$(git describe --exact-match 2>/dev/null | tr v - || true)"
 
 usage() {
     cat <<EOF
-usage: multibuild.sh [-48abfhmnOs] [-s SUFFIX]
+usage: multibuild.sh [-48abfhnOs] [-s SUFFIX]
   -4         Enable i686 build (default: no)
   -8         Enable x86_64 build (default: auto)
   -a         All: Enable all builds
   -b         Enable vanilla build (default: auto)
   -f         Enable Fortran build (default: no)
   -h         Print this help message
-  -m         Enable mini build (default: no)
   -n         Dry run, print commands but do nothing
   -O         Compact with advzip (default: no, less compatible)
   -s SUFFIX  Append a version suffix (e.g. "-s -1.2.3", default:auto)
@@ -34,11 +33,10 @@ while getopts 48abfhmnOs: opt; do
     case $opt in
         4) arch="$arch w64devkit-i686";;
         8) arch="$arch w64devkit";;
-        a) flavors="X -mini -fortran"; arch="w64devkit w64devkit-i686";;
+        a) flavors="X -fortran"; arch="w64devkit w64devkit-i686";;
         b) flavors="$flavors X";;
         f) flavors="$flavors -fortran";;
         h) usage; exit 0;;
-        m) flavors="$flavors -mini";;
         n) dryrun=echo;;
         O) compact=yes;;
         s) suffix="$OPTARG";;
