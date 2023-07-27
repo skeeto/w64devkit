@@ -1,5 +1,10 @@
 --- a/Dockerfile
 +++ b/Dockerfile
+@@ -42,3 +42,3 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
+     https://github.com/danmar/cppcheck/archive/$CPPCHECK_VERSION.tar.gz
+-ARG PREFIX=/w64devkit
++ARG PREFIX=/w32devkit
+ COPY src/SHA256SUMS $PREFIX/src/
 @@ -65,3 +65,3 @@ COPY src/w64devkit.c src/w64devkit.ico \
  
 -ARG ARCH=x86_64-w64-mingw32

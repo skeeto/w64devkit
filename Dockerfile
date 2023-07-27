@@ -1,7 +1,6 @@
 FROM debian:bullseye-slim
 
 ARG VERSION=1.19.0
-ARG PREFIX=/w64devkit
 ARG BINUTILS_VERSION=2.40
 ARG BUSYBOX_VERSION=FRP-5007-g82accfc19
 ARG CTAGS_VERSION=6.0.0
@@ -41,6 +40,7 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
     https://downloads.sourceforge.net/project/mingw-w64/mingw-w64/mingw-w64-release/mingw-w64-v$MINGW_VERSION.tar.bz2 \
     https://downloads.sourceforge.net/project/pdcurses/pdcurses/$PDCURSES_VERSION/PDCurses-$PDCURSES_VERSION.tar.gz \
     https://github.com/danmar/cppcheck/archive/$CPPCHECK_VERSION.tar.gz
+ARG PREFIX=/w64devkit
 COPY src/SHA256SUMS $PREFIX/src/
 RUN sha256sum -c $PREFIX/src/SHA256SUMS \
  && tar xJf binutils-$BINUTILS_VERSION.tar.xz \
