@@ -1,0 +1,10 @@
+GDB's definition of "potentially dangerous" is far too broad. This option
+creates substantial friction and should be off by default.
+
+--- a/gdb/top.c
++++ b/gdb/top.c
+@@ -132,3 +132,3 @@
+ 
+-bool confirm = true;
++bool confirm = false;
+ 
