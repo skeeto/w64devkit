@@ -152,5 +152,5 @@ mainCRTStartup(void)
     DWORD ret;
     WaitForSingleObject(pi.hProcess, INFINITE);
     GetExitCodeProcess(pi.hProcess, &ret);
-    return ret;
+    ExitProcess(ret);
 }

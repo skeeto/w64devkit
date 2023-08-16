@@ -39,6 +39,8 @@ typedef struct {
 int CreateProcessW(
     void *, void *, void *, void *, int, int, void *, void *, void *, void *
 ) __attribute((dllimport,stdcall));
+void ExitProcess(int)
+    __attribute((dllimport,stdcall));
 char16_t *GetCommandLineW(void)
     __attribute((dllimport,stdcall));
 int GetExitCodeProcess(void *, int *)
@@ -128,11 +130,7 @@ static void fail(char *reason, int len)
     WriteFile(out, reason, len, &dummy, 0);
 }
 
-#if __i386
-__attribute((force_align_arg_pointer))
-#endif
-__attribute((externally_visible))
-int mainCRTStartup(void)
+static int aliasmain(void)
 {
     // Replace alias module with adjacent target
     char16_t exebuf[MAX_PATH];
@@ -178,4 +176,14 @@ int mainCRTStartup(void)
     WaitForSingleObject(pi.process, -1);
     GetExitCodeProcess(pi.process, &ret);
     return ret;
+}
+
+#if __i386
+__attribute((force_align_arg_pointer))
+#endif
+__attribute((externally_visible))
+int mainCRTStartup(void)
+{
+    int r = aliasmain();
+    ExitProcess(r);
 }

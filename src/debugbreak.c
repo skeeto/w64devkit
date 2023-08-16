@@ -73,5 +73,6 @@ mainCRTStartup(void)
             CloseHandle(h);
         }
     }
-    return GetLastError() != ERROR_NO_MORE_FILES;
+    int status = GetLastError() != ERROR_NO_MORE_FILES;
+    ExitProcess(status);
 }
