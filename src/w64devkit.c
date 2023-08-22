@@ -137,6 +137,10 @@ static DWORD w64devkit(void)
     SetEnvironmentVariableW(L"W64DEVKIT", LSTR(VERSION)); // ignore errors
     #endif
 
+    // Set the console title as late as possible, but not after starting
+    // the shell because .profile might change it.
+    SetConsoleTitleA("w64devkit");
+
     /* Start a BusyBox login shell */
     STARTUPINFOW si;
     GetStartupInfoW(&si);
