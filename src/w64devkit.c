@@ -162,10 +162,11 @@ mainCRTStartup(void)
     if (args && *args != 0) {
         WCHAR* s = cmdline + COUNTOF(CMDLINE_SH_LOGIN) - 1;
         for ( ; *args; args++) {
+            if(*args == '\\' && args[1] == '\"') *s++ = '\\';
             *s++ = *args;
         }
         *s = 0;
-	}
+    }
 
     /* Start a BusyBox login shell */
     STARTUPINFOW si;
