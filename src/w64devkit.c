@@ -100,8 +100,7 @@ homeconfig(WCHAR *path)
     GetFullPathNameW(expanded, MAX_PATH, path, 0);
 }
 
-int
-mainCRTStartup(void)
+static DWORD w64devkit(void)
 {
     WCHAR path[MAX_PATH + MAX_VAR];
 
@@ -152,5 +151,14 @@ mainCRTStartup(void)
     DWORD ret;
     WaitForSingleObject(pi.hProcess, INFINITE);
     GetExitCodeProcess(pi.hProcess, &ret);
-    ExitProcess(ret);
+    return ret;
+}
+
+#if __i386
+__attribute((force_align_arg_pointer))
+#endif
+void mainCRTStartup(void)
+{
+    DWORD r = w64devkit();
+    ExitProcess(r);
 }
