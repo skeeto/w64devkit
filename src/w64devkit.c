@@ -2,7 +2,7 @@
  * This avoids running a misbehaving monitor cmd.exe in the background.
  *
  * $ gcc -DVERSION="$VERSION" \
- *       -mno-stack-arg-probe -Xlinker --stack=0x10000,0x10000 \
+ *       -mno-stack-arg-probe -Xlinker --stack=0x21000,0x21000 \
  *       -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections \
  *       -s -nostdlib -o w64devkit.exe w64devkit.c -lkernel32
  *
@@ -15,6 +15,8 @@
 #define LSTR(s) XSTR(s)
 #define XSTR(s) L ## # s
 #define MAX_VAR 32767
+
+#define CMDLINE_SH_LOGIN L"sh -l -s "
 
 enum err {ERR_PATH, ERR_EXEC};
 static const char err_path[] = "w64devkit: failed to set $PATH\n";
@@ -32,7 +34,7 @@ fatal(enum err e)
     HANDLE out = GetStdHandle(STD_ERROR_HANDLE);
     DWORD dummy;
     WriteFile(out, msg, len, &dummy, 0);
-    return 2;
+    ExitProcess(2);
 }
 
 static void
@@ -51,6 +53,20 @@ findfile(WCHAR *s)
         case '\\': r = s + 1;
         }
     }
+}
+
+static WCHAR *
+findargs(WCHAR *s)
+{
+    WCHAR sep = ' ';
+    if (*s == '\"') {
+        sep = '\"';
+        s++;
+    }	
+    for (; *s; s++) {
+        if (*s == sep) return s + 1;
+    }
+    return 0;
 }
 
 /* Read and process "w64devkit.home" from "w64devkit.ini". Environment
@@ -100,11 +116,13 @@ homeconfig(WCHAR *path)
     GetFullPathNameW(expanded, MAX_PATH, path, 0);
 }
 
-int
+void
 mainCRTStartup(void)
 {
     WCHAR path[MAX_PATH + MAX_VAR];
 
+    SetConsoleTitleW(L"w64devkit");
+    
     /* Construct a path to bin/ directory */
     static const WCHAR bin[] = L"bin;";
     GetModuleFileNameW(0, path, MAX_PATH);
@@ -131,12 +149,23 @@ mainCRTStartup(void)
     /* Preprend bin/ path to $PATH */
     GetEnvironmentVariableW(L"PATH", path+binlen, MAX_VAR);
     if (!SetEnvironmentVariableW(L"PATH", path)) {
-        return fatal(ERR_PATH);
+        fatal(ERR_PATH);
     }
 
     #ifdef VERSION
     SetEnvironmentVariableW(L"W64DEVKIT", LSTR(VERSION)); // ignore errors
     #endif
+
+	/* Pass any arguments to the login shell */
+    WCHAR cmdline[MAX_VAR] = CMDLINE_SH_LOGIN;
+    WCHAR* args = findargs(GetCommandLineW());
+    if (args && *args != 0) {
+        WCHAR* s = cmdline + COUNTOF(CMDLINE_SH_LOGIN) - 1;
+        for ( ; *args; args++) {
+            *s++ = *args;
+        }
+        *s = 0;
+	}
 
     /* Start a BusyBox login shell */
     STARTUPINFOW si;
@@ -144,8 +173,8 @@ mainCRTStartup(void)
     PROCESS_INFORMATION pi;
     static const WCHAR busybox[] = L"bin\\busybox.exe";
     lmemmove(tail, busybox, COUNTOF(busybox));
-    if (!CreateProcessW(path, L"sh -l", 0, 0, TRUE, 0, 0, 0, &si, &pi)) {
-        return fatal(ERR_EXEC);
+    if (!CreateProcessW(path, cmdline, 0, 0, TRUE, 0, 0, 0, &si, &pi)) {
+        fatal(ERR_EXEC);
     }
 
     /* Wait for shell to exit */
