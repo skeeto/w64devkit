@@ -472,12 +472,9 @@ RUN rm -rf $PREFIX/share/man/ $PREFIX/share/info/ $PREFIX/share/gcc-* \
 COPY README.md Dockerfile src/w64devkit.ini $PREFIX/
 RUN printf "id ICON \"$PREFIX/src/w64devkit.ico\"" >w64devkit.rc \
  && $ARCH-windres -o w64devkit.o w64devkit.rc \
- && $ARCH-gcc -DVERSION=$VERSION \
-        -mno-stack-arg-probe -Xlinker --stack=0x10000,0x10000 \
-        -Os -fno-asynchronous-unwind-tables \
-        -Wl,--gc-sections -s -nostdlib \
-        -o $PREFIX/w64devkit.exe $PREFIX/src/w64devkit.c w64devkit.o \
-        -lkernel32 \
+ && $ARCH-gcc -DVERSION=$VERSION -nostdlib -fno-asynchronous-unwind-tables \
+        -fno-builtin -Wl,--gc-sections -s -o $PREFIX/w64devkit.exe \
+        $PREFIX/src/w64devkit.c w64devkit.o -lkernel32 -luser32 \
  && $ARCH-gcc \
         -Os -fno-asynchronous-unwind-tables \
         -Wl,--gc-sections -s -nostdlib \
