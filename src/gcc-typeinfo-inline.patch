@@ -1,0 +1,9 @@
+"std::type_info::operator==(std::info const&) const" must be inlined when
+static linking with libstdc++: https://gcc.gnu.org/PR110572
+--- a/gcc/config/i386/cygming.h
++++ b/gcc/config/i386/cygming.h
+@@ -148,3 +148,3 @@ along with GCC; see the file COPYING3.  If not see
+ 	builtin_define ("__GXX_MERGED_TYPEINFO_NAMES=0");		\
+-	builtin_define ("__GXX_TYPEINFO_EQUALITY_INLINE=0");		\
++	builtin_define ("__GXX_TYPEINFO_EQUALITY_INLINE=1");		\
+ 	EXTRA_OS_CPP_BUILTINS ();					\
