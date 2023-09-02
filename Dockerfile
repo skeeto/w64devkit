@@ -294,6 +294,9 @@ RUN $ARCH-gcc -DEXE=gcc.exe -DCMD=cc \
  && $ARCH-gcc -DEXE=gcc.exe -DCMD="cc -std=c99" \
         -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
         -o $PREFIX/bin/c99.exe $PREFIX/src/alias.c -lkernel32 \
+ && $ARCH-gcc -DEXE=gcc.exe -DCMD="cc -ansi" \
+        -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
+        -o $PREFIX/bin/c89.exe $PREFIX/src/alias.c -lkernel32 \
  && printf '%s\n' addr2line ar as c++filt cpp dlltool dllwrap elfedit g++ \
       gcc gcc-ar gcc-nm gcc-ranlib gcov gcov-dump gcov-tool ld nm objcopy \
       objdump ranlib readelf size strings strip windmc windres \
@@ -375,7 +378,7 @@ RUN /make-$MAKE_VERSION/configure \
         -o $PREFIX/bin/mingw32-make.exe $PREFIX/src/alias.c -lkernel32
 
 WORKDIR /busybox-w32
-COPY src/busybox-*.patch $PREFIX/src/
+COPY src/busybox-* $PREFIX/src/
 RUN cat $PREFIX/src/busybox-*.patch | patch -p1 \
  && make mingw64_defconfig \
  && sed -ri 's/^(CONFIG_AR)=y/\1=n/' .config \
@@ -398,7 +401,9 @@ RUN cat $PREFIX/src/busybox-*.patch | patch -p1 \
  && cp busybox.exe $PREFIX/bin/
 
 # Create BusyBox command aliases (like "busybox --install")
-RUN printf '%s\n' arch ash awk base32 base64 basename bash bc bunzip2 bzcat \
+RUN $ARCH-gcc -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections -s \
+      -nostdlib -o alias.exe $PREFIX/src/busybox-alias.c -lkernel32 \
+ && printf '%s\n' arch ash awk base32 base64 basename bash bc bunzip2 bzcat \
       bzip2 cal cat chattr chmod cksum clear cmp comm cp cpio crc32 cut date \
       dc dd df diff dirname dos2unix du echo ed egrep env expand expr factor \
       false fgrep find fold free fsync getopt grep groups gunzip gzip hd \
@@ -411,11 +416,7 @@ RUN printf '%s\n' arch ash awk base32 base64 basename bash bc bunzip2 bzcat \
       tr true truncate ts ttysize uname uncompress unexpand uniq unix2dos \
       unlzma unlzop unxz unzip uptime usleep uudecode uuencode watch \
       wc wget which whoami whois xargs xz xzcat yes zcat \
-    | xargs -I{} -P$(nproc) \
-          $ARCH-gcc -DEXE=busybox.exe -DCMD={} \
-            -Os -fno-asynchronous-unwind-tables \
-            -Wl,--gc-sections -s -nostdlib \
-            -o $PREFIX/bin/{}.exe $PREFIX/src/alias.c -lkernel32
+    | xargs -I{} cp alias.exe $PREFIX/bin/{}.exe
 
 # TODO: Either somehow use $VIM_VERSION or normalize the workdir
 WORKDIR /vim90/src

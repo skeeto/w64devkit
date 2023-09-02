@@ -3,94 +3,105 @@
 // Unlike batch script aliases, this program will not produce an annoying
 // and useless "Terminate batch job (Y/N)" prompt. When compiling, define
 // EXE as the target executable (relative or absolute path), and define CMD
-// as the argv[0] replacement, including additional arguments. Example:
+// as the argv[0] replacement, including additional arguments.
 //
 //   $ gcc -DEXE="target.exe" -DCMD="argv0 argv1"
-//         -Os -fno-asynchronous-unwind-tables
-//         -s -nostartfiles -Wl,--gc-sections -o alias.exe alias.c
+//         -nostartfiles -fno-builtin -o alias.exe alias.c
 //
 // This is free and unencumbered software released into the public domain.
 
-// Win32 declarations
-// NOTE: Parsing windows.h was by far the slowest part of the build, and
-// this program is compiled hundreds times for w64devkit. So instead,
-// define just what's needed.
+#define sizeof(x)   (i32)sizeof(x)
+#define alignof(x)  (i32)_Alignof(x)
+#define countof(a)  (sizeof(a) / sizeof(*(a)))
+#define lengthof(s) (countof(s) - 1)
 
-#define MAX_PATH 260
-
-typedef __SIZE_TYPE__ size_t;
-typedef unsigned short char16_t;
-
-typedef struct {
-  int cb;
-  void *a, *b, *c;
-  int d, e, f, g, h, i, j, k;
-  short l, m;
-  void *n, *o, *p, *q;
-} StartupInfo;
-
-typedef struct {
-    void *process;
-    void *thread;
-    int pid;
-    int tid;
-} ProcessInformation;
-
-int CreateProcessW(
-    void *, void *, void *, void *, int, int, void *, void *, void *, void *
-) __attribute((dllimport,stdcall));
-void ExitProcess(int)
-    __attribute((dllimport,stdcall));
-char16_t *GetCommandLineW(void)
-    __attribute((dllimport,stdcall));
-int GetExitCodeProcess(void *, int *)
-    __attribute((dllimport,stdcall));
-int GetModuleFileNameW(void *, char16_t *, int)
-    __attribute((dllimport,stdcall));
-void *GetStdHandle(int)
-    __attribute((dllimport,stdcall));
-int lstrlenW(void *)
-    __attribute((dllimport,stdcall));
-void *VirtualAlloc(void *, size_t, int, int)
-    __attribute__((dllimport,stdcall,malloc));
-int WriteFile(void *, void *, int, int *, void *)
-    __attribute((dllimport,stdcall));
-int WaitForSingleObject(void *, int)
-    __attribute((dllimport,stdcall));
-
-// Application
-
-#define FATAL "fatal: w64devkit alias failed: "
-#define TOOLONG "command too long\n"
-#define OOM "out of memory\n"
-#define CREATEPROC "cannot create process\n"
-#define COUNTOF(a) (int)(sizeof(a) / sizeof(0[a]))
 #define LSTR(s) XSTR(s)
-#define XSTR(s) L ## # s
+#define XSTR(s) u ## # s
 #define LEXE LSTR(EXE)
 #define LCMD LSTR(CMD)
 
-#define STRBUF(buf, cap) {buf, cap, 0, 0}
-typedef struct {
-    char16_t *buf;
-    int cap;
-    int len;
-    int error;
-} StrBuf;
+typedef __UINT8_TYPE__   u8;
+typedef   signed short   i16;
+typedef   signed int     b32;
+typedef   signed int     i32;
+typedef unsigned int     u32;
+typedef unsigned char    byte;
+typedef __UINTPTR_TYPE__ uptr;
+typedef __SIZE_TYPE__    usize;
+typedef unsigned short   char16_t;  // for GDB
+typedef char16_t         c16;
 
-static void append(StrBuf *b, char16_t *s, int len)
+// Win32
+
+#define MAX_PATH    260
+#define MAX_CMDLINE (1<<15)
+
+typedef struct {} *handle;
+
+typedef struct {
+    u32 cb;
+    uptr a, b, c;
+    i32 d, e, f, g, h, i, j, k;
+    i16 l, m;
+    uptr n, o, p, q;
+} si;
+
+typedef struct {
+    handle process;
+    handle thread;
+    u32 pid;
+    u32 tid;
+} pi;
+
+#define W32 __attribute((dllimport, stdcall))
+W32 b32    CreateProcessW(c16*,c16*,void*,void*,b32,u32,c16*,c16*,si*,pi*);
+W32 void   ExitProcess(u32) __attribute((noreturn));
+W32 c16   *GetCommandLineW(void);
+W32 i32    GetExitCodeProcess(handle, u32 *);
+W32 u32    GetFullPathNameW(c16 *, u32, c16 *, c16 *);
+W32 u32    GetModuleFileNameW(handle, c16 *, u32);
+W32 handle GetStdHandle(u32);
+W32 byte  *VirtualAlloc(byte *, usize, u32, u32);
+W32 b32    VirtualFree(byte *, usize, u32);
+W32 u32    WaitForSingleObject(handle, u32);
+W32 b32    WriteFile(handle, u8 *, u32, u32 *, void *);
+
+// Application
+
+#define ERR(s) "w64devkit (alias): " s "\n"
+
+#define new(h, t, n) (t *)alloc(h, sizeof(t), alignof(t), n)
+__attribute((malloc))
+__attribute((alloc_align(3)))
+__attribute((alloc_size(2, 4)))
+static byte *alloc(byte **heap, i32 size, i32 align, i32 count)
 {
-    int avail = b->cap - b->len;
-    int count = len<avail ? len : avail;
-    for (int i = 0; i < count; i++) {
+    *heap += -(uptr)*heap & (align - 1);
+    byte *p = *heap;
+    *heap += size * count;
+    return p;
+}
+
+typedef struct {
+    c16 *buf;
+    i32  len;
+    i32  cap;
+    b32  err;
+} c16buf;
+
+static void append(c16buf *b, c16 *s, i32 len)
+{
+    i32 avail = b->cap - b->len;
+    i32 count = avail<len ? avail : len;
+    for (i32 i = 0; i < count; i++) {
         b->buf[b->len+i] = s[i];
     }
     b->len += count;
-    b->error |= len > avail;
+    b->err |= avail < len;
 }
 
 // Find the end of argv[0].
-static char16_t *findargs(char16_t *s)
+static c16 *findargs(c16 *s)
 {
     if (s[0] == '"') {
         for (s++;; s++) {  // quoted argv[0]
@@ -110,80 +121,105 @@ static char16_t *findargs(char16_t *s)
     }
 }
 
-// Return the directory component length including the last slash.
-static int dirname(char16_t *s)
+static i32 c16len(c16 *s)
 {
-    int len = 0;
-    for (int i = 0; s[i]; i++) {
-        if (s[i]=='/' || s[i]=='\\') {
-            len = i + 1;
-        }
-    }
+    i32 len = 0;
+    for (; s[len]; len++) {}
     return len;
 }
 
-static void fail(char *reason, int len)
+static u32 fatal(u8 *msg, i32 len)
 {
-    int dummy;
-    void *out = GetStdHandle(-12);
-    WriteFile(out, FATAL, COUNTOF(FATAL), &dummy, 0);
-    WriteFile(out, reason, len, &dummy, 0);
+    handle stderr = GetStdHandle(-12);
+    u32 dummy;
+    WriteFile(stderr, msg, len, &dummy, 0);
+    return 0x17e;
 }
 
-static int aliasmain(void)
+static void getmoduledir(c16buf *b)
 {
-    // Replace alias module with adjacent target
-    char16_t exebuf[MAX_PATH];
-    StrBuf exe = STRBUF(exebuf, COUNTOF(exebuf));
-    if (LEXE[1] == ':') {
-        // EXE looks like an absolute path
-        append(&exe, LEXE, COUNTOF(LEXE));
-    } else {
-        // EXE looks like a relative path
-        char16_t module[MAX_PATH];
-        GetModuleFileNameW(0, module, COUNTOF(module));
-        int len = dirname(module);
-        append(&exe, module, len);
-        append(&exe, LEXE, COUNTOF(LEXE));
+    c16 path[MAX_PATH];
+    u32 len = GetModuleFileNameW(0, path, countof(path));
+    for (; len; len--) {
+        switch (path[len-1]) {
+        case '/': case '\\':
+            append(b, path, len);
+            return;
+        }
+    }
+}
+
+static si *newstartupinfo(byte **heap)
+{
+    si *s = new(heap, si, 1);
+    s->cb = sizeof(si);
+    return s;
+}
+
+static i32 aliasmain(void)
+{
+    byte *heap_start = VirtualAlloc(0, 1<<18, 0x3000, 4);
+    byte *heap = heap_start;
+    if (!heap) {
+        static const u8 msg[] = ERR("out of memory");
+        return fatal((u8 *)msg, lengthof(msg));
+    }
+
+    // Construct a path to the .exe
+    c16buf *exe = new(&heap, c16buf, 1);
+    exe->cap = 2*MAX_PATH;  // concatenating two paths
+    exe->buf = new(&heap, c16, exe->cap);
+    if (LEXE[1] != ':') {  // relative path?
+        getmoduledir(exe);
+    }
+    append(exe, LEXE, countof(LEXE));
+    if (exe->err) {
+        static const u8 msg[] = ERR(".exe path too long");
+        return fatal((u8 *)msg, lengthof(msg));
+    }
+
+    // Try to collapse relative components
+    if (LEXE[0] == '.') {  // relative components?
+        c16buf *tmp = new(&heap, c16buf, 1);
+        tmp->buf = new(&heap, c16, MAX_PATH);
+        tmp->cap = MAX_PATH;
+        tmp->len = GetFullPathNameW(exe->buf, tmp->cap, tmp->buf, 0);
+        if (tmp->len>0 && tmp->len<tmp->cap) {
+            tmp->len++;  // include null terminator
+            *exe = *tmp;
+        }
     }
 
     // Construct a new command line string
-    int cmdcap = 1<<15;
-    char16_t *cmdbuf = VirtualAlloc(0, 2*cmdcap, 0x3000, 4);
-    if (!cmdbuf) {
-        fail(OOM, COUNTOF(OOM)-1);
-        return -2;
-    }
-    StrBuf cmd = STRBUF(cmdbuf, cmdcap);
-    append(&cmd, LCMD, COUNTOF(LCMD)-1);
-    char16_t *args = findargs(GetCommandLineW());
-    append(&cmd, args, lstrlenW(args)+1);
-
-    if (exe.error || cmd.error) {
-        fail(TOOLONG, COUNTOF(TOOLONG)-1);
-        return -3;
+    c16buf *cmd = new(&heap, c16buf, 1);
+    cmd->cap = MAX_CMDLINE;
+    cmd->buf = new(&heap, c16, cmd->cap);
+    append(cmd, LCMD, lengthof(LCMD));
+    c16 *args = findargs(GetCommandLineW());
+    append(cmd, args, c16len(args)+1);
+    if (cmd->err) {
+        static const u8 msg[] = ERR("command line too long");
+        return fatal((u8 *)msg, lengthof(msg));
     }
 
-    StartupInfo si = {0};
-    si.cb = sizeof(si);
-    ProcessInformation pi;
-    if (!CreateProcessW(exebuf, cmdbuf, 0, 0, 1, 0, 0, 0, &si, &pi)) {
-        fail(CREATEPROC, COUNTOF(CREATEPROC)-1);
-        return -4;
+    si *si = newstartupinfo(&heap);
+    pi pi;
+    if (!CreateProcessW(exe->buf, cmd->buf, 0, 0, 1, 0, 0, 0, si, &pi)) {
+        static const u8 msg[] = ERR("could not start process\n");
+        return fatal((u8 *)msg, lengthof(msg));
     }
 
-    int ret;
+    // Wait for child to exit
+    VirtualFree(heap_start, 0, 0x8000);
+    u32 ret;
     WaitForSingleObject(pi.process, -1);
     GetExitCodeProcess(pi.process, &ret);
     return ret;
 }
 
-#if __i386
 __attribute((force_align_arg_pointer))
-#endif
-__attribute((externally_visible))
-int mainCRTStartup(void)
+void mainCRTStartup(void)
 {
-    int r = aliasmain();
+    u32 r = aliasmain();
     ExitProcess(r);
 }
