@@ -1,4 +1,4 @@
-FROM debian:bullseye-slim
+FROM debian:bookworm-slim
 
 ARG VERSION=1.20.0
 ARG PREFIX=/w64devkit
