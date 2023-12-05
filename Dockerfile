@@ -7,7 +7,7 @@ ARG BUSYBOX_VERSION=FRP-5181-g5c1a3b00e
 ARG CTAGS_VERSION=6.0.0
 ARG EXPAT_VERSION=2.5.0
 ARG GCC_VERSION=13.2.0
-ARG GDB_VERSION=13.1
+ARG GDB_VERSION=14.1
 ARG GMP_VERSION=6.3.0
 ARG LIBICONV_VERSION=1.17
 ARG MAKE_VERSION=4.4
@@ -352,12 +352,9 @@ RUN cat $PREFIX/src/gdb-*.patch | patch -d/gdb-$GDB_VERSION -p1 \
  && sed -i 's/quiet = 0/quiet = 1/' /gdb-$GDB_VERSION/gdb/main.c \
  && /gdb-$GDB_VERSION/configure \
         --host=$ARCH \
-        --with-libexpat-prefix=/deps \
-        --with-libgmp-prefix=/deps \
-        --with-libiconv-prefix=/deps \
         --enable-tui \
-        CFLAGS="-Os -DPDC_WIDE" \
-        CXXFLAGS="-Os -DPDC_WIDE" \
+        CFLAGS="-Os -DPDC_WIDE -I/deps/include" \
+        CXXFLAGS="-Os -DPDC_WIDE -I/deps/include" \
         LDFLAGS="-s -L/deps/lib" \
  && make MAKEINFO=true -j$(nproc) \
  && cp gdb/.libs/gdb.exe gdbserver/gdbserver.exe $PREFIX/bin/

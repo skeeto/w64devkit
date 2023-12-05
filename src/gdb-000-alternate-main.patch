@@ -1,6 +1,6 @@
 --- a/gdb/symtab.c
 +++ b/gdb/symtab.c
-@@ -6300,6 +6300,23 @@
+@@ -6314,6 +6314,23 @@
    if (symbol_found_p)
      return;
  
@@ -15,12 +15,12 @@
 +	  msym = lookup_minimal_symbol (main, NULL, NULL);
 +	  if (msym.minsym != NULL)
 +	    {
-+	      set_main_name (main, language_unknown);
++	      set_main_name (pspace, main, language_unknown);
 +	      return;
 +	    }
 +	}
 +    }
 +
-   set_main_name ("main", language_unknown);
+   set_main_name (pspace, "main", language_unknown);
  }
  
