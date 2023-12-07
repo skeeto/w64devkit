@@ -2,7 +2,7 @@ FROM debian:bookworm-slim
 
 ARG VERSION=1.21.0
 ARG PREFIX=/w64devkit
-ARG BINUTILS_VERSION=2.40
+ARG BINUTILS_VERSION=2.41
 ARG BUSYBOX_VERSION=FRP-5181-g5c1a3b00e
 ARG CTAGS_VERSION=6.0.0
 ARG EXPAT_VERSION=2.5.0
@@ -68,9 +68,7 @@ ARG ARCH=x86_64-w64-mingw32
 # Build cross-compiler
 
 WORKDIR /binutils-$BINUTILS_VERSION
-COPY src/binutils-*.patch $PREFIX/src/
-RUN sed -ri 's/(static bool insert_timestamp = )/\1!/' ld/emultempl/pe*.em \
- && cat $PREFIX/src/binutils-*.patch | patch -p1
+RUN sed -ri 's/(static bool insert_timestamp = )/\1!/' ld/emultempl/pe*.em
 WORKDIR /x-binutils
 RUN /binutils-$BINUTILS_VERSION/configure \
         --prefix=/bootstrap \
