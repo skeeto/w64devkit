@@ -1,9 +1,0 @@
---- a/win32/mingw.c
-+++ b/win32/mingw.c
-@@ -2194,4 +2194,4 @@ void hide_console(int hide)
- 			INIT_PROC_ADDR(user32.dll, IsIconic)) {
--		if (IsIconic(GetConsoleWindow()) == !hide)
--			ShowWindow(GetConsoleWindow(), hide ? SW_MINIMIZE : SW_NORMAL);
-+		if (hide && !IsIconic(GetConsoleWindow()))
-+			ShowWindow(GetConsoleWindow(), SW_MINIMIZE);
- 	}

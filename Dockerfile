@@ -3,7 +3,7 @@ FROM debian:bookworm-slim
 ARG VERSION=1.21.0
 ARG PREFIX=/w64devkit
 ARG BINUTILS_VERSION=2.41
-ARG BUSYBOX_VERSION=FRP-5181-g5c1a3b00e
+ARG BUSYBOX_VERSION=FRP-5236-g7dff7f376
 ARG CTAGS_VERSION=6.0.0
 ARG EXPAT_VERSION=2.5.0
 ARG GCC_VERSION=13.2.0
@@ -403,7 +403,7 @@ RUN $ARCH-gcc -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections -s \
       dc dd df diff dirname dos2unix du echo ed egrep env expand expr factor \
       false fgrep find fold free fsync getopt grep groups gunzip gzip hd \
       head hexdump httpd iconv id inotifyd install ipcalc jn kill killall \
-      less ln logname ls lsattr lzcat lzma lzop lzopcat md5sum mkdir \
+      lash less ln logname ls lsattr lzcat lzma lzop lzopcat md5sum mkdir \
       mktemp mv nc nl nproc od paste patch pgrep pidof pipe_progress pkill \
       printenv printf ps pwd readlink realpath reset rev rm rmdir sed seq sh \
       sha1sum sha256sum sha3sum sha512sum shred shuf sleep sort split \
