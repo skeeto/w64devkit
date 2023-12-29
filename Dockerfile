@@ -59,7 +59,7 @@ RUN sha256sum -c $PREFIX/src/SHA256SUMS \
  && tar xJf nasm-$NASM_VERSION.tar.xz \
  && tar xjf vim-$VIM_VERSION.tar.bz2 \
  && tar xzf cppcheck-$CPPCHECK_VERSION.tar.gz
-COPY src/w64devkit.c src/w64devkit.ico \
+COPY src/w64devkit.c src/w64devkit.ico src/libmemory.c \
      src/alias.c src/debugbreak.c src/pkg-config.c src/vc++filt.c \
      $PREFIX/src/
 
@@ -122,6 +122,10 @@ RUN cat $PREFIX/src/gcc-*.patch | patch -d/gcc-$GCC_VERSION -p1 \
  && make install-gcc
 
 ENV PATH="/bootstrap/bin:${PATH}"
+
+RUN mkdir -p $PREFIX/$ARCH/lib \
+ && CC=$ARCH-gcc DESTDIR=$PREFIX/$ARCH/lib/ sh $PREFIX/src/libmemory.c \
+ && ln $PREFIX/$ARCH/lib/libmemory.a /bootstrap/$ARCH/lib/
 
 WORKDIR /x-mingw-crt
 RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
