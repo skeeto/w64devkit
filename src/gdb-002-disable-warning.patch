@@ -1,0 +1,10 @@
+Per the comment, this warning is only supposed to be shown once. Due to
+a bug it's shown every time, so just disable it entirely.
+
+--- a/gdb/auto-load.c	2023-12-30 19:39:47.841784725 -0500
++++ b/gdb/auto-load.c	2023-12-30 19:55:34.540593319 -0500
+@@ -598,3 +598,3 @@
+ 
+-  pspace_info->unsupported_script_warning_printed = false;
++  pspace_info->unsupported_script_warning_printed = true;
+   pspace_info->script_not_found_warning_printed = false;
