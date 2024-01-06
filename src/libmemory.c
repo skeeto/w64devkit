@@ -50,6 +50,10 @@ void *memcpy(void *restrict dst, void *restrict src, size_t len)
 #ifdef MEMMOVE
 void *memmove(void *dst, void *src, size_t len)
 {
+    // Use uintptr_t to bypass pointer semantics:
+    // (1) comparing unrelated pointers
+    // (2) pointer arithmetic on null (i.e. gracefully handle null dst/src)
+    // (3) pointer overflow ("one-before-the-beginning" in reversed copy)
     uintptr_t d = (uintptr_t)dst;
     uintptr_t s = (uintptr_t)src;
     if (d > s) {
