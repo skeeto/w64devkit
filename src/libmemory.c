@@ -16,7 +16,8 @@ rm $objects
 exit 0
 #endif
 
-typedef __SIZE_TYPE__ size_t;
+typedef __SIZE_TYPE__    size_t;
+typedef __UINTPTR_TYPE__ uintptr_t;
 
 #ifdef MEMSET
 void *memset(void *dst, int c, size_t len)
@@ -49,19 +50,20 @@ void *memcpy(void *restrict dst, void *restrict src, size_t len)
 #ifdef MEMMOVE
 void *memmove(void *dst, void *src, size_t len)
 {
-    void *r = dst;
-    if ((size_t)dst > (size_t)src) {
-        dst += len - 1;
-        src += len - 1;
+    uintptr_t d = (uintptr_t)dst;
+    uintptr_t s = (uintptr_t)src;
+    if (d > s) {
+        d += len - 1;
+        s += len - 1;
         asm ("std");
     }
     asm volatile (
         "rep movsb; cld"
-        : "+D"(dst), "+S"(src), "+c"(len)
+        : "+D"(d), "+S"(s), "+c"(len)
         :
         : "memory"
     );
-    return r;
+    return dst;
 }
 #endif
 
