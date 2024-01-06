@@ -67,15 +67,11 @@ Then to start an interactive unix shell:
 
 ## Optimized for size
 
-The language runtimes in w64devkit are optimized for size, so it produces
-particularly small binaries when programs are also optimized for size
-(`-Os`) during compilation. If your program only uses the `printf` family
-of functions with MSVC-compatible directives (i.e. limited to C89), and
-you want even smaller binaries, you can avoid embedding the Mingw-w64's
-improved implementation by setting `__USE_MINGW_ANSI_STDIO` to 0 before
-including any headers.
-
-    $ cc -Os -D__USE_MINGW_ANSI_STDIO=0 ...
+Runtime components are optimized for size, leading to smaller application
+executables. Unique to w64devkit, `libmemory.a` is a library of `memset`,
+`memcpy`, `memmove`, `memcmp`, and `strlen` implemented as x86 string
+instructions. When [not linking a CRT][crt], linking `-lmemory` provides
+tiny definitions, particularly when GCC requires them.
 
 ## Fortran support
 
@@ -184,6 +180,11 @@ The kit includes a unique [`debugbreak` command][debugbreak]. It causes
 all debugee processes to break in the debugger, like using Windows' F12
 debugger hotkey. This is especially useful for console subsystem programs.
 
+The `vc++filt` command, unique to w64devkit, works just like `c++filt` but
+processes [Visual C++ name decorations][names] instead. It's useful when
+examining GCC-incompatible libraries, potentially to make some use of them
+anyway.
+
 Since the build environment is so stable and predicable, it would be
 great for the .zip to be reproducible, i.e. builds by different people
 are bit-for-bit identical. There are multiple reasons why this is not
@@ -208,6 +209,7 @@ binaries.
 [break]: https://nullprogram.com/blog/2022/06/26/
 [bs]: https://www.rdegges.com/2016/i-dont-give-a-shit-about-licensing/
 [cppcheck]: https://cppcheck.sourceforge.io/
+[crt]: https://nullprogram.com/blog/2023/02/15/
 [ctags]: https://github.com/universal-ctags/ctags
 [debugbreak]: https://nullprogram.com/blog/2022/07/31/
 [doc-bb]: https://busybox.net/downloads/BusyBox.txt
@@ -227,6 +229,7 @@ binaries.
 [lic1]: https://sourceforge.net/p/mingw-w64/mingw-w64/ci/master/tree/COPYING.MinGW-w64-runtime/COPYING.MinGW-w64-runtime.txt
 [lic2]: https://sourceforge.net/p/mingw-w64/mingw-w64/ci/master/tree/mingw-w64-libraries/winpthreads/COPYING
 [make]: https://www.gnu.org/software/make/
+[names]: https://learn.microsoft.com/en-us/cpp/build/reference/decorated-names
 [nasm]: https://www.nasm.us/
 [quilt]: http://savannah.nongnu.org/projects/quilt
 [san]: http://mingw-w64.org/doku.php/contribute#sanitizers_asan_tsan_usan
