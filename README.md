@@ -73,6 +73,12 @@ executables. Unique to w64devkit, `libmemory.a` is a library of `memset`,
 instructions. When [not linking a CRT][crt], linking `-lmemory` provides
 tiny definitions, particularly when GCC requires them.
 
+Also unique to w64devkit, `libchkstk.a` has a leaner, faster definition of
+`___chkstk_ms` than GCC (`-lgcc`), as well as `__chkstk`, sometimes needed
+when linking MSVC artifacts. Both are in the public domain and so, unlike
+default implementations, do not involve complex licensing. When required
+in a `-nostdlib` build, link `-lchkstk`.
+
 ## Fortran support
 
 Only C and C++ are included by default, but w64devkit also has full
