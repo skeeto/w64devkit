@@ -111,6 +111,7 @@ RUN cat $PREFIX/src/gcc-*.patch | patch -d/gcc-$GCC_VERSION -p1 \
         --enable-version-specific-runtime-libs \
         --disable-dependency-tracking \
         --disable-nls \
+        --disable-lto \
         --disable-multilib \
         CFLAGS_FOR_TARGET="-Os" \
         CXXFLAGS_FOR_TARGET="-Os" \
@@ -269,6 +270,7 @@ RUN /gcc-$GCC_VERSION/configure \
         --enable-threads=posix \
         --enable-version-specific-runtime-libs \
         --disable-dependency-tracking \
+        --disable-lto \
         --disable-multilib \
         --disable-nls \
         --disable-win32-registry \
@@ -282,7 +284,7 @@ RUN /gcc-$GCC_VERSION/configure \
  && make -j$(nproc) \
  && make install \
  && rm -rf $PREFIX/$ARCH/bin/ $PREFIX/bin/$ARCH-* \
-        $PREFIX/bin/ld.bfd.exe $PREFIX/bin/c++.exe $PREFIX/bin/lto-dump.exe \
+        $PREFIX/bin/ld.bfd.exe $PREFIX/bin/c++.exe \
  && $ARCH-gcc -DEXE=g++.exe -DCMD=c++ \
         -Os -fno-asynchronous-unwind-tables \
         -Wl,--gc-sections -s -nostdlib \
