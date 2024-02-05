@@ -57,7 +57,6 @@ ___chkstk_ms:
 	test %eax, (%ecx)	// commit page (two instruction bytes)
 1:	cmp  %eax, %ecx
 	ja   0b
-	sub  %esp, %eax
 	pop  %ecx
 	pop  %eax
 	ret
