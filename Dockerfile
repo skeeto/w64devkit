@@ -174,7 +174,7 @@ RUN /binutils-$BINUTILS_VERSION/configure \
         LDFLAGS="-s" \
  && make MAKEINFO=true -j$(nproc) \
  && make MAKEINFO=true install \
- && rm $PREFIX/bin/elfedit.exe $PREFIX/bin/gprof.exe $PREFIX/bin/readelf.exe
+ && rm $PREFIX/bin/elfedit.exe $PREFIX/bin/readelf.exe
 
 WORKDIR /gmp
 RUN /gmp-$GMP_VERSION/configure \
