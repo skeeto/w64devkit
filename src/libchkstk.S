@@ -29,10 +29,11 @@ __chkstk:
 #  endif
 	push %rax
 	push %rcx
+	mov  %gs:(0x10), %rcx	// rcx = stack low address
 	neg  %rax		// rax = frame low address
 	add  %rsp, %rax		// "
-	mov  %gs:(0x10), %rcx	// rcx = stack low address
-	jmp  1f
+	jb   1f			// frame low address overflow?
+	xor  %eax, %eax		// overflowed: frame low address = null
 0:	sub  $0x1000, %rcx	// extend stack into guard page
 	test %eax, (%rcx)	// commit page (two instruction bytes)
 1:	cmp  %rax, %rcx
@@ -49,10 +50,11 @@ __chkstk:
 ___chkstk_ms:
 	push %eax
 	push %ecx
+	mov  %fs:(0x08), %ecx	// ecx = stack low address
 	neg  %eax		// eax = frame low address
 	add  %esp, %eax		// "
-	mov  %fs:(0x08), %ecx	// ecx = stack low address
-	jmp  1f
+	jb   1f			// frame low address overflow?
+	xor  %eax, %eax		// overflowed: frame low address = null
 0:	sub  $0x1000, %ecx	// extend stack into guard page
 	test %eax, (%ecx)	// commit page (two instruction bytes)
 1:	cmp  %eax, %ecx
@@ -66,10 +68,12 @@ ___chkstk_ms:
 	.globl __chkstk
 __chkstk:
 	push %ecx		// preserve ecx
+	mov  %fs:(0x08), %ecx	// ecx = stack low address
 	neg  %eax		// eax = frame low address
 	lea  8(%esp,%eax), %eax	// "
-	mov  %fs:(0x08), %ecx	// ecx = stack low address
-	jmp  1f
+	cmp  %esp, %eax		// frame low address overflow?
+	jb   1f			// "
+	xor  %eax, %eax		// overflowed: frame low address = null
 0:	sub  $0x1000, %ecx	// extend stack into guard page
 	test %eax, (%ecx)	// commit page (two instruction bytes)
 1:	cmp  %eax, %ecx
