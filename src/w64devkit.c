@@ -9,16 +9,9 @@
 //
 // This is free and unencumbered software released into the public domain.
 
-#define sizeof(a)    (size)(sizeof(a))
-#define alignof(a)   (size)(_Alignof(a))
-#define countof(a)   (sizeof(a) / sizeof(*(a)))
-#define lengthof(s)  (countof(s) - 1)
-
-#define new(...)            newx(__VA_ARGS__, new4, new3, new2)(__VA_ARGS__)
-#define newx(a,b,c,d,e,...) e
-#define new2(a, t)          (t *)alloc(a, sizeof(t), alignof(t), 1, 0)
-#define new3(a, t, n)       (t *)alloc(a, sizeof(t), alignof(t), n, 0)
-#define new4(a, t, n, f)    (t *)alloc(a, sizeof(t), alignof(t), n, f)
+#define countof(a)    (size)(sizeof(a) / sizeof(*(a)))
+#define assert(c)     while (!(c)) __builtin_unreachable()
+#define new(a, t, n)  (t *)alloc(a, sizeof(t), _Alignof(t), n)
 
 typedef unsigned char    byte;
 typedef __UINT8_TYPE__   u8;
@@ -49,10 +42,7 @@ typedef struct {
     u32 tid;
 } pi;
 
-#define MAX_PATH       260
 #define MAX_ENVVAR     32767
-#define MAX_CMDLINE    32767
-#define MAX_INI        (1<<18)
 #define CP_UTF8        65001
 #define PAGE_READWRITE 0x04
 #define MEM_COMMIT     0x1000
@@ -74,7 +64,7 @@ W32 u32    GetFullPathNameW(c16 *, u32, c16 *, c16 *);
 W32 u32    GetModuleFileNameW(handle, c16 *, u32);
 W32 i32    MessageBoxW(handle, c16 *, c16 *, u32);
 W32 i32    MultiByteToWideChar(u32, u32, u8 *, i32, c16 *, i32);
-W32 b32    ReadFile(handle, u8 *, u32, u32 *, void *);
+W32 b32    ReadFile(handle, u8 *, i32, i32 *, void *);
 W32 b32    SetConsoleTitleW(c16 *);
 W32 b32    SetCurrentDirectoryW(c16 *);
 W32 b32    SetEnvironmentVariableW(c16 *, c16 *);
@@ -82,13 +72,13 @@ W32 byte  *VirtualAlloc(byte *, usize, u32, u32);
 W32 b32    VirtualFree(byte *, usize, u32);
 W32 u32    WaitForSingleObject(handle, u32);
 
-#define S(s) (s8){(u8 *)s, lengthof(s)}
+#define S(s) (s8){(u8 *)s, countof(s)-1}
 typedef struct {
     u8  *s;
     size len;
 } s8;
 
-#define U(s) (s16){s, lengthof(s)}
+#define U(s) (s16){s, countof(s)-1}
 typedef struct {
     c16 *s;
     size len;
@@ -122,63 +112,57 @@ static void fatal(c16 *msg)
 }
 
 typedef struct {
-    byte *mem;
-    size  cap;
-    size  off;
+    byte *beg;
+    byte *end;
 } arena;
 
-static arena *newarena(size cap)
+static void outofmemory(void)
 {
-    arena *a = 0;
-    byte *mem = VirtualAlloc(0, cap, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
-    if (mem) {
-        a = (arena *)mem;
-        a->mem = mem;
-        a->cap = cap;
-        a->off = sizeof(arena);
-    }
-    return a;
+    fatal(u"Out of memory");
 }
 
-static void freearena(arena *a)
+__attribute((malloc, alloc_size(2, 4)))
+static byte *alloc(arena *a, size objsize, size align, size count)
 {
-    VirtualFree(a->mem, 0, MEM_RELEASE);
-}
-
-#define NOZERO   (1<<0)
-#define SOFTFAIL (1<<1)
-__attribute((malloc))
-__attribute((alloc_align(3)))
-__attribute((alloc_size(2, 4)))
-static byte *alloc(arena *a, size objsize, size align, size count, i32 flags)
-{
-    size avail = a->cap - a->off;
-    size pad   = -a->off & (align - 1);
-    if (count > (avail - pad)/objsize) {
-        if (flags & SOFTFAIL) {
-            return 0;
-        }
-        fatal(u"Out of memory");
+    size padding = (uptr)a->end & (align - 1);
+    if (count > (a->end - a->beg - padding)/objsize) {
+        outofmemory();
     }
     size total = count*objsize;
-    byte *p = a->mem + a->off + pad;
-    if (!(flags & NOZERO)) {
-        for (size i = 0; i < total; i++) {
-            p[i] = 0;
-        }
+    byte *p = a->end -= total + padding;
+    for (size i = 0; i < total; i++) {
+        p[i] = 0;
     }
-    a->off += pad + total;
     return p;
 }
 
-static arena splitarena(arena *a, i32 div)
+typedef struct {
+    byte *base;
+    arena perm;
+    arena scratch;
+} memory;
+
+static memory newmemory(size cap)
 {
-    size avail = a->cap - a->off;
-    size cap = avail / div;
-    arena sub = {};
-    sub.mem = alloc(a, 1, 32, cap, NOZERO);
-    sub.cap = cap;
-    return sub;
+    memory r = {};
+    r.base = VirtualAlloc(0, cap, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+    if (!r.base) return r;
+    r.perm.beg = r.base;
+    r.perm.end = r.base + cap/2;
+    r.scratch.beg = r.base + cap/2;
+    r.scratch.end = r.base + cap;
+    return r;
+}
+
+static void freememory(memory m)
+{
+    VirtualFree(m.base, 0, MEM_RELEASE);
+}
+
+static i32 truncsize(size len)
+{
+    i32 max = 0x7fffffff;
+    return len>max ? max : (i32)len;
 }
 
 typedef enum {
@@ -310,6 +294,7 @@ typedef enum {
     sym_null = 0,
     sym_w64devkit,
     sym_home,
+    sym_title,
 } symbol;
 
 static symbol intern(s8 s)
@@ -320,6 +305,7 @@ static symbol intern(s8 s)
     } symbols[] = {
         {S("w64devkit"), sym_w64devkit},
         {S("home"),      sym_home},
+        {S("title"),     sym_title},
     };
     for (size i = 0; i < countof(symbols); i++) {
         if (s8equals(symbols[i].name, s)) {
@@ -329,25 +315,41 @@ static symbol intern(s8 s)
     return sym_null;
 }
 
-static u8 *makecstr(arena *a, s8 s)
+static c16 *expandvalue(s8 value, arena *perm, arena scratch)
 {
-    u8 *r = new(a, u8, s.len+1);
-    for (size i = 0; i < s.len; i++) {
-        r[i] = s.s[i];
-    }
+    assert(value.len < 0x7fffffff);
+
+    // First temporarily convert to a null-terminated wide string
+    i32 len = MultiByteToWideChar(CP_UTF8, 0, value.s, (i32)value.len, 0, 0);
+    if (len == 0x7fffffff) outofmemory();
+    s16 w = {};
+    w.len = len + 1;  // append null terminator
+    w.s = new(&scratch, c16, w.len);
+    MultiByteToWideChar(CP_UTF8, 0, value.s, (i32)value.len, w.s, len);
+
+    len = ExpandEnvironmentStringsW(w.s, 0, 0);
+    if (len < 0) outofmemory();
+    c16 *r = new(perm, c16, len);
+    ExpandEnvironmentStringsW(w.s, r, len);
     return r;
 }
 
-// Read and process "w64devkit.home" from "w64devkit.ini". Environment
-// variables are expanded, and if relative, the result is converted into
-// an absolute path. Returns null on error.
-//
-// Before calling, the current working directory must be changed to the
-// location of w64devkit.exe.
-static c16 *homeconfig(arena *perm, arena scratch)
+// Expand to a full path via GetFullPathNameW.
+static c16 *tofullpath(c16 *path, arena *perm)
 {
+    i32 len = GetFullPathNameW(path, 0, 0, 0);
+    if (len < 0) outofmemory();
+    c16 *r = new(perm, c16, len);
+    GetFullPathNameW(path, len, r, 0);
+    return r;
+}
+
+static s8 loadfile(c16 *path, arena *perm)
+{
+    s8 r = {};
+
     handle h = CreateFileW(
-        u"w64devkit.ini",
+        path,
         GENERIC_READ,
         FILE_SHARE_ALL,
         0,
@@ -356,64 +358,72 @@ static c16 *homeconfig(arena *perm, arena scratch)
         0
     );
     if (h == (handle)-1) {
-        return 0;
+        return r;
     }
 
-    iniparser *p = new(&scratch, iniparser);
-    p->beg = new(&scratch, u8, MAX_INI, NOZERO);
-    u32 inilen;
-    b32 r = ReadFile(h, p->beg, MAX_INI, &inilen, 0);
+    r.s = (u8 *)perm->beg;
+    r.len = truncsize((perm->end - perm->beg)/sizeof(u8));
+    i32 len;
+    b32 ok = ReadFile(h, r.s, (i32)r.len, &len, 0);
     CloseHandle(h);
-    if (!r || inilen == MAX_INI) {
-        return 0;
-    }
-    p->end = p->beg + inilen;
+    r.len = len;
+    r.s = ok ? r.s : 0;
+    perm->beg += r.len / sizeof(u8);
+    return r;
+}
 
-    u8 *home = 0;
-    u32 len = 0;
+typedef struct {
+    c16 *home;
+    c16 *title;
+    b32  ok;
+} config;
+
+static config newconfig(void)
+{
+    config r = {};
+    r.title = u"w64devkit";
+    return r;
+}
+
+// Read entries from w64devkit.ini. Expands environment variables, and
+// if "home" is relative, converts it to an absolute path. Before the
+// call, the working directory must be location of w64devkit.exe.
+static config loadconfig(arena *perm, arena scratch)
+{
+    config conf = newconfig();
+
+    s8 ini = loadfile(u"w64devkit.ini", &scratch);
+    if (!ini.s) return conf;
+
+    iniparser *p = new(&scratch, iniparser, 1);
+    p->beg = ini.s;
+    p->end = ini.s + ini.len;
+
     for (symbol section = 0, key = 0;;) {
         initoken t = iniparse(p);
         switch (t.type) {
         case INI_eof:
-            break;
+            conf.ok = 1;
+            return conf;
         case INI_section:
             section = intern(t.name);
-            continue;
+            break;
         case INI_key:
             key = intern(t.name);
-            continue;
+            break;
         case INI_value:
-            if (!home && section==sym_w64devkit && key==sym_home) {
-                home = makecstr(&scratch, t.name);
-                len = (u32)(t.name.len + 1);  // include terminator
+            if (section == sym_w64devkit) {
+                if (!conf.home && key==sym_home) {
+                    arena temp = scratch;
+                    conf.home = expandvalue(t.name, &temp, *perm);
+                    conf.home = tofullpath(conf.home, perm);
+                } else if (key == sym_title) {
+                    conf.title = expandvalue(t.name, perm, scratch);
+                }
             }
-            continue;
+            break;
         }
-        break;
     }
-
-    c16 *whome = new(&scratch, c16, len);
-    if (!MultiByteToWideChar(CP_UTF8, 0, home, len, whome, len)) {
-        return 0;
-    }
-
-    // Process INI string into a final HOME path. Allocate a bit more
-    // than MAX_PATH, because GetFullPathNameW could technically reduce
-    // it to within MAX_PATH if there are lots of relative components.
-    u32 cap = MAX_PATH*4;
-    c16 *expanded = new(&scratch, c16, cap);
-    len = ExpandEnvironmentStringsW(whome, expanded, cap);
-    if (!len || len>cap) {
-        return 0;
-    }
-
-    // The final result must fit within MAX_PATH in order to be useful.
-    c16 *path = new(perm, c16, MAX_PATH);
-    len = GetFullPathNameW(expanded, MAX_PATH, path, 0);
-    if (!len || len>=MAX_PATH) {
-        return 0;
-    }
-    return path;
 }
 
 typedef struct {
@@ -426,7 +436,7 @@ typedef struct {
 static buf16 newbuf16(arena *a, size cap)
 {
     buf16 buf = {};
-    buf.buf = new(a, c16, cap, NOZERO);
+    buf.buf = new(a, c16, cap);
     buf.cap = cap;
     return buf;
 }
@@ -451,12 +461,20 @@ static void buf16c16(buf16 *buf, c16 c)
 
 static void buf16moduledir(buf16 *buf, arena scratch)
 {
-    c16 *path = new(&scratch, c16, MAX_PATH);
-    size len = GetModuleFileNameW(0, path, MAX_PATH);
-    for (; len; len--) {
-        switch (path[len-1]) {
+    // GetFullPathNameW does not allow querying the output size, instead
+    // indicating whether or not the buffer was large enough. So simply
+    // offer the entire scratch buffer, then crop out the actual result.
+    scratch.beg += -(uptr)scratch.beg & (sizeof(c16) - 1);  // align
+    i32 len = truncsize((scratch.end - scratch.beg)/sizeof(c16));
+    s16 path = {};
+    path.s = (c16 *)scratch.beg;
+    path.len = GetModuleFileNameW(0, path.s, len);
+    if (len == path.len) outofmemory();
+    for (; path.len; path.len--) {
+        switch (path.s[path.len-1]) {
         case  '/':
-        case '\\': buf16cat(buf, (s16){path, len-1});
+        case '\\': path.len--;
+                   buf16cat(buf, path);
                    return;
         }
     }
@@ -464,10 +482,11 @@ static void buf16moduledir(buf16 *buf, arena scratch)
 
 static void buf16getenv(buf16 *buf, c16 *key, arena scratch)
 {
+    i32 len = GetEnvironmentVariableW(key, 0, 0);
+    if (len < 0) outofmemory();
     s16 var = {};
-    var.s = new(&scratch, c16, MAX_ENVVAR, NOZERO);
-    u32 len = GetEnvironmentVariableW(key, var.s, MAX_ENVVAR);
-    var.len = len>=MAX_ENVVAR ? 0 : len;
+    var.s = new(&scratch, c16, len);
+    var.len = GetEnvironmentVariableW(key, var.s, len);
     buf16cat(buf, var);
 }
 
@@ -480,11 +499,12 @@ static void toslashes(c16 *path)
 
 static u32 w64devkit(void)
 {
-    arena *perm = newarena(1<<22);
-    if (!perm) {
+    memory mem = newmemory(1<<22);
+    if (!mem.base) {
         fatal(u"Out of memory on startup");
     }
-    arena scratch = splitarena(perm, 2);
+    arena *perm = &mem.perm;
+    arena  scratch = mem.scratch;
 
     // First load the module directory into the fresh buffer, and use it
     // for a few different operations.
@@ -495,12 +515,19 @@ static u32 w64devkit(void)
     buf16c16(&path, 0);  // null terminator
     SetEnvironmentVariableW(u"W64DEVKIT_HOME", path.buf);  // ignore errors
 
+    #ifdef VERSION
+    #define LSTR(s) XSTR(s)
+    #define XSTR(s) u ## # s
+    SetEnvironmentVariableW(u"W64DEVKIT", LSTR(VERSION));  // ignore errors
+    #endif
+
     // Maybe set HOME from w64devkit.ini
+    config conf = newconfig();
     if (SetCurrentDirectoryW(path.buf)) {
-        c16 *home = homeconfig(perm, scratch);
-        if (home) {
-            toslashes(home);
-            SetEnvironmentVariableW(u"HOME", home);  // ignore errors
+        conf = loadconfig(perm, scratch);
+        if (conf.home) {
+            toslashes(conf.home);
+            SetEnvironmentVariableW(u"HOME", conf.home);  // ignore errors
         }
     }
 
@@ -513,15 +540,11 @@ static u32 w64devkit(void)
         fatal(u"Failed to configure $PATH");
     }
 
-    #ifdef VERSION
-    #define LSTR(s) XSTR(s)
-    #define XSTR(s) u ## # s
-    SetEnvironmentVariableW(u"W64DEVKIT", LSTR(VERSION));  // ignore errors
-    #endif
-
     // Set the console title as late as possible, but not after starting
     // the shell because .profile might change it.
-    SetConsoleTitleW(u"w64devkit");  // ignore errors
+    if (conf.title) {
+        SetConsoleTitleW(conf.title);  // ignore errors
+    }
 
     path = moduledir;
     buf16cat(&path, U(u"\\bin\\busybox.exe"));
@@ -537,7 +560,7 @@ static u32 w64devkit(void)
     }
 
     // Wait for shell to exit
-    freearena(perm);
+    freememory(mem);
     u32 ret;
     WaitForSingleObject(pi.process, -1);
     GetExitCodeProcess(pi.process, &ret);
