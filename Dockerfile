@@ -487,8 +487,8 @@ RUN printf "id ICON \"$PREFIX/src/w64devkit.ico\"" >w64devkit.rc \
         -o $PREFIX/bin/debugbreak.exe $PREFIX/src/debugbreak.c \
         -lkernel32 \
  && $ARCH-gcc \
-        -Os -fwhole-program -fno-asynchronous-unwind-tables \
-        -Wl,--gc-sections -s -nostdlib -DPKG_CONFIG_PREFIX="\"/$ARCH\"" \
+        -Os -fno-asynchronous-unwind-tables -fno-builtin -Wl,--gc-sections \
+        -s -nostdlib -DPKG_CONFIG_PREFIX="\"/$ARCH\"" \
         -o $PREFIX/bin/pkg-config.exe $PREFIX/src/pkg-config.c \
         -lkernel32 \
  && $ARCH-gcc \
