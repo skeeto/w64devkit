@@ -7,7 +7,7 @@ ARG BUSYBOX_VERSION=FRP-5301-gda71f7c57
 ARG CTAGS_VERSION=6.0.0
 ARG EXPAT_VERSION=2.6.2
 ARG GCC_VERSION=13.2.0
-ARG GDB_VERSION=13.1
+ARG GDB_VERSION=14.2
 ARG GMP_VERSION=6.3.0
 ARG LIBICONV_VERSION=1.17
 ARG MAKE_VERSION=4.4.1
@@ -361,8 +361,8 @@ RUN cat $PREFIX/src/gdb-*.patch | patch -d/gdb-$GDB_VERSION -p1 \
  && /gdb-$GDB_VERSION/configure \
         --host=$ARCH \
         --enable-tui \
-        CFLAGS="-Os -DPDC_WIDE -I/deps/include" \
-        CXXFLAGS="-Os -DPDC_WIDE -I/deps/include" \
+        CFLAGS="-Os -D__MINGW_USE_VC2005_COMPAT -DPDC_WIDE -I/deps/include" \
+        CXXFLAGS="-Os -D__MINGW_USE_VC2005_COMPAT -DPDC_WIDE -I/deps/include" \
         LDFLAGS="-s -L/deps/lib" \
  && make MAKEINFO=true -j$(nproc) \
  && cp gdb/.libs/gdb.exe gdbserver/gdbserver.exe $PREFIX/bin/
