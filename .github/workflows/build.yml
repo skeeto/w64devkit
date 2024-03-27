@@ -1,0 +1,73 @@
+name: Build and test
+
+on:
+  pull_request: {}
+  push:
+    branches:
+      - '*'
+    tags:
+      - '*'
+
+# Must set Settings -> Actions -> General -> Workflow permissions to
+# "Read and write permissions"
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: ["", "i686"]
+        flavor: ["", "fortran", "mini"]
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Apply i686 patch
+        if: matrix.arch == 'i686'
+        run: patch -p1 -i src/variant-i686.patch
+
+      - name: Apply Fortran patch
+        if: matrix.flavor == 'fortran'
+        run: patch -p1 -i src/variant-fortran.patch
+
+      - name: Apply Mini patch
+        if: matrix.flavor == 'mini'
+        run: patch -p1 -i src/variant-mini.patch
+
+      - name: Generate ZIP name and version string
+        id: filename
+        env:
+          ARCH: ${{ matrix.arch }}
+          FLAVOR: ${{ matrix.flavor }}
+        run: |
+          GIT_VERSION="$(git describe --tags --always)"
+          echo "version=${GIT_VERSION:1}" >> $GITHUB_OUTPUT
+          echo "zipname=w64devkit${ARCH:+-$ARCH}${FLAVOR:+-$FLAVOR}-${GIT_VERSION:1}" >> $GITHUB_OUTPUT
+
+      - name: Build
+        run: |
+          docker build -t w64devkit .
+          docker run --rm w64devkit > ${{ steps.filename.outputs.zipname }}.zip
+
+        # https://github.com/actions/upload-artifact#zipped-artifact-downloads
+      - name: Prepare artifact
+        run: |
+          unzip ${{ steps.filename.outputs.zipname }}.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: ${{ steps.filename.outputs.zipname }}
+          path: w64devkit/*
+
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          name: ${{ steps.filename.outputs.version }}
+          files: w64devkit-*.zip
+          draft: true
