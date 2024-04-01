@@ -324,18 +324,13 @@ RUN patch -d/mingw-w64-v$MINGW_VERSION -p1 <$PREFIX/src/gendef-silent.patch \
  && make -j$(nproc) \
  && cp gendef.exe $PREFIX/bin/
 
-WORKDIR /expat
-RUN /expat-$EXPAT_VERSION/configure \
-        --prefix=/deps \
-        --host=$ARCH \
-        --disable-shared \
-        --without-docbook \
-        --without-examples \
-        --without-tests \
-        CFLAGS="-Os" \
-        LDFLAGS="-s" \
- && make -j$(nproc) \
- && make install
+WORKDIR /expat-$EXPAT_VERSION
+COPY src/expat.c $PREFIX/src/
+RUN $ARCH-gcc -c -I. -Os -DXML_DTD=1 -DXML_GE=1 -DXML_NS=1 -DXML_STATIC \
+        -DBYTEORDER=1234 -DXML_CONTEXT_BYTES=1024 -DEXPAT_CONFIG_H \
+        lib/xmlparse.c lib/xmlrole.c lib/xmltok.c \
+ && cp lib/expat.h lib/expat_external.h /deps/include/ \
+ && $ARCH-ar r /deps/lib/libexpat.a xmlparse.o xmlrole.o xmltok.o
 
 WORKDIR /PDCurses-$PDCURSES_VERSION
 RUN make -j$(nproc) -C wincon \
@@ -361,6 +356,7 @@ RUN cat $PREFIX/src/gdb-*.patch | patch -d/gdb-$GDB_VERSION -p1 \
  && /gdb-$GDB_VERSION/configure \
         --host=$ARCH \
         --enable-tui \
+        --with-expat \
         CFLAGS="-Os -DPDC_WIDE -I/deps/include" \
         CXXFLAGS="-Os -DPDC_WIDE -I/deps/include" \
         LDFLAGS="-s -L/deps/lib" \
