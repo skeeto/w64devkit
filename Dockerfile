@@ -16,6 +16,7 @@ ARG MPC_VERSION=1.3.1
 ARG MPFR_VERSION=4.2.1
 ARG NASM_VERSION=2.15.05
 ARG PDCURSES_VERSION=3.9
+ARG GC_VERSION=8.2.4
 ARG CPPCHECK_VERSION=2.10
 ARG VIM_VERSION=9.0
 
@@ -40,6 +41,7 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
     https://github.com/universal-ctags/ctags/archive/refs/tags/v$CTAGS_VERSION.tar.gz \
     https://downloads.sourceforge.net/project/mingw-w64/mingw-w64/mingw-w64-release/mingw-w64-v$MINGW_VERSION.tar.bz2 \
     https://downloads.sourceforge.net/project/pdcurses/pdcurses/$PDCURSES_VERSION/PDCurses-$PDCURSES_VERSION.tar.gz \
+    https://www.hboehm.info/gc/gc_source/gc-$GC_VERSION.tar.gz \
     https://github.com/danmar/cppcheck/archive/$CPPCHECK_VERSION.tar.gz
 COPY src/SHA256SUMS $PREFIX/src/
 RUN sha256sum -c $PREFIX/src/SHA256SUMS \
@@ -56,11 +58,12 @@ RUN sha256sum -c $PREFIX/src/SHA256SUMS \
  && tar xzf make-$MAKE_VERSION.tar.gz \
  && tar xjf mingw-w64-v$MINGW_VERSION.tar.bz2 \
  && tar xzf PDCurses-$PDCURSES_VERSION.tar.gz \
+ && tar xzf gc-$GC_VERSION.tar.gz \
  && tar xJf nasm-$NASM_VERSION.tar.xz \
  && tar xjf vim-$VIM_VERSION.tar.bz2 \
  && tar xzf cppcheck-$CPPCHECK_VERSION.tar.gz
 COPY src/w64devkit.c src/w64devkit.ico src/libmemory.c src/libchkstk.S \
-     src/alias.c src/debugbreak.c src/pkg-config.c src/vc++filt.c \
+     src/alias.c src/debugbreak.c src/pkg-config.c src/vc++filt.c src/libgc.c \
      $PREFIX/src/
 
 ARG ARCH=x86_64-w64-mingw32
@@ -469,6 +472,11 @@ RUN cat $PREFIX/src/cppcheck-*.patch | patch -p1 \
         -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
         -o $PREFIX/bin/cppcheck.exe \
         $PREFIX/src/alias.c -lkernel32
+
+WORKDIR /gc-$GC_VERSION
+RUN ln $PREFIX/src/libgc.c . \
+ && INCDIR=$PREFIX/$ARCH/include/ LIBDIR=$PREFIX/$ARCH/lib/ \
+        CC=$ARCH-gcc AR=$ARCH-ar sh libgc.c
 
 # Pack up a release
 
