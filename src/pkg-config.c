@@ -2,7 +2,7 @@
 // https://github.com/skeeto/u-config
 //   $ cc -nostartfiles -o pkg-config.exe pkg-config.c
 // This is free and unencumbered software released into the public domain.
-#define VERSION "0.33.0"
+#define VERSION "0.33.1"
 
 typedef unsigned char    u8;
 typedef   signed int     b32;
@@ -122,7 +122,7 @@ static b32 pathsep(u8 c)
     return c=='/' || c=='\\';
 }
 
-__attribute((malloc, alloc_size(2, 3)))
+__attribute((malloc, alloc_size(3, 2)))
 static byte *alloc(arena *a, size objsize, size count)
 {
     assert(objsize > 0);
