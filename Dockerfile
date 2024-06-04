@@ -61,7 +61,7 @@ RUN sha256sum -c $PREFIX/src/SHA256SUMS \
  && tar xzf cppcheck-$CPPCHECK_VERSION.tar.gz
 COPY src/w64devkit.c src/w64devkit.ico src/libmemory.c src/libchkstk.S \
      src/alias.c src/debugbreak.c src/pkg-config.c src/vc++filt.c \
-     $PREFIX/src/
+     src/peports.c $PREFIX/src/
 
 ARG ARCH=x86_64-w64-mingw32
 
@@ -495,6 +495,10 @@ RUN printf "id ICON \"$PREFIX/src/w64devkit.ico\"" >w64devkit.rc \
         -Os -fno-asynchronous-unwind-tables -fno-builtin -Wl,--gc-sections \
         -s -nostdlib -o $PREFIX/bin/vc++filt.exe $PREFIX/src/vc++filt.c \
         -lkernel32 -lshell32 -ldbghelp \
+ && $ARCH-gcc \
+        -Os -fno-asynchronous-unwind-tables -fno-builtin -Wl,--gc-sections \
+        -s -nostdlib -o $PREFIX/bin/peports.exe $PREFIX/src/peports.c \
+        -lkernel32 -lshell32 \
  && $ARCH-gcc -DEXE=pkg-config.exe -DCMD=pkg-config \
         -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
         -o $PREFIX/bin/$ARCH-pkg-config.exe $PREFIX/src/alias.c -lkernel32 \
