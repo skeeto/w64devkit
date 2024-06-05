@@ -68,7 +68,9 @@ ARG ARCH=x86_64-w64-mingw32
 # Build cross-compiler
 
 WORKDIR /binutils-$BINUTILS_VERSION
-RUN sed -ri 's/(static bool insert_timestamp = )/\1!/' ld/emultempl/pe*.em
+COPY src/binutils-*.patch $PREFIX/src/
+RUN sed -ri 's/(static bool insert_timestamp = )/\1!/' ld/emultempl/pe*.em \
+ && cat $PREFIX/src/binutils-*.patch | patch -p1
 WORKDIR /x-binutils
 RUN /binutils-$BINUTILS_VERSION/configure \
         --prefix=/bootstrap \

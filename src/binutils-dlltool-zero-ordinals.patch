@@ -1,0 +1,19 @@
+If the .def author does not pick an ordinal then it has no meaningful
+ordinal. It never makes sense to invent unique hints. That populates
+binaries with noise and inhibits reproducible builds. Instead zero out
+all ordinal hints to indicate "no data." In Mingw-w64 import libraries
+virtually every implicit ordinal hint is nonsense.
+
+The singular exception might be ordinal-only, NONAME entries without an
+explicit ordinal, which instead relies on implicit, undocumented ordinal
+numbering. In that case it's not merely a hint. However, this is unsound
+and ought to be a syntax error, as it is with MSVC lib.exe. (This patch
+should probably make it so.) I could find no examples of this situation
+in the wild.
+
+--- a/binutils/dlltool.c
++++ b/binutils/dlltool.c
+@@ -3690,2 +3690,3 @@ fill_ordinals (export_type **d_export_vec)
+ 	done:;
++	  d_export_vec[i]->ordinal = 0;
+ 	}
