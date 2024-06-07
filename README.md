@@ -79,6 +79,12 @@ when linking MSVC artifacts. Both are in the public domain and so, unlike
 default implementations, do not involve complex licensing. When required
 in a `-nostdlib` build, link `-lchkstk`.
 
+Unlike traditional toolchains, import tables are not populated with junk
+ordinal hints. If an explicit hint is not provided (i.e. via a DEF file),
+then the hint is zeroed: "no data." Eliminating this random data makes
+binaries more compressible and *theoretically* faster loading. See also:
+`peports`.
+
 ## Fortran support
 
 Only C and C++ are included by default, but w64devkit also has full
