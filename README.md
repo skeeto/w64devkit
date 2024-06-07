@@ -146,6 +146,22 @@ that the toolchain can find them naturally. There are three options:
 Both (1) and (3) are designed to work correctly even if w64devkit or the
 libraries have paths containing spaces.
 
+## Unique command-line programs
+
+* `peports`: displays export and import tables of EXEs and DLLs. Like MSVC
+  `dumpbin` options `/exports` and `/imports`; narrower and more precise
+  than Binutils `objdump -p`. Useful for checking if exports and imports
+  match your expectations. Complemented by `c++filt` and `vc++filt`, i.e.
+  in a pipeline. Pronounced like *purports*.
+
+* `vc++filt`: a `c++filt` for [Visual C++ name decorations][names]. Used
+  to examine GCC-incompatible binaries, potentially to make some use of
+  them anyway.
+
+* [`debugbreak`][debugbreak]: causes all debugee processes to break in the
+  debugger, like using Windows' F12 debugger hotkey. Especially useful for
+  console subsystem programs.
+
 ## Cppcheck tips
 
 Use `--library=windows` for programs calling the Win32 API directly, which
@@ -181,15 +197,6 @@ ported to Mingw-w64][san] ([also][san2]), but Undefined Behavior Sanitizer
 (UBSan) works perfectly under GDB. With both `-fsanitize=undefined` and
 `-fsanitize-trap`, GDB will [break precisely][break] on undefined
 behavior, and it does not require linking with libsanitizer.
-
-The kit includes a unique [`debugbreak` command][debugbreak]. It causes
-all debugee processes to break in the debugger, like using Windows' F12
-debugger hotkey. This is especially useful for console subsystem programs.
-
-The `vc++filt` command, unique to w64devkit, works just like `c++filt` but
-processes [Visual C++ name decorations][names] instead. It's useful when
-examining GCC-incompatible libraries, potentially to make some use of them
-anyway.
 
 Since the build environment is so stable and predicable, it would be
 great for the .zip to be reproducible, i.e. builds by different people
