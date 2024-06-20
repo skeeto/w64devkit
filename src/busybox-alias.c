@@ -19,6 +19,8 @@ typedef char16_t       c16;
 
 typedef struct {} *handle;
 
+typedef b32 __stdcall handler(i32);
+
 typedef struct {
     u32 cb;
     void *a, *b, *c;
@@ -41,6 +43,7 @@ W32 c16   *GetCommandLineW(void);
 W32 i32    GetExitCodeProcess(handle, u32 *);
 W32 u32    GetModuleFileNameW(handle, c16 *, u32);
 W32 handle GetStdHandle(u32);
+W32 b32    SetConsoleCtrlHandler(handler, b32);
 W32 u32    WaitForSingleObject(handle, u32);
 W32 b32    WriteFile(handle, u8 *, u32, u32 *, void *);
 
@@ -84,6 +87,11 @@ static u32 fatal(u8 *msg, i32 len)
     return 0x17e;
 }
 
+static b32 __stdcall ignorectrlc(i32)
+{
+    return 1;
+}
+
 static u32 run(void)
 {
     c16 buf[MAX_PATH];
@@ -103,6 +111,7 @@ static u32 run(void)
     si.cb = sizeof(si);
     pi pi;
     c16 *cmdline = GetCommandLineW();
+    SetConsoleCtrlHandler(ignorectrlc, 1);  // NOTE: set as late a possible
     if (!CreateProcessW(exe.buf, cmdline, 0, 0, 1, 0, 0, 0, &si, &pi)) {
         static u8 msg[] = "w64devkit: could not start busybox.exe\n";
         return fatal(msg, lengthof(msg));

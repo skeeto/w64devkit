@@ -38,6 +38,8 @@ typedef char16_t         c16;
 
 typedef struct {} *handle;
 
+typedef b32 __stdcall handler(i32);
+
 typedef struct {
     u32 cb;
     uptr a, b, c;
@@ -61,6 +63,7 @@ W32 i32    GetExitCodeProcess(handle, u32 *);
 W32 u32    GetFullPathNameW(c16 *, u32, c16 *, c16 *);
 W32 u32    GetModuleFileNameW(handle, c16 *, u32);
 W32 handle GetStdHandle(u32);
+W32 b32    SetConsoleCtrlHandler(handler, b32);
 W32 byte  *VirtualAlloc(byte *, usize, u32, u32);
 W32 b32    VirtualFree(byte *, usize, u32);
 W32 u32    WaitForSingleObject(handle, u32);
@@ -156,6 +159,11 @@ static si *newstartupinfo(byte **heap)
     return s;
 }
 
+static b32 __stdcall ignorectrlc(i32)
+{
+    return 1;
+}
+
 static i32 aliasmain(void)
 {
     byte *heap_start = VirtualAlloc(0, 1<<18, 0x3000, 4);
@@ -204,6 +212,7 @@ static i32 aliasmain(void)
 
     si *si = newstartupinfo(&heap);
     pi pi;
+    SetConsoleCtrlHandler(ignorectrlc, 1);  // NOTE: set as late a possible
     if (!CreateProcessW(exe->buf, cmd->buf, 0, 0, 1, 0, 0, 0, si, &pi)) {
         static const u8 msg[] = ERR("could not start process\n");
         return fatal((u8 *)msg, lengthof(msg));
