@@ -1,0 +1,8 @@
+--- a/shell/ash.c
++++ b/shell/ash.c
+@@ -12686,4 +12686,5 @@
+ #if ENABLE_ASH_NOCONSOLE
+ 	noconsole = console_state();
++	noiconify = 1;
+ #endif
+ 	if (login_sh != NULL) { /* if we came from startup code */

@@ -1,10 +1,8 @@
 --- a/libbb/lineedit.c
 +++ b/libbb/lineedit.c
-@@ -488,7 +488,6 @@
- 
+@@ -537,5 +537,4 @@
  static void beep(void)
  {
--	bb_putchar('\007');
+-	bb_putchar_stderr('\007');
  }
  
- /* Full or last/sole prompt line, reset edit cursor, calculate terminal cursor.
