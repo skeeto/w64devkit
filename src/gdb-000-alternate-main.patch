@@ -1,10 +1,10 @@
 --- a/gdb/symtab.c
 +++ b/gdb/symtab.c
-@@ -6314,6 +6314,23 @@
+@@ -6537,6 +6537,23 @@
    if (symbol_found_p)
      return;
  
-+  if (gdbarch_osabi (target_gdbarch ()) == GDB_OSABI_WINDOWS)
++  if (gdbarch_osabi (current_inferior ()->arch ()) == GDB_OSABI_WINDOWS)
 +    {
 +      static const char *const mains[] = {
 +	"WinMain", "wWinMain", "main", "wmain", "WinMainCRTStartup", "mainCRTStartup"
