@@ -9,7 +9,6 @@
 
 set -e
 arch=""
-compact=no
 dryrun=
 flavors=""
 suffix="$(git describe --exact-match 2>/dev/null | tr v - || true)"
@@ -17,8 +16,8 @@ suffix="$(git describe --exact-match 2>/dev/null | tr v - || true)"
 usage() {
     cat <<EOF
 usage: multibuild.sh [-48abfhnOs] [-s SUFFIX]
-  -4         Enable i686 build (default: no)
-  -8         Enable x86_64 build (default: auto)
+  -4         Enable x86 build (default: no)
+  -8         Enable x64 build (default: auto)
   -a         All: Enable all builds
   -h         Print this help message
   -n         Dry run, print commands but do nothing
@@ -29,12 +28,11 @@ EOF
 
 while getopts 48abfhmnOs: opt; do
     case $opt in
-        4) arch="$arch w64devkit-i686";;
-        8) arch="$arch w64devkit";;
-        a) flavors="X"; arch="w64devkit w64devkit-i686";;
+        4) arch="$arch w64devkit-x86";;
+        8) arch="$arch w64devkit-x64";;
+        a) flavors="X"; arch="w64devkit-x64 w64devkit-x86";;
         h) usage; exit 0;;
         n) dryrun=echo;;
-        O) compact=yes;;
         s) suffix="$OPTARG";;
         ?) usage >&2; exit 1;;
     esac
@@ -48,7 +46,7 @@ if [ $# -gt 0 ]; then
 fi
 
 if [ -z "$arch" ]; then
-    arch="w64devkit"
+    arch="w64devkit-x64"
 fi
 if [ -z "$flavors" ]; then
     flavors="X"
@@ -76,20 +74,17 @@ for build in $builds; do
         IFS=-
         set $build; shift
         for flavor in "$@"; do
-            $dryrun patch -p1 -i src/variant-$flavor.patch
+            if [ -e src/variant-$flavor.patch ]; then
+                $dryrun patch -p1 -i src/variant-$flavor.patch
+            fi
         done
     )
     $dryrun docker build -t $target .
     if [ -n "$dryrun" ]; then
-        $dryrun docker run --rm $target ">$build$suffix.zip"
+        $dryrun docker run --rm $target ">$build$suffix.exe"
     else
-        docker run --rm $target >$build$suffix.zip
+        docker run --rm $target >$build$suffix.exe
     fi
 done
-
-if [ $compact = yes ]; then
-    printf "%s$suffix.zip\n" $builds \
-        | xargs -I{} -P$(nproc) $dryrun advzip -z4 {}
-fi
 
 cleanup

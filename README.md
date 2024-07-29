@@ -20,23 +20,23 @@ the kit itself.
 
 ## Build
 
-First build the image, then run it to produce a distribution .zip file:
+Build the image, then run it to produce a self-extracting 7z archive:
 
     docker build -t w64devkit .
-    docker run --rm w64devkit >w64devkit.zip
+    docker run --rm w64devkit >w64devkit-x64.exe
 
-This takes about half an hour on modern systems. You will need an internet
+This takes about 15 minutes on modern systems. You will need an internet
 connection during the first few minutes of the build. **Note:** Do not use
 PowerShell because it lacks file redirection.
 
 ## Usage
 
-The final .zip file contains tools in a typical unix-like configuration.
-Unzip the contents anywhere. Inside is `w64devkit.exe`, which launches a
-console window with the environment configured and ready to go. It is the
-easiest way to enter the development environment, and requires no system
-changes. It also sets two extra environment variables: `W64DEVKIT_HOME` to
-the installation root and `W64DEVKIT` to the version.
+The self-extracting 7z archive contains tools in a typical unix-like
+configuration. Extract wherever is convenient. Inside is `w64devkit.exe`,
+which launches a console window with the environment configured and ready
+to go. It is the easiest way to enter the development environment, and
+requires no system changes. It also sets two extra environment variables:
+`W64DEVKIT_HOME` to the installation root and `W64DEVKIT` to the version.
 
 Alternatively, add the `bin/` directory to your path. For example, inside
 a `cmd.exe` console or batch script:
@@ -176,12 +176,6 @@ ported to Mingw-w64][san] ([also][san2]), but Undefined Behavior Sanitizer
 `-fsanitize-trap`, GDB will [break precisely][break] on undefined
 behavior, and it does not require linking with libsanitizer.
 
-Since the build environment is so stable and predicable, it would be
-great for the .zip to be reproducible, i.e. builds by different people
-are bit-for-bit identical. There are multiple reasons why this is not
-currently the case, the least of which are [timestamps in the .zip
-file][zip].
-
 ## Licenses
 
 When distributing binaries built using w64devkit, your .exe will include
@@ -225,4 +219,3 @@ binaries.
 [vim]: https://www.vim.org/
 [w64]: http://mingw-w64.org/
 [w64devkit]: https://github.com/skeeto/w64devkit
-[zip]: https://tanzu.vmware.com/content/blog/barriers-to-deterministic-reproducible-zip-files
