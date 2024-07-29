@@ -12,7 +12,6 @@ Included tools:
 * [busybox-w32][bb] : standard unix utilities, including sh
 * [Vim][vim] : powerful text editor
 * [Universal Ctags][ctags] : source navigation
-* [Cppcheck][cppcheck] : static code analysis
 
 The toolchain includes pthreads, C++11 threads, and OpenMP. All included
 runtime components are static. **Docker/Podman is not required to use the
@@ -165,24 +164,6 @@ libraries have paths containing spaces.
   debugger, like using Windows' F12 debugger hotkey. Especially useful for
   console subsystem programs.
 
-## Cppcheck tips
-
-Use `--library=windows` for programs calling the Win32 API directly, which
-adds additional checks. In general, the following configuration is a good
-default for programs developed using w64devkit:
-
-    $ cppcheck --quiet -j$(nproc) --library=windows \
-               --suppress=uninitvar --enable=portability,performance .
-
-A "strict" check that is more thorough, but more false positives:
-
-    $ cppcheck --quiet -j$(nproc) --library=windows \
-          --enable=portability,performance,style \
-          --suppress=uninitvar --suppress=unusedStructMember \
-          --suppress=constVariable --suppress=shadowVariable \
-          --suppress=variableScope --suppress=constParameter \
-          --suppress=shadowArgument --suppress=knownConditionTrueFalse .
-
 ## Notes
 
 `$HOME` can be set through the adjacent `w64devkit.ini` configuration, and
@@ -224,7 +205,6 @@ binaries.
 [bb]: https://frippery.org/busybox/
 [break]: https://nullprogram.com/blog/2022/06/26/
 [bs]: https://www.rdegges.com/2016/i-dont-give-a-shit-about-licensing/
-[cppcheck]: https://cppcheck.sourceforge.io/
 [crt]: https://nullprogram.com/blog/2023/02/15/
 [ctags]: https://github.com/universal-ctags/ctags
 [debugbreak]: https://nullprogram.com/blog/2022/07/31/

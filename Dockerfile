@@ -15,7 +15,6 @@ ARG MINGW_VERSION=12.0.0
 ARG MPC_VERSION=1.3.1
 ARG MPFR_VERSION=4.2.1
 ARG PDCURSES_VERSION=3.9
-ARG CPPCHECK_VERSION=2.10
 ARG VIM_VERSION=9.0
 
 RUN apt-get update && apt-get install --yes --no-install-recommends \
@@ -37,8 +36,7 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
     http://ftp.vim.org/pub/vim/unix/vim-$VIM_VERSION.tar.bz2 \
     https://github.com/universal-ctags/ctags/archive/refs/tags/v$CTAGS_VERSION.tar.gz \
     https://downloads.sourceforge.net/project/mingw-w64/mingw-w64/mingw-w64-release/mingw-w64-v$MINGW_VERSION.tar.bz2 \
-    https://downloads.sourceforge.net/project/pdcurses/pdcurses/$PDCURSES_VERSION/PDCurses-$PDCURSES_VERSION.tar.gz \
-    https://github.com/danmar/cppcheck/archive/$CPPCHECK_VERSION.tar.gz
+    https://downloads.sourceforge.net/project/pdcurses/pdcurses/$PDCURSES_VERSION/PDCurses-$PDCURSES_VERSION.tar.gz
 COPY src/SHA256SUMS $PREFIX/src/
 RUN sha256sum -c $PREFIX/src/SHA256SUMS \
  && tar xJf binutils-$BINUTILS_VERSION.tar.xz \
@@ -54,8 +52,7 @@ RUN sha256sum -c $PREFIX/src/SHA256SUMS \
  && tar xzf make-$MAKE_VERSION.tar.gz \
  && tar xjf mingw-w64-v$MINGW_VERSION.tar.bz2 \
  && tar xzf PDCurses-$PDCURSES_VERSION.tar.gz \
- && tar xjf vim-$VIM_VERSION.tar.bz2 \
- && tar xzf cppcheck-$CPPCHECK_VERSION.tar.gz
+ && tar xjf vim-$VIM_VERSION.tar.bz2
 COPY src/w64devkit.c src/w64devkit.ico src/libmemory.c src/libchkstk.S \
      src/alias.c src/debugbreak.c src/pkg-config.c src/vc++filt.c \
      src/peports.c src/profile $PREFIX/src/
@@ -448,17 +445,6 @@ RUN sed -i /RT_MANIFEST/d win32/ctags.rc \
         CC=$ARCH-gcc WINDRES=$ARCH-windres \
         OPT= CFLAGS=-Os LDFLAGS=-s \
  && cp ctags.exe $PREFIX/bin/
-
-WORKDIR /cppcheck-$CPPCHECK_VERSION
-COPY src/cppcheck.mak src/cppcheck-*.patch $PREFIX/src/
-RUN cat $PREFIX/src/cppcheck-*.patch | patch -p1 \
- && make -f $PREFIX/src/cppcheck.mak -j$(nproc) CXX=$ARCH-g++ \
- && mkdir $PREFIX/share/cppcheck/ \
- && cp -r cppcheck.exe cfg/ $PREFIX/share/cppcheck \
- && $ARCH-gcc -DEXE=../share/cppcheck/cppcheck.exe -DCMD=cppcheck \
-        -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
-        -o $PREFIX/bin/cppcheck.exe \
-        $PREFIX/src/alias.c -lkernel32
 
 # Pack up a release
 
