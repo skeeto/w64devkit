@@ -12,7 +12,6 @@ Included tools:
 * [busybox-w32][bb] : standard unix utilities, including sh
 * [Vim][vim] : powerful text editor
 * [Universal Ctags][ctags] : source navigation
-* [NASM][nasm] : x86 assembler
 * [Cppcheck][cppcheck] : static code analysis
 
 The toolchain includes pthreads, C++11 threads, and OpenMP. All included
@@ -124,11 +123,9 @@ w64devkit's capabilities. In rough order of importance:
 * [BusyBox man pages][doc-bb] (TXT), though everything here is also
   available via `-h` option inside w64devkit.
 
-* [NASM manual][doc-nasm] (PDF)
-
 * [Intel Software Developer Manuals][doc-intel] (PDF), for referencing x86
-  instructions, when either studying compiler output with `objdump`, or
-  writing assembly with `nasm` or `as`.
+  instructions, when either studying compiler output with `objdump` or
+  writing assembly.
 
 ## Library installation
 
@@ -239,7 +236,6 @@ binaries.
 [doc-intr]: https://software.intel.com/sites/landingpage/IntrinsicsGuide/
 [doc-ld]: https://sourceware.org/binutils/docs/
 [doc-make]: https://www.gnu.org/software/make/manual/
-[doc-nasm]: https://www.nasm.us/docs.php
 [doc-std]: https://stackoverflow.com/a/83763
 [doc-win32]: https://web.archive.org/web/20220922051031/http://www.laurencejackson.com/win32/
 [gdb]: https://www.gnu.org/software/gdb/
@@ -249,7 +245,6 @@ binaries.
 [lic2]: https://sourceforge.net/p/mingw-w64/mingw-w64/ci/master/tree/mingw-w64-libraries/winpthreads/COPYING
 [make]: https://www.gnu.org/software/make/
 [names]: https://learn.microsoft.com/en-us/cpp/build/reference/decorated-names
-[nasm]: https://www.nasm.us/
 [quilt]: http://savannah.nongnu.org/projects/quilt
 [san]: http://mingw-w64.org/doku.php/contribute#sanitizers_asan_tsan_usan
 [san2]: https://groups.google.com/forum/#!topic/address-sanitizer/q0e5EBVKZT4

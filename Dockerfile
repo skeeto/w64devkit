@@ -14,7 +14,6 @@ ARG MAKE_VERSION=4.4.1
 ARG MINGW_VERSION=12.0.0
 ARG MPC_VERSION=1.3.1
 ARG MPFR_VERSION=4.2.1
-ARG NASM_VERSION=2.15.05
 ARG PDCURSES_VERSION=3.9
 ARG CPPCHECK_VERSION=2.10
 ARG VIM_VERSION=9.0
@@ -36,7 +35,6 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
     https://ftp.gnu.org/gnu/libiconv/libiconv-$LIBICONV_VERSION.tar.gz \
     https://frippery.org/files/busybox/busybox-w32-$BUSYBOX_VERSION.tgz \
     http://ftp.vim.org/pub/vim/unix/vim-$VIM_VERSION.tar.bz2 \
-    https://www.nasm.us/pub/nasm/releasebuilds/$NASM_VERSION/nasm-$NASM_VERSION.tar.xz \
     https://github.com/universal-ctags/ctags/archive/refs/tags/v$CTAGS_VERSION.tar.gz \
     https://downloads.sourceforge.net/project/mingw-w64/mingw-w64/mingw-w64-release/mingw-w64-v$MINGW_VERSION.tar.bz2 \
     https://downloads.sourceforge.net/project/pdcurses/pdcurses/$PDCURSES_VERSION/PDCurses-$PDCURSES_VERSION.tar.gz \
@@ -56,7 +54,6 @@ RUN sha256sum -c $PREFIX/src/SHA256SUMS \
  && tar xzf make-$MAKE_VERSION.tar.gz \
  && tar xjf mingw-w64-v$MINGW_VERSION.tar.bz2 \
  && tar xzf PDCurses-$PDCURSES_VERSION.tar.gz \
- && tar xJf nasm-$NASM_VERSION.tar.xz \
  && tar xjf vim-$VIM_VERSION.tar.bz2 \
  && tar xzf cppcheck-$CPPCHECK_VERSION.tar.gz
 COPY src/w64devkit.c src/w64devkit.ico src/libmemory.c src/libchkstk.S \
@@ -443,15 +440,6 @@ RUN ARCH= make -j$(nproc) -f Make_ming.mak \
  && printf '@vim -N -u NONE "+read %s" "+write" "%s"\r\n' \
         '$VIMRUNTIME/tutor/tutor' '%TMP%/tutor%RANDOM%' \
         >$PREFIX/bin/vimtutor.bat
-
-# NOTE: nasm's configure script is broken, so no out-of-source build
-WORKDIR /nasm-$NASM_VERSION
-RUN ./configure \
-        --host=$ARCH \
-        CFLAGS="-Os" \
-        LDFLAGS="-s" \
- && make -j$(nproc) \
- && cp nasm.exe ndisasm.exe $PREFIX/bin
 
 WORKDIR /ctags-$CTAGS_VERSION
 RUN sed -i /RT_MANIFEST/d win32/ctags.rc \
