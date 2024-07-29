@@ -1,4 +1,4 @@
-# Portable C and C++ Development Kit for x64 Windows
+# Portable C, C++, and Fortran Development Kit for x64 and x86 Windows
 
 [w64devkit][] is a Dockerfile that builds from source a small, portable
 development suite for creating C and C++ applications on and for x64
@@ -82,12 +82,6 @@ ordinal hints. If an explicit hint is not provided (i.e. via a DEF file),
 then the hint is zeroed: "no data." Eliminating this random data makes
 binaries more compressible and *theoretically* faster loading. See also:
 `peports`.
-
-## Fortran support
-
-Only C and C++ are included by default, but w64devkit also has full
-support for Fortran. To build a Fortran compiler, add `fortran` to the
-`--enable-languages` lines in the Dockerfile.
 
 ## Recommended downloadable, offline documentation
 

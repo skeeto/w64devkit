@@ -101,7 +101,7 @@ RUN cat $PREFIX/src/gcc-*.patch | patch -d/gcc-$GCC_VERSION -p1 \
         --enable-static \
         --disable-shared \
         --with-pic \
-        --enable-languages=c,c++ \
+        --enable-languages=c,c++,fortran \
         --enable-libgomp \
         --enable-threads=posix \
         --enable-version-specific-runtime-libs \
@@ -263,7 +263,7 @@ RUN /gcc-$GCC_VERSION/configure \
         --with-mpc-lib=/deps/lib \
         --with-mpfr-include=/deps/include \
         --with-mpfr-lib=/deps/lib \
-        --enable-languages=c,c++ \
+        --enable-languages=c,c++,fortran \
         --enable-libgomp \
         --enable-threads=posix \
         --enable-version-specific-runtime-libs \
@@ -301,7 +301,7 @@ RUN $ARCH-gcc -DEXE=gcc.exe -DCMD=cc \
         -o $PREFIX/bin/c89.exe $PREFIX/src/alias.c -lkernel32 \
  && printf '%s\n' addr2line ar as c++filt cpp dlltool dllwrap elfedit g++ \
       gcc gcc-ar gcc-nm gcc-ranlib gcov gcov-dump gcov-tool ld nm objcopy \
-      objdump ranlib readelf size strings strip windmc windres \
+      objdump ranlib readelf size strings strip windmc windres gfortran \
     | xargs -I{} -P$(nproc) \
           $ARCH-gcc -DEXE={}.exe -DCMD=$ARCH-{} \
             -Os -fno-asynchronous-unwind-tables \

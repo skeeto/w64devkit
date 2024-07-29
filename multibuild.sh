@@ -20,8 +20,6 @@ usage: multibuild.sh [-48abfhnOs] [-s SUFFIX]
   -4         Enable i686 build (default: no)
   -8         Enable x86_64 build (default: auto)
   -a         All: Enable all builds
-  -b         Enable vanilla build (default: auto)
-  -f         Enable Fortran build (default: no)
   -h         Print this help message
   -n         Dry run, print commands but do nothing
   -O         Compact with advzip (default: no, less compatible)
@@ -33,9 +31,7 @@ while getopts 48abfhmnOs: opt; do
     case $opt in
         4) arch="$arch w64devkit-i686";;
         8) arch="$arch w64devkit";;
-        a) flavors="X -fortran"; arch="w64devkit w64devkit-i686";;
-        b) flavors="$flavors X";;
-        f) flavors="$flavors -fortran";;
+        a) flavors="X"; arch="w64devkit w64devkit-i686";;
         h) usage; exit 0;;
         n) dryrun=echo;;
         O) compact=yes;;
