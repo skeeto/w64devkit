@@ -23,7 +23,7 @@ rm -f "$PREFIX/lib/libregex.a"
 ${AR:-ar} -r "$PREFIX/lib/libregex.a" libregex.o
 
 mkdir -p "$PREFIX/include"
-tee >nul $PREFIX/include/regex.h <<EOF
+tee >nul "$PREFIX/include/regex.h" <<EOF
 #pragma once
 #include <stddef.h>
 
