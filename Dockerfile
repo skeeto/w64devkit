@@ -497,6 +497,6 @@ RUN printf "id ICON \"$PREFIX/src/w64devkit.ico\"" >w64devkit.rc \
  && cat /mingw-w64-v$MINGW_VERSION/mingw-w64-libraries/winpthreads/COPYING \
         >>$PREFIX/COPYING.MinGW-w64-runtime.txt \
  && echo $VERSION >$PREFIX/VERSION.txt \
- && 7z a -mx=9 $PREFIX.7z $PREFIX
+ && 7z a -mx=9 -mtm=- $PREFIX.7z $PREFIX
 ENV PREFIX=${PREFIX}
 CMD cat /7z/7z.sfx $PREFIX.7z
