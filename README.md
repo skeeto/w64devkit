@@ -34,7 +34,7 @@ PowerShell because it lacks file redirection.
 To setup and config the environment automatically you can run the following script on Windows Powershell:
 
 ```powershell
-powershell -c "irm https://raw.githubusercontent.com/dezashibi-c/w64devkit/master/install.ps1 | iex"
+powershell -c "irm https://raw.githubusercontent.com/skeeto/w64devkit/master/install.ps1 | iex"
 ```
 
 **Note:** The script downloads the latest release and install it in `C` drive and add the bin folder
