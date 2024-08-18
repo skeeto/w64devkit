@@ -31,8 +31,18 @@ PowerShell because it lacks file redirection.
 
 ## Usage
 
-The self-extracting 7z archive contains tools in a typical unix-like
-configuration. Extract wherever is convenient. Inside is `w64devkit.exe`,
+To setup and config the environment automatically you can run the following script on Windows Powershell:
+
+```powershell
+powershell -c "irm https://raw.githubusercontent.com/dezashibi-c/w64devkit/master/install.ps1 | iex"
+```
+
+**Note:** The script downloads the latest release and install it in `C` drive and add the bin folder
+to the user's `PATH`.
+
+If you'd prefer to do the process manually, the self-extracting 7z archive
+contains tools in a typical unix-like configuration. Extract wherever is convenient.
+Inside is `w64devkit.exe`,
 which launches a console window with the environment configured and ready
 to go. It is the easiest way to enter the development environment, and
 requires no system changes. It also sets two extra environment variables:
@@ -189,7 +199,6 @@ w64devkit includes the concatenated set of all licenses in the file
 `COPYING.MinGW-w64-runtime.txt`, which should be distributed with your
 binaries.
 
-
 [bb]: https://frippery.org/busybox/
 [break]: https://nullprogram.com/blog/2022/06/26/
 [bs]: https://www.rdegges.com/2016/i-dont-give-a-shit-about-licensing/
@@ -207,7 +216,6 @@ binaries.
 [doc-std]: https://stackoverflow.com/a/83763
 [doc-win32]: https://web.archive.org/web/20220922051031/http://www.laurencejackson.com/win32/
 [gdb]: https://www.gnu.org/software/gdb/
-[go]: https://nullprogram.com/blog/2021/06/29/
 [gpl]: https://www.gnu.org/licenses/gcc-exception-3.1.en.html
 [lic1]: https://sourceforge.net/p/mingw-w64/mingw-w64/ci/master/tree/COPYING.MinGW-w64-runtime/COPYING.MinGW-w64-runtime.txt
 [lic2]: https://sourceforge.net/p/mingw-w64/mingw-w64/ci/master/tree/mingw-w64-libraries/winpthreads/COPYING
