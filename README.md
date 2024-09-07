@@ -1,8 +1,8 @@
 # Portable C, C++, and Fortran Development Kit for x64 and x86 Windows
 
 [w64devkit][] is a Dockerfile that builds from source a small, portable
-development suite for creating C and C++ applications on and for x64
-Windows. See "Releases" for pre-built, ready-to-use kits.
+development suite for creating C and C++ applications on and for x86 and
+x64 Windows. See "Releases" for pre-built, ready-to-use kits.
 
 Included tools:
 
@@ -13,10 +13,10 @@ Included tools:
 * [Vim][vim] : powerful text editor
 * [Universal Ctags][ctags] : source navigation
 
-The toolchain includes pthreads, C++11 threads, and OpenMP. All included
-runtime components are static. **Docker/Podman is not required to use the
-development kit**. It's merely a reliable, clean environment for building
-the kit itself.
+It is an MSVCRT toolchain with pthreads, C++11 threads, and OpenMP. All
+included runtime components are static. **Docker/Podman is not required to
+use the development kit**. It's merely a reliable, clean environment for
+building the kit itself.
 
 ## Build
 
@@ -60,8 +60,7 @@ Then to start an interactive unix shell:
 * Trivial to build from source, meaning it's easy to tweak and adjust any
   part of the kit for your own requirements.
 
-* [Complements Go](https://nullprogram.com/blog/2021/06/29/) for cgo and
-  bootstrapping.
+* [Complements Go][go] for cgo and bootstrapping.
 
 ## Optimized for size
 
@@ -166,15 +165,15 @@ encapsulating the entire development environment, with home directory, on
 removable, even read-only, media. Use a `.profile` in the home directory
 to configure the environment further.
 
-I'd love to include Git, but unfortunately Git's build system doesn't
-quite support cross-compilation. A decent alternative would be
-[Quilt][quilt], but it's written in Bash and Perl.
-
 Neither Address Sanitizer (ASan) nor Thread Sanitizer (TSan) [has been
 ported to Mingw-w64][san] ([also][san2]), but Undefined Behavior Sanitizer
 (UBSan) works perfectly under GDB. With both `-fsanitize=undefined` and
 `-fsanitize-trap`, GDB will [break precisely][break] on undefined
 behavior, and it does not require linking with libsanitizer.
+
+[GCC does not fully support AVX on Windows][avx] and may use aligned moves
+on unaligned addresses. When targeting AVX, consider disabling all aligned
+moves in the assembler: `-Wa,-muse-unaligned-vector-move`.
 
 ## Licenses
 
@@ -190,6 +189,7 @@ w64devkit includes the concatenated set of all licenses in the file
 binaries.
 
 
+[avx]: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=54412
 [bb]: https://frippery.org/busybox/
 [break]: https://nullprogram.com/blog/2022/06/26/
 [bs]: https://www.rdegges.com/2016/i-dont-give-a-shit-about-licensing/
@@ -213,7 +213,6 @@ binaries.
 [lic2]: https://sourceforge.net/p/mingw-w64/mingw-w64/ci/master/tree/mingw-w64-libraries/winpthreads/COPYING
 [make]: https://www.gnu.org/software/make/
 [names]: https://learn.microsoft.com/en-us/cpp/build/reference/decorated-names
-[quilt]: http://savannah.nongnu.org/projects/quilt
 [san]: http://mingw-w64.org/doku.php/contribute#sanitizers_asan_tsan_usan
 [san2]: https://groups.google.com/forum/#!topic/address-sanitizer/q0e5EBVKZT4
 [vim]: https://www.vim.org/
