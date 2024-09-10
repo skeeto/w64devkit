@@ -382,7 +382,7 @@ RUN /make-$MAKE_VERSION/configure \
 WORKDIR /busybox-w32
 COPY src/busybox-* $PREFIX/src/
 RUN cat $PREFIX/src/busybox-*.patch | patch -p1 \
- && make mingw64_defconfig \
+ && make mingw64u_defconfig \
  && sed -ri 's/^(CONFIG_AR)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_ASCII)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_DPKG\w*)=y/\1=n/' .config \

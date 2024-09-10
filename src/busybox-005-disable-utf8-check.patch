@@ -1,0 +1,8 @@
+Allow it to run without UTF-8 support, such as on Windows 7.
+--- a/libbb/appletlib.c
++++ b/libbb/appletlib.c
+@@ -1331,3 +1331,3 @@
+ #if ENABLE_PLATFORM_MINGW32
+-# if ENABLE_FEATURE_UTF8_MANIFEST
++# if ENABLE_FEATURE_UTF8_MANIFEST && 0
+ 	if (GetACP() != CP_UTF8) {
