@@ -62,6 +62,18 @@ Then to start an interactive unix shell:
 
 * [Complements Go][go] for cgo and bootstrapping.
 
+## Operating system support
+
+The x64 kit requires Windows 7 or later, though some tools only support
+Unicode ("wide") paths, inputs, and outputs on Windows 10 or later. The
+toolchain targets Windows 7 by default.
+
+The x86 kit requires Windows XP or later and an SSE2-capable processor
+(e.g. at least Pentium 4); limited Unicode support. The toolchain targets
+the same by default. Runtimes contain SSE2 instructions, so GCC `-march`
+will not reliably target less capable processors when runtimes are linked
+(exceptions: `-lmemory`, `-lchkstk`).
+
 ## Optimized for size
 
 Runtime components are optimized for size, leading to smaller application
