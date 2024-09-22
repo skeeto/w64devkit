@@ -1,0 +1,33 @@
+GCC requires 16-byte stack alignment on function entry, but x86 calling
+conventions only provide 4-byte alignment. Entry points, such as thread
+procedures, callbacks, and process entry points, are likely called on a
+stack not aligned to GCC's expectations. Since these functions are also
+typically __stdcall, silently add the force_align_arg_pointer attribute
+to such functions so that GCC re-aligns the stack.
+
+Note: main, wmain, WinMain, and wWinMain are special cases which the CRT
+calls with 16-byte alignment.
+
+--- a/gcc/config/i386/i386-options.cc
++++ b/gcc/config/i386/i386-options.cc
+@@ -3689,7 +3689,7 @@
+    arguments as in struct attribute_spec.handler.  */
+ 
+ static tree
+-ix86_handle_cconv_attribute (tree *node, tree name, tree args, int,
++ix86_handle_cconv_attribute (tree *node, tree name, tree args, int flags,
+ 			     bool *no_add_attrs)
+ {
+   if (TREE_CODE (*node) != FUNCTION_TYPE
+@@ -3773,6 +3773,11 @@
+      sseregparm.  */
+   else if (is_attribute_p ("stdcall", name))
+     {
++      if (!TARGET_64BIT)
++	{
++	  tree attr = tree_cons (get_identifier ("force_align_arg_pointer"), NULL_TREE, NULL_TREE);
++	  decl_attributes (node, attr, flags);
++	}
+       if (lookup_attribute ("cdecl", TYPE_ATTRIBUTES (*node)))
+         {
+ 	  error ("stdcall and cdecl attributes are not compatible");
