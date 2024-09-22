@@ -67,6 +67,7 @@ ARG ARCH=x86_64-w64-mingw32
 WORKDIR /binutils-$BINUTILS_VERSION
 COPY src/binutils-*.patch $PREFIX/src/
 RUN sed -ri 's/(static bool insert_timestamp = )/\1!/' ld/emultempl/pe*.em \
+ && sed -ri 's/(int pe_enable_stdcall_fixup = )/\1!!/' ld/emultempl/pe*.em \
  && cat $PREFIX/src/binutils-*.patch | patch -p1
 WORKDIR /x-binutils
 RUN /binutils-$BINUTILS_VERSION/configure \
