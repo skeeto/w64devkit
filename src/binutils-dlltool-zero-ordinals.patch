@@ -13,7 +13,12 @@ in the wild.
 
 --- a/binutils/dlltool.c
 +++ b/binutils/dlltool.c
-@@ -3690,2 +3690,3 @@ fill_ordinals (export_type **d_export_vec)
+@@ -3701,2 +3701,3 @@
  	done:;
 +	  d_export_vec[i]->ordinal = 0;
  	}
+@@ -3759,3 +3760,3 @@
+     if (!d_exports_lexically[i]->noname || show_allnames)
+-      d_exports_lexically[i]->hint = hint++;
++      d_exports_lexically[i]->hint = 0;
+ 
