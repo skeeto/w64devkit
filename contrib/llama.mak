@@ -7,19 +7,17 @@
 # llama-server.exe using w64dk. No source file changes are needed.
 #
 # The DLL exports the public API and no more, and is readily usable as a
-# component in another project (game engine, etc.). The EXE server REST
-# endpoints work well, but the browser UI lacks assets. (It's mediocre
-# anyway. Use Illume instead, the best LLM UI available.)
-#
-# The server EXE is not linked against the DLL, since that's not useful,
-# but can be made to do so with a small tweak to this makefile.
+# component in another project (game engine, etc.). The server EXE is
+# fully functional on Windows 7 or later. It is not linked against the
+# DLL, since that's not useful, but can be made to do so with a small
+# tweak to this makefile.
 #
 # Invoke this makefile in the llama.cpp source tree:
 #
 #   $ make -j$(nproc) -f path/to/w64devkit/contrib/llama.mak
 #
 # Incremental builds are unsupported, so clean rebuild after pulling. It
-# was last tested at b4273, and an update will inevitably break it.
+# was last tested at b4301, and an update will inevitably break it.
 
 CROSS    =
 CPPFLAGS = -w -O2
@@ -34,12 +32,12 @@ inc = -Icommon -Iinclude -Iggml/include -Iggml/src -Iggml/src/ggml-cpu
 	$(CROSS)g++ -c -o $@ $(inc) $(def) $(CPPFLAGS) $<
 
 dll = \
-  ggml/src/ggml-aarch64.c.o \
   ggml/src/ggml-alloc.c.o \
   ggml/src/ggml-backend-reg.cpp.o \
   ggml/src/ggml-backend.cpp.o \
-  ggml/src/ggml-cpu/ggml-cpu-aarch64.c.o \
+  ggml/src/ggml-cpu/ggml-cpu-aarch64.cpp.o \
   ggml/src/ggml-cpu/ggml-cpu-quants.c.o \
+  ggml/src/ggml-cpu/ggml-cpu-traits.cpp.o \
   ggml/src/ggml-cpu/ggml-cpu.c.o \
   ggml/src/ggml-cpu/ggml-cpu.cpp.o \
   ggml/src/ggml-cpu/llamafile/sgemm.cpp.o \
@@ -56,7 +54,7 @@ dll = \
 
 exe = \
   common/arg.cpp.o \
-  common/build-info.cpp.o \
+  common/w64dk-build-info.cpp.o \
   common/common.cpp.o \
   common/console.cpp.o \
   common/json-schema-to-grammar.cpp.o \
@@ -75,10 +73,11 @@ llama.dll: $(dll) llama.def
 	$(CROSS)g++ -shared $(LDFLAGS) -o $@ $(dll) llama.def
 
 clean:
-	rm -f $(dll) $(exe) llama.def llama.dll llama-server.exe
+	rm -f $(dll) $(exe) llama.def llama.dll llama-server.exe \
+	   examples/server/index.html.hpp examples/server/loading.html.hpp \
+	   common/w64dk-build-info.cpp
 
 common/arg.cpp.o: common/arg.cpp
-common/build-info.cpp.o: common/build-info.cpp
 common/common.cpp.o: common/common.cpp
 common/console.cpp.o: common/console.cpp
 common/json-schema-to-grammar.cpp.o: common/json-schema-to-grammar.cpp
@@ -86,13 +85,12 @@ common/log.cpp.o: common/log.cpp
 common/ngram-cache.cpp.o: common/ngram-cache.cpp
 common/sampling.cpp.o: common/sampling.cpp
 common/speculative.cpp.o: common/speculative.cpp
-examples/server/server.cpp.o: examples/server/server.cpp
-ggml/src/ggml-aarch64.c.o: ggml/src/ggml-aarch64.c
 ggml/src/ggml-alloc.c.o: ggml/src/ggml-alloc.c
 ggml/src/ggml-backend-reg.cpp.o: ggml/src/ggml-backend-reg.cpp
 ggml/src/ggml-backend.cpp.o: ggml/src/ggml-backend.cpp
-ggml/src/ggml-cpu/ggml-cpu-aarch64.c.o: ggml/src/ggml-cpu/ggml-cpu-aarch64.c
+ggml/src/ggml-cpu/ggml-cpu-aarch64.cpp.o: ggml/src/ggml-cpu/ggml-cpu-aarch64.cpp
 ggml/src/ggml-cpu/ggml-cpu-quants.c.o: ggml/src/ggml-cpu/ggml-cpu-quants.c
+ggml/src/ggml-cpu/ggml-cpu-traits.c.o: ggml/src/ggml-cpu/ggml-cpu-traits.c
 ggml/src/ggml-cpu/ggml-cpu.c.o: ggml/src/ggml-cpu/ggml-cpu.c
 ggml/src/ggml-cpu/ggml-cpu.cpp.o: ggml/src/ggml-cpu/ggml-cpu.cpp
 ggml/src/ggml-cpu/llamafile/sgemm.cpp.o: ggml/src/ggml-cpu/llamafile/sgemm.cpp
@@ -107,7 +105,28 @@ src/llama.cpp.o: src/llama.cpp
 src/unicode-data.cpp.o: src/unicode-data.cpp
 src/unicode.cpp.o: src/unicode.cpp
 
-.ONESHELL:
+.ONESHELL:  # needed for heredocs
+
+# NOTE: produces valid C++ even if Git is unavailable
+common/w64dk-build-info.cpp:
+	cat >$@ <<EOF
+	int         LLAMA_BUILD_NUMBER = {$$(git rev-list  --count HEAD)};
+	char const *LLAMA_COMMIT       = "$$(git rev-parse --short HEAD)";
+	char const *LLAMA_COMPILER     = "gcc (GCC) $$(gcc -dumpversion)";
+	char const *LLAMA_BUILD_TARGET = "$$(gcc -dumpmachine)";
+	EOF
+
+common/w64dk-build-info.cpp.o: common/w64dk-build-info.cpp
+
+examples/server/index.html.hpp: examples/server/public/index.html
+	cd examples/server/public/ && xxd -i index.html >../index.html.hpp
+examples/server/loading.html.hpp: examples/server/public/loading.html
+	cd examples/server/public/ && xxd -i loading.html >../loading.html.hpp
+examples/server/server.cpp.o: \
+  examples/server/server.cpp \
+  examples/server/index.html.hpp \
+  examples/server/loading.html.hpp
+
 llama.def:
 	@cat >$@ <<EOF
 	LIBRARY llama
