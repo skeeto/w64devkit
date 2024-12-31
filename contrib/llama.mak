@@ -17,7 +17,7 @@
 #   $ make -j$(nproc) -f path/to/w64devkit/contrib/llama.mak
 #
 # Incremental builds are unsupported, so clean rebuild after pulling. It
-# was last tested at b4301, and an update will inevitably break it.
+# was last tested at b4404, and an update will inevitably break it.
 
 CROSS    =
 CPPFLAGS = -w -O2
@@ -25,11 +25,11 @@ LDFLAGS  = -s
 
 .SUFFIXES: .c .cpp .o
 def = -DGGML_USE_CPU
-inc = -Icommon -Iinclude -Iggml/include -Iggml/src -Iggml/src/ggml-cpu
+inc = -I. -Icommon -Iinclude -Iggml/include -Iggml/src -Iggml/src/ggml-cpu
 %.c.o: %.c
-	$(CROSS)gcc -c -o $@ $(inc) $(def) $(CPPFLAGS) $<
+	$(CROSS)gcc -c -Wa,-mbig-obj -o $@ $(inc) $(def) $(CPPFLAGS) $<
 %.cpp.o: %.cpp
-	$(CROSS)g++ -c -o $@ $(inc) $(def) $(CPPFLAGS) $<
+	$(CROSS)g++ -c -Wa,-mbig-obj -o $@ $(inc) $(def) $(CPPFLAGS) $<
 
 dll = \
   ggml/src/ggml-alloc.c.o \
@@ -74,7 +74,7 @@ llama.dll: $(dll) llama.def
 
 clean:
 	rm -f $(dll) $(exe) llama.def llama.dll llama-server.exe \
-	   examples/server/index.html.hpp examples/server/loading.html.hpp \
+	   examples/server/index.html.gz.hpp examples/server/loading.html.hpp \
 	   common/w64dk-build-info.cpp
 
 common/arg.cpp.o: common/arg.cpp
@@ -118,13 +118,13 @@ common/w64dk-build-info.cpp:
 
 common/w64dk-build-info.cpp.o: common/w64dk-build-info.cpp
 
-examples/server/index.html.hpp: examples/server/public/index.html
-	cd examples/server/public/ && xxd -i index.html >../index.html.hpp
+examples/server/index.html.gz.hpp: examples/server/public/index.html.gz
+	cd examples/server/public/ && xxd -i index.html.gz >../index.html.gz.hpp
 examples/server/loading.html.hpp: examples/server/public/loading.html
 	cd examples/server/public/ && xxd -i loading.html >../loading.html.hpp
 examples/server/server.cpp.o: \
   examples/server/server.cpp \
-  examples/server/index.html.hpp \
+  examples/server/index.html.gz.hpp \
   examples/server/loading.html.hpp
 
 llama.def:
@@ -272,7 +272,6 @@ llama.def:
 	ggml_conv_2d
 	ggml_conv_2d_s1_ph
 	ggml_conv_2d_sk_p0
-	ggml_conv_depthwise_2d
 	ggml_conv_transpose_1d
 	ggml_conv_transpose_2d_p0
 	ggml_cos
@@ -645,7 +644,6 @@ llama.def:
 	llama_get_logits
 	llama_get_logits_ith
 	llama_get_model
-	llama_get_model_tensor
 	llama_get_state_size
 	llama_kv_cache_can_shift
 	llama_kv_cache_clear
