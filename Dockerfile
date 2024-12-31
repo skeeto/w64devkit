@@ -68,6 +68,7 @@ WORKDIR /binutils-$BINUTILS_VERSION
 COPY src/binutils-*.patch $PREFIX/src/
 RUN sed -ri 's/(static bool insert_timestamp = )/\1!/' ld/emultempl/pe*.em \
  && sed -ri 's/(int pe_enable_stdcall_fixup = )/\1!!/' ld/emultempl/pe*.em \
+ && sed -ri 's/(static int use_big_obj = )/\1!/' gas/config/tc-i386.c \
  && cat $PREFIX/src/binutils-*.patch | patch -p1
 WORKDIR /x-binutils
 RUN /binutils-$BINUTILS_VERSION/configure \
