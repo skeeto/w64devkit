@@ -17,7 +17,7 @@
 #   $ make -j$(nproc) -f path/to/w64devkit/contrib/llama.mak
 #
 # Incremental builds are unsupported, so clean rebuild after pulling. It
-# was last tested at b4404, and an update will inevitably break it.
+# was last tested at b4511, and an update will inevitably break it.
 
 CROSS    =
 CPPFLAGS = -w -O2
@@ -45,7 +45,20 @@ dll = \
   ggml/src/ggml-quants.c.o \
   ggml/src/ggml-threading.cpp.o \
   ggml/src/ggml.c.o \
+  ggml/src/gguf.cpp.o \
+  src/llama-adapter.cpp.o \
+  src/llama-arch.cpp.o \
+  src/llama-batch.cpp.o \
+  src/llama-chat.cpp.o \
+  src/llama-context.cpp.o \
   src/llama-grammar.cpp.o \
+  src/llama-hparams.cpp.o \
+  src/llama-impl.cpp.o \
+  src/llama-kv-cache.cpp.o \
+  src/llama-mmap.cpp.o \
+  src/llama-model-loader.cpp.o \
+  src/llama-model.cpp.o \
+  src/llama-quant.cpp.o \
   src/llama-sampling.cpp.o \
   src/llama-vocab.cpp.o \
   src/llama.cpp.o \
@@ -98,6 +111,7 @@ ggml/src/ggml-opt.cpp.o: ggml/src/ggml-opt.cpp
 ggml/src/ggml-quants.c.o: ggml/src/ggml-quants.c
 ggml/src/ggml-threading.cpp.o: ggml/src/ggml-threading.cpp
 ggml/src/ggml.c.o: ggml/src/ggml.c
+ggml/src/gguf.cpp.o: ggml/src/gguf.cpp
 src/llama-grammar.cpp.o: src/llama-grammar.cpp
 src/llama-sampling.cpp.o: src/llama-sampling.cpp
 src/llama-vocab.cpp.o: src/llama-vocab.cpp
@@ -478,7 +492,6 @@ llama.def:
 	ggml_rms_norm_back
 	ggml_rms_norm_inplace
 	ggml_rope
-	ggml_rope_back
 	ggml_rope_custom
 	ggml_rope_custom_inplace
 	ggml_rope_ext
@@ -512,8 +525,6 @@ llama.def:
 	ggml_sin
 	ggml_sin_inplace
 	ggml_soft_max
-	ggml_soft_max_back
-	ggml_soft_max_back_inplace
 	ggml_soft_max_ext
 	ggml_soft_max_inplace
 	ggml_sqr
@@ -570,7 +581,6 @@ llama.def:
 	gguf_get_arr_n
 	gguf_get_arr_str
 	gguf_get_arr_type
-	gguf_get_data
 	gguf_get_data_offset
 	gguf_get_key
 	gguf_get_kv_type
@@ -628,7 +638,6 @@ llama.def:
 	llama_chat_apply_template
 	llama_chat_builtin_templates
 	llama_context_default_params
-	llama_control_vector_apply
 	llama_copy_state_data
 	llama_decode
 	llama_detach_threadpool
@@ -661,11 +670,6 @@ llama.def:
 	llama_load_model_from_file
 	llama_load_session_file
 	llama_log_set
-	llama_lora_adapter_clear
-	llama_lora_adapter_free
-	llama_lora_adapter_init
-	llama_lora_adapter_remove
-	llama_lora_adapter_set
 	llama_max_devices
 	llama_model_decoder_start_token
 	llama_model_default_params
@@ -702,8 +706,6 @@ llama.def:
 	llama_perf_sampler_reset
 	llama_pooling_type
 	llama_print_system_info
-	llama_rope_freq_scale_train
-	llama_rope_type
 	llama_sampler_accept
 	llama_sampler_apply
 	llama_sampler_chain_add
@@ -774,12 +776,9 @@ llama.def:
 	llama_token_get_text
 	llama_token_is_control
 	llama_token_is_eog
-	llama_token_middle
 	llama_token_nl
 	llama_token_pad
-	llama_token_prefix
 	llama_token_sep
-	llama_token_suffix
 	llama_token_to_piece
 	llama_tokenize
 	llama_vocab_type
