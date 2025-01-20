@@ -424,7 +424,9 @@ RUN $ARCH-gcc -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections -s \
 
 # TODO: Either somehow use $VIM_VERSION or normalize the workdir
 WORKDIR /vim90/src
-RUN ARCH= make -j$(nproc) -f Make_ming.mak \
+COPY src/vim-*.patch $PREFIX/src/
+RUN cat $PREFIX/src/vim-*.patch | patch -p1 \
+ && ARCH= make -j$(nproc) -f Make_ming.mak \
         OPTIMIZE=SIZE STATIC_STDCPLUS=yes HAS_GCC_EH=no \
         UNDER_CYGWIN=yes CROSS=yes CROSS_COMPILE=$ARCH- \
         FEATURES=HUGE VIMDLL=yes NETBEANS=no WINVER=0x0501 \
