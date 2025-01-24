@@ -35,7 +35,7 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
     https://ftp.gnu.org/gnu/make/make-$MAKE_VERSION.tar.gz \
     https://ftp.gnu.org/gnu/libiconv/libiconv-$LIBICONV_VERSION.tar.gz \
     https://frippery.org/files/busybox/busybox-w32-$BUSYBOX_VERSION.tgz \
-    http://ftp.vim.org/pub/vim/unix/vim-$VIM_VERSION.tar.bz2 \
+    https://ftp.nluug.nl/pub/vim/unix/vim-$VIM_VERSION.tar.bz2 \
     https://github.com/universal-ctags/ctags/archive/refs/tags/v$CTAGS_VERSION.tar.gz \
     https://downloads.sourceforge.net/project/mingw-w64/mingw-w64/mingw-w64-release/mingw-w64-v$MINGW_VERSION.tar.bz2 \
     https://downloads.sourceforge.net/project/pdcurses/pdcurses/$PDCURSES_VERSION/PDCurses-$PDCURSES_VERSION.tar.gz
