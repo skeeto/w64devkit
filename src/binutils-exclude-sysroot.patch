@@ -1,0 +1,53 @@
+In bfd is a list of known libraries whose symbols are excluded when
+exporting all symbols, the default behavior when no exports are chosen,
+or with --export-all-symbols. However, the list is incomplete, and the
+following "standard" libraries in w64dk also contain definitions that
+should never be exported:
+
+* libdloadhelper.a,
+* libdxerr8.a,
+* libdxerr9.a,
+* libgmon.a,
+* libmsvcr100.a,
+* libmsvcr110.a,
+* libmsvcr120.a,
+* libmsvcr120_app.a,
+* libmsvcr120d.a,
+* libmsvcr80.a,
+* libmsvcr90.a,
+* libmsvcr90d.a,
+* libpthread.a (!!!),
+* libucrtapp.a, and
+* libwinpthread.a
+
+The result is that Windows-unaware builds using any of these libraries,
+including any C++ program due to libpthread, tends to be broken. Instead
+of adding each library to the list, blanket-exclude all libraries that
+come from the sysroot. Since libpthread is so important, also add it to
+the known list. Its absence is essentially a Binutils bug.
+
+--- a/ld/pe-dll.c
++++ b/ld/pe-dll.c
+@@ -347,4 +347,5 @@
+ static const autofilter_entry_type autofilter_liblist[] =
+ {
++  { STRING_COMMA_LEN ("libpthread") },
+   { STRING_COMMA_LEN ("libcegcc") },
+   { STRING_COMMA_LEN ("libcygwin") },
+@@ -575,4 +576,16 @@
+     libname = lbasename (bfd_get_filename (abfd->my_archive));
+ 
++  if (abfd && abfd->my_archive && ld_canon_sysroot)
++    {
++      const char *path = bfd_get_filename (abfd->my_archive);
++      const char *real = lrealpath (path);
++      int len = ld_canon_sysroot_len;
++      int match = !filename_ncmp (real, ld_canon_sysroot, len)
++		  && IS_DIR_SEPARATOR (real[len]);
++      free (real);
++      if (match)
++	return 0;
++    }
++
+   key.name = key.its_name = (char *) n;
+ 
