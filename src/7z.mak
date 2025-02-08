@@ -38,6 +38,7 @@ obj = \
   CPP/Windows/ResourceString.o \
   CPP/Windows/Shell.o \
   CPP/Windows/Synchronization.o \
+  CPP/Windows/TimeUtils.o \
   CPP/Windows/System.o \
   CPP/Windows/Window.o \
   CPP/Windows/Control/ComboBox.o \

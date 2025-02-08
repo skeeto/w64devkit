@@ -2,7 +2,7 @@ FROM debian:bookworm-slim
 
 ARG VERSION=2.1.0
 ARG PREFIX=/w64devkit
-ARG Z7_VERSION=2301
+ARG Z7_VERSION=2408
 ARG BINUTILS_VERSION=2.43
 ARG BUSYBOX_VERSION=FRP-5467-g9376eebd8
 ARG CTAGS_VERSION=6.0.0
@@ -24,7 +24,7 @@ RUN apt-get update && apt-get install --yes --no-install-recommends \
 # Download, verify, and unpack
 
 RUN curl --insecure --location --remote-name-all --remote-header-name \
-    https://downloads.sourceforge.net/project/sevenzip/7-Zip/23.01/7z$Z7_VERSION-src.tar.xz \
+    https://downloads.sourceforge.net/project/sevenzip/7-Zip/24.08/7z$Z7_VERSION-src.tar.xz \
     https://ftp.gnu.org/gnu/binutils/binutils-$BINUTILS_VERSION.tar.xz \
     https://ftp.gnu.org/gnu/gcc/gcc-$GCC_VERSION/gcc-$GCC_VERSION.tar.xz \
     https://ftp.gnu.org/gnu/gdb/gdb-$GDB_VERSION.tar.xz \
