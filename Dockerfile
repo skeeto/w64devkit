@@ -6,7 +6,7 @@ ARG Z7_VERSION=2301
 ARG BINUTILS_VERSION=2.44
 ARG BUSYBOX_VERSION=FRP-5467-g9376eebd8
 ARG CTAGS_VERSION=6.0.0
-ARG EXPAT_VERSION=2.6.3
+ARG EXPAT_VERSION=2.6.4
 ARG GCC_VERSION=14.2.0
 ARG GDB_VERSION=16.2
 ARG GMP_VERSION=6.3.0
@@ -28,7 +28,7 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
     https://ftp.gnu.org/gnu/binutils/binutils-$BINUTILS_VERSION.tar.xz \
     https://ftp.gnu.org/gnu/gcc/gcc-$GCC_VERSION/gcc-$GCC_VERSION.tar.xz \
     https://ftp.gnu.org/gnu/gdb/gdb-$GDB_VERSION.tar.xz \
-    https://fossies.org/linux/www/expat-$EXPAT_VERSION.tar.xz \
+    https://downloads.sourceforge.net/project/expat/expat/$EXPAT_VERSION/expat-$EXPAT_VERSION.tar.xz \
     https://ftp.gnu.org/gnu/gmp/gmp-$GMP_VERSION.tar.xz \
     https://ftp.gnu.org/gnu/mpc/mpc-$MPC_VERSION.tar.gz \
     https://ftp.gnu.org/gnu/mpfr/mpfr-$MPFR_VERSION.tar.xz \
