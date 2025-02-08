@@ -2,7 +2,7 @@
 // https://github.com/skeeto/u-config
 //   $ cc -nostartfiles -o pkg-config.exe pkg-config.c
 // This is free and unencumbered software released into the public domain.
-#define VERSION "0.33.1"
+#define VERSION "0.33.2"
 
 typedef unsigned char    u8;
 typedef   signed int     b32;
@@ -122,7 +122,6 @@ static b32 pathsep(u8 c)
     return c=='/' || c=='\\';
 }
 
-__attribute((malloc, alloc_size(3, 2)))
 static byte *alloc(arena *a, size objsize, size count)
 {
     assert(objsize > 0);
@@ -508,7 +507,7 @@ static s8 *fieldbyid(pkg *p, i32 id)
 {
     assert(id >= 0);
     assert(id < PKG_NFIELDS);
-    return &p->name + id;
+    return (s8 *)((byte *)&p->name + id*sizeof(s8));
 }
 
 static s8 *fieldbyname(pkg *p, s8 name)
@@ -2039,16 +2038,17 @@ static void uconfig(config *conf)
 // Win32 types, constants, and declarations (replaces windows.h)
 // This is free and unencumbered software released into the public domain.
 
-typedef __SIZE_TYPE__  uptr;
-typedef unsigned short char16_t;
-typedef char16_t       c16;
+typedef __PTRDIFF_TYPE__ iptr;
+typedef __SIZE_TYPE__    uptr;
+typedef unsigned short   char16_t;
+typedef char16_t         c16;
 
 enum {
     FILE_ATTRIBUTE_NORMAL = 0x80,
 
     FILE_SHARE_ALL = 7,
 
-    GENERIC_READ = 0x80000000,
+    GENERIC_READ = (i32)0x80000000,
 
     INVALID_HANDLE_VALUE = -1,
 
@@ -2064,18 +2064,18 @@ enum {
 };
 
 #define W32(r) __declspec(dllimport) r __stdcall
-W32(b32)    CloseHandle(uptr);
+W32(b32)    CloseHandle(iptr);
 W32(i32)    CreateFileW(c16 *, i32, i32, uptr, i32, i32, i32);
 W32(void)   ExitProcess(i32);
 W32(c16 *)  GetCommandLineW(void);
-W32(b32)    GetConsoleMode(uptr, i32 *);
+W32(b32)    GetConsoleMode(iptr, i32 *);
 W32(i32)    GetEnvironmentVariableW(c16 *, c16 *, i32);
-W32(i32)    GetModuleFileNameW(uptr, c16 *, i32);
+W32(i32)    GetModuleFileNameW(iptr, c16 *, i32);
 W32(i32)    GetStdHandle(i32);
-W32(b32)    ReadFile(uptr, u8 *, i32, i32 *, uptr);
+W32(b32)    ReadFile(iptr, u8 *, i32, i32 *, uptr);
 W32(byte *) VirtualAlloc(uptr, size, i32, i32);
-W32(b32)    WriteConsoleW(uptr, c16 *, i32, i32 *, uptr);
-W32(b32)    WriteFile(uptr, u8 *, i32, i32 *, uptr);
+W32(b32)    WriteConsoleW(iptr, c16 *, i32, i32 *, uptr);
+W32(b32)    WriteFile(iptr, u8 *, i32, i32 *, uptr);
 
 #define CMDLINE_CMD_MAX  32767  // max command line length on Windows
 #define CMDLINE_ARGV_MAX (16384+(98298+(i32)sizeof(u8 *))/(i32)sizeof(u8 *))
@@ -2442,6 +2442,17 @@ static s8 fromenv_(arena *perm, c16 *name)
     return var;
 }
 
+// Normalize path to slashes as separators.
+static s8 normalize_(s8 path)
+{
+    for (size i = 0; i < path.len; i++) {
+        if (path.s[i] == '\\') {
+            path.s[i] = '/';
+        }
+    }
+    return path;
+}
+
 static i32 truncsize(size len)
 {
     i32 max = 0x7fffffff;
@@ -2466,14 +2477,7 @@ static s8 installdir_(arena *perm)
     exe.len   = GetModuleFileNameW(0, exe.s, cap);
     perm->beg = (byte *)(exe.s + exe.len);
 
-    // Normalize by converting backslashes to slashes
-    for (size i = 0; i < exe.len; i++) {
-        if (exe.s[i] == '\\') {
-            exe.s[i] = '/';
-        }
-    }
-
-    s8 path = fromwide_(perm, exe);
+    s8 path = normalize_(fromwide_(perm, exe));
     perm->beg = save;  // free the wide path
     return dirname(dirname(path));
 }
@@ -2508,7 +2512,7 @@ static s8 fromcstr_(u8 *z)
     return s;
 }
 
-static config *newconfig_()
+static config *newconfig_(void)
 {
     arena perm = newarena_(1<<22);
     config *conf = new(&perm, config, 1);
@@ -2551,6 +2555,11 @@ void mainCRTStartup(void)
     conf->sys_libpath  = append2_(perm, base, S(PKG_CONFIG_PREFIX "/lib"));
     conf->print_sysinc = fromenv_(perm, L"PKG_CONFIG_ALLOW_SYSTEM_CFLAGS");
     conf->print_syslib = fromenv_(perm, L"PKG_CONFIG_ALLOW_SYSTEM_LIBS");
+
+    // Reduce backslash occurrences in outputs
+    normalize_(conf->envpath);
+    normalize_(conf->fixedpath);
+    normalize_(conf->top_builddir);
 
     uconfig(conf);
     ExitProcess(handles[1].err || handles[2].err);
