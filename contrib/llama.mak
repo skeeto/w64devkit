@@ -17,7 +17,7 @@
 #   $ make -j$(nproc) -f path/to/w64devkit/contrib/llama.mak
 #
 # Incremental builds are unsupported, so clean rebuild after pulling. It
-# was last tested at b4511, and an update will inevitably break it.
+# was last tested at b4667, and an update will inevitably break it.
 
 CROSS    =
 CPPFLAGS = -w -O2
@@ -67,7 +67,7 @@ dll = \
 
 exe = \
   common/arg.cpp.o \
-  common/w64dk-build-info.cpp.o \
+  common/chat.cpp.o \
   common/common.cpp.o \
   common/console.cpp.o \
   common/json-schema-to-grammar.cpp.o \
@@ -75,6 +75,7 @@ exe = \
   common/ngram-cache.cpp.o \
   common/sampling.cpp.o \
   common/speculative.cpp.o \
+  common/w64dk-build-info.cpp.o \
   examples/server/server.cpp.o
 
 all: llama.dll llama-server.exe
@@ -91,6 +92,7 @@ clean:
 	   common/w64dk-build-info.cpp
 
 common/arg.cpp.o: common/arg.cpp
+common/chat.cpp.o: common/chat.cpp
 common/common.cpp.o: common/common.cpp
 common/console.cpp.o: common/console.cpp
 common/json-schema-to-grammar.cpp.o: common/json-schema-to-grammar.cpp
