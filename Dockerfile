@@ -426,9 +426,8 @@ RUN $ARCH-gcc -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections -s \
 
 # TODO: Either somehow use $VIM_VERSION or normalize the workdir
 WORKDIR /vim90/src
-COPY src/vim-*.patch $PREFIX/src/
-RUN cat $PREFIX/src/vim-*.patch | patch -p1 \
- && ARCH= make -j$(nproc) -f Make_ming.mak \
+COPY src/rexxd.c $PREFIX/src/
+RUN ARCH= make -j$(nproc) -f Make_ming.mak \
         OPTIMIZE=SIZE STATIC_STDCPLUS=yes HAS_GCC_EH=no \
         UNDER_CYGWIN=yes CROSS=yes CROSS_COMPILE=$ARCH- \
         FEATURES=HUGE VIMDLL=yes NETBEANS=no WINVER=0x0501 \
@@ -436,7 +435,6 @@ RUN cat $PREFIX/src/vim-*.patch | patch -p1 \
  && rm -rf ../runtime/tutor/tutor.* \
  && cp -r ../runtime $PREFIX/share/vim \
  && cp vimrun.exe gvim.exe vim.exe *.dll $PREFIX/share/vim/ \
- && cp xxd/xxd.exe $PREFIX/bin \
  && printf '@set SHELL=\r\n@start "" "%%~dp0/../share/vim/gvim.exe" %%*\r\n' \
         >$PREFIX/bin/gvim.bat \
  && printf '@set SHELL=\r\n@"%%~dp0/../share/vim/vim.exe" %%*\r\n' \
@@ -445,7 +443,9 @@ RUN cat $PREFIX/src/vim-*.patch | patch -p1 \
         >$PREFIX/bin/vi.bat \
  && printf '@vim -N -u NONE "+read %s" "+write" "%s"\r\n' \
         '$VIMRUNTIME/tutor/tutor' '%TMP%/tutor%RANDOM%' \
-        >$PREFIX/bin/vimtutor.bat
+        >$PREFIX/bin/vimtutor.bat \
+ && $ARCH-gcc -nostartfiles -O2 -funroll-loops -s -o $PREFIX/bin/xxd.exe \
+        $PREFIX/src/rexxd.c -lmemory
 
 WORKDIR /ctags-$CTAGS_VERSION
 RUN sed -i /RT_MANIFEST/d win32/ctags.rc \
