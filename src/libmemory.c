@@ -11,7 +11,7 @@ for func in memset memcpy memmove memcmp strlen; do
     (set -x; ${CC:-cc} -c -D$FUNC -Wa,--no-pad-sections $CFLAGS -o $func.o $0)
 done
 rm -f "${DESTDIR}libmemory.a"
-ar r "${DESTDIR}libmemory.a" $objects
+${AR:-ar} r "${DESTDIR}libmemory.a" $objects
 rm $objects
 exit 0
 #endif

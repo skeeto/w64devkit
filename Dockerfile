@@ -126,9 +126,11 @@ RUN cat $PREFIX/src/gcc-*.patch | patch -d/gcc-$GCC_VERSION -p1 \
 ENV PATH="/bootstrap/bin:${PATH}"
 
 RUN mkdir -p $PREFIX/$ARCH/lib \
- && CC=$ARCH-gcc DESTDIR=$PREFIX/$ARCH/lib/ sh $PREFIX/src/libmemory.c \
+ && CC=$ARCH-gcc AR=$ARCH-ar DESTDIR=$PREFIX/$ARCH/lib/ \
+        sh $PREFIX/src/libmemory.c \
  && ln $PREFIX/$ARCH/lib/libmemory.a /bootstrap/$ARCH/lib/ \
- && CC=$ARCH-gcc DESTDIR=$PREFIX/$ARCH/lib/ sh $PREFIX/src/libchkstk.S \
+ && CC=$ARCH-gcc AR=$ARCH-ar DESTDIR=$PREFIX/$ARCH/lib/ \
+        sh $PREFIX/src/libchkstk.S \
  && ln $PREFIX/$ARCH/lib/libchkstk.a /bootstrap/$ARCH/lib/
 
 WORKDIR /x-mingw-crt
