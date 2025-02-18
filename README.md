@@ -183,10 +183,6 @@ ported to Mingw-w64][san] ([also][san2]), but Undefined Behavior Sanitizer
 `-fsanitize-trap`, GDB will [break precisely][break] on undefined
 behavior, and it does not require linking with libsanitizer.
 
-[GCC does not fully support AVX on Windows][avx] and may use aligned moves
-on unaligned addresses. When targeting AVX, consider disabling all aligned
-moves in the assembler: `-Wa,-muse-unaligned-vector-move`.
-
 ## Licenses
 
 When distributing binaries built using w64devkit, your .exe will include
@@ -201,7 +197,6 @@ w64devkit includes the concatenated set of all licenses in the file
 binaries.
 
 
-[avx]: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=54412
 [bb]: https://frippery.org/busybox/
 [break]: https://nullprogram.com/blog/2022/06/26/
 [bs]: https://www.rdegges.com/2016/i-dont-give-a-shit-about-licensing/
