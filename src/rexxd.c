@@ -2780,6 +2780,7 @@ iz xxd_reverse(u8 *dst, iz dlen, u8 *src, iz slen)
 
 
 #elif _WIN32
+typedef uint16_t    u16;
 typedef uint16_t    char16_t;
 typedef char16_t    c16;
 
@@ -2798,23 +2799,25 @@ enum {
     FILE_TYPE_DISK          = 1,
 };
 
-#define W32(r)  __declspec(dllimport) r __stdcall
-W32(c16 **) CommandLineToArgvW(c16 *, i32 *);
-W32(uz)     CreateFileW(c16 *, i32, i32, uz, i32, i32, uz);
-W32(void)   ExitProcess(i32);
-W32(c16 *)  GetCommandLineW(void);
-W32(i32)    GetFileType(uz);
-W32(uz)     GetStdHandle(i32);
-W32(i32)    MultiByteToWideChar(i32, i32, u8 *, i32, c16 *, i32);
-W32(b32)    ReadFile(uz, u8 *, i32, i32 *, uz);
-W32(b32)    SetFilePointerEx(uz, i64, i64 *, i32);
-W32(byte *) VirtualAlloc(uz, iz, i32, i32);
-W32(i32)    WideCharToMultiByte(i32, i32, c16 *, i32, u8 *, i32, uz, uz);
-W32(b32)    WriteFile(uz, u8 *, i32, i32 *, uz);
-
 struct Plt {
     uz  stdh[3];
     i32 seekable;
+
+    #define W32(r)  r __stdcall
+    W32(c16 **) (*CommandLineToArgvW)(c16 *, i32 *);
+    W32(uz)     (*CreateFileW)(c16 *, i32, i32, uz, i32, i32, uz);
+    W32(void)   (*ExitProcess)(i32);
+    W32(c16 *)  (*GetCommandLineW)(void);
+    W32(i32)    (*GetFileType)(uz);
+    W32(void *) (*GetProcAddress)(uz, u8 *);
+    W32(uz)     (*GetStdHandle)(i32);
+    W32(uz)     (*LoadLibraryA)(u8 *);
+    W32(i32)    (*MultiByteToWideChar)(i32, i32, u8 *, i32, c16 *, i32);
+    W32(b32)    (*ReadFile)(uz, u8 *, i32, i32 *, uz);
+    W32(b32)    (*SetFilePointerEx)(uz, i64, i64 *, i32);
+    W32(byte *) (*VirtualAlloc)(uz, iz, i32, i32);
+    W32(i32)    (*WideCharToMultiByte)(i32, i32, c16 *, i32, u8 *, i32, uz, uz);
+    W32(b32)    (*WriteFile)(uz, u8 *, i32, i32 *, uz);
 };
 
 static void setstdh(Plt *plt, i32 fd, uz h)
@@ -2824,7 +2827,7 @@ static void setstdh(Plt *plt, i32 fd, uz h)
     if (h) {
         // SetFilePointerEx on non-files has undefined results, so
         // applications must check the type explicitly.
-        plt->seekable |= (GetFileType(h) == FILE_TYPE_DISK) << fd;
+        plt->seekable |= (plt->GetFileType(h) == FILE_TYPE_DISK) << fd;
     }
 }
 
@@ -2841,7 +2844,7 @@ static b32 plt_open(Plt *plt, i32 fd, u8 *path, b32 trunc, Arena *a)
     i32  pad   = (i32)-(uz)a->beg & 1;
     c16 *wpath = (c16 *)(a->beg + pad);
 
-    if (!MultiByteToWideChar(CP_UTF8, 0, path, -1, wpath, avail)) {
+    if (!plt->MultiByteToWideChar(CP_UTF8, 0, path, -1, wpath, avail)) {
         return 0;
     }
 
@@ -2849,7 +2852,7 @@ static b32 plt_open(Plt *plt, i32 fd, u8 *path, b32 trunc, Arena *a)
     i32 share  = FILE_SHARE_ALL;
     i32 create = fd==0 ? OPEN_EXISTING : trunc ? CREATE_ALWAYS : OPEN_ALWAYS;
     i32 attr   = FILE_ATTRIBUTE_NORMAL;
-    uz h = CreateFileW(wpath, access, share, 0, create, attr, 0);
+    uz h = plt->CreateFileW(wpath, access, share, 0, create, attr, 0);
     if (h == (uz)-1) {
         return 0;
     }
@@ -2861,7 +2864,7 @@ static i64 plt_seek(Plt *plt, i32 fd, i64 off, i32 whence)
 {
     b32 r = 0;
     if (plt->seekable & 1<<fd) {
-        r = SetFilePointerEx(plt->stdh[fd], off, &off, whence);
+        r = plt->SetFilePointerEx(plt->stdh[fd], off, &off, whence);
     }
     return r ? off : -1;
 }
@@ -2869,45 +2872,87 @@ static i64 plt_seek(Plt *plt, i32 fd, i64 off, i32 whence)
 static i32 plt_read(Plt *plt, u8 *buf, i32 len)
 {
     b32 isfile = plt->seekable & 1;
-    b32 r = ReadFile(plt->stdh[0], buf, len, &len, 0);
+    b32 r = plt->ReadFile(plt->stdh[0], buf, len, &len, 0);
     return !r && isfile ? -1 : len;
 }
 
 static b32 plt_write(Plt *plt, i32 fd, u8 *buf, i32 len)
 {
-    return WriteFile(plt->stdh[fd], buf, len, &len, 0);
+    return plt->WriteFile(plt->stdh[fd], buf, len, &len, 0);
 }
 
 static void plt_exit(Plt *plt, i32 r)
 {
     (void)plt;
-    ExitProcess(r);
+    plt->ExitProcess(r);
     affirm(0);
 }
 
-void __stdcall mainCRTStartup(void)
+static void win32_init(Plt *plt, void *peb)
 {
-    Plt plt = {0};
-    setstdh(&plt, 0, GetStdHandle(-10));
-    setstdh(&plt, 1, GetStdHandle(-11));
-    setstdh(&plt, 2, GetStdHandle(-12));
+    u8  ******p   = peb;  // !!!
+    u8  *kernel32 = p[3][1+8/sizeof(uz)][0][0][6];
+    u32 *pe       = (u32 *)(kernel32 + *(u32 *)(kernel32 + 0x3c));
+    u32 *edata    = (u32 *)(kernel32 + pe[26+sizeof(uz)]);
+    u32 *addrs    = (u32 *)(kernel32 + edata[7]);
+    u32 *names    = (u32 *)(kernel32 + edata[8]);
+    u16 *ordinals = (u16 *)(kernel32 + edata[9]);
 
-    iz    cap = (iz)1<<24;
-    byte *mem = VirtualAlloc(0, cap, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
-    Arena a   = {0, mem, mem+cap};
-
-    c16  *cmd   = GetCommandLineW();
-    i32   argc  = 0;
-    c16 **wargv = CommandLineToArgvW(cmd, &argc);
-    u8  **argv  = new(&a, argc+1, u8 *);
-    for (i32 i = 0; i < argc; i++) {
-        i32 len = WideCharToMultiByte(CP_UTF8, 0, wargv[i], -1, 0, 0, 0, 0);
-        argv[i] = new(&a, len, u8);
-        WideCharToMultiByte(CP_UTF8, 0, wargv[i], -1, argv[i], len, 0, 0);
+    for (i32 i = 0;; i++) {
+        Str name = import(kernel32 + names[i]);
+        if (equals(name, S("GetProcAddress"))) {
+            plt->GetProcAddress = (void *)(kernel32 + addrs[ordinals[i]]);
+            break;
+        }
     }
 
-    i32 r = xxd(argc, argv, &plt, a.beg, a.end-a.beg);
-    ExitProcess(r);
+    #define LINK(lib, f) plt->f = plt->GetProcAddress((uz)lib, (u8 *)#f)
+    LINK(kernel32, CreateFileW);
+    LINK(kernel32, ExitProcess);
+    LINK(kernel32, GetCommandLineW);
+    LINK(kernel32, GetFileType);
+    LINK(kernel32, GetStdHandle);
+    LINK(kernel32, LoadLibraryA);
+    LINK(kernel32, MultiByteToWideChar);
+    LINK(kernel32, ReadFile);
+    LINK(kernel32, SetFilePointerEx);
+    LINK(kernel32, VirtualAlloc);
+    LINK(kernel32, WideCharToMultiByte);
+    LINK(kernel32, WriteFile);
+    uz shell32 = plt->LoadLibraryA(S("shell32").data);
+    LINK( shell32, CommandLineToArgvW);
+}
+
+void __stdcall mainCRTStartup(void *peb)
+{
+    Plt plt[1] = {0};
+    win32_init(plt, peb);
+
+    setstdh(plt, 0, plt->GetStdHandle(-10));
+    setstdh(plt, 1, plt->GetStdHandle(-11));
+    setstdh(plt, 2, plt->GetStdHandle(-12));
+
+    iz    cap  = (iz)1<<24;
+    i32   type = MEM_COMMIT | MEM_RESERVE;
+    byte *mem  = plt->VirtualAlloc(0, cap, type, PAGE_READWRITE);
+    Arena a    = {0, mem, mem+cap};
+
+    c16  *cmd   = plt->GetCommandLineW();
+    i32   argc  = 0;
+    c16 **wargv = plt->CommandLineToArgvW(cmd, &argc);
+    u8  **argv  = new(&a, argc+1, u8 *);
+    for (i32 i = 0; i < argc; i++) {
+        i32 len = plt->WideCharToMultiByte(
+            CP_UTF8, 0, wargv[i], -1, 0, 0, 0, 0
+        );
+        argv[i] = new(&a, len, u8);
+        plt->WideCharToMultiByte(
+            CP_UTF8, 0, wargv[i], -1, argv[i], len, 0, 0
+        );
+    }
+
+    i32 r = xxd(argc, argv, plt, a.beg, a.end-a.beg);
+    plt->ExitProcess(r);
     affirm(0);
 }
 
