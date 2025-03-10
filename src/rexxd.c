@@ -401,7 +401,7 @@ static Cut cut(Str s, u8 c)
 
     // Quickly discard leading, non-matching blocks of 8 octets
     u64 permute = 0x0101010101010101 * c;
-    for (; end-cut > 8; cut += 8) {
+    for (; end-cut >= 8; cut += 8) {
         if (hasoctet(cut, permute)) {
             break;
         }
