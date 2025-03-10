@@ -1813,7 +1813,7 @@ static i64 plt_seek(Plt *plt, i32 fd, i64 off, i32 whence)
     }
 
     if (off<0 && off < -from) {
-        return -1;  // negative position
+        affirm(0);  // negative position (rexxd should never attempt this)
     } else if (off>0 && off > limit - from) {
         return -1;  // beyond limit
     }
