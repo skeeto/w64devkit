@@ -2980,9 +2980,8 @@ static void entrypoint(uz *stack)
     byte *mem = heap;
     asm ("" : "+r"(mem)); // launder: disconnect from "heap"
     Plt plt = {{0, 1, 2}};
-    xxd((i32)*stack, (u8 **)(stack+1), &plt, mem, countof(heap));
-    plt_exit(0, 0);
-    affirm(0);
+    i32 r   = xxd((i32)*stack, (u8 **)(stack+1), &plt, mem, countof(heap));
+    plt_exit(0, r);
 }
 
 asm (
@@ -3048,6 +3047,7 @@ int main(int argc, char **argv)
     Plt   plt = {{0, 1, 2}};
     iz    cap = (iz)1<<24;
     byte *mem = mmap(0, cap, PROT_WRITE, MAP_PRIVATE|MAP_ANON, -1, 0);
-    return xxd(argc, (u8 **)argv, &plt, mem, cap);
+    i32   r   = xxd(argc, (u8 **)argv, &plt, mem, cap);
+    _exit(r);
 }
 #endif
