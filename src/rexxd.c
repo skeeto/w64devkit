@@ -34,7 +34,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define VERSION "2025-02-17"
+#define VERSION "2025-03-10"
 
 typedef uint8_t     u8;
 typedef int32_t     b32;
@@ -1110,7 +1110,7 @@ static Parsed64 parse64(Str s)
     }
 
     // Octal
-    if (s.len>2 && s.data[0]=='0') {
+    if (s.len>1 && s.data[0]=='0') {
         for (iz i = 1; i < s.len; i++) {
             u8 c = s.data[i] - '0';
             if (c > 7) {
@@ -1939,6 +1939,14 @@ static void test_basic(Arena scratch)
         "00000000: 6c6c6548 77202c6f  Hello, w\n"
         "00000008: 646c726f 0a212121  orld!!!.\n",
         "-e", "-c010"
+    );
+
+    a   = scratch;
+    plt = newplt(&a, 1<<12);
+    expect(
+        STATUS_CMD,
+        ""
+        "-e", "-c08"
     );
 
     a   = scratch;
