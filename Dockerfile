@@ -255,7 +255,9 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-libraries/winpthreads/configure \
  && make install
 
 WORKDIR /gcc
-RUN /gcc-$GCC_VERSION/configure \
+RUN echo 'BEGIN {print "pecoff"}' \
+         >/gcc-$GCC_VERSION/libbacktrace/filetype.awk \
+ && /gcc-$GCC_VERSION/configure \
         --prefix=$PREFIX \
         --with-sysroot=$PREFIX/$ARCH \
         --with-native-system-header-dir=/include \
