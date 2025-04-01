@@ -17,7 +17,7 @@
 #   $ make -j$(nproc) -f path/to/w64devkit/contrib/llama.mak
 #
 # Incremental builds are unsupported, so clean rebuild after pulling. It
-# was last tested at b4904, and an update will inevitably break it.
+# was last tested at b5014, and an update will inevitably break it.
 
 CROSS    =
 CPPFLAGS = -w -O2
@@ -35,12 +35,14 @@ dll = \
   ggml/src/ggml-alloc.c.o \
   ggml/src/ggml-backend-reg.cpp.o \
   ggml/src/ggml-backend.cpp.o \
+  ggml/src/ggml-cpu/binary-ops.cpp.o \
   ggml/src/ggml-cpu/ggml-cpu-aarch64.cpp.o \
   ggml/src/ggml-cpu/ggml-cpu-quants.c.o \
   ggml/src/ggml-cpu/ggml-cpu-traits.cpp.o \
   ggml/src/ggml-cpu/ggml-cpu.c.o \
   ggml/src/ggml-cpu/ggml-cpu.cpp.o \
   ggml/src/ggml-cpu/llamafile/sgemm.cpp.o \
+  ggml/src/ggml-cpu/unary-ops.cpp.o \
   ggml/src/ggml-opt.cpp.o \
   ggml/src/ggml-quants.c.o \
   ggml/src/ggml-threading.cpp.o \
