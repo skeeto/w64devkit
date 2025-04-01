@@ -73,7 +73,7 @@ RUN sed -ri 's/(static bool insert_timestamp = )/\1!/' ld/emultempl/pe*.em \
 WORKDIR /x-binutils
 RUN /binutils-$BINUTILS_VERSION/configure \
         --prefix=/bootstrap \
-        --with-sysroot=/bootstrap/$ARCH \
+        --with-sysroot=/bootstrap \
         --target=$ARCH \
         --disable-nls \
         --with-static-standard-libraries \
@@ -87,14 +87,14 @@ RUN sed -i /OpenThreadToken/d /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/lib32/ker
 
 WORKDIR /x-mingw-headers
 RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-headers/configure \
-        --prefix=/bootstrap/$ARCH \
+        --prefix=/bootstrap \
         --host=$ARCH \
         --with-default-msvcrt=msvcrt-os \
  && make -j$(nproc) \
  && make install
 
 WORKDIR /bootstrap
-RUN ln -s $ARCH mingw
+RUN ln -s /bootstrap mingw
 
 WORKDIR /x-gcc
 COPY src/gcc-*.patch $PREFIX/src/
@@ -125,18 +125,18 @@ RUN cat $PREFIX/src/gcc-*.patch | patch -d/gcc-$GCC_VERSION -p1 \
 
 ENV PATH="/bootstrap/bin:${PATH}"
 
-RUN mkdir -p $PREFIX/$ARCH/lib \
- && CC=$ARCH-gcc AR=$ARCH-ar DESTDIR=$PREFIX/$ARCH/lib/ \
+RUN mkdir -p $PREFIX/lib \
+ && CC=$ARCH-gcc AR=$ARCH-ar DESTDIR=$PREFIX/lib/ \
         sh $PREFIX/src/libmemory.c \
- && ln $PREFIX/$ARCH/lib/libmemory.a /bootstrap/$ARCH/lib/ \
- && CC=$ARCH-gcc AR=$ARCH-ar DESTDIR=$PREFIX/$ARCH/lib/ \
+ && ln $PREFIX/lib/libmemory.a /bootstrap/lib/ \
+ && CC=$ARCH-gcc AR=$ARCH-ar DESTDIR=$PREFIX/lib/ \
         sh $PREFIX/src/libchkstk.S \
- && ln $PREFIX/$ARCH/lib/libchkstk.a /bootstrap/$ARCH/lib/
+ && ln $PREFIX/lib/libchkstk.a /bootstrap/lib/
 
 WORKDIR /x-mingw-crt
 RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
-        --prefix=/bootstrap/$ARCH \
-        --with-sysroot=/bootstrap/$ARCH \
+        --prefix=/bootstrap \
+        --with-sysroot=/bootstrap \
         --host=$ARCH \
         --with-default-msvcrt=msvcrt-os \
         --disable-dependency-tracking \
@@ -149,8 +149,8 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
 
 WORKDIR /x-winpthreads
 RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-libraries/winpthreads/configure \
-        --prefix=/bootstrap/$ARCH \
-        --with-sysroot=/bootstrap/$ARCH \
+        --prefix=/bootstrap \
+        --with-sysroot=/bootstrap \
         --host=$ARCH \
         --enable-static \
         --disable-shared \
@@ -168,15 +168,15 @@ RUN make -j$(nproc) \
 WORKDIR /binutils
 RUN /binutils-$BINUTILS_VERSION/configure \
         --prefix=$PREFIX \
-        --with-sysroot=$PREFIX/$ARCH \
+        --with-sysroot=$PREFIX \
         --host=$ARCH \
         --target=$ARCH \
         --disable-nls \
         --with-static-standard-libraries \
         CFLAGS="-Os" \
         LDFLAGS="-s" \
- && make MAKEINFO=true -j$(nproc) \
- && make MAKEINFO=true install \
+ && make MAKEINFO=true tooldir=$PREFIX -j$(nproc) \
+ && make MAKEINFO=true tooldir=$PREFIX install \
  && rm $PREFIX/bin/elfedit.exe $PREFIX/bin/readelf.exe
 
 WORKDIR /gmp
@@ -222,7 +222,7 @@ RUN /mpc-$MPC_VERSION/configure \
 
 WORKDIR /mingw-headers
 RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-headers/configure \
-        --prefix=$PREFIX/$ARCH \
+        --prefix=$PREFIX \
         --host=$ARCH \
         --with-default-msvcrt=msvcrt-os \
  && make -j$(nproc) \
@@ -230,8 +230,8 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-headers/configure \
 
 WORKDIR /mingw-crt
 RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
-        --prefix=$PREFIX/$ARCH \
-        --with-sysroot=$PREFIX/$ARCH \
+        --prefix=$PREFIX \
+        --with-sysroot=$PREFIX \
         --host=$ARCH \
         --with-default-msvcrt=msvcrt-os \
         --disable-dependency-tracking \
@@ -244,8 +244,8 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
 
 WORKDIR /winpthreads
 RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-libraries/winpthreads/configure \
-        --prefix=$PREFIX/$ARCH \
-        --with-sysroot=$PREFIX/$ARCH \
+        --prefix=$PREFIX \
+        --with-sysroot=$PREFIX \
         --host=$ARCH \
         --enable-static \
         --disable-shared \
@@ -257,9 +257,10 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-libraries/winpthreads/configure \
 WORKDIR /gcc
 RUN echo 'BEGIN {print "pecoff"}' \
          >/gcc-$GCC_VERSION/libbacktrace/filetype.awk \
+ && sed -i 's#/mingw/#/#' /gcc-$GCC_VERSION/gcc/config/i386/mingw32.h \
  && /gcc-$GCC_VERSION/configure \
         --prefix=$PREFIX \
-        --with-sysroot=$PREFIX/$ARCH \
+        --with-sysroot=$PREFIX \
         --with-native-system-header-dir=/include \
         --target=$ARCH \
         --host=$ARCH \
@@ -290,8 +291,7 @@ RUN echo 'BEGIN {print "pecoff"}' \
         LDFLAGS="-s" \
  && make -j$(nproc) \
  && make install \
- && rm -rf $PREFIX/$ARCH/bin/ $PREFIX/bin/$ARCH-* \
-        $PREFIX/bin/ld.bfd.exe $PREFIX/bin/c++.exe \
+ && rm -f $PREFIX/bin/ld.bfd.exe \
  && $ARCH-gcc -DEXE=g++.exe -DCMD=c++ \
         -Os -fno-asynchronous-unwind-tables \
         -Wl,--gc-sections -s -nostdlib \
@@ -467,8 +467,7 @@ RUN sed -i s/CommCtrl/commctrl/ $(grep -Rl CommCtrl CPP/) \
 # Pack up a release
 
 WORKDIR /
-RUN rm -rf $PREFIX/share/man/ $PREFIX/share/info/ $PREFIX/share/gcc-* \
- && rm -rf $PREFIX/lib/*.a $PREFIX/lib/*.la $PREFIX/include/*.h
+RUN rm -rf $PREFIX/share/man/ $PREFIX/share/info/ $PREFIX/share/gcc-*
 COPY README.md Dockerfile src/w64devkit.ini $PREFIX/
 RUN printf "id ICON \"$PREFIX/src/w64devkit.ico\"" >w64devkit.rc \
  && $ARCH-windres -o w64devkit.o w64devkit.rc \
@@ -482,8 +481,7 @@ RUN printf "id ICON \"$PREFIX/src/w64devkit.ico\"" >w64devkit.rc \
         -lkernel32 \
  && $ARCH-gcc \
         -Os -fno-asynchronous-unwind-tables -fno-builtin -Wl,--gc-sections \
-        -s -nostdlib -DPKG_CONFIG_PREFIX="\"/$ARCH\"" \
-        -o $PREFIX/bin/pkg-config.exe $PREFIX/src/pkg-config.c \
+        -s -nostdlib -o $PREFIX/bin/pkg-config.exe $PREFIX/src/pkg-config.c \
         -lkernel32 \
  && $ARCH-gcc \
         -Os -fno-asynchronous-unwind-tables -fno-builtin -Wl,--gc-sections \
@@ -497,7 +495,7 @@ RUN printf "id ICON \"$PREFIX/src/w64devkit.ico\"" >w64devkit.rc \
         -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
         -o $PREFIX/bin/$ARCH-pkg-config.exe $PREFIX/src/alias.c -lkernel32 \
  && sed -i s/'\<ARCH\>'/$ARCH/g $PREFIX/src/profile \
- && mkdir -p $PREFIX/$ARCH/lib/pkgconfig \
+ && mkdir -p $PREFIX/lib/pkgconfig \
  && cp /mingw-w64-v$MINGW_VERSION/COPYING.MinGW-w64-runtime/COPYING.MinGW-w64-runtime.txt \
         $PREFIX/ \
  && printf "\n===========\nwinpthreads\n===========\n\n" \
