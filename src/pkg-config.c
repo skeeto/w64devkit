@@ -2,35 +2,45 @@
 // https://github.com/skeeto/u-config
 //   $ cc -nostartfiles -o pkg-config.exe pkg-config.c
 // This is free and unencumbered software released into the public domain.
-#define VERSION "0.33.3"
+#include <stddef.h>
+#define VERSION "0.34.0"
 
 typedef unsigned char    u8;
 typedef   signed int     b32;
 typedef   signed int     i32;
 typedef unsigned int     u32;
-typedef __PTRDIFF_TYPE__ size;
+typedef ptrdiff_t        iz;
 typedef          char    byte;
 
 #define assert(c)     while (!(c)) __builtin_unreachable()
-#define countof(a)    (size)(sizeof(a) / sizeof(*(a)))
+#define countof(a)    (iz)(sizeof(a) / sizeof(*(a)))
 #define new(a, t, n)  (t *)alloc(a, sizeof(t), n)
 #define s8(s)         {(u8 *)s, countof(s)-1}
 #define S(s)          (s8)s8(s)
 
+typedef struct os os;
+
 typedef struct {
-    u8  *s;
-    size len;
+    u8 *s;
+    iz  len;
 } s8;
+
+typedef struct s8node s8node;
+struct s8node {
+    s8node *next;
+    s8      str;
+};
 
 typedef struct {
     byte *beg;
     byte *end;
+    os   *ctx;
 } arena;
 
 typedef struct {
     arena perm;
-    s8   *args;
-    size  nargs;
+    u8  **args;
+    i32   nargs;
     s8    pc_path;       // default compile time fixedpath
     s8    pc_sysincpath; // default compile time system include path
     s8    pc_syslibpath; // default compile time system library path
@@ -42,6 +52,7 @@ typedef struct {
     s8    print_sysinc;  // $PKG_CONFIG_ALLOW_SYSTEM_CFLAGS or empty
     s8    print_syslib;  // $PKG_CONFIG_ALLOW_SYSTEM_LIBS or empty
     b32   define_prefix;
+    b32   haslisting;
     u8    delim;
 } config;
 
@@ -62,22 +73,26 @@ typedef struct {
 
 // Load a file into memory, maybe using the arena. The path must include
 // a null terminator since it may be passed directly to the OS interface.
-static filemap os_mapfile(arena *, s8 path);
+static filemap os_mapfile(os *, arena *, s8 path);
+
+// List all .pc files under a particular path. The path must include a
+// null terminator since it may be passed directly to the OS interface.
+static s8node *os_listing(os *, arena *, s8 path);
 
 // Write buffer to stdout (1) or stderr (2). The platform must detect
 // write errors and arrange for an eventual non-zero exit status.
-static void os_write(i32 fd, s8);
+static void os_write(os *, i32 fd, s8);
 
 // Immediately exit the program with a non-zero status.
-static void os_fail(void) __attribute((noreturn));
+static void os_fail(os *) __attribute((noreturn));
 
 
 // Application
 
-static void oom(void)
+static void oom(os *ctx)
 {
-    os_write(2, S("pkg-config: out of memory\n"));
-    os_fail();
+    os_write(ctx, 2, S("pkg-config: out of memory\n"));
+    os_fail(ctx);
 }
 
 static b32 digit(u8 c)
@@ -94,7 +109,7 @@ static b32 whitespace(u8 c)
     return 0;
 }
 
-static byte *fillbytes(byte *dst, byte c, size len)
+static byte *fillbytes(byte *dst, byte c, iz len)
 {
     byte *r = dst;
     for (; len; len--) {
@@ -103,7 +118,7 @@ static byte *fillbytes(byte *dst, byte c, size len)
     return r;
 }
 
-static void u8copy(u8 *dst, u8 *src, size n)
+static void u8copy(u8 *dst, u8 *src, iz n)
 {
     assert(n >= 0);
     for (; n; n--) {
@@ -111,7 +126,7 @@ static void u8copy(u8 *dst, u8 *src, size n)
     }
 }
 
-static i32 u8compare(u8 *a, u8 *b, size n)
+static i32 u8compare(u8 *a, u8 *b, iz n)
 {
     for (; n; n--) {
         i32 d = *a++ - *b++;
@@ -125,20 +140,20 @@ static b32 pathsep(u8 c)
     return c=='/' || c=='\\';
 }
 
-static byte *alloc(arena *a, size objsize, size count)
+static byte *alloc(arena *a, iz size, iz count)
 {
-    assert(objsize > 0);
+    assert(size > 0);
     assert(count >= 0);
-    size alignment = -((u32)objsize * (u32)count) & 7;
-    size available = a->end - a->beg - alignment;
-    if (count > available/objsize) {
-        oom();
+    iz alignment = -((u32)size * (u32)count) & 7;
+    iz available = a->end - a->beg - alignment;
+    if (count > available/size) {
+        oom(a->ctx);
     }
-    size total = objsize * count;
+    iz total = size * count;
     return fillbytes(a->end -= total + alignment, 0, total);
 }
 
-static s8 news8(arena *perm, size len)
+static s8 news8(arena *perm, iz len)
 {
     s8 r = {0};
     r.s = new(perm, u8, len);
@@ -157,6 +172,16 @@ static s8 s8span(u8 *beg, u8 *end)
     return s;
 }
 
+static s8 s8fromcstr(u8 *z)
+{
+    s8 s = {0};
+    if (z) {
+        s.s = (u8 *)z;
+        for (; s.s[s.len]; s.len++) {}
+    }
+    return s;
+}
+
 // Copy src into dst returning the remaining portion of dst.
 static s8 s8copy(s8 dst, s8 src)
 {
@@ -172,7 +197,7 @@ static b32 s8equals(s8 a, s8 b)
     return a.len==b.len && !u8compare(a.s, b.s, a.len);
 }
 
-static s8 cuthead(s8 s, size off)
+static s8 cuthead(s8 s, iz off)
 {
     assert(off >= 0);
     assert(off <= s.len);
@@ -181,7 +206,7 @@ static s8 cuthead(s8 s, size off)
     return s;
 }
 
-static s8 takehead(s8 s, size len)
+static s8 takehead(s8 s, iz len)
 {
     assert(len >= 0);
     assert(len <= s.len);
@@ -189,7 +214,7 @@ static s8 takehead(s8 s, size len)
     return s;
 }
 
-static s8 cuttail(s8 s, size len)
+static s8 cuttail(s8 s, iz len)
 {
     assert(len >= 0);
     assert(len <= s.len);
@@ -197,7 +222,7 @@ static s8 cuttail(s8 s, size len)
     return s;
 }
 
-static s8 taketail(s8 s, size len)
+static s8 taketail(s8 s, iz len)
 {
     return cuthead(s, s.len-len);
 }
@@ -210,7 +235,7 @@ static b32 startswith(s8 s, s8 prefix)
 static u32 s8hash(s8 s)
 {
     u32 h = 0x811c9dc5;
-    for (size i = 0; i < s.len; i++) {
+    for (iz i = 0; i < s.len; i++) {
         h ^= s.s[i];
         h *= 0x01000193;
     }
@@ -224,7 +249,7 @@ typedef struct {
 
 static s8pair digits(s8 s)
 {
-    size len = 0;
+    iz len = 0;
     for (; len<s.len && digit(s.s[len]); len++) {}
     s8pair r = {0};
     r.head = takehead(s, len);
@@ -246,7 +271,7 @@ static s8 skiptokenspace(s8 s)
 static s8pair nexttoken(s8 s)
 {
     s = skiptokenspace(s);
-    size len = 0;
+    iz len = 0;
     for (; len<s.len && !tokenspace(s.s[len]); len++) {}
     s8pair r = {0};
     r.head = takehead(s, len);
@@ -263,7 +288,7 @@ typedef struct {
 static cut s8cut(s8 s, u8 delim)
 {
     cut r = {0};
-    size len = 0;
+    iz len = 0;
     for (; len < s.len; len++) {
         if (s.s[len] == delim) {
             break;
@@ -315,13 +340,13 @@ static u8 pathdecode(u8 c)
 static s8 s8pathencode(s8 s, arena *perm)
 {
     b32 encode = 0;
-    for (size i = 0; i<s.len && !encode; i++) {
+    for (iz i = 0; i<s.len && !encode; i++) {
         encode = pathencode(s.s[i]) != s.s[i];
     }
     if (!encode) return s;  // no encoding necessary
 
     s8 r = news8(perm, s.len);
-    for (size i = 0; i < s.len; i++) {
+    for (iz i = 0; i < s.len; i++) {
         r.s[i] = pathencode(s.s[i]);
     }
     return r;
@@ -329,26 +354,29 @@ static s8 s8pathencode(s8 s, arena *perm)
 
 typedef struct {
     u8    *buf;
-    size   cap;
-    size   len;
+    iz     cap;
+    iz     len;
     arena *perm;
+    os    *ctx;
     i32    fd;
 } u8buf;
 
 // Buffered output for os_write().
-static u8buf *newfdbuf(arena *perm, i32 fd, size cap)
+static u8buf *newfdbuf(arena *perm, i32 fd, iz cap)
 {
     u8buf *b = new(perm, u8buf, 1);
     b->cap = cap;
     b->buf = new(perm, u8, cap);
     b->fd  = fd;
+    b->ctx = perm->ctx;
     return b;
 }
 
 static u8buf *newnullout(arena *perm)
 {
     u8buf *b = new(perm, u8buf, 1);
-    b->fd = -1;
+    b->fd  = -1;
+    b->ctx = perm->ctx;
     return b;
 }
 
@@ -360,6 +388,7 @@ static u8buf newmembuf(arena *perm)
     b.buf  = (u8 *)perm->beg;
     b.cap  = perm->end - perm->beg;
     b.perm = perm;
+    b.ctx  = perm->ctx;
     return b;
 }
 
@@ -383,10 +412,10 @@ static void flush(u8buf *b)
 {
     switch (b->fd) {
     case -1: break;  // /dev/null
-    case  0: oom();
+    case  0: oom(b->ctx);
              break;
     default: if (b->len) {
-                 os_write(b->fd, gets8(b));
+                 os_write(b->ctx, b->fd, gets8(b));
              }
     }
     b->len = 0;
@@ -397,9 +426,9 @@ static void prints8(u8buf *b, s8 s)
     if (b->fd == -1) {
         return;  // /dev/null
     }
-    for (size off = 0; off < s.len;) {
-        size avail = b->cap - b->len;
-        size count = avail<s.len-off ? avail : s.len-off;
+    for (iz off = 0; off < s.len;) {
+        iz avail = b->cap - b->len;
+        iz count = avail<s.len-off ? avail : s.len-off;
         u8copy(b->buf+b->len, s.s+off, count);
         b->len += count;
         off += count;
@@ -455,14 +484,14 @@ static s8 lookup(env *global, env *env, s8 name)
 
 static s8 dirname(s8 path)
 {
-    size len = path.len;
+    iz len = path.len;
     while (len>0 && !pathsep(path.s[--len])) {}
     return takehead(path, len);
 }
 
 static s8 basename(s8 path)
 {
-    size len = path.len;
+    iz len = path.len;
     for (; len>0 && !pathsep(path.s[len-1]); len--) {}
     return taketail(path, path.len-len);
 }
@@ -471,7 +500,7 @@ static s8 buildpath(s8 dir, s8 pc, arena *perm)
 {
     s8 sep = S("/");
     s8 suffix = S(".pc\0");
-    size pathlen = dir.len + sep.len + pc.len + suffix.len;
+    iz pathlen = dir.len + sep.len + pc.len + suffix.len;
     s8 path = news8(perm, pathlen);
     s8 p = path;
     p = s8copy(p, dir);
@@ -554,7 +583,7 @@ struct pkg {
     pkgspec *specs_requiresprivate;
     i32      flags;
 
-    #define PKG_NFIELDS 10
+    #define PKG_NFIELDS 11
     s8 name;
     s8 description;
     s8 url;
@@ -565,13 +594,14 @@ struct pkg {
     s8 libs;
     s8 libsprivate;
     s8 cflags;
+    s8 cflagsprivate;
 };
 
 static s8 *fieldbyid(pkg *p, i32 id)
 {
     assert(id >= 0);
     assert(id < PKG_NFIELDS);
-    return (s8 *)((byte *)&p->name + id*sizeof(s8));
+    return (s8 *)((byte *)&p->name + id*(i32)sizeof(s8));
 }
 
 static s8 *fieldbyname(pkg *p, s8 name)
@@ -586,7 +616,8 @@ static s8 *fieldbyname(pkg *p, s8 name)
         s8("Conflicts"),
         s8("Libs"),
         s8("Libs.private"),
-        s8("Cflags")
+        s8("Cflags"),
+        s8("Cflags.private")
     };
     for (i32 i = 0; i < countof(fields); i++) {
         if (s8equals(fields[i], name)) {
@@ -597,9 +628,9 @@ static s8 *fieldbyname(pkg *p, s8 name)
 }
 
 typedef struct {
-    pkg  *pkgs;
-    pkg  *head;
-    size  count;
+    pkg *pkgs;
+    pkg *head;
+    iz   count;
 } pkgs;
 
 // Locate a previously-loaded package, or allocate zero-initialized
@@ -629,7 +660,7 @@ static void prepend(pkgs *t, pkg *p)
 
 static b32 allpresent(pkgs t)
 {
-    size count = 0;
+    iz count = 0;
     for (pkg *p = t.head; p; p = p->list) {
         count++;
     }
@@ -645,7 +676,7 @@ typedef struct {
 } parseresult;
 
 // Return the number of escape bytes at the beginning of the input.
-static size escaped(s8 s)
+static iz escaped(s8 s)
 {
     if (startswith(s, S("\\\n"))) {
         return 2;
@@ -659,12 +690,12 @@ static size escaped(s8 s)
 // Return a copy of the input with the escapes squashed out.
 static s8 stripescapes(arena *perm, s8 s)
 {
-    size len = 0;
+    iz len = 0;
     s8 c = news8(perm, s.len);
-    for (size i = 0; i < s.len; i++) {
+    for (iz i = 0; i < s.len; i++) {
         u8 b = s.s[i];
         if (b == '\\') {
-            size r = escaped(cuthead(s, i));
+            iz r = escaped(cuthead(s, i));
             if (r) {
                 i += r - 1;
             } else if (i<s.len-1 && s.s[i+1]=='#') {
@@ -701,7 +732,7 @@ static void checknotop(u8buf *err, s8 tok, pkg *p)
         }
         prints8(err, S("\n"));
         flush(err);
-        os_fail();
+        os_fail(err->ctx);
     }
 }
 
@@ -717,15 +748,15 @@ static void opfail(u8buf *err, versop op, pkg *p)
     }
     prints8(err, S("\n"));
     flush(err);
-    os_fail();
+    os_fail(err->ctx);
 }
 
-static pkgspec *parsespecs(s8 *args, size nargs, pkg *p, u8buf *err, arena *a)
+static pkgspec *parsespecs(s8 *args, iz nargs, pkg *p, u8buf *err, arena *a)
 {
     pkgspec *head = 0;
     pkgspec *pkg  = 0;
 
-    for (size i = 0; i < nargs; i++) {
+    for (iz i = 0; i < nargs; i++) {
         s8pair sp = {0};
         sp.tail = args[i];
         for (;;) {
@@ -814,7 +845,7 @@ static parseresult parsepackage(s8 src, arena *perm)
         // Skip leading space; newlines may be escaped with a backslash
         while (p < e) {
             if (*p == '\\') {
-                size r = escaped(s8span(p, e));
+                iz r = escaped(s8span(p, e));
                 if (r) {
                     p += r;
                 } else {
@@ -840,7 +871,7 @@ static parseresult parsepackage(s8 src, arena *perm)
                     end = p + 1;
                     cleanup = 1;
                 }
-                size r = escaped(s8span(p, e));
+                iz r = escaped(s8span(p, e));
                 if (r) {
                     // Escaped newline, skip over
                     p += r - 1;
@@ -871,17 +902,17 @@ static void missing(u8buf *err, s8 option)
     prints8(err, option);
     prints8(err, S("\n"));
     flush(err);
-    os_fail();
+    os_fail(err->ctx);
 }
 
 typedef struct {
-    size nargs;
-    s8  *args;
-    size index;
-    b32  dashdash;
+    iz  nargs;
+    s8 *args;
+    iz  index;
+    b32 dashdash;
 } options;
 
-static options newoptions(s8 *args, size nargs)
+static options newoptions(s8 *args, iz nargs)
 {
     options r = {0};
     r.nargs = nargs;
@@ -899,12 +930,10 @@ typedef struct {
 static optresult nextoption(options *p)
 {
     optresult r = {0};
-
-    if (p->index == p->nargs) {
-        return r;
-    }
-
     for (;;) {
+        if (p->index == p->nargs) {
+            return r;
+        }
         s8 arg = p->args[p->index++];
 
         if (p->dashdash || arg.len<2 || arg.s[0]!='-') {
@@ -953,6 +982,8 @@ static void usage(u8buf *b)
     "  --errors-to-stdout\n"
     "  --keep-system-cflags, --keep-system-libs\n"
     "  --libs, --libs-only-L, --libs-only-l, --libs-only-other\n"
+    "  --list-all\n"
+    "  --list-package-names\n"
     "  --maximum-traverse-depth=N\n"
     "  --modversion\n"
     "  --msvc-syntax\n"
@@ -971,12 +1002,6 @@ static void usage(u8buf *b)
     "  PKG_CONFIG_ALLOW_SYSTEM_LIBS\n";
     prints8(b, S(usage));
 }
-
-typedef struct s8node s8node;
-struct s8node {
-    s8node *next;
-    s8      str;
-};
 
 typedef struct {
     s8node  *head;
@@ -1043,8 +1068,8 @@ static s8 pathtorealname(s8 path)
         return path;
     }
 
-    size baselen = 0;
-    for (size i = 0; i < path.len; i++) {
+    iz baselen = 0;
+    for (iz i = 0; i < path.len; i++) {
         if (pathsep(path.s[i])) {
             baselen = i + 1;
         }
@@ -1064,7 +1089,7 @@ static s8 readpackage(u8buf *err, s8 path, s8 realname, arena *perm)
     }
 
     s8 null = {0};
-    filemap m = os_mapfile(perm, path);
+    filemap m = os_mapfile(perm->ctx, perm, path);
     switch (m.status) {
     case filemap_NOTFOUND:
         return null;
@@ -1077,7 +1102,7 @@ static s8 readpackage(u8buf *err, s8 path, s8 realname, arena *perm)
         prints8(err, path);
         prints8(err, S("'\n"));
         flush(err);
-        os_fail();
+        os_fail(err->ctx);
 
     case filemap_OK:
         return m.data;
@@ -1093,7 +1118,7 @@ static void expand(u8buf *out, u8buf *err, env *global, pkg *p, s8 str)
     stack[top] = str;
     while (top >= 0) {
         s8 s = stack[top--];
-        for (size i = 0; i < s.len-1; i++) {
+        for (iz i = 0; i < s.len-1; i++) {
             if (s.s[i]=='$' && s.s[i+1]=='{') {
                 if (top >= countof(stack)-2) {
                     prints8(err, S("pkg-config: "));
@@ -1101,13 +1126,13 @@ static void expand(u8buf *out, u8buf *err, env *global, pkg *p, s8 str)
                     prints8(err, p->path);
                     prints8(err, S("'\n"));
                     flush(err);
-                    os_fail();
+                    os_fail(err->ctx);
                 }
 
                 prints8(out, takehead(s, i));
 
-                size beg = i + 2;
-                size end = beg;
+                iz beg = i + 2;
+                iz end = beg;
                 for (; end<s.len && s.s[end]!='}'; end++) {}
                 s8 name = s8span(s.s+beg, s.s+end);
                 end += end < s.len;
@@ -1128,7 +1153,7 @@ static void expand(u8buf *out, u8buf *err, env *global, pkg *p, s8 str)
                     prints8(err, p->path);
                     prints8(err, S("'\n"));
                     flush(err);
-                    os_fail();
+                    os_fail(err->ctx);
                 }
                 stack[++top] = value;
                 s.len = 0;
@@ -1195,7 +1220,7 @@ static pkg findpackage(search *dirs, u8buf *err, s8 realname, arena *perm)
         prints8(err, realname);
         prints8(err, S("'\n"));
         flush(err);
-        os_fail();
+        os_fail(err->ctx);
     }
 
     parseresult r = parsepackage(contents, perm);
@@ -1208,7 +1233,7 @@ static pkg findpackage(search *dirs, u8buf *err, s8 realname, arena *perm)
         prints8(err, path);
         prints8(err, S("'\n"));
         flush(err);
-        os_fail();
+        os_fail(err->ctx);
 
     case parse_DUPFIELD:
         prints8(err, S("pkg-config: "));
@@ -1218,7 +1243,7 @@ static pkg findpackage(search *dirs, u8buf *err, s8 realname, arena *perm)
         prints8(err, path);
         prints8(err, S("'\n"));
         flush(err);
-        os_fail();
+        os_fail(err->ctx);
 
     case parse_OK:
         break;
@@ -1246,7 +1271,7 @@ static pkg findpackage(search *dirs, u8buf *err, s8 realname, arena *perm)
         flush(err);
         #ifndef FUZZTEST
         // Do not enforce during fuzzing
-        os_fail();
+        os_fail(err->ctx);
         #endif
     }
 
@@ -1264,7 +1289,7 @@ typedef struct {
 static b32 shellmeta(u8 c)
 {
     s8 meta = S("\"!#%&'*<>?[\\]`{|}");
-    for (size i = 0; i < meta.len; i++) {
+    for (iz i = 0; i < meta.len; i++) {
         if (meta.s[i]==c || pathdecode(c)!=c) {
             return 1;
         }
@@ -1275,7 +1300,7 @@ static b32 shellmeta(u8 c)
 // Process the next token. Return it and the unprocessed remainder.
 static dequoted dequote(s8 s, arena *perm)
 {
-    size i = 0;
+    iz i = 0;
     u8 quote = 0;
     b32 escaped = 0;
     dequoted r = {0};
@@ -1351,7 +1376,7 @@ static dequoted dequote(s8 s, arena *perm)
 // version comparison specification like the original pkg-config.
 static i32 compareversions(s8 va, s8 vb)
 {
-    size i = 0;
+    iz i = 0;
     while (i<va.len && i<vb.len) {
         u8 a = va.s[i];
         u8 b = vb.s[i];
@@ -1442,7 +1467,7 @@ static void failmaxrecurse(u8buf *err, s8 tok)
     prints8(err, tok);
     prints8(err, S("'\n"));
     flush(err);
-    os_fail();
+    os_fail(err->ctx);
 }
 
 static void failversion(u8buf *err, pkg *pkg, versop op, s8 want)
@@ -1458,7 +1483,7 @@ static void failversion(u8buf *err, pkg *pkg, versop op, s8 want)
     prints8(err, pkg->version);
     prints8(err, S("'\n"));
     flush(err);
-    os_fail();
+    os_fail(err->ctx);
 }
 
 static pkgs process(processor *proc, pkgspec *specs, arena *perm)
@@ -1604,13 +1629,13 @@ struct argpos {
     argpos *child[4];
     argpos *next;
     s8      arg;
-    size    position;
+    iz      position;
 };
 
 typedef struct {
     s8list  list;
     argpos *positions;
-    size    count;
+    iz      count;
 } args;
 
 static argpos *findargpos(argpos **m, s8 arg, arena *perm)
@@ -1637,7 +1662,7 @@ static b32 dedupable(s8 arg)
         return 1;
     }
     s8 flags = S("DILflm");
-    for (size i = 0; i < flags.len; i++) {
+    for (iz i = 0; i < flags.len; i++) {
         if (arg.s[1] == flags.s[i]) {
             return 1;
         }
@@ -1648,7 +1673,7 @@ static b32 dedupable(s8 arg)
 static void appendarg(args *args, s8 arg, arena *perm)
 {
     append(&args->list, arg, perm);
-    size position = args->count++;
+    iz position = args->count++;
     if (dedupable(arg)) {
         argpos *n = findargpos(&args->positions, arg, perm);
         if (!n->position || startswith(arg, S("-l"))) {
@@ -1665,7 +1690,7 @@ static void excludearg(args *args, s8 arg, arena *perm)
 }
 
 // Is this the correct position for the given argument?
-static b32 inposition(args *args, s8 arg, size position)
+static b32 inposition(args *args, s8 arg, iz position)
 {
     argpos *n = findargpos(&args->positions, arg, 0);
     return !n || n->position==position+1;
@@ -1673,14 +1698,14 @@ static b32 inposition(args *args, s8 arg, size position)
 
 typedef struct {
     arena *perm;
-    size  *argcount;
+    iz    *argcount;
     args   args;
     filter filter;
     b32    msvc;
     u8     delim;
 } fieldwriter;
 
-static fieldwriter newfieldwriter(filter f, size *argcount, arena *perm)
+static fieldwriter newfieldwriter(filter f, iz *argcount, arena *perm)
 {
     fieldwriter w = {0};
     w.perm = perm;
@@ -1741,7 +1766,7 @@ static void appendfield(u8buf *err, fieldwriter *w, pkg *p, s8 field)
             prints8(err, p->realname);
             prints8(err, S("'\n"));
             flush(err);
-            os_fail();
+            os_fail(err->ctx);
         }
         if (filterok(f, r.arg)) {
             appendarg(&w->args, r.arg, perm);
@@ -1752,7 +1777,7 @@ static void appendfield(u8buf *err, fieldwriter *w, pkg *p, s8 field)
 
 static void writeargs(u8buf *out, fieldwriter *w)
 {
-    size position = 0;
+    iz position = 0;
     u8 delim = w->delim ? w->delim : ' ';
     for (s8node *n = w->args.list.head; n; n = n->next) {
         s8 arg = n->str;
@@ -1769,10 +1794,57 @@ static void writeargs(u8buf *out, fieldwriter *w)
     }
 }
 
+static void list(u8buf *out, u8buf *err, env *g, arena a, s8node *dirs, b32 all)
+{
+    for (s8node *dir = dirs; dir; dir = dir->next) {
+        arena scratch = a;
+
+        u8buf buf = newmembuf(&scratch);
+        prints8(&buf, dir->str);
+        printu8(&buf, 0);
+        s8 pathz = finalize(&buf);
+        s8node *files = os_listing(a.ctx, &scratch, pathz);
+
+        for (s8node *file = files; file; file = file->next) {
+            arena temp = scratch;
+
+            s8 name = file->str;
+            if (name.len > 3) {
+                name = cuttail(name, 3);  // remove extension
+            }
+            s8 path = buildpath(dir->str, name, &temp);
+
+            filemap m = os_mapfile(a.ctx, &temp, path);
+            if (m.status != filemap_OK) {
+                continue;
+            }
+
+            parseresult r = parsepackage(m.data, &temp);
+            if (r.err != parse_OK) {
+                continue;
+            }
+
+            prints8(out, name);
+            if (all) {
+                // NOTE: pkgconf does not correctly format Unicode names
+                // in this 30-column field, so we won't either.
+                for (iz i = name.len; i < 30; i++) {
+                    printu8(out, ' ');
+                }
+                printu8(out, ' ');
+                expand(out, err, g, &r.pkg, r.pkg.name);
+                prints8(out, S(" - "));
+                expand(out, err, g, &r.pkg, r.pkg.description);
+            }
+            printu8(out, '\n');
+        }
+    }
+}
+
 static i32 parseuint(s8 s, i32 hi)
 {
     i32 v = 0;
-    for (size i = 0; i < s.len; i++) {
+    for (iz i = 0; i < s.len; i++) {
         u8 c = s.s[i];
         if (digit(c)) {
             v = v*10 + c - '0';
@@ -1794,7 +1866,7 @@ static void uconfig(config *conf)
     u8buf *out = newfdbuf(perm, 1, 1<<12);
     u8buf *err = newfdbuf(perm, 2, 1<<7);
     processor *proc = newprocessor(conf, err, &global);
-    size argcount = 0;
+    iz argcount = 0;
 
     b32 msvc = 0;
     b32 libs = 0;
@@ -1810,6 +1882,9 @@ static void uconfig(config *conf)
     b32 print_syslib = !!conf->print_syslib.s;
     s8 variable = {0};
 
+    enum { list_NONE, list_ALL, list_NAMES };
+    i32 listing = list_NONE;
+
     proc->define_prefix = conf->define_prefix;
     s8 top_builddir = conf->top_builddir;
     if (top_builddir.s) {
@@ -1824,10 +1899,15 @@ static void uconfig(config *conf)
     *insert(&global, S("pc_sysrootdir"), perm) = S("/");
     *insert(&global, S("pc_top_builddir"), perm) = top_builddir;
 
-    s8 *args = new(perm, s8, conf->nargs);
-    size nargs = 0;
+    s8 *origargs = new(perm, s8, conf->nargs);
+    for (i32 i = 0; i < conf->nargs; i++) {
+        origargs[i] = s8fromcstr(conf->args[i]);
+    }
 
-    for (options opts = newoptions(conf->args, conf->nargs);;) {
+    s8 *args = new(perm, s8, conf->nargs);
+    iz nargs = 0;
+
+    for (options opts = newoptions(origargs, conf->nargs);;) {
         optresult r = nextoption(&opts);
         if (!r.ok) {
             break;
@@ -1920,7 +2000,7 @@ static void uconfig(config *conf)
                 prints8(err, r.value);
                 prints8(err, S("'\n"));
                 flush(err);
-                os_fail();
+                os_fail(err->ctx);
             }
             *insert(&global, c.head, perm) = c.tail;
 
@@ -1992,22 +2072,47 @@ static void uconfig(config *conf)
             silent = 1;
             proc->recursive = 0;
 
+        } else if (s8equals(r.arg, S("-list-all"))) {
+            if (!conf->haslisting) {
+                prints8(err, S("pkg-config: "));
+                prints8(err, S("--list-all is unimplemented\n"));
+                flush(err);
+                os_fail(err->ctx);
+            }
+            listing = list_ALL;
+
+        } else if (s8equals(r.arg, S("-list-package-names"))) {
+            if (!conf->haslisting) {
+                prints8(err, S("pkg-config: "));
+                prints8(err, S("--list-package-names is unimplemented\n"));
+                flush(err);
+                os_fail(err->ctx);
+            }
+            listing = list_NAMES;
+
         } else {
             prints8(err, S("pkg-config: "));
             prints8(err, S("unknown option -"));
             prints8(err, r.arg);
             prints8(err, S("\n"));
             flush(err);
-            os_fail();
+            os_fail(err->ctx);
         }
     }
 
     if (err_to_stdout) {
-        err = out;
+        proc->err = err = out;
     }
 
     if (silent) {
-        err = newnullout(perm);
+        proc->err = err = newnullout(perm);
+    }
+
+    if (listing) {
+        s8node *dirs = proc->search.list.head;
+        list(out, err, global, *perm, dirs, listing==list_ALL);
+        flush(out);
+        return;
     }
 
     pkgspec *specs = parsespecs(args, nargs, 0, err, perm);
@@ -2017,7 +2122,7 @@ static void uconfig(config *conf)
         prints8(err, S("pkg-config: "));
         prints8(err, S("requires at least one package name\n"));
         flush(err);
-        os_fail();
+        os_fail(err->ctx);
     }
 
     // --{atleast,exact,max}-version
@@ -2061,6 +2166,9 @@ static void uconfig(config *conf)
         }
         for (pkg *p = pkgs.head; p; p = p->list) {
             appendfield(err, &fw, p, p->cflags);
+            if (static_) {
+                appendfield(err, &fw, p, p->cflagsprivate);
+            }
         }
         writeargs(out, &fw);
     }
@@ -2094,10 +2202,10 @@ static void uconfig(config *conf)
 // Win32 types, constants, and declarations (replaces windows.h)
 // This is free and unencumbered software released into the public domain.
 
-typedef __PTRDIFF_TYPE__ iptr;
-typedef __SIZE_TYPE__    uptr;
-typedef unsigned short   char16_t;
-typedef char16_t         c16;
+typedef ptrdiff_t       iptr;
+typedef size_t          uptr;
+typedef unsigned short  char16_t;
+typedef char16_t        c16;
 
 enum {
     FILE_ATTRIBUTE_NORMAL = 0x80,
@@ -2119,17 +2227,30 @@ enum {
     STD_ERROR_HANDLE  = -12,
 };
 
+typedef struct {
+    i32 attr;
+    u32 create[2], access[2], write[2];
+    u32 size[2];
+    u32 reserved1[2];
+    c16 name[260];
+    c16 altname[14];
+    u32 reserved2[2];
+} finddata;
+
 #define W32(r) __declspec(dllimport) r __stdcall
 W32(b32)    CloseHandle(iptr);
 W32(i32)    CreateFileW(c16 *, i32, i32, uptr, i32, i32, i32);
 W32(void)   ExitProcess(i32);
+W32(b32)    FindClose(iptr);
+W32(iptr)   FindFirstFileW(c16 *, finddata *);
+W32(b32)    FindNextFileW(iptr, finddata *);
 W32(c16 *)  GetCommandLineW(void);
 W32(b32)    GetConsoleMode(iptr, i32 *);
 W32(i32)    GetEnvironmentVariableW(c16 *, c16 *, i32);
 W32(i32)    GetModuleFileNameW(iptr, c16 *, i32);
-W32(i32)    GetStdHandle(i32);
+W32(iptr)   GetStdHandle(i32);
 W32(b32)    ReadFile(iptr, u8 *, i32, i32 *, uptr);
-W32(byte *) VirtualAlloc(uptr, size, i32, i32);
+W32(byte *) VirtualAlloc(uptr, iz, i32, i32);
 W32(b32)    WriteConsoleW(iptr, c16 *, i32, i32 *, uptr);
 W32(b32)    WriteFile(iptr, u8 *, i32, i32 *, uptr);
 
@@ -2260,7 +2381,7 @@ static i32 cmdline_to_argv8(c16 *cmd, u8 **argv)
 }
 
 // Mingw-w64 Win32 platform layer for u-config
-// $ cc -nostartfiles -o pkg-config win32_main.c
+// $ cc -nostartfiles -o pkg-config main_windows.c
 // This is free and unencumbered software released into the public domain.
 
 #ifndef PKG_CONFIG_PREFIX
@@ -2268,18 +2389,20 @@ static i32 cmdline_to_argv8(c16 *cmd, u8 **argv)
 #endif
 
 // For communication with os_write()
-static struct {
-    i32 handle;
-    b32 isconsole;
-    b32 err;
-} handles[3];
+struct os {
+    struct {
+        iptr h;
+        b32  isconsole;
+        b32  err;
+    } handles[3];
+};
 
 typedef struct {
     c16 *s;
-    size len;
+    iz   len;
 } s16;
 
-static s16 s16cuthead_(s16 s, size off)
+static s16 s16cuthead_(s16 s, iz off)
 {
     assert(off >= 0);
     assert(off <= s.len);
@@ -2288,7 +2411,7 @@ static s16 s16cuthead_(s16 s, size off)
     return s;
 }
 
-static arena newarena_(size cap)
+static arena newarena_(iz cap)
 {
     arena arena = {0};
     arena.beg = VirtualAlloc(0, cap, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
@@ -2430,7 +2553,7 @@ static i32 utf16encode_(c16 *dst, c32 rune)
 
 static s16 towide_(arena *perm, s8 s)
 {
-    size len = 0;
+    iz len = 0;
     utf8 state = {0};
     state.tail = s;
     while (state.tail.len) {
@@ -2451,7 +2574,7 @@ static s16 towide_(arena *perm, s8 s)
 
 static s8 fromwide_(arena *perm, s16 w)
 {
-    size len = 0;
+    iz len = 0;
     utf16 state = {0};
     state.tail = w;
     while (state.tail.len) {
@@ -2481,9 +2604,9 @@ static s8 fromenv_(arena *perm, c16 *name)
     }
 
     // Store temporarily at the beginning of the arena.
-    size cap = (perm->end - perm->beg) / (size)sizeof(c16);
+    iz cap = (perm->end - perm->beg) / (iz)sizeof(c16);
     if (wlen > cap) {
-        oom();
+        oom(perm->ctx);
     }
     s16 wvar = {0};
     wvar.s   = (c16 *)perm->beg;
@@ -2501,7 +2624,7 @@ static s8 fromenv_(arena *perm, c16 *name)
 // Normalize path to slashes as separators.
 static s8 normalize_(s8 path)
 {
-    for (size i = 0; i < path.len; i++) {
+    for (iz i = 0; i < path.len; i++) {
         if (path.s[i] == '\\') {
             path.s[i] = '/';
         }
@@ -2509,7 +2632,7 @@ static s8 normalize_(s8 path)
     return path;
 }
 
-static i32 truncsize(size len)
+static i32 truncsize(iz len)
 {
     i32 max = 0x7fffffff;
     return len>max ? max : (i32)len;
@@ -2548,7 +2671,7 @@ static s8 append2_(arena *perm, s8 pre, s8 suf)
 static s8 makepath_(arena *perm, s8 base, s8 lib, s8 share)
 {
     s8 delim = S(";");
-    size len = base.len + lib.len + delim.len + base.len + share.len;
+    iz len = base.len + lib.len + delim.len + base.len + share.len;
     s8 s = news8(perm, len);
     s8 r = s8copy(s, base);
        r = s8copy(r, lib);
@@ -2558,45 +2681,35 @@ static s8 makepath_(arena *perm, s8 base, s8 lib, s8 share)
     return s;
 }
 
-static s8 fromcstr_(u8 *z)
-{
-    s8 s = {0};
-    s.s = z;
-    if (s.s) {
-        for (; s.s[s.len]; s.len++) {}
-    }
-    return s;
-}
-
-static config *newconfig_(void)
+static config *newconfig_(os *ctx)
 {
     arena perm = newarena_(1<<22);
+    perm.ctx = ctx;
     config *conf = new(&perm, config, 1);
     conf->perm = perm;
+    conf->haslisting = 1;
     return conf;
 }
 
 __attribute((force_align_arg_pointer))
 void mainCRTStartup(void)
 {
-    config *conf = newconfig_();
+    os ctx[1] = {0};
+    i32 dummy;
+    ctx->handles[1].h         = GetStdHandle(STD_OUTPUT_HANDLE);
+    ctx->handles[1].isconsole = GetConsoleMode(ctx->handles[1].h, &dummy);
+    ctx->handles[2].h         = GetStdHandle(STD_ERROR_HANDLE);
+    ctx->handles[2].isconsole = GetConsoleMode(ctx->handles[2].h, &dummy);
+
+    config *conf = newconfig_(ctx);
     conf->delim = ';';
     conf->define_prefix = 1;
     arena *perm = &conf->perm;
 
-    i32 dummy;
-    handles[1].handle = GetStdHandle(STD_OUTPUT_HANDLE);
-    handles[1].isconsole = GetConsoleMode(handles[1].handle, &dummy);
-    handles[2].handle = GetStdHandle(STD_ERROR_HANDLE);
-    handles[2].isconsole = GetConsoleMode(handles[2].handle, &dummy);
-
     u8 **argv = new(perm, u8 *, CMDLINE_ARGV_MAX);
     c16 *cmdline = GetCommandLineW();
     conf->nargs = cmdline_to_argv8(cmdline, argv) - 1;
-    conf->args = new(perm, s8, conf->nargs);
-    for (size i = 0; i < conf->nargs; i++) {
-        conf->args[i] = fromcstr_(argv[i+1]);
-    }
+    conf->args = argv + 1;
 
     s8 base  = installdir_(perm);
     s8 lib   = S(PKG_CONFIG_PREFIX "/lib/pkgconfig");
@@ -2621,12 +2734,13 @@ void mainCRTStartup(void)
     normalize_(conf->top_builddir);
 
     uconfig(conf);
-    ExitProcess(handles[1].err || handles[2].err);
+    ExitProcess(ctx->handles[1].err || ctx->handles[2].err);
     assert(0);
 }
 
-static filemap os_mapfile(arena *perm, s8 path)
+static filemap os_mapfile(os *ctx, arena *perm, s8 path)
 {
+    assert(ctx);
     assert(path.len > 0);
     assert(!path.s[path.len-1]);
 
@@ -2652,7 +2766,7 @@ static filemap os_mapfile(arena *perm, s8 path)
     }
 
     r.data.s = (u8 *)perm->beg;
-    size cap = perm->end - perm->beg;
+    iz cap = perm->end - perm->beg;
     while (r.data.len < cap) {
         i32 len = truncsize(cap - r.data.len);
         ReadFile(handle, r.data.s+r.data.len, len, &len, 0);
@@ -2674,17 +2788,52 @@ static filemap os_mapfile(arena *perm, s8 path)
     return r;
 }
 
-static void os_fail(void)
+static s8node *os_listing(os *ctx, arena *a, s8 path)
 {
+    assert(ctx);
+    assert(path.len > 0);
+    assert(!path.s[path.len-1]);
+
+    // NOTE: will allocate while holding this handle
+    iptr     handle = -1;
+    finddata fd     = {0};
+    {
+        arena scratch = *a;
+        u8buf buf = newmembuf(&scratch);
+        prints8(&buf, cuttail(path, 1));
+        prints8(&buf, S("\\*.pc\0"));
+        s8  glob = finalize(&buf);
+        s16 wide = towide_(&scratch, glob);
+        handle = FindFirstFileW(wide.s, &fd);
+        if (handle == -1) {
+            return 0;
+        }
+    }
+
+    s8list files = {0};
+    do {
+        s16 name = {0};
+        name.s = fd.name;
+        for (; name.s[name.len]; name.len++) {}
+        append(&files, fromwide_(a, name), a);
+    } while (FindNextFileW(handle, &fd));
+
+    FindClose(handle);
+    return files.head;
+}
+
+static void os_fail(os *ctx)
+{
+    assert(ctx);
     ExitProcess(1);
     assert(0);
 }
 
 typedef struct {
-    c16 buf[1<<8];
-    i32 len;
-    i32 handle;
-    b32 err;
+    c16  buf[1<<8];
+    iptr handle;
+    i32  len;
+    b32  err;
 } u16buf;
 
 static void flushconsole_(u16buf *b)
@@ -2704,18 +2853,18 @@ static void printc32_(u16buf *b, c32 rune)
     b->len += utf16encode_(b->buf+b->len, rune);
 }
 
-static void os_write(i32 fd, s8 s)
+static void os_write(os *ctx, i32 fd, s8 s)
 {
     assert((i32)s.len == s.len);  // NOTE: assume it's not a huge buffer
     assert(fd==1 || fd==2);
 
-    b32 *err = &handles[fd].err;
+    b32 *err = &ctx->handles[fd].err;
     if (*err) {
         return;
     }
 
-    i32 handle = handles[fd].handle;
-    if (handles[fd].isconsole) {
+    iptr handle = ctx->handles[fd].h;
+    if (ctx->handles[fd].isconsole) {
         // NOTE: There is a small chance that a multi-byte code point
         // spans flushes from the application. With no decoder state
         // tracked between os_write calls, this will mistranslate for
