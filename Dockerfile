@@ -369,7 +369,7 @@ RUN cat $PREFIX/src/gdb-*.patch | patch -d/gdb-$GDB_VERSION -p1 \
  && /gdb-$GDB_VERSION/configure \
         --host=$ARCH \
         --enable-tui \
-        CFLAGS="-Os -D__MINGW_USE_VC2005_COMPAT -DPDC_WIDE -I/deps/include" \
+        CFLAGS="-std=gnu17 -Os -D__MINGW_USE_VC2005_COMPAT -DPDC_WIDE -I/deps/include" \
         CXXFLAGS="-Os -D__MINGW_USE_VC2005_COMPAT -DPDC_WIDE -I/deps/include" \
         LDFLAGS="-s -L/deps/lib" \
  && make MAKEINFO=true -j$(nproc) \
@@ -379,7 +379,7 @@ WORKDIR /make
 RUN /make-$MAKE_VERSION/configure \
         --host=$ARCH \
         --disable-nls \
-        CFLAGS="-Os" \
+        CFLAGS="-std=gnu17 -Os" \
         LDFLAGS="-s" \
  && make -j$(nproc) \
  && cp make.exe $PREFIX/bin/ \
@@ -432,7 +432,7 @@ RUN $ARCH-gcc -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections -s \
 # TODO: Either somehow use $VIM_VERSION or normalize the workdir
 WORKDIR /vim90/src
 COPY src/rexxd.c $PREFIX/src/
-RUN ARCH= make -j$(nproc) -f Make_ming.mak \
+RUN ARCH= make -j$(nproc) -f Make_ming.mak CC="$ARCH-gcc -std=gnu17" \
         OPTIMIZE=SIZE STATIC_STDCPLUS=yes HAS_GCC_EH=no \
         UNDER_CYGWIN=yes CROSS=yes CROSS_COMPILE=$ARCH- \
         FEATURES=HUGE VIMDLL=yes NETBEANS=no WINVER=0x0501 \
