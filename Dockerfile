@@ -186,7 +186,8 @@ RUN /gmp-$GMP_VERSION/configure \
         --disable-assembly \
         --enable-static \
         --disable-shared \
-        CFLAGS="-Os" \
+        CC=$ARCH-gcc \
+        CFLAGS="-std=gnu17 -Os" \
         CXXFLAGS="-Os" \
         LDFLAGS="-s" \
  && make -j$(nproc) \
@@ -200,6 +201,7 @@ RUN /mpfr-$MPFR_VERSION/configure \
         --with-gmp-lib=/deps/lib \
         --enable-static \
         --disable-shared \
+        CC=$ARCH-gcc \
         CFLAGS="-Os" \
         LDFLAGS="-s" \
  && make -j$(nproc) \
@@ -215,6 +217,7 @@ RUN /mpc-$MPC_VERSION/configure \
         --with-mpfr-lib=/deps/lib \
         --enable-static \
         --disable-shared \
+        CC=$ARCH-gcc \
         CFLAGS="-Os" \
         LDFLAGS="-s" \
  && make -j$(nproc) \
