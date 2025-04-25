@@ -7,7 +7,7 @@ ARG BINUTILS_VERSION=2.44
 ARG BUSYBOX_VERSION=FRP-5579-g5749feb35
 ARG CTAGS_VERSION=6.0.0
 ARG EXPAT_VERSION=2.7.0
-ARG GCC_VERSION=14.2.0
+ARG GCC_VERSION=15.1.0
 ARG GDB_VERSION=16.2
 ARG GMP_VERSION=6.3.0
 ARG LIBICONV_VERSION=1.18
@@ -257,7 +257,7 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-libraries/winpthreads/configure \
 WORKDIR /gcc
 RUN echo 'BEGIN {print "pecoff"}' \
          >/gcc-$GCC_VERSION/libbacktrace/filetype.awk \
- && sed -i 's#/mingw/#/#' /gcc-$GCC_VERSION/gcc/config/i386/mingw32.h \
+ && sed -i 's#/mingw/#/#' /gcc-$GCC_VERSION/gcc/config/mingw/mingw32.h \
  && /gcc-$GCC_VERSION/configure \
         --prefix=$PREFIX \
         --with-sysroot=$PREFIX \
