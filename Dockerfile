@@ -110,6 +110,7 @@ RUN cat $PREFIX/src/gcc-*.patch | patch -d/gcc-$GCC_VERSION -p1 \
         --enable-libgomp \
         --enable-threads=posix \
         --enable-version-specific-runtime-libs \
+        --disable-libstdcxx-verbose \
         --disable-dependency-tracking \
         --disable-nls \
         --disable-lto \
@@ -280,6 +281,7 @@ RUN echo 'BEGIN {print "pecoff"}' \
         --enable-libgomp \
         --enable-threads=posix \
         --enable-version-specific-runtime-libs \
+        --disable-libstdcxx-verbose \
         --disable-dependency-tracking \
         --disable-lto \
         --disable-multilib \

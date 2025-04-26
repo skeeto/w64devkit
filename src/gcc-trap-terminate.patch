@@ -1,0 +1,36 @@
+Replace std::terminate's std::abort with a trap instruction
+
+MSVCRT abort() merely calls exit(), which does not properly signal a
+hard error, nor does it trap in debuggers. It's a poor experience. In
+contrast, a trap instruction accomplishes both.
+
+--- a/libstdc++-v3/libsupc++/eh_term_handler.h
++++ b/libstdc++-v3/libsupc++/eh_term_handler.h
+@@ -36,4 +36,4 @@
+ #else
+ # include <cstdlib>
+-# define _GLIBCXX_DEFAULT_TERM_HANDLER std::abort
++# define _GLIBCXX_DEFAULT_TERM_HANDLER __gnu_cxx::__trap_terminate_handler
+ #endif
+--- a/libstdc++-v3/libsupc++/exception
++++ b/libstdc++-v3/libsupc++/exception
+@@ -160,4 +160,6 @@
+   void __verbose_terminate_handler();
+ 
++  void __trap_terminate_handler();
++
+ _GLIBCXX_END_NAMESPACE_VERSION
+ } // namespace
+--- a/libstdc++-v3/libsupc++/vterminate.cc
++++ b/libstdc++-v3/libsupc++/vterminate.cc
+@@ -93,7 +93,9 @@
+       fputs("terminate called without an active exception\n", stderr);
+ 
+-    abort();
++    __builtin_trap();
+   }
+ 
++  void __trap_terminate_handler() { __builtin_trap(); }
++
+ _GLIBCXX_END_NAMESPACE_VERSION
+ } // namespace
