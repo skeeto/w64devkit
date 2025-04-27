@@ -81,9 +81,9 @@ for build in $builds; do
     )
     $dryrun docker build -t $target .
     if [ -n "$dryrun" ]; then
-        $dryrun docker run --rm $target ">$build$suffix.exe"
+        $dryrun docker run --rm $target ">$build$suffix.7z.exe"
     else
-        docker run --rm $target >$build$suffix.exe
+        docker run --rm $target >$build$suffix.7z.exe
     fi
 done
 
