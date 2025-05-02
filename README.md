@@ -112,8 +112,8 @@ w64devkit's capabilities. In rough order of importance:
   documentation. Unfortunately much is missing, such as Winsock. (Offline
   Windows documentation has always been very hard to come by.)
 
-* [C and C++ Standards (drafts)][doc-std] (PDF), for figuring out how
-  corner cases are intended to work.
+* [C Standards][doc-std-c] and [C++ Standards][doc-std-cpp] (drafts), for
+  figuring out how corner cases are intended to work.
 
 * [Intel Intrinsics Guide][doc-intr] (interactive HTML), a great resource
   when working with SIMD intrinsics. (Search for "Download" on the left.)
@@ -211,7 +211,8 @@ binaries.
 [doc-intr]: https://software.intel.com/sites/landingpage/IntrinsicsGuide/
 [doc-ld]: https://sourceware.org/binutils/docs/
 [doc-make]: https://www.gnu.org/software/make/manual/
-[doc-std]: https://stackoverflow.com/a/83763
+[doc-std-c]: https://en.cppreference.com/w/c/links
+[doc-std-cpp]: https://en.cppreference.com/w/cpp/links
 [doc-win32]: https://web.archive.org/web/20220922051031/http://www.laurencejackson.com/win32/
 [gdb]: https://www.gnu.org/software/gdb/
 [go]: https://nullprogram.com/blog/2021/06/29/
