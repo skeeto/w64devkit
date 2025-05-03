@@ -17,7 +17,7 @@
 #   $ make -j$(nproc) -f path/to/w64devkit/contrib/llama.mak
 #
 # Incremental builds are unsupported, so clean rebuild after pulling. It
-# was last tested at b5074, and an update will inevitably break it.
+# was last tested at b5271, and an update will inevitably break it.
 
 CROSS    =
 CPPFLAGS = -w -O2
@@ -82,7 +82,7 @@ exe = \
   common/sampling.cpp.o \
   common/speculative.cpp.o \
   common/w64dk-build-info.cpp.o \
-  examples/server/server.cpp.o
+  tools/server/server.cpp.o
 
 all: llama.dll llama-server.exe
 
@@ -94,7 +94,7 @@ llama.dll: $(dll) llama.def
 
 clean:
 	rm -f $(dll) $(exe) llama.def llama.dll llama-server.exe \
-	   examples/server/index.html.gz.hpp examples/server/loading.html.hpp \
+	   tools/server/index.html.gz.hpp tools/server/loading.html.hpp \
 	   common/w64dk-build-info.cpp
 
 .ONESHELL:  # needed for heredocs
@@ -110,14 +110,14 @@ common/w64dk-build-info.cpp:
 
 common/w64dk-build-info.cpp.o: common/w64dk-build-info.cpp
 
-examples/server/index.html.gz.hpp: examples/server/public/index.html.gz
-	cd examples/server/public/ && xxd -i index.html.gz >../index.html.gz.hpp
-examples/server/loading.html.hpp: examples/server/public/loading.html
-	cd examples/server/public/ && xxd -i loading.html >../loading.html.hpp
-examples/server/server.cpp.o: \
-  examples/server/server.cpp \
-  examples/server/index.html.gz.hpp \
-  examples/server/loading.html.hpp
+tools/server/index.html.gz.hpp: tools/server/public/index.html.gz
+	cd tools/server/public/ && xxd -i index.html.gz >../index.html.gz.hpp
+tools/server/loading.html.hpp: tools/server/public/loading.html
+	cd tools/server/public/ && xxd -i loading.html >../loading.html.hpp
+tools/server/server.cpp.o: \
+  tools/server/server.cpp \
+  tools/server/index.html.gz.hpp \
+  tools/server/loading.html.hpp
 
 llama.def:
 	@cat >$@ <<EOF
