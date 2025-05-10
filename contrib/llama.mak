@@ -17,7 +17,7 @@
 #   $ make -j$(nproc) -f path/to/w64devkit/contrib/llama.mak
 #
 # Incremental builds are unsupported, so clean rebuild after pulling. It
-# was last tested at b5271, and an update will inevitably break it.
+# was last tested at b5335, and an update will inevitably break it.
 
 CROSS    =
 CPPFLAGS = -w -O2
@@ -25,7 +25,14 @@ LDFLAGS  = -s
 
 .SUFFIXES: .c .cpp .o
 def = -DGGML_USE_CPU
-inc = -I. -Icommon -Iinclude -Iggml/include -Iggml/src -Iggml/src/ggml-cpu
+inc = \
+  -I. \
+  -Icommon \
+  -Iggml/include \
+  -Iggml/src \
+  -Iggml/src/ggml-cpu \
+  -Iinclude \
+  -Itools/mtmd
 %.c.o: %.c
 	$(CROSS)gcc -c -o $@ $(inc) $(def) $(CPPFLAGS) $<
 %.cpp.o: %.cpp
@@ -82,6 +89,8 @@ exe = \
   common/sampling.cpp.o \
   common/speculative.cpp.o \
   common/w64dk-build-info.cpp.o \
+  tools/mtmd/clip.cpp.o \
+  tools/mtmd/mtmd.cpp.o \
   tools/server/server.cpp.o
 
 all: llama.dll llama-server.exe
