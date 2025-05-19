@@ -17,7 +17,7 @@
 #   $ make -j$(nproc) -f path/to/w64devkit/contrib/llama.mak
 #
 # Incremental builds are unsupported, so clean rebuild after pulling. It
-# was last tested at b5335, and an update will inevitably break it.
+# was last tested at b5423, and an update will inevitably break it.
 
 CROSS    =
 CPPFLAGS = -w -O2
@@ -70,6 +70,7 @@ dll = \
   src/llama-kv-cache.cpp.o \
   src/llama-mmap.cpp.o \
   src/llama-model-loader.cpp.o \
+  src/llama-model-saver.cpp.o \
   src/llama-model.cpp.o \
   src/llama-quant.cpp.o \
   src/llama-sampling.cpp.o \
@@ -90,6 +91,7 @@ exe = \
   common/speculative.cpp.o \
   common/w64dk-build-info.cpp.o \
   tools/mtmd/clip.cpp.o \
+  tools/mtmd/mtmd-helper.cpp.o \
   tools/mtmd/mtmd.cpp.o \
   tools/server/server.cpp.o
 
