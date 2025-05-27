@@ -17,7 +17,7 @@
 #   $ make -j$(nproc) -f path/to/w64devkit/contrib/llama.mak
 #
 # Incremental builds are unsupported, so clean rebuild after pulling. It
-# was last tested at b5423, and an update will inevitably break it.
+# was last tested at b5509, and an update will inevitably break it.
 
 CROSS    =
 CPPFLAGS = -w -O2
@@ -81,16 +81,20 @@ dll = \
 
 exe = \
   common/arg.cpp.o \
+  common/chat-parser.cpp.o \
   common/chat.cpp.o \
   common/common.cpp.o \
   common/console.cpp.o \
+  common/json-partial.cpp.o \
   common/json-schema-to-grammar.cpp.o \
   common/log.cpp.o \
   common/ngram-cache.cpp.o \
+  common/regex-partial.cpp.o \
   common/sampling.cpp.o \
   common/speculative.cpp.o \
   common/w64dk-build-info.cpp.o \
   tools/mtmd/clip.cpp.o \
+  tools/mtmd/mtmd-audio.cpp.o \
   tools/mtmd/mtmd-helper.cpp.o \
   tools/mtmd/mtmd.cpp.o \
   tools/server/server.cpp.o
@@ -159,27 +163,12 @@ llama.def:
 	llama_get_embeddings
 	llama_get_embeddings_ith
 	llama_get_embeddings_seq
-	llama_get_kv_cache_token_count
-	llama_get_kv_cache_used_cells
 	llama_get_kv_self
 	llama_get_logits
 	llama_get_logits_ith
 	llama_get_model
 	llama_get_state_size
 	llama_init_from_model
-	llama_kv_cache_can_shift
-	llama_kv_cache_clear
-	llama_kv_cache_defrag
-	llama_kv_cache_seq_add
-	llama_kv_cache_seq_cp
-	llama_kv_cache_seq_div
-	llama_kv_cache_seq_keep
-	llama_kv_cache_seq_pos_max
-	llama_kv_cache_seq_rm
-	llama_kv_cache_update
-	llama_kv_cache_view_free
-	llama_kv_cache_view_init
-	llama_kv_cache_view_update
 	llama_kv_self_can_shift
 	llama_kv_self_clear
 	llama_kv_self_defrag
