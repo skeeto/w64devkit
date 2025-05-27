@@ -38,8 +38,8 @@ to go. It is the easiest way to enter the development environment, and
 requires no system changes. It also sets two extra environment variables:
 `W64DEVKIT_HOME` to the installation root and `W64DEVKIT` to the version.
 
-Alternatively, add the `bin/` directory to your path. For example, inside
-a `cmd.exe` console or batch script:
+Alternatively, add the `w64devkit/bin` directory to your path. For
+example, inside a `cmd.exe` console or batch script:
 
     set PATH=c:\path\to\w64devkit\bin;%PATH%
 
