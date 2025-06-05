@@ -209,7 +209,7 @@ static void printu32(u8buf *b, u32 x)
     do {
         *--beg = (u8)(x%10) + '0';
     } while (x /= 10);
-    return print(b, span(beg, end));
+    print(b, span(beg, end));
 }
 
 // Escape-print a module or symbol name.
