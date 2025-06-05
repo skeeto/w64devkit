@@ -17,7 +17,7 @@
 #   $ make -j$(nproc) -f path/to/w64devkit/contrib/llama.mak
 #
 # Incremental builds are unsupported, so clean rebuild after pulling. It
-# was last tested at b5509, and an update will inevitably break it.
+# was last tested at b5587, and an update will inevitably break it.
 
 CROSS    =
 CPPFLAGS = -w -O2
@@ -32,7 +32,8 @@ inc = \
   -Iggml/src \
   -Iggml/src/ggml-cpu \
   -Iinclude \
-  -Itools/mtmd
+  -Itools/mtmd \
+  -Ivendor
 %.c.o: %.c
 	$(CROSS)gcc -c -o $@ $(inc) $(def) $(CPPFLAGS) $<
 %.cpp.o: %.cpp
@@ -67,6 +68,9 @@ dll = \
   src/llama-hparams.cpp.o \
   src/llama-impl.cpp.o \
   src/llama-io.cpp.o \
+  src/llama-kv-cache-recurrent.cpp.o \
+  src/llama-kv-cache-unified-iswa.cpp.o \
+  src/llama-kv-cache-unified.cpp.o \
   src/llama-kv-cache.cpp.o \
   src/llama-mmap.cpp.o \
   src/llama-model-loader.cpp.o \
