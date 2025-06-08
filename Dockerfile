@@ -259,9 +259,10 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-libraries/winpthreads/configure \
  && make install
 
 WORKDIR /gcc
+COPY src/crossgcc-*.patch $PREFIX/src/
 RUN echo 'BEGIN {print "pecoff"}' \
          >/gcc-$GCC_VERSION/libbacktrace/filetype.awk \
- && sed -i 's#/mingw/#/#' /gcc-$GCC_VERSION/gcc/config/mingw/mingw32.h \
+ && cat $PREFIX/src/crossgcc-*.patch | patch -d/gcc-$GCC_VERSION -p1 \
  && /gcc-$GCC_VERSION/configure \
         --prefix=$PREFIX \
         --with-sysroot=$PREFIX \

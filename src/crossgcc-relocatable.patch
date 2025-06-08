@@ -1,0 +1,29 @@
+Relocatable mingw paths (c/o Hannes Domani)
+--- a/gcc/config/mingw/mingw32.h
++++ b/gcc/config/mingw/mingw32.h
+@@ -91,3 +91,3 @@
+ #undef NATIVE_SYSTEM_HEADER_COMPONENT
+-#define NATIVE_SYSTEM_HEADER_COMPONENT "MINGW"
++#undef NATIVE_SYSTEM_HEADER_DIR
+ 
+@@ -234,3 +234,3 @@
+ #ifndef STANDARD_STARTFILE_PREFIX_1
+-#define STANDARD_STARTFILE_PREFIX_1 "/mingw/lib/"
++#define STANDARD_STARTFILE_PREFIX_1 ""
+ #endif
+@@ -240,7 +240,2 @@
+ 
+-/* For native mingw-version we need to take care that NATIVE_SYSTEM_HEADER_DIR
+-   macro contains POSIX-style path.  See bug 52947.  */
+-#undef NATIVE_SYSTEM_HEADER_DIR
+-#define NATIVE_SYSTEM_HEADER_DIR "/mingw/include"
+-
+ /* Output STRING, a string representing a filename, to FILE.
+--- a/gcc/incpath.cc
++++ b/gcc/incpath.cc
+@@ -191,4 +191,3 @@
+ 	    }
+-	  else if (!p->add_sysroot && relocated
+-		   && !filename_ncmp (p->fname, cpp_PREFIX, cpp_PREFIX_len))
++	  if (relocated && !filename_ncmp (p->fname, cpp_PREFIX, cpp_PREFIX_len))
+ 	    {
