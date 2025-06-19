@@ -86,7 +86,9 @@ RUN /binutils-$BINUTILS_VERSION/configure \
 RUN sed -i /OpenThreadToken/d /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/lib32/kernel32.def
 
 WORKDIR /x-mingw-headers
-RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-headers/configure \
+RUN echo '#include <crtdefs.h>' \
+      >/mingw-w64-v$MINGW_VERSION/mingw-w64-headers/crt/stddef.h \
+ && /mingw-w64-v$MINGW_VERSION/mingw-w64-headers/configure \
         --prefix=/bootstrap \
         --host=$ARCH \
         --with-default-msvcrt=msvcrt-os \
