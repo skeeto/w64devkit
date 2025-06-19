@@ -17,7 +17,7 @@
 #   $ make -j$(nproc) -f path/to/w64devkit/contrib/llama.mak
 #
 # Incremental builds are unsupported, so clean rebuild after pulling. It
-# was last tested at b5587, and an update will inevitably break it.
+# was last tested at b5711, and an update will inevitably break it.
 
 CROSS    =
 CPPFLAGS = -w -O2
@@ -43,14 +43,14 @@ dll = \
   ggml/src/ggml-alloc.c.o \
   ggml/src/ggml-backend-reg.cpp.o \
   ggml/src/ggml-backend.cpp.o \
+  ggml/src/ggml-cpu/arch/x86/quants.c.o \
   ggml/src/ggml-cpu/binary-ops.cpp.o \
-  ggml/src/ggml-cpu/ggml-cpu-aarch64.cpp.o \
-  ggml/src/ggml-cpu/ggml-cpu-quants.c.o \
-  ggml/src/ggml-cpu/ggml-cpu-traits.cpp.o \
   ggml/src/ggml-cpu/ggml-cpu.c.o \
   ggml/src/ggml-cpu/ggml-cpu.cpp.o \
   ggml/src/ggml-cpu/llamafile/sgemm.cpp.o \
   ggml/src/ggml-cpu/ops.cpp.o \
+  ggml/src/ggml-cpu/quants.c.o \
+  ggml/src/ggml-cpu/traits.cpp.o \
   ggml/src/ggml-cpu/unary-ops.cpp.o \
   ggml/src/ggml-cpu/vec.cpp.o \
   ggml/src/ggml-opt.cpp.o \
@@ -68,10 +68,11 @@ dll = \
   src/llama-hparams.cpp.o \
   src/llama-impl.cpp.o \
   src/llama-io.cpp.o \
-  src/llama-kv-cache-recurrent.cpp.o \
   src/llama-kv-cache-unified-iswa.cpp.o \
   src/llama-kv-cache-unified.cpp.o \
-  src/llama-kv-cache.cpp.o \
+  src/llama-memory-hybrid.cpp.o \
+  src/llama-memory-recurrent.cpp.o \
+  src/llama-memory.cpp.o \
   src/llama-mmap.cpp.o \
   src/llama-model-loader.cpp.o \
   src/llama-model-saver.cpp.o \
