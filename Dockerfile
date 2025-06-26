@@ -435,16 +435,17 @@ RUN $ARCH-gcc -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections -s \
     | xargs -I{} cp alias.exe $PREFIX/bin/{}.exe
 
 # TODO: Either somehow use $VIM_VERSION or normalize the workdir
-WORKDIR /vim90/src
-COPY src/rexxd.c $PREFIX/src/
-RUN ARCH= make -j$(nproc) -f Make_ming.mak CC="$ARCH-gcc -std=gnu17" \
+WORKDIR /vim90
+COPY src/rexxd.c src/vim-*.patch $PREFIX/src/
+RUN cat $PREFIX/src/vim-*.patch | patch -p1 \
+ && ARCH= make -C src -j$(nproc) -f Make_ming.mak CC="$ARCH-gcc -std=gnu17" \
         OPTIMIZE=SIZE STATIC_STDCPLUS=yes HAS_GCC_EH=no \
         UNDER_CYGWIN=yes CROSS=yes CROSS_COMPILE=$ARCH- \
         FEATURES=HUGE VIMDLL=yes NETBEANS=no WINVER=0x0501 \
- && $ARCH-strip vimrun.exe \
- && rm -rf ../runtime/tutor/tutor.* \
- && cp -r ../runtime $PREFIX/share/vim \
- && cp vimrun.exe gvim.exe vim.exe *.dll $PREFIX/share/vim/ \
+ && $ARCH-strip src/vimrun.exe \
+ && rm -rf runtime/tutor/tutor.* \
+ && cp -r runtime $PREFIX/share/vim \
+ && cp src/vimrun.exe src/gvim.exe src/vim.exe src/*.dll $PREFIX/share/vim/ \
  && printf '@set SHELL=\r\n@start "" "%%~dp0/../share/vim/gvim.exe" %%*\r\n' \
         >$PREFIX/bin/gvim.bat \
  && printf '@set SHELL=\r\n@"%%~dp0/../share/vim/vim.exe" %%*\r\n' \

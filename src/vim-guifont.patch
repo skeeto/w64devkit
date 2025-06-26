@@ -1,0 +1,8 @@
+--- a/runtime/defaults.vim
++++ b/runtime/defaults.vim
+@@ -131,2 +131,5 @@
+ if &t_Co > 2 || has("gui_running")
++  " Prefer a font that scales for HiDPI
++  set guifont=consolas:h11,fixedsys
++
+   " Revert with ":syntax off".
