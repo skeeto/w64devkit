@@ -137,10 +137,11 @@ Except for the standard libraries and Win32 import libraries, w64devkit
 does not include libraries, but you can install additional libraries such
 that the toolchain can find them naturally. There are three options:
 
-1. Install it under the sysroot at `w64devkit/$ARCH/`. The easiest option,
-   but will require re-installation after upgrading w64devkit. If it
-   defines `.pc` files, the `pkg-config` command will automatically find
-   and use them.
+1. The w64devkit installation directory is a sysroot (`lib/`, `include/`,
+   etc.), so you can install the library directly into w64devkit the usual
+   unix-like way. It's the easiest option, but requires re-installation
+   after each w64devkit upgrade. If the library defines `.pc` files, the
+   `pkg-config` command will automatically find and use them.
 
 2. Append its installation directory to your `CPATH` and `LIBRARY_PATH`
    environment variables. Use `;` to delimit directories. You would likely
