@@ -482,7 +482,7 @@ RUN printf "id ICON \"$PREFIX/src/w64devkit.ico\"" >w64devkit.rc \
  && $ARCH-windres -o w64devkit.o w64devkit.rc \
  && $ARCH-gcc -DVERSION=$VERSION -nostdlib -fno-asynchronous-unwind-tables \
         -fno-builtin -Wl,--gc-sections -s -o $PREFIX/w64devkit.exe \
-        $PREFIX/src/w64devkit.c w64devkit.o -lkernel32 -luser32 \
+        $PREFIX/src/w64devkit.c w64devkit.o -lkernel32 -luser32 -lmemory \
  && $ARCH-gcc \
         -Os -fno-asynchronous-unwind-tables \
         -Wl,--gc-sections -s -nostdlib \

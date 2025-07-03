@@ -2,6 +2,7 @@
 // * Sets $W64DEVKIT to the release version (-DVERSION)
 // * Sets $W64DEVKIT_HOME to the install location
 // * Maybe sets $HOME according to w64devkit.ini
+// * Maybe sets $PATH according to w64devkit.ini
 // * Starts a login shell with "sh -l"
 //
 // $ gcc -DVERSION="$VERSION" -nostartfiles -o w64devkit.exe
@@ -60,6 +61,8 @@ W32 u32    GetEnvironmentVariableW(c16 *, c16 *, u32);
 W32 i32    GetExitCodeProcess(uz, i32 *);
 W32 u32    GetFullPathNameW(c16 *, u32, c16 *, c16 *);
 W32 u32    GetModuleFileNameW(uz, c16 *, u32);
+W32 i32    GetVersion();
+W32 u32    GetWindowsDirectoryW(c16 *, u32);
 W32 i32    MessageBoxW(uz, c16 *, c16 *, i32);
 W32 i32    MultiByteToWideChar(i32, i32, u8 *, i32, c16 *, i32);
 W32 b32    ReadFile(uz, u8 *, i32, i32 *, void *);
@@ -294,6 +297,10 @@ typedef enum {
     sym_w64devkit,
     sym_home,
     sym_title,
+    sym_path_type,
+    sym_inherit,
+    sym_minimal,
+    sym_strict,
 } Symbol;
 
 static Symbol intern(s8 s)
@@ -305,6 +312,10 @@ static Symbol intern(s8 s)
         {S("w64devkit"), sym_w64devkit},
         {S("home"),      sym_home},
         {S("title"),     sym_title},
+        {S("path type"), sym_path_type},
+        {S("inherit"),   sym_inherit},
+        {S("minimal"),   sym_minimal},
+        {S("strict"),    sym_strict},
     };
     for (iz i = 0; i < countof(symbols); i++) {
         if (s8equals(symbols[i].name, s)) {
@@ -372,15 +383,17 @@ static s8 loadfile(c16 *path, Arena *perm)
 }
 
 typedef struct {
-    c16 *home;
-    c16 *title;
-    b32  ok;
+    c16   *home;
+    c16   *title;
+    Symbol path_type;
+    b32    ok;
 } Config;
 
 static Config newconfig()
 {
     Config r = {};
     r.title = u"w64devkit";
+    r.path_type = sym_inherit;
     return r;
 }
 
@@ -418,6 +431,8 @@ static Config loadconfig(Arena *perm, Arena scratch)
                     conf.home = tofullpath(conf.home, perm);
                 } else if (key == sym_title) {
                     conf.title = expandvalue(t.name, perm, scratch);
+                } else if (key == sym_path_type) {
+                    conf.path_type = intern(t.name);
                 }
             }
             break;
@@ -489,6 +504,39 @@ static void buf16getenv(Buf16 *buf, c16 *key, Arena scratch)
     buf16cat(buf, var);
 }
 
+static s16 getwindir(Arena *perm)
+{
+    i32 len = (i32)GetWindowsDirectoryW(0, 0);
+    if (len < 0) outofmemory();
+    s16 r = {};
+    r.s   = new(perm, c16, len);
+    r.len = (i32)GetWindowsDirectoryW(r.s, tou32(len));
+    return r;
+}
+
+static void buf16minpath(Buf16 *buf, Arena scratch)
+{
+    s16 windir = getwindir(&scratch);
+
+    buf16cat(buf, windir);
+    buf16cat(buf, U(u"\\System32;"));
+
+    buf16cat(buf, windir);
+    buf16cat(buf, U(u";"));
+
+    buf16cat(buf, windir);
+    buf16cat(buf, U(u"\\System32\\Wbem"));
+
+    // PowerShell directory first appears in Windows 7
+    u16 version = (u16)GetVersion();
+    version = (u16)(version>>8 | version<<8);
+    if (version > 0x0600) {
+        buf16cat(buf, U(u";"));
+        buf16cat(buf, windir);
+        buf16cat(buf, U(u"\\System32\\WindowsPowerShell\\v1.0"));
+    }
+}
+
 static void toslashes(c16 *path)
 {
     for (iz i = 0; i < path[i]; i++) {
@@ -532,8 +580,21 @@ static i32 w64devkit()
 
     // Continue building PATH
     path = moduledir;
-    buf16cat(&path, U(u"\\bin;"));
-    buf16getenv(&path, u"PATH", scratch);
+    buf16cat(&path, U(u"\\bin"));
+    switch (conf.path_type) {
+    case sym_inherit:
+        buf16cat(&path, U(u";"));
+        buf16getenv(&path, u"PATH", scratch);
+        break;
+    case sym_minimal:
+        buf16cat(&path, U(u";"));
+        buf16minpath(&path, scratch);
+        break;
+    case sym_strict:
+        break;
+    default:
+        fatal(u"w64devkit.ini: 'path type' must be inherit|minimal|strict");
+    }
     buf16c16(&path, 0);  // null terminator
     if (path.err || !SetEnvironmentVariableW(u"PATH", path.buf)) {
         fatal(u"Failed to configure $PATH");
