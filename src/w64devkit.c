@@ -40,15 +40,16 @@ typedef struct {
 } Pi;
 
 enum : i32 {
-    MAX_ENVVAR     = 32767,
-    CP_UTF8        = 65001,
-    PAGE_READWRITE = 0x04,
-    MEM_COMMIT     = 0x1000,
-    MEM_RESERVE    = 0x2000,
-    MEM_RELEASE    = 0x8000,
-    GENERIC_READ   = (i32)0x80000000,
-    OPEN_EXISTING  = 3,
-    FILE_SHARE_ALL = 7,
+    MAX_ENVVAR                  = 32767,
+    CP_UTF8                     = 65001,
+    PAGE_READWRITE              = 0x04,
+    MEM_COMMIT                  = 0x1000,
+    MEM_RESERVE                 = 0x2000,
+    MEM_RELEASE                 = 0x8000,
+    GENERIC_READ                = (i32)0x80000000,
+    OPEN_EXISTING               = 3,
+    FILE_SHARE_ALL              = 7,
+    CREATE_UNICODE_ENVIRONMENT  = 0x400
 };
 
 #define W32 [[gnu::dllimport, gnu::stdcall]]
@@ -301,6 +302,7 @@ typedef enum {
     sym_inherit,
     sym_minimal,
     sym_strict,
+    sym_environment,
 } Symbol;
 
 static Symbol intern(s8 s)
@@ -309,13 +311,14 @@ static Symbol intern(s8 s)
         s8     name;
         Symbol symbol;
     } symbols[] = {
-        {S("w64devkit"), sym_w64devkit},
-        {S("home"),      sym_home},
-        {S("title"),     sym_title},
-        {S("path type"), sym_path_type},
-        {S("inherit"),   sym_inherit},
-        {S("minimal"),   sym_minimal},
-        {S("strict"),    sym_strict},
+        {S("w64devkit"),   sym_w64devkit},
+        {S("home"),        sym_home},
+        {S("title"),       sym_title},
+        {S("path type"),   sym_path_type},
+        {S("inherit"),     sym_inherit},
+        {S("minimal"),     sym_minimal},
+        {S("strict"),      sym_strict},
+        {S("environment"), sym_environment},
     };
     for (iz i = 0; i < countof(symbols); i++) {
         if (s8equals(symbols[i].name, s)) {
@@ -386,6 +389,7 @@ typedef struct {
     c16   *home;
     c16   *title;
     Symbol path_type;
+    Symbol environment;
     b32    ok;
 } Config;
 
@@ -394,6 +398,7 @@ static Config newconfig()
     Config r = {};
     r.title = u"w64devkit";
     r.path_type = sym_inherit;
+    r.environment = sym_inherit;
     return r;
 }
 
@@ -433,6 +438,8 @@ static Config loadconfig(Arena *perm, Arena scratch)
                     conf.title = expandvalue(t.name, perm, scratch);
                 } else if (key == sym_path_type) {
                     conf.path_type = intern(t.name);
+                } else if (key == sym_environment) {
+                    conf.environment = intern(t.name);
                 }
             }
             break;
@@ -537,6 +544,33 @@ static void buf16minpath(Buf16 *buf, Arena scratch)
     }
 }
 
+static c16 *makeminenv(Arena *perm)
+{
+    Buf16 env = newbuf16(perm, MAX_ENVVAR);
+
+    buf16cat(&env, U(u"HOME="));
+    buf16getenv(&env, u"HOME", *perm);
+    buf16c16(&env, 0);
+
+    buf16cat(&env, U(u"PATH="));
+    buf16getenv(&env, u"PATH", *perm);
+    buf16c16(&env, 0);
+
+    buf16cat(&env, U(u"SYSTEMROOT="));
+    buf16getenv(&env, u"SYSTEMROOT", *perm);
+    buf16c16(&env, 0);
+
+    buf16cat(&env, U(u"TEMP="));
+    buf16getenv(&env, u"TEMP", *perm);
+    buf16c16(&env, 0);
+
+    buf16c16(&env, 0);
+    if (env.err) {
+        outofmemory();
+    }
+    return env.buf;
+}
+
 static void toslashes(c16 *path)
 {
     for (iz i = 0; i < path[i]; i++) {
@@ -610,12 +644,25 @@ static i32 w64devkit()
     buf16cat(&path, U(u"\\bin\\busybox.exe"));
     buf16c16(&path, 0);  // null terminator
 
+    i32  flags = 0;
+    c16 *env   = 0;
+    switch (conf.environment) {
+    case sym_inherit:
+        break;
+    case sym_strict:
+        flags = CREATE_UNICODE_ENVIRONMENT;
+        env = makeminenv(perm);
+        break;
+    default:
+        fatal(u"w64devkit.ini: 'environment' must be inherit|strict");
+    }
+
     // Start a BusyBox login shell
     Si si = {};
     si.cb = sizeof(si);
     Pi pi;
-    c16 cmdline[] = u"sh -l";  // NOTE: must be mutable!
-    if (!CreateProcessW(path.buf, cmdline, 0, 0, 1, 0, 0, 0, &si, &pi)) {
+    c16 cmd[] = u"sh -l";  // NOTE: must be mutable!
+    if (!CreateProcessW(path.buf, cmd, 0, 0, 1, flags, env, 0, &si, &pi)) {
         fatal(u"Failed to launch a login shell");
     }
 
