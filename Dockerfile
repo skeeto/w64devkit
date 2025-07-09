@@ -381,7 +381,9 @@ RUN cat $PREFIX/src/gdb-*.patch | patch -d/gdb-$GDB_VERSION -p1 \
  && cp gdb/.libs/gdb.exe gdbserver/gdbserver.exe $PREFIX/bin/
 
 WORKDIR /make
-RUN /make-$MAKE_VERSION/configure \
+COPY src/make-*.patch $PREFIX/src/
+RUN cat $PREFIX/src/make-*.patch | patch -d/make-$MAKE_VERSION -p1 \
+ && /make-$MAKE_VERSION/configure \
         --host=$ARCH \
         --disable-nls \
         CFLAGS="-std=gnu17 -Os" \

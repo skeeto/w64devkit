@@ -1,0 +1,21 @@
+Fix support for shell paths containing spaces
+
+GNU Make incorrectly processes shell paths that contain a space on all
+supported platforms. This is a common case on Windows after resolving
+the shell's absolute path (e.g. "Documents and Settings" or "Program
+Files"). The space is not escaped when constructing the shell command,
+and then the shell path is truncated when splitting on the space.
+
+Adding a space to sh_chars causes construct_command_argv_internal to
+recurse indefinitely, so instead add a special case when copying the
+shell path into the command.
+
+--- a/src/job.c
++++ b/src/job.c
+@@ -3474,5 +3474,5 @@
+     for (cp = shell; *cp != '\0'; ++cp)
+       {
+-        if (strchr (sh_chars, *cp) != 0)
++        if (strchr (sh_chars, *cp) != 0 || ISSPACE (*cp))
+           *(ap++) = '\\';
+         *(ap++) = *cp;
