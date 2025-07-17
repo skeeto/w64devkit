@@ -1,4 +1,5 @@
 // rexxd: replacement xxd (for w64devkit)
+// Chris Wellons <wellons@nullprogram.com>
 //
 // Drop-in for the original xxd. Not bug-compatable, but outputs are
 // identical in the common, practical cases. Where the original xxd
@@ -34,7 +35,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define VERSION "2025-03-10"
+#define VERSION "2025-07-17"
 
 typedef uint8_t     u8;
 typedef int32_t     b32;
@@ -481,7 +482,7 @@ static b32 readseek(Input *b, i64 len)
         i32 cap = countof(b->buf);
         i32 amt = len<cap ? (i32)len : cap;
         i32 ret = xxd_read(b->ctx, b->buf, amt);
-        if (ret < 0) {
+        if (ret < 1) {
             b->eof = b->err = 1;
             return 0;
         }
@@ -2161,6 +2162,15 @@ static void test_seek(Arena scratch)
         STATUS_OK,
         "42\n",
         "-ps", "-s+1", "-"
+    );
+
+    a = scratch;
+    plt = newplt(&a, 1<<12);
+    plt->inpipe = 1;
+    expect(
+        STATUS_INPUT,
+        "",
+        "-s", "1"
     );
 }
 
