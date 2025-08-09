@@ -295,7 +295,14 @@ static i32 parseopts(config *c, i32 argc, s8 *argv)
 {
     for (c->optind = !!argc; c->optind < argc; c->optind++) {
         s8 arg = argv[c->optind];
-        if (!arg.len || arg.data[0]!='-') break;
+
+        if (equals(arg, s8("--"))) {
+            c->optind++;
+            break;
+        } else if (arg.len<2 || arg.data[0]!='-') {
+            break;
+        }
+
         for (iz i = 1; i < arg.len; i++) {
             u8 x = arg.data[i];
             switch (x) {
