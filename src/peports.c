@@ -563,7 +563,7 @@ static b32 peports(i32 argc, s8 *argv, arena scratch)
             print(err, argv[i]);  // NOTE: UTF-8
             print(err, s8("\n"));
             flush(err);
-            ok &= 1;
+            ok = 0;
             continue;
         }
         processpath(argv[i], conf, scratch);
