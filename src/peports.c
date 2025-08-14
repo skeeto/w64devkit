@@ -341,34 +341,40 @@ static i32 parseopts(config *c, i32 argc, s8 *argv)
 static s8 machine_name(u16 machine)
 {
     switch (machine) {
-    case 0x014c: return s8("i386");
-    case 0x0200: return s8("IA64");
-    case 0x8664: return s8("x64");
-    case 0x01c0: return s8("ARM");
-    case 0xaa64: return s8("ARM64");
-    case 0x01c4: return s8("ARMNT");
-    case 0x0162: return s8("R3000");
-    case 0x0166: return s8("R4000");
-    case 0x0168: return s8("R10000");
-    case 0x0169: return s8("WCEMIPSV2");
-    case 0x0184: return s8("ALPHA");
-    case 0x01a2: return s8("SH3");
-    case 0x01a3: return s8("SH3DSP");
-    case 0x01a4: return s8("SH3E");
-    case 0x01a6: return s8("SH4");
-    case 0x01a8: return s8("SH5");
-    case 0x01c2: return s8("THUMB");
-    case 0x01d3: return s8("AM33");
-    case 0x01f0: return s8("POWERPC");
-    case 0x01f1: return s8("POWERPCFP");
-    case 0x0284: return s8("ALPHA64");
-    case 0x0520: return s8("TRICORE");
-    case 0x0cef: return s8("CEF");
-    case 0x0ebc: return s8("EBC");
-    case 0x9041: return s8("M32R");
-    case 0x5032: return s8("RISCV32");
-    case 0x5064: return s8("RISCV64");
-    case 0x5128: return s8("RISCV128");
+    case 0x0000: return s8("UNKNOWN");       // The content of this field is assumed to be applicable to any machine type
+    case 0x0184: return s8("ALPHA");         // Alpha AXP, 32-bit address space
+    case 0x0284: return s8("ALPHA64");       // Alpha 64, 64-bit address space
+    case 0x01d3: return s8("AM33");          // Matsushita AM33
+    case 0x8664: return s8("AMD64");         // x64
+    case 0x01c0: return s8("ARM");           // ARM little endian
+    case 0xaa64: return s8("ARM64");         // ARM64 little endian
+    case 0xa641: return s8("ARM64EC");       // ABI that enables interoperability between native ARM64 and emulated x64 code
+    case 0xa64e: return s8("ARM64X");        // Binary format that allows both native ARM64 and ARM64EC code to coexist
+    case 0x01c4: return s8("ARMNT");         // ARM Thumb-2 little endian
+    case 0x0ebc: return s8("EBC");           // EFI byte code
+    case 0x014c: return s8("I386");          // Intel 386 or later processors and compatible processors
+    case 0x0200: return s8("IA64");          // Intel Itanium processor family
+    case 0x6232: return s8("LOONGARCH32");   // LoongArch 32-bit processor family
+    case 0x6264: return s8("LOONGARCH64");   // LoongArch 64-bit processor family
+    case 0x9041: return s8("M32R");          // Mitsubishi M32R little endian
+    case 0x0266: return s8("MIPS16");        // MIPS16
+    case 0x0366: return s8("MIPSFPU");       // MIPS with FPU
+    case 0x0466: return s8("MIPSFPU16");     // MIPS16 with FPU
+    case 0x01f0: return s8("POWERPC");       // Power PC little endian
+    case 0x01f1: return s8("POWERPCFP");     // Power PC with floating point support
+    case 0x0160: return s8("R3000BE");       // MIPS I compatible 32-bit big endian
+    case 0x0162: return s8("R3000");         // MIPS I compatible 32-bit little endian
+    case 0x0166: return s8("R4000");         // MIPS III compatible 64-bit little endian
+    case 0x0168: return s8("R10000");        // MIPS IV compatible 64-bit little endian
+    case 0x5032: return s8("RISCV32");       // RISC-V 32-bit address space
+    case 0x5064: return s8("RISCV64");       // RISC-V 64-bit address space
+    case 0x5128: return s8("RISCV128");      // RISC-V 128-bit address space
+    case 0x01a2: return s8("SH3");           // Hitachi SH3
+    case 0x01a3: return s8("SH3DSP");        // Hitachi SH3 DSP
+    case 0x01a6: return s8("SH4");           // Hitachi SH4
+    case 0x01a8: return s8("SH5");           // Hitachi SH5
+    case 0x01c2: return s8("THUMB");         // Thumb
+    case 0x0169: return s8("WCEMIPSV2");     // MIPS little-endian WCE v2
     default:     return s8("UNKNOWN");
     }
 }
