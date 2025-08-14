@@ -272,10 +272,11 @@ static u32 checkadd(u32 a, u32 b, escape *e)
 static void usage(u8buf *b)
 {
     print(b, s8(
-        "usage: peports [-ehi] [files...]\n"
+        "usage: peports [-ehim] [files...]\n"
         "  -e    print the export table\n"
         "  -h    print this message\n"
         "  -i    print the import table\n"
+        "  -m    print the machine type\n"
         "Prints export and import tables of EXEs and DLLs.\n"
         "Given no arguments, reads data from standard input.\n"
     ));
@@ -287,6 +288,7 @@ typedef struct {
     i32    optind;
     b32    exports;
     b32    imports;
+    b32    machine;
 } config;
 
 enum {OPT_OK, OPT_EXIT, OPT_ERR};
@@ -316,6 +318,9 @@ static i32 parseopts(config *c, i32 argc, s8 *argv)
             case 'i':
                 c->imports = 1;
                 break;
+            case 'm':
+                c->machine = 1;
+                break;
             default:
                 print(c->err, s8("peports: unknown option: -"));
                 print(c->err, span(&x, &x+1));
@@ -327,10 +332,50 @@ static i32 parseopts(config *c, i32 argc, s8 *argv)
         }
     }
 
-    if (!c->imports && !c->exports) {
+    if (!c->imports && !c->exports && !c->machine) {
         c->imports = c->exports = 1;
     }
     return OPT_OK;
+}
+
+static s8 machine_name(u16 machine)
+{
+    switch (machine) {
+    default:     return s8("UNKNOWN");
+    case 0x0184: return s8("ALPHA");
+    case 0x0284: return s8("ALPHA64");
+    case 0x01d3: return s8("AM33");
+    case 0x8664: return s8("AMD64");
+    case 0x01c0: return s8("ARM");
+    case 0xaa64: return s8("ARM64");
+    case 0xa641: return s8("ARM64EC");
+    case 0xa64e: return s8("ARM64X");
+    case 0x01c4: return s8("ARMNT");
+    case 0x0ebc: return s8("EBC");
+    case 0x014c: return s8("I386");
+    case 0x0200: return s8("IA64");
+    case 0x6232: return s8("LOONGARCH32");
+    case 0x6264: return s8("LOONGARCH64");
+    case 0x9041: return s8("M32R");
+    case 0x0266: return s8("MIPS16");
+    case 0x0366: return s8("MIPSFPU");
+    case 0x0466: return s8("MIPSFPU16");
+    case 0x01f0: return s8("POWERPC");
+    case 0x01f1: return s8("POWERPCFP");
+    case 0x0160: return s8("R3000BE");
+    case 0x0162: return s8("R3000");
+    case 0x0166: return s8("R4000");
+    case 0x0168: return s8("R10000");
+    case 0x5032: return s8("RISCV32");
+    case 0x5064: return s8("RISCV64");
+    case 0x5128: return s8("RISCV128");
+    case 0x01a2: return s8("SH3");
+    case 0x01a3: return s8("SH3DSP");
+    case 0x01a6: return s8("SH4");
+    case 0x01a8: return s8("SH5");
+    case 0x01c2: return s8("THUMB");
+    case 0x0169: return s8("WCEMIPSV2");
+    }
 }
 
 static void processpe(s8 dll, config conf, arena scratch)
@@ -345,8 +390,25 @@ static void processpe(s8 dll, config conf, arena scratch)
         throw(esc, s8("not a PE file"));
     }
 
+    u16 machine   = readu16(pe, 4+ 0, esc);
     u16 nsections = readu16(pe, 4+ 2, esc);
     u16 hdrsize   = readu16(pe, 4+16, esc);
+
+    if (conf.machine) {
+        print(out, s8(">machine\n"));
+        s8 arch_name = machine_name(machine);
+        print(out, s8("\t0x"));
+        // Print machine type as hex
+        u8 hex[4];
+        hex[0] = "0123456789abcdef"[(machine >> 12) & 0xf];
+        hex[1] = "0123456789abcdef"[(machine >>  8) & 0xf];
+        hex[2] = "0123456789abcdef"[(machine >>  4) & 0xf];
+        hex[3] = "0123456789abcdef"[(machine >>  0) & 0xf];
+        print(out, span(hex, hex+4));
+        print(out, s8(" "));
+        print(out, arch_name);
+        print(out, s8("\n"));
+    }
 
     enum { PE32, PE64 };
     u16 magic = readu16(pe, 4+20, esc);
@@ -394,7 +456,7 @@ static void processpe(s8 dll, config conf, arena scratch)
     s8  edata    = loadrva(map, edataoff, esc);
 
     if (conf.exports && edatalen) {
-        print(out, s8("EXPORTS\n"));
+        print(out, s8(">exports\n"));
 
         u32 ordbase = readu32(edata, 4*4, esc);
         i32 naddrs  = readu32(edata, 5*4, esc);
