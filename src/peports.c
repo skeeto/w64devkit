@@ -341,7 +341,8 @@ static i32 parseopts(config *c, i32 argc, s8 *argv)
 static s8 machine_name(u16 machine)
 {
     switch (machine) {
-    default:     return s8("UNKNOWN");
+    default:     return s8("Unrecognized machine type");
+    case 0x0: return s8("UNKNOWN");
     case 0x0184: return s8("ALPHA");
     case 0x0284: return s8("ALPHA64");
     case 0x01d3: return s8("AM33");
