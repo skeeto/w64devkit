@@ -230,6 +230,7 @@ WORKDIR /mingw-headers
 RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-headers/configure \
         --prefix=$PREFIX \
         --host=$ARCH \
+        --enable-idl \
         --with-default-msvcrt=msvcrt-os \
  && make -j$(nproc) \
  && make install
@@ -317,8 +318,9 @@ RUN $ARCH-gcc -DEXE=gcc.exe -DCMD=cc \
         -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
         -o $PREFIX/bin/c89.exe $PREFIX/src/alias.c -lkernel32 \
  && printf '%s\n' addr2line ar as c++filt cpp dlltool dllwrap elfedit g++ \
-      gcc gcc-ar gcc-nm gcc-ranlib gcov gcov-dump gcov-tool ld nm objcopy \
-      objdump ranlib readelf size strings strip windmc windres gfortran \
+      gcc gcc-ar gcc-nm gcc-ranlib gcov gcov-dump gcov-tool gendef gfortran \
+      ld nm objcopy objdump ranlib readelf size strings strip widl windmc \
+      windres \
     | xargs -I{} -P$(nproc) \
           $ARCH-gcc -DEXE={}.exe -DCMD=$ARCH-{} \
             -Os -fno-asynchronous-unwind-tables \
@@ -336,6 +338,16 @@ RUN patch -d/mingw-w64-v$MINGW_VERSION -p1 <$PREFIX/src/gendef-silent.patch \
         LDFLAGS="-s" \
  && make -j$(nproc) \
  && cp gendef.exe $PREFIX/bin/
+
+WORKDIR /mingw-w64-v$MINGW_VERSION/mingw-w64-tools/widl
+RUN ./configure \
+        --host=$ARCH \
+        --prefix=$PREFIX \
+        --with-widl-includedir=$PREFIX/include \
+        CFLAGS="-Os" \
+        LDFLAGS="-s" \
+ && make -j$(nproc) \
+ && cp widl.exe $PREFIX/bin/
 
 WORKDIR /expat
 RUN /expat-$EXPAT_VERSION/configure \
