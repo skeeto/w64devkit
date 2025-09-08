@@ -313,8 +313,8 @@ RUN $ARCH-gcc -DEXE=gcc.exe -DCMD=cc \
         -o $PREFIX/bin/c89.exe $PREFIX/src/alias.c -lkernel32 \
  && printf '%s\n' addr2line ar as c++filt cpp dlltool dllwrap elfedit g++ \
       gcc gcc-ar gcc-nm gcc-ranlib gcov gcov-dump gcov-tool gendef gfortran \
-      ld nm objcopy objdump ranlib readelf size strings strip widl windmc \
-      windres \
+      ld nm objcopy objdump ranlib readelf size strings strip uuidgen widl \
+      windmc windres \
     | xargs -I{} -P$(nproc) \
           $ARCH-gcc -DEXE={}.exe -DCMD=$ARCH-{} \
             -Os -fno-asynchronous-unwind-tables \
@@ -334,6 +334,7 @@ RUN patch -d/mingw-w64-v$MINGW_VERSION -p1 <$PREFIX/src/gendef-silent.patch \
  && cp gendef.exe $PREFIX/bin/
 
 WORKDIR /mingw-w64-v$MINGW_VERSION/mingw-w64-tools/widl
+COPY src/uuidgen.c $PREFIX/src/
 RUN ./configure \
         --host=$ARCH \
         --prefix=$PREFIX \
@@ -341,7 +342,9 @@ RUN ./configure \
         CFLAGS="-Os" \
         LDFLAGS="-s" \
  && make -j$(nproc) \
- && cp widl.exe $PREFIX/bin/
+ && cp widl.exe $PREFIX/bin/ \
+ && $ARCH-gcc -nostartfiles -Oz -s -o $PREFIX/bin/uuidgen.exe \
+        $PREFIX/src/uuidgen.c -lmemory
 
 WORKDIR /expat
 RUN /expat-$EXPAT_VERSION/configure \
