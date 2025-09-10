@@ -200,8 +200,7 @@ WORKDIR /mpfr
 RUN /mpfr-$MPFR_VERSION/configure \
         --prefix=/deps \
         --host=$ARCH \
-        --with-gmp-include=/deps/include \
-        --with-gmp-lib=/deps/lib \
+        --with-gmp=/deps \
         --enable-static \
         --disable-shared \
         CC=$ARCH-gcc \
@@ -214,10 +213,8 @@ WORKDIR /mpc
 RUN /mpc-$MPC_VERSION/configure \
         --prefix=/deps \
         --host=$ARCH \
-        --with-gmp-include=/deps/include \
-        --with-gmp-lib=/deps/lib \
-        --with-mpfr-include=/deps/include \
-        --with-mpfr-lib=/deps/lib \
+        --with-gmp=/deps \
+        --with-mpfr=/deps \
         --enable-static \
         --disable-shared \
         CC=$ARCH-gcc \
@@ -275,12 +272,9 @@ RUN echo 'BEGIN {print "pecoff"}' \
         --enable-static \
         --disable-shared \
         --with-pic \
-        --with-gmp-include=/deps/include \
-        --with-gmp-lib=/deps/lib \
-        --with-mpc-include=/deps/include \
-        --with-mpc-lib=/deps/lib \
-        --with-mpfr-include=/deps/include \
-        --with-mpfr-lib=/deps/lib \
+        --with-gmp=/deps \
+        --with-mpc=/deps \
+        --with-mpfr=/deps \
         --enable-languages=c,c++,fortran \
         --enable-libgomp \
         --enable-threads=posix \
