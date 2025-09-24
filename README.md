@@ -60,8 +60,6 @@ Then to start an interactive unix shell:
 * Trivial to build from source, meaning it's easy to tweak and adjust any
   part of the kit for your own requirements.
 
-* [Complements Go][go] for cgo and bootstrapping.
-
 ## Operating system support
 
 The x64 kit requires Windows 7 or later, though some tools only support
@@ -216,7 +214,6 @@ binaries.
 [doc-std-cpp]: https://en.cppreference.com/w/cpp/links
 [doc-win32]: https://web.archive.org/web/20220922051031/http://www.laurencejackson.com/win32/
 [gdb]: https://www.gnu.org/software/gdb/
-[go]: https://nullprogram.com/blog/2021/06/29/
 [gpl]: https://www.gnu.org/licenses/gcc-exception-3.1.en.html
 [lic1]: https://sourceforge.net/p/mingw-w64/mingw-w64/ci/master/tree/COPYING.MinGW-w64-runtime/COPYING.MinGW-w64-runtime.txt
 [lic2]: https://sourceforge.net/p/mingw-w64/mingw-w64/ci/master/tree/mingw-w64-libraries/winpthreads/COPYING
