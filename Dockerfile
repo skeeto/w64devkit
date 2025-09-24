@@ -28,7 +28,7 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
     https://ftpmirror.gnu.org/gnu/binutils/binutils-$BINUTILS_VERSION.tar.xz \
     https://ftpmirror.gnu.org/gnu/gcc/gcc-$GCC_VERSION/gcc-$GCC_VERSION.tar.xz \
     https://ftpmirror.gnu.org/gnu/gdb/gdb-$GDB_VERSION.tar.xz \
-    https://github.com/libexpat/libexpat/releases/download/R_2_7_2/expat-$EXPAT_VERSION.tar.xz \
+    https://github.com/libexpat/libexpat/releases/download/R_$(echo $EXPAT_VERSION | tr . _)/expat-$EXPAT_VERSION.tar.xz \
     https://ftpmirror.gnu.org/gnu/gmp/gmp-$GMP_VERSION.tar.xz \
     https://ftpmirror.gnu.org/gnu/mpc/mpc-$MPC_VERSION.tar.gz \
     https://ftpmirror.gnu.org/gnu/mpfr/mpfr-$MPFR_VERSION.tar.xz \
