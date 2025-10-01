@@ -1,5 +1,9 @@
 name: Build and test
 
+concurrency:
+  group: w64devkit-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   pull_request: {}
   push:
@@ -25,6 +29,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Apply x86 patch
         if: matrix.arch == 'x86'
         run: patch -p1 -i src/variant-x86.patch
@@ -38,10 +45,22 @@ jobs:
           echo "version=${GIT_VERSION:1}" >> $GITHUB_OUTPUT
           echo "archive=w64devkit-$ARCH-${GIT_VERSION:1}" >> $GITHUB_OUTPUT
 
-      - name: Build
+      - name: Build dist artifact (multi-stage)
+        env:
+            DOCKER_BUILDKIT: 1
         run: |
-          docker build -t w64devkit .
-          docker run --rm w64devkit > ${{ steps.filename.outputs.archive }}.exe
+          echo "Starting build at $(date -u +%H:%M:%S)"
+          # Build only the small 'dist' stage and export the exe directly without creating a large image
+          docker buildx build \
+            --cache-from type=gha \
+            --cache-to type=gha,mode=max \
+            --target dist \
+            --output type=local,dest=dist-out \
+            --build-arg ARCH=${{ matrix.arch == 'x64' && 'x86_64-w64-mingw32' || 'i686-w64-mingw32' }} \
+            .
+          mv dist-out/w64devkit.exe ${{ steps.filename.outputs.archive }}.exe
+          ls -lh ${{ steps.filename.outputs.archive }}.exe
+          echo "Finished at $(date -u +%H:%M:%S)"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
