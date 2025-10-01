@@ -1,5 +1,9 @@
 name: Build and test
 
+concurrency:
+  group: w64devkit-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   pull_request: {}
   push:
@@ -25,6 +29,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Apply x86 patch
         if: matrix.arch == 'x86'
         run: patch -p1 -i src/variant-x86.patch
@@ -38,16 +45,26 @@ jobs:
           echo "version=${GIT_VERSION:1}" >> $GITHUB_OUTPUT
           echo "archive=w64devkit-$ARCH-${GIT_VERSION:1}" >> $GITHUB_OUTPUT
 
-      - name: Build
+      - name: Build and extract artifact
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: dist
+          outputs: type=local,dest=.
+          cache-from: type=gha,scope=w64devkit-${{ matrix.arch }}
+          cache-to: type=gha,scope=w64devkit-${{ matrix.arch }},mode=max
+          
+      - name: Rename artifact
         run: |
-          docker build -t w64devkit .
-          docker run --rm w64devkit > ${{ steps.filename.outputs.archive }}.exe
+          mv w64devkit.exe ${{ steps.filename.outputs.archive }}.exe
+          ls -lh ${{ steps.filename.outputs.archive }}.exe
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.filename.outputs.archive }}
-          path: w64devkit-*.exe
+          name: ${{ steps.filename.outputs.archive }}.exe
+          path: ${{ steps.filename.outputs.archive }}.exe
+          compression-level: 0
 
       - name: Create Release
         if: startsWith(github.ref, 'refs/tags/')
