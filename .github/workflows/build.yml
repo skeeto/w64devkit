@@ -45,14 +45,18 @@ jobs:
           echo "version=${GIT_VERSION:1}" >> $GITHUB_OUTPUT
           echo "archive=w64devkit-$ARCH-${GIT_VERSION:1}" >> $GITHUB_OUTPUT
 
-      - name: Build and extract artifact
+      - name: Build image
         uses: docker/build-push-action@v6
         with:
           context: .
-          target: dist
-          outputs: type=local,dest=.
+          tags: w64devkit:${{ matrix.arch }}
+          load: true
           cache-from: type=gha,scope=w64devkit-${{ matrix.arch }}
           cache-to: type=gha,scope=w64devkit-${{ matrix.arch }},mode=max
+          
+      - name: Extract artifact
+        run: |
+          docker run --rm w64devkit:${{ matrix.arch }} > w64devkit.exe
           
       - name: Rename artifact
         run: |

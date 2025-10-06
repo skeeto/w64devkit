@@ -1,4 +1,4 @@
-FROM debian:bookworm-slim AS builder
+FROM debian:bookworm-slim
 
 ARG VERSION=2.4.0
 ARG PREFIX=/w64devkit
@@ -523,11 +523,6 @@ RUN printf "id ICON \"$PREFIX/src/w64devkit.ico\"" >w64devkit.rc \
  && cat /mingw-w64-v$MINGW_VERSION/mingw-w64-libraries/winpthreads/COPYING \
         >>$PREFIX/COPYING.MinGW-w64-runtime.txt \
  && echo $VERSION >$PREFIX/VERSION.txt \
- && 7z a -mx=9 -mtm=- $PREFIX.7z $PREFIX \
- && cat /7z/7z.sfx $PREFIX.7z > /w64devkit.exe
+ && 7z a -mx=9 -mtm=- $PREFIX.7z $PREFIX
 ENV PREFIX=${PREFIX}
 CMD cat /7z/7z.sfx $PREFIX.7z
-
-# Minimal stage for CI artifact extraction (optional, doesn't affect default build)
-FROM scratch AS dist
-COPY --from=builder /w64devkit.exe /w64devkit.exe

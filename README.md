@@ -22,7 +22,7 @@ building the kit itself.
 
 Build the image, then run it to produce a self-extracting 7z archive:
 
-    docker build --target builder -t w64devkit .
+    docker build -t w64devkit .
     docker run --rm w64devkit >w64devkit-x64.exe
 
 This takes about 15 minutes on modern systems. You will need an internet
