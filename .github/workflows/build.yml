@@ -1,16 +1,11 @@
 name: Build and test
 
 concurrency:
-  group: w64devkit-${{ github.ref }}
-  cancel-in-progress: true
+  group: w64devkit-${{ github.event.pull_request.head.sha || github.sha }}
 
 on:
-  pull_request: {}
   push:
-    branches:
-      - '*'
-    tags:
-      - '*'
+  pull_request:
 
 # Must set Settings -> Actions -> General -> Workflow permissions to
 # "Read and write permissions"
@@ -20,6 +15,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.event.pull_request == null
 
     strategy:
       fail-fast: false
