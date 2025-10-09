@@ -5,12 +5,11 @@ concurrency:
   cancel-in-progress: true
 
 on:
-  pull_request: {}
   push:
-    branches:
-      - '*'
-    tags:
-      - '*'
+    branches: [ "master" ]
+    tags: [ "*" ]
+  pull_request:
+    branches: [ "master" ]
 
 # Must set Settings -> Actions -> General -> Workflow permissions to
 # "Read and write permissions"
