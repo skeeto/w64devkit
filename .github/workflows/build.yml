@@ -1,7 +1,7 @@
 name: Build and test
 
 concurrency:
-  group: w64devkit-${{ github.ref }}
+  group: w64devkit-${{ github.event.pull_request.head.sha || github.sha }}
   cancel-in-progress: true
 
 on:
