@@ -137,7 +137,9 @@ RUN mkdir -p $PREFIX/lib \
  && ln $PREFIX/lib/libchkstk.a /bootstrap/lib/
 
 WORKDIR /x-mingw-crt
-RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
+COPY src/crt-printf-g.patch $PREFIX/src/
+RUN patch -d/mingw-w64-v$MINGW_VERSION -p1 <$PREFIX/src/crt-printf-g.patch \
+ && /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
         --prefix=/bootstrap \
         --with-sysroot=/bootstrap \
         --host=$ARCH \

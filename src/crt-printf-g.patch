@@ -1,0 +1,52 @@
+commit 8612006d7f5376cdefa7c887db6d3dfb48d285be
+Author: Peter Damianov <peter0x44@disroot.org>
+Date:   Wed Oct 8 11:12:52 2025 +0100
+
+    Fix %g format specifier width padding with trailing zeros
+    
+    Remove incorrect width adjustment that prevented proper padding
+    with spaces for %g format specifier when the value has trailing
+    zeros in the integer part.
+    
+    The original code would reduce the field width when precision
+    became negative (e.g., for 100000.0, precision = strlen("1") - 6 = -5),
+    causing the output to lose its padding:
+    
+    printf("(%10g)\n", 100000.0f);  // was: (100000), expected: (    100000)
+    
+    The fix clamps negative precision to 0 instead of adjusting the
+    width, preserving the requested field width for proper padding.
+    
+    Adds test case t_printf_g_width.
+    
+    Reference: https://github.com/skeeto/w64devkit/issues/269
+    Signed-off-by: Peter Damianov <peter0x44@disroot.org>
+    Signed-off-by: LIU Hao <lh_mouse@126.com>
+
+diff --git a/mingw-w64-crt/stdio/mingw_pformat.c b/mingw-w64-crt/stdio/mingw_pformat.c
+index b7d3bfb41..3df14704b 100644
+--- a/mingw-w64-crt/stdio/mingw_pformat.c
++++ b/mingw-w64-crt/stdio/mingw_pformat.c
+@@ -1881,14 +1881,14 @@ void __pformat_gfloat( long double x, __pformat_t *stream )
+        * precede the radix point, but we truncate any balance following
+        * it, to suppress output of non-significant trailing zeros...
+        */
+-      if( ((stream->precision = strlen( value ) - intlen) < 0)
+-        /*
+-         * This may require a compensating adjustment to the field
+-         * width, to accommodate significant trailing zeros, which
+-         * precede the radix point...
+-         */
+-      && (stream->width > 0)  )
+-        stream->width += stream->precision;
++      stream->precision = strlen( value ) - intlen;
++      /* When the mantissa is shorter than the number of integer digits
++       * (e.g., 100000 has mantissa "1" but requires 6 digit positions),
++       * precision becomes negative. Clamp to zero to represent no
++       * fractional digits.
++       */
++      if( stream->precision < 0 )
++        stream->precision = 0;
+ 
+     /* Now, we format the result as any other fixed point value.
+      */
