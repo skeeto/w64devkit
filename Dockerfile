@@ -19,7 +19,7 @@ ARG PDCURSES_VERSION=3.9
 ARG VIM_VERSION=9.0
 
 RUN apt-get update && apt-get install --yes --no-install-recommends \
-  build-essential curl libgmp-dev libmpc-dev libmpfr-dev m4 p7zip-full
+  build-essential curl gnat libgmp-dev libmpc-dev libmpfr-dev m4 p7zip-full
 
 # Download, verify, and unpack
 
@@ -108,7 +108,7 @@ RUN cat $PREFIX/src/gcc-*.patch | patch -d/gcc-$GCC_VERSION -p1 \
         --enable-static \
         --disable-shared \
         --with-pic \
-        --enable-languages=c,c++,fortran \
+        --enable-languages=c,c++,fortran,ada \
         --enable-libgomp \
         --enable-threads=posix \
         --enable-version-specific-runtime-libs \
@@ -275,7 +275,7 @@ RUN echo 'BEGIN {print "pecoff"}' \
         --with-gmp=/deps \
         --with-mpc=/deps \
         --with-mpfr=/deps \
-        --enable-languages=c,c++,fortran \
+        --enable-languages=c,c++,fortran,ada \
         --enable-libgomp \
         --enable-threads=posix \
         --enable-version-specific-runtime-libs \
