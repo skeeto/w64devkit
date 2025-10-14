@@ -58,7 +58,7 @@ RUN sha256sum -c $PREFIX/src/SHA256SUMS \
  && tar xjf vim-$VIM_VERSION.tar.bz2
 COPY src/w64devkit.c src/w64devkit.ico src/libmemory.c src/libchkstk.S \
      src/alias.c src/debugbreak.c src/pkg-config.c src/vc++filt.c \
-     src/peports.c src/profile $PREFIX/src/
+     src/peports.c src/compdb-cc.c src/profile $PREFIX/src/
 
 ARG ARCH=x86_64-w64-mingw32
 
@@ -514,6 +514,9 @@ RUN printf "id ICON \"$PREFIX/src/w64devkit.ico\"" >w64devkit.rc \
  && $ARCH-gcc -DEXE=pkg-config.exe -DCMD=pkg-config \
         -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
         -o $PREFIX/bin/$ARCH-pkg-config.exe $PREFIX/src/alias.c -lkernel32 \
+ && $ARCH-gcc -Os -s -nostartfiles -o $PREFIX/bin/compdb-cc.exe \
+        $PREFIX/src/compdb-cc.c -lmemory \
+ && cp $PREFIX/bin/compdb-cc.exe $PREFIX/bin/compdb-c++.exe \
  && sed -i s/'\<ARCH\>'/$ARCH/g $PREFIX/src/profile \
  && mkdir -p $PREFIX/lib/pkgconfig \
  && cp /mingw-w64-v$MINGW_VERSION/COPYING.MinGW-w64-runtime/COPYING.MinGW-w64-runtime.txt \
