@@ -62,6 +62,21 @@ COPY src/w64devkit.c src/w64devkit.ico src/libmemory.c src/libchkstk.S \
 
 ARG ARCH=x86_64-w64-mingw32
 
+# Build native Linux GCC with Ada support for bootstrapping
+
+WORKDIR /x-ada
+RUN /gcc-$GCC_VERSION/configure \
+        --prefix=/ada-bootstrap \
+        --enable-languages=ada \
+        --disable-multilib \
+        --disable-nls \
+        CFLAGS="-Os" \
+        CXXFLAGS="-Os" \
+ && make -j$(nproc) \
+ && make install
+
+ENV PATH="/ada-bootstrap/bin:${PATH}"
+
 # Build cross-compiler
 
 WORKDIR /binutils-$BINUTILS_VERSION
@@ -117,6 +132,9 @@ RUN cat $PREFIX/src/gcc-*.patch | patch -d/gcc-$GCC_VERSION -p1 \
         --disable-nls \
         --disable-lto \
         --disable-multilib \
+        CC=/ada-bootstrap/bin/gcc \
+        CXX=/ada-bootstrap/bin/g++ \
+        ADA_CC=/ada-bootstrap/bin/gcc \
         CFLAGS_FOR_TARGET="-Os" \
         CXXFLAGS_FOR_TARGET="-Os" \
         LDFLAGS_FOR_TARGET="-s" \
@@ -286,6 +304,9 @@ RUN echo 'BEGIN {print "pecoff"}' \
         --disable-nls \
         --disable-win32-registry \
         --enable-mingw-wildcard \
+        CC_FOR_BUILD=/ada-bootstrap/bin/gcc \
+        CXX_FOR_BUILD=/ada-bootstrap/bin/g++ \
+        ADA_FOR_BUILD=/ada-bootstrap/bin/gnat \
         CFLAGS_FOR_TARGET="-Os" \
         CXXFLAGS_FOR_TARGET="-Os" \
         LDFLAGS_FOR_TARGET="-s" \
