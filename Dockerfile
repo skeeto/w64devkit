@@ -70,6 +70,7 @@ RUN /gcc-$GCC_VERSION/configure \
         --enable-languages=ada \
         --disable-multilib \
         --disable-nls \
+        --disable-bootstrap \
         CFLAGS="-Os" \
         CXXFLAGS="-Os" \
  && make -j$(nproc) \
@@ -328,6 +329,8 @@ RUN $ARCH-gcc -DEXE=gcc.exe -DCMD=cc \
         -o $PREFIX/bin/c89.exe $PREFIX/src/alias.c -lkernel32 \
  && printf '%s\n' addr2line ar as c++filt cpp dlltool dllwrap elfedit g++ \
       gcc gcc-ar gcc-nm gcc-ranlib gcov gcov-dump gcov-tool gendef gfortran \
+      gnat gnatbind gnatclean gnatfind gnatkr gnatlink gnatls gnatmake \
+      gnatname gnatpp gnatprep gnatxref \
       ld nm objcopy objdump ranlib readelf size strings strip uuidgen widl \
       windmc windres \
     | xargs -I{} -P$(nproc) \
