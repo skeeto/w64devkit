@@ -132,9 +132,6 @@ RUN cat $PREFIX/src/gcc-*.patch | patch -d/gcc-$GCC_VERSION -p1 \
         --disable-nls \
         --disable-lto \
         --disable-multilib \
-        CC=/ada-bootstrap/bin/gcc \
-        CXX=/ada-bootstrap/bin/g++ \
-        ADA_CC=/ada-bootstrap/bin/gcc \
         CFLAGS_FOR_TARGET="-Os" \
         CXXFLAGS_FOR_TARGET="-Os" \
         LDFLAGS_FOR_TARGET="-s" \
@@ -304,9 +301,6 @@ RUN echo 'BEGIN {print "pecoff"}' \
         --disable-nls \
         --disable-win32-registry \
         --enable-mingw-wildcard \
-        CC_FOR_BUILD=/ada-bootstrap/bin/gcc \
-        CXX_FOR_BUILD=/ada-bootstrap/bin/g++ \
-        ADA_FOR_BUILD=/ada-bootstrap/bin/gnat \
         CFLAGS_FOR_TARGET="-Os" \
         CXXFLAGS_FOR_TARGET="-Os" \
         LDFLAGS_FOR_TARGET="-s" \
