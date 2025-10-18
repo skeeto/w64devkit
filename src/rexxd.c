@@ -2692,7 +2692,7 @@ int main(void)
 #elif DLL
 // In-memory hexdump and reverse hexdump DLL. Mostly for showing off.
 //
-// $ cc -shared -nostdlib -O2 -funroll-loops -s -o xxd.dll
+// $ cc -DDLL -shared -nostdlib -O2 -funroll-loops -s -o xxd.dll
 //      rexxd.c -lmemory -lchkstk
 //
 // Exports (return output size, or -1 on OOM):
@@ -2767,10 +2767,10 @@ __declspec(dllexport)
 iz xxd_hexdump(u8 *dst, iz dlen, u8 *src, iz slen)
 {
     Plt plt = {0};
-    plt.input.data  = dst;
-    plt.input.len   = dlen;
-    plt.output.data = src;
-    plt.outcap      = slen;
+    plt.input.data  = src;
+    plt.input.len   = slen;
+    plt.output.data = dst;
+    plt.outcap      = dlen;
     if (__builtin_setjmp(plt.oom)) {
         return -1;
     }
@@ -2783,10 +2783,10 @@ __declspec(dllexport)
 iz xxd_reverse(u8 *dst, iz dlen, u8 *src, iz slen)
 {
     Plt plt = {0};
-    plt.input.data  = dst;
-    plt.input.len   = dlen;
-    plt.output.data = src;
-    plt.outcap      = slen;
+    plt.input.data  = src;
+    plt.input.len   = slen;
+    plt.output.data = dst;
+    plt.outcap      = dlen;
     if (__builtin_setjmp(plt.oom)) {
         return -1;
     }
