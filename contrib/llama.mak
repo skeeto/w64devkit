@@ -17,14 +17,14 @@
 #   $ make -j$(nproc) -f path/to/w64devkit/contrib/llama.mak
 #
 # Incremental builds are unsupported, so clean rebuild after pulling. It
-# was last tested at b5711, and an update will inevitably break it.
+# was last tested at b6961, and an update will inevitably break it.
 
 CROSS    =
 CPPFLAGS = -w -O2
 LDFLAGS  = -s
 
 .SUFFIXES: .c .cpp .o
-def = -DGGML_USE_CPU
+def = -DGGML_USE_CPU -DGGML_VERSION='"0.9.4"' -DGGML_COMMIT='"unknown"'
 inc = \
   -I. \
   -Icommon \
@@ -44,12 +44,15 @@ dll = \
   ggml/src/ggml-backend-reg.cpp.o \
   ggml/src/ggml-backend.cpp.o \
   ggml/src/ggml-cpu/arch/x86/quants.c.o \
+  ggml/src/ggml-cpu/arch/x86/repack.cpp.o \
   ggml/src/ggml-cpu/binary-ops.cpp.o \
   ggml/src/ggml-cpu/ggml-cpu.c.o \
   ggml/src/ggml-cpu/ggml-cpu.cpp.o \
+  ggml/src/ggml-cpu/hbm.cpp.o \
   ggml/src/ggml-cpu/llamafile/sgemm.cpp.o \
   ggml/src/ggml-cpu/ops.cpp.o \
   ggml/src/ggml-cpu/quants.c.o \
+  ggml/src/ggml-cpu/repack.cpp.o \
   ggml/src/ggml-cpu/traits.cpp.o \
   ggml/src/ggml-cpu/unary-ops.cpp.o \
   ggml/src/ggml-cpu/vec.cpp.o \
@@ -57,19 +60,21 @@ dll = \
   ggml/src/ggml-quants.c.o \
   ggml/src/ggml-threading.cpp.o \
   ggml/src/ggml.c.o \
+  ggml/src/ggml.cpp.o \
   ggml/src/gguf.cpp.o \
   src/llama-adapter.cpp.o \
   src/llama-arch.cpp.o \
   src/llama-batch.cpp.o \
   src/llama-chat.cpp.o \
   src/llama-context.cpp.o \
+  src/llama-cparams.cpp.o \
   src/llama-grammar.cpp.o \
   src/llama-graph.cpp.o \
   src/llama-hparams.cpp.o \
   src/llama-impl.cpp.o \
   src/llama-io.cpp.o \
-  src/llama-kv-cache-unified-iswa.cpp.o \
-  src/llama-kv-cache-unified.cpp.o \
+  src/llama-kv-cache-iswa.cpp.o \
+  src/llama-kv-cache.cpp.o \
   src/llama-memory-hybrid.cpp.o \
   src/llama-memory-recurrent.cpp.o \
   src/llama-memory.cpp.o \
@@ -82,7 +87,102 @@ dll = \
   src/llama-vocab.cpp.o \
   src/llama.cpp.o \
   src/unicode-data.cpp.o \
-  src/unicode.cpp.o
+  src/unicode.cpp.o \
+  src/models/apertus.cpp.o \
+  src/models/arcee.cpp.o \
+  src/models/arctic.cpp.o \
+  src/models/arwkv7.cpp.o \
+  src/models/baichuan.cpp.o \
+  src/models/bailingmoe.cpp.o \
+  src/models/bailingmoe2.cpp.o \
+  src/models/bert.cpp.o \
+  src/models/bitnet.cpp.o \
+  src/models/bloom.cpp.o \
+  src/models/chameleon.cpp.o \
+  src/models/chatglm.cpp.o \
+  src/models/codeshell.cpp.o \
+  src/models/cogvlm.cpp.o \
+  src/models/cohere2-iswa.cpp.o \
+  src/models/command-r.cpp.o \
+  src/models/dbrx.cpp.o \
+  src/models/deci.cpp.o \
+  src/models/deepseek.cpp.o \
+  src/models/deepseek2.cpp.o \
+  src/models/dots1.cpp.o \
+  src/models/dream.cpp.o \
+  src/models/ernie4-5-moe.cpp.o \
+  src/models/ernie4-5.cpp.o \
+  src/models/exaone.cpp.o \
+  src/models/exaone4.cpp.o \
+  src/models/falcon-h1.cpp.o \
+  src/models/falcon.cpp.o \
+  src/models/gemma-embedding.cpp.o \
+  src/models/gemma.cpp.o \
+  src/models/gemma2-iswa.cpp.o \
+  src/models/gemma3-iswa.cpp.o \
+  src/models/gemma3n-iswa.cpp.o \
+  src/models/glm4-moe.cpp.o \
+  src/models/glm4.cpp.o \
+  src/models/gpt2.cpp.o \
+  src/models/gptneox.cpp.o \
+  src/models/granite-hybrid.cpp.o \
+  src/models/granite.cpp.o \
+  src/models/graph-context-mamba.cpp.o \
+  src/models/grok.cpp.o \
+  src/models/grovemoe.cpp.o \
+  src/models/hunyuan-dense.cpp.o \
+  src/models/hunyuan-moe.cpp.o \
+  src/models/internlm2.cpp.o \
+  src/models/jais.cpp.o \
+  src/models/jamba.cpp.o \
+  src/models/lfm2.cpp.o \
+  src/models/llada-moe.cpp.o \
+  src/models/llada.cpp.o \
+  src/models/llama-iswa.cpp.o \
+  src/models/llama.cpp.o \
+  src/models/mamba.cpp.o \
+  src/models/minicpm3.cpp.o \
+  src/models/minimax-m2.cpp.o \
+  src/models/mpt.cpp.o \
+  src/models/nemotron-h.cpp.o \
+  src/models/nemotron.cpp.o \
+  src/models/neo-bert.cpp.o \
+  src/models/olmo.cpp.o \
+  src/models/olmo2.cpp.o \
+  src/models/olmoe.cpp.o \
+  src/models/openai-moe-iswa.cpp.o \
+  src/models/openelm.cpp.o \
+  src/models/orion.cpp.o \
+  src/models/pangu-embedded.cpp.o \
+  src/models/phi2.cpp.o \
+  src/models/phi3.cpp.o \
+  src/models/plamo.cpp.o \
+  src/models/plamo2.cpp.o \
+  src/models/plm.cpp.o \
+  src/models/qwen.cpp.o \
+  src/models/qwen2.cpp.o \
+  src/models/qwen2moe.cpp.o \
+  src/models/qwen2vl.cpp.o \
+  src/models/qwen3.cpp.o \
+  src/models/qwen3moe.cpp.o \
+  src/models/qwen3vl-moe.cpp.o \
+  src/models/qwen3vl.cpp.o \
+  src/models/refact.cpp.o \
+  src/models/rwkv6-base.cpp.o \
+  src/models/rwkv6.cpp.o \
+  src/models/rwkv6qwen2.cpp.o \
+  src/models/rwkv7-base.cpp.o \
+  src/models/rwkv7.cpp.o \
+  src/models/seed-oss.cpp.o \
+  src/models/smallthinker.cpp.o \
+  src/models/smollm3.cpp.o \
+  src/models/stablelm.cpp.o \
+  src/models/starcoder.cpp.o \
+  src/models/starcoder2.cpp.o \
+  src/models/t5-dec.cpp.o \
+  src/models/t5-enc.cpp.o \
+  src/models/wavtokenizer-dec.cpp.o \
+  src/models/xverse.cpp.o
 
 exe = \
   common/arg.cpp.o \
@@ -92,6 +192,7 @@ exe = \
   common/console.cpp.o \
   common/json-partial.cpp.o \
   common/json-schema-to-grammar.cpp.o \
+  common/llguidance.cpp.o \
   common/log.cpp.o \
   common/ngram-cache.cpp.o \
   common/regex-partial.cpp.o \
@@ -168,28 +269,16 @@ llama.def:
 	llama_get_embeddings
 	llama_get_embeddings_ith
 	llama_get_embeddings_seq
-	llama_get_kv_self
 	llama_get_logits
 	llama_get_logits_ith
 	llama_get_model
 	llama_get_state_size
 	llama_init_from_model
-	llama_kv_self_can_shift
-	llama_kv_self_clear
-	llama_kv_self_defrag
-	llama_kv_self_n_tokens
-	llama_kv_self_seq_add
-	llama_kv_self_seq_cp
-	llama_kv_self_seq_div
-	llama_kv_self_seq_keep
-	llama_kv_self_seq_pos_max
-	llama_kv_self_seq_rm
-	llama_kv_self_update
-	llama_kv_self_used_cells
 	llama_load_model_from_file
 	llama_load_session_file
 	llama_log_set
 	llama_max_devices
+	llama_memory_breakdown_print
 	llama_model_chat_template
 	llama_model_decoder_start_token
 	llama_model_default_params
@@ -229,6 +318,9 @@ llama.def:
 	llama_n_vocab
 	llama_new_context_with_model
 	llama_numa_init
+	llama_opt_epoch
+	llama_opt_init
+	llama_opt_param_filter_all
 	llama_perf_context
 	llama_perf_context_print
 	llama_perf_context_reset
@@ -262,7 +354,6 @@ llama.def:
 	llama_sampler_init_mirostat
 	llama_sampler_init_mirostat_v2
 	llama_sampler_init_penalties
-	llama_sampler_init_softmax
 	llama_sampler_init_temp
 	llama_sampler_init_temp_ext
 	llama_sampler_init_top_k
@@ -288,10 +379,13 @@ llama.def:
 	llama_state_load_file
 	llama_state_save_file
 	llama_state_seq_get_data
+	llama_state_seq_get_data_ext
 	llama_state_seq_get_size
+	llama_state_seq_get_size_ext
 	llama_state_seq_load_file
 	llama_state_seq_save_file
 	llama_state_seq_set_data
+	llama_state_seq_set_data_ext
 	llama_state_set_data
 	llama_supports_gpu_offload
 	llama_supports_mlock
@@ -331,11 +425,13 @@ llama.def:
 	llama_vocab_fim_suf
 	llama_vocab_get_add_bos
 	llama_vocab_get_add_eos
+	llama_vocab_get_add_sep
 	llama_vocab_get_attr
 	llama_vocab_get_score
 	llama_vocab_get_text
 	llama_vocab_is_control
 	llama_vocab_is_eog
+	llama_vocab_mask
 	llama_vocab_n_tokens
 	llama_vocab_nl
 	llama_vocab_pad
