@@ -20,7 +20,7 @@
 # was last tested at b6961, and an update will inevitably break it.
 
 CROSS    =
-CPPFLAGS = -w -O2
+CPPFLAGS = -w -O2 -march=x86-64-v3
 LDFLAGS  = -s
 
 .SUFFIXES: .c .cpp .o
