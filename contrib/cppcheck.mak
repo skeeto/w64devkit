@@ -7,9 +7,10 @@
 # source tree without installing.
 
 ext      := $(shell find externals -mindepth 1 -type d)
-src      := $(shell find cli lib externals -name '*.cpp')
+src      := $(shell find cli lib frontend externals -name '*.cpp')
 obj      := $(src:.cpp=.o)
-CXXFLAGS := -w -O2 -Ilib $(addprefix -I,$(ext))
+CXXFLAGS := -w -O2 -Ilib -Ifrontend $(addprefix -I,$(ext)) \
+  -DSIMPLECPP_TOKENLIST_ALLOW_PTR
 
 cppcheck.exe: $(obj)
 	$(CXX) -s -o $@ $(obj) -lshlwapi
