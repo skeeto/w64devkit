@@ -17,7 +17,7 @@
 #   $ make -j$(nproc) -f path/to/w64devkit/contrib/llama.mak
 #
 # Incremental builds are unsupported, so clean rebuild after pulling. It
-# was last tested at b6961, and an update will inevitably break it.
+# was last tested at b6980, and an update will inevitably break it.
 
 CROSS    =
 CPPFLAGS = -w -O2 -march=x86-64-v3
@@ -190,6 +190,7 @@ exe = \
   common/chat.cpp.o \
   common/common.cpp.o \
   common/console.cpp.o \
+  common/download.cpp.o \
   common/json-partial.cpp.o \
   common/json-schema-to-grammar.cpp.o \
   common/llguidance.cpp.o \
