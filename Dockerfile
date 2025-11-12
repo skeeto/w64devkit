@@ -1,4 +1,4 @@
-FROM debian:bookworm-slim
+FROM debian:trixie-slim
 
 ARG VERSION=2.4.0
 ARG PREFIX=/w64devkit
