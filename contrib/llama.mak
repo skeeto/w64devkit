@@ -17,14 +17,18 @@
 #   $ make -j$(nproc) -f path/to/w64devkit/contrib/llama.mak
 #
 # Incremental builds are unsupported, so clean rebuild after pulling. It
-# was last tested at b6980, and an update will inevitably break it.
+# was last tested at b7067, and an update will inevitably break it.
 
 CROSS    =
 CPPFLAGS = -w -O2 -march=x86-64-v3
 LDFLAGS  = -s
 
 .SUFFIXES: .c .cpp .o
-def = -DGGML_USE_CPU -DGGML_VERSION='"0.9.4"' -DGGML_COMMIT='"unknown"'
+def = \
+  -DGGML_COMMIT='"unknown"' \
+  -DGGML_USE_CPU \
+  -DGGML_VERSION='"0.9.4"' \
+  -DLLAMA_USE_HTTPLIB
 inc = \
   -I. \
   -Icommon \
@@ -33,7 +37,8 @@ inc = \
   -Iggml/src/ggml-cpu \
   -Iinclude \
   -Itools/mtmd \
-  -Ivendor
+  -Ivendor \
+  -Ivendor/cpp-httplib
 %.c.o: %.c
 	$(CROSS)gcc -c -o $@ $(inc) $(def) $(CPPFLAGS) $<
 %.cpp.o: %.cpp
@@ -88,6 +93,7 @@ dll = \
   src/llama.cpp.o \
   src/unicode-data.cpp.o \
   src/unicode.cpp.o \
+  src/models/afmoe.cpp.o \
   src/models/apertus.cpp.o \
   src/models/arcee.cpp.o \
   src/models/arctic.cpp.o \
@@ -204,7 +210,8 @@ exe = \
   tools/mtmd/mtmd-audio.cpp.o \
   tools/mtmd/mtmd-helper.cpp.o \
   tools/mtmd/mtmd.cpp.o \
-  tools/server/server.cpp.o
+  tools/server/server.cpp.o \
+  vendor/cpp-httplib/httplib.cpp.o
 
 all: llama.dll llama-server.exe
 
