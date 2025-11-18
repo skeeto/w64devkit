@@ -17,7 +17,7 @@
 #   $ make -j$(nproc) -f path/to/w64devkit/contrib/llama.mak
 #
 # Incremental builds are unsupported, so clean rebuild after pulling. It
-# was last tested at b7067, and an update will inevitably break it.
+# was last tested at b7090, and an update will inevitably break it.
 
 CROSS    =
 CPPFLAGS = -w -O2 -march=x86-64-v3
@@ -211,6 +211,7 @@ exe = \
   tools/mtmd/mtmd-helper.cpp.o \
   tools/mtmd/mtmd.cpp.o \
   tools/server/server.cpp.o \
+  tools/server/server-http.cpp.o \
   vendor/cpp-httplib/httplib.cpp.o
 
 all: llama.dll llama-server.exe
