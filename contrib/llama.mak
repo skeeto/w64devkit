@@ -17,7 +17,7 @@
 #   $ make -j$(nproc) -f path/to/w64devkit/contrib/llama.mak
 #
 # Incremental builds are unsupported, so clean rebuild after pulling. It
-# was last tested at b7090, and an update will inevitably break it.
+# was last tested at b7099, and an update will inevitably break it.
 
 CROSS    =
 CPPFLAGS = -w -O2 -march=x86-64-v3
@@ -193,6 +193,7 @@ dll = \
 exe = \
   common/arg.cpp.o \
   common/chat-parser.cpp.o \
+  common/chat-parser-xml-toolcall.cpp.o \
   common/chat.cpp.o \
   common/common.cpp.o \
   common/console.cpp.o \
