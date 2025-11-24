@@ -17,7 +17,7 @@
 #   $ make -j$(nproc) -f path/to/w64devkit/contrib/llama.mak
 #
 # Incremental builds are unsupported, so clean rebuild after pulling. It
-# was last tested at b7099, and an update will inevitably break it.
+# was last tested at b7150, and an update will inevitably break it.
 
 CROSS    =
 CPPFLAGS = -w -O2 -march=x86-64-v3
@@ -91,8 +91,6 @@ dll = \
   src/llama-sampling.cpp.o \
   src/llama-vocab.cpp.o \
   src/llama.cpp.o \
-  src/unicode-data.cpp.o \
-  src/unicode.cpp.o \
   src/models/afmoe.cpp.o \
   src/models/apertus.cpp.o \
   src/models/arcee.cpp.o \
@@ -174,6 +172,7 @@ dll = \
   src/models/qwen3vl-moe.cpp.o \
   src/models/qwen3vl.cpp.o \
   src/models/refact.cpp.o \
+  src/models/rnd1.cpp.o \
   src/models/rwkv6-base.cpp.o \
   src/models/rwkv6.cpp.o \
   src/models/rwkv6qwen2.cpp.o \
@@ -188,12 +187,14 @@ dll = \
   src/models/t5-dec.cpp.o \
   src/models/t5-enc.cpp.o \
   src/models/wavtokenizer-dec.cpp.o \
+  src/unicode-data.cpp.o \
+  src/unicode.cpp.o \
   src/models/xverse.cpp.o
 
 exe = \
   common/arg.cpp.o \
-  common/chat-parser.cpp.o \
   common/chat-parser-xml-toolcall.cpp.o \
+  common/chat-parser.cpp.o \
   common/chat.cpp.o \
   common/common.cpp.o \
   common/console.cpp.o \
@@ -211,8 +212,11 @@ exe = \
   tools/mtmd/mtmd-audio.cpp.o \
   tools/mtmd/mtmd-helper.cpp.o \
   tools/mtmd/mtmd.cpp.o \
-  tools/server/server.cpp.o \
+  tools/server/server-common.cpp.o \
   tools/server/server-http.cpp.o \
+  tools/server/server-queue.cpp.o \
+  tools/server/server-task.cpp.o \
+  tools/server/server.cpp.o \
   vendor/cpp-httplib/httplib.cpp.o
 
 all: llama.dll llama-server.exe
