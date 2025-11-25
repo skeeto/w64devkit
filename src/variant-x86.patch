@@ -1,45 +1,45 @@
 --- a/Dockerfile
 +++ b/Dockerfile
-@@ -62,3 +62,3 @@
+@@ -64,3 +64,3 @@
  
 -ARG ARCH=x86_64-w64-mingw32
 +ARG ARCH=i686-w64-mingw32
  
-@@ -90,2 +90,3 @@
+@@ -107,2 +107,3 @@
          --with-default-msvcrt=msvcrt-os \
 +        --with-default-win32-winnt=0x0501 \
   && make -j$(nproc) \
-@@ -102,2 +103,3 @@
+@@ -119,2 +120,3 @@
          --with-sysroot=/bootstrap \
 +        --with-arch=pentium4 \
          --target=$ARCH \
-@@ -138,4 +140,4 @@
+@@ -155,4 +157,4 @@
          --disable-dependency-tracking \
 -        --disable-lib32 \
 -        --enable-lib64 \
 +        --enable-lib32 \
 +        --disable-lib64 \
          CFLAGS="-Os" \
-@@ -223,2 +225,3 @@
+@@ -240,2 +242,3 @@
          --with-default-msvcrt=msvcrt-os \
 +        --with-default-win32-winnt=0x0501 \
   && make -j$(nproc) \
-@@ -233,4 +236,4 @@
+@@ -250,4 +253,4 @@
          --disable-dependency-tracking \
 -        --disable-lib32 \
 -        --enable-lib64 \
 +        --enable-lib32 \
 +        --disable-lib64 \
          CFLAGS="-Os" \
-@@ -257,2 +260,3 @@
+@@ -274,2 +277,3 @@
          --with-native-system-header-dir=/include \
 +        --with-arch=pentium4 \
          --target=$ARCH \
-@@ -277,2 +281,3 @@
+@@ -294,2 +298,3 @@
          --disable-win32-registry \
 +        --disable-win32-utf8-manifest \
          --enable-mingw-wildcard \
-@@ -384,3 +389,3 @@
+@@ -401,3 +406,3 @@
  RUN cat $PREFIX/src/busybox-*.patch | patch -p1 \
 - && make mingw64u_defconfig \
 + && make mingw64_defconfig \
