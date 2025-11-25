@@ -249,7 +249,7 @@ tools/server/index.html.gz.hpp: tools/server/public/index.html.gz
 	cd tools/server/public/ && xxd -i index.html.gz >../index.html.gz.hpp
 tools/server/loading.html.hpp: tools/server/public/loading.html
 	cd tools/server/public/ && xxd -i loading.html >../loading.html.hpp
-tools/server/server.cpp.o: \
+tools/server/server-http.cpp.o: \
   tools/server/server.cpp \
   tools/server/index.html.gz.hpp \
   tools/server/loading.html.hpp
