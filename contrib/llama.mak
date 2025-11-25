@@ -212,11 +212,11 @@ exe = \
   tools/mtmd/mtmd-audio.cpp.o \
   tools/mtmd/mtmd-helper.cpp.o \
   tools/mtmd/mtmd.cpp.o \
-  tools/server/server-common.cpp.o \
+  tools/server/server.cpp.o \
   tools/server/server-http.cpp.o \
+  tools/server/server-common.cpp.o \
   tools/server/server-queue.cpp.o \
   tools/server/server-task.cpp.o \
-  tools/server/server.cpp.o \
   vendor/cpp-httplib/httplib.cpp.o
 
 all: llama.dll llama-server.exe
