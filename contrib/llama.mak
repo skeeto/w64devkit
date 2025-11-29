@@ -17,7 +17,7 @@
 #   $ make -j$(nproc) -f path/to/w64devkit/contrib/llama.mak
 #
 # Incremental builds are unsupported, so clean rebuild after pulling. It
-# was last tested at b7150, and an update will inevitably break it.
+# was last tested at b7193, and an update will inevitably break it.
 
 CROSS    =
 CPPFLAGS = -w -O2 -march=x86-64-v3
@@ -169,6 +169,7 @@ dll = \
   src/models/qwen2vl.cpp.o \
   src/models/qwen3.cpp.o \
   src/models/qwen3moe.cpp.o \
+  src/models/qwen3next.cpp.o \
   src/models/qwen3vl-moe.cpp.o \
   src/models/qwen3vl.cpp.o \
   src/models/refact.cpp.o \
