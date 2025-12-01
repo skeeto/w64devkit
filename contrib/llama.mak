@@ -17,7 +17,7 @@
 #   $ make -j$(nproc) -f path/to/w64devkit/contrib/llama.mak
 #
 # Incremental builds are unsupported, so clean rebuild after pulling. It
-# was last tested at b7193, and an update will inevitably break it.
+# was last tested at b7218, and an update will inevitably break it.
 
 CROSS    =
 CPPFLAGS = -w -O2 -march=x86-64-v3
@@ -147,6 +147,7 @@ dll = \
   src/models/mamba.cpp.o \
   src/models/minicpm3.cpp.o \
   src/models/minimax-m2.cpp.o \
+  src/models/mistral3.cpp.o \
   src/models/mpt.cpp.o \
   src/models/nemotron-h.cpp.o \
   src/models/nemotron.cpp.o \
@@ -214,7 +215,9 @@ exe = \
   tools/mtmd/mtmd-helper.cpp.o \
   tools/mtmd/mtmd.cpp.o \
   tools/server/server-common.cpp.o \
+  tools/server/server-context.cpp.o \
   tools/server/server-http.cpp.o \
+  tools/server/server-models.cpp.o \
   tools/server/server-queue.cpp.o \
   tools/server/server-task.cpp.o \
   tools/server/server.cpp.o \
