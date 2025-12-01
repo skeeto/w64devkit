@@ -1,0 +1,47 @@
+diff --git a/win32/resources/utf8.manifest b/win32/resources/utf8.manifest
+index efe6a3d2f..70cd1c070 100644
+--- a/win32/resources/utf8.manifest
++++ b/win32/resources/utf8.manifest
+@@ -1,11 +1,11 @@
+ <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+-<assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
++<assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1" xmlns:asmv3="urn:schemas-microsoft-com:asm.v3">
+   <assemblyIdentity type="win32" name="busybox.exe" version="6.0.0.0"/>
+-    <application>
+-    <windowsSettings>
++    <asmv3:application>
++    <asmv3:windowsSettings>
+       <activeCodePage xmlns="http://schemas.microsoft.com/SMI/2019/WindowsSettings">UTF-8</activeCodePage>
+-    </windowsSettings>
+-  </application>
++    </asmv3:windowsSettings>
++  </asmv3:application>
+   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
+     <security>
+       <requestedPrivileges>
+--- a/win32/winansi.c
++++ b/win32/winansi.c
+@@ -1456,6 +1456,7 @@ static int writeCon_utf8(int fd, const char *u8buf, size_t u8siz)
+ 
+ 	HANDLE h = (HANDLE)_get_osfhandle(fd);
+ 	int wlen = 0;
++	DWORD nwritten = 0;
+ 
+ 	if (!wbuf)
+ 		wbuf = xmalloc(wbufwsiz * sizeof(wchar_t));
+@@ -1519,13 +1520,13 @@ static int writeCon_utf8(int fd, const char *u8buf, size_t u8siz)
+ 
+ 		// flush if we have less than two empty spaces
+ 		if (wlen > wbufwsiz - 2) {
+-			if (!WriteConsoleW(h, wbuf, wlen, 0, 0))
++			if (!WriteConsoleW(h, wbuf, wlen, &nwritten, 0) || nwritten != wlen)
+ 				return -1;
+ 			wlen = 0;
+ 		}
+ 	}
+ 
+-	if (wlen && !WriteConsoleW(h, wbuf, wlen, 0, 0))
++	if (wlen && (!WriteConsoleW(h, wbuf, wlen, &nwritten, 0) || nwritten != wlen))
+ 		return -1;
+ 	return 0;
+ }
