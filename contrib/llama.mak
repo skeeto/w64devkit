@@ -17,7 +17,7 @@
 #   $ make -j$(nproc) -f path/to/w64devkit/contrib/llama.mak
 #
 # Incremental builds are unsupported, so clean rebuild after pulling. It
-# was last tested at b7218, and an update will inevitably break it.
+# was last tested at b7265, and an update will inevitably break it.
 
 CROSS    =
 CPPFLAGS = -w -O2 -march=x86-64-v3
@@ -197,6 +197,7 @@ exe = \
   common/arg.cpp.o \
   common/chat-parser-xml-toolcall.cpp.o \
   common/chat-parser.cpp.o \
+  common/chat-peg-parser.cpp.o \
   common/chat.cpp.o \
   common/common.cpp.o \
   common/console.cpp.o \
@@ -206,9 +207,11 @@ exe = \
   common/llguidance.cpp.o \
   common/log.cpp.o \
   common/ngram-cache.cpp.o \
+  common/peg-parser.cpp.o \
   common/regex-partial.cpp.o \
   common/sampling.cpp.o \
   common/speculative.cpp.o \
+  common/unicode.cpp.o \
   common/w64dk-build-info.cpp.o \
   tools/mtmd/clip.cpp.o \
   tools/mtmd/mtmd-audio.cpp.o \
