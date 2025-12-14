@@ -29,6 +29,10 @@ This takes about 15 minutes on modern systems. You will need an internet
 connection during the first few minutes of the build. **Note:** Do not use
 PowerShell because it lacks file redirection.
 
+# TEST
+Note that if you want a custom build, you can fork the repo, enable github actions
+push your commits and download the built artifacts.
+
 ## Usage
 
 The self-extracting 7z archive contains tools in a typical unix-like
