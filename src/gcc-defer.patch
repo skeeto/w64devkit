@@ -1,0 +1,1607 @@
+From navi@vlhl.dev  Thu Dec  4 20:38:56 2025
+From: navi@vlhl.dev (Anna (navi) Figueiredo Gomes)
+Date: Thu,  4 Dec 2025 21:38:56 +0100
+Subject: [PATCH v6 0/3] implement defer statements as per ts 25755
+Message-ID: <20251204203922.27745-1-navi@vlhl.dev>
+
+based on n3734[1]
+
+this feature mostly makes use of already-established logic, namely
+push_cleanup used by the cleanup attribute, and the constraints put
+in place for checking local jumps against statement expressions
+
+the TS recommends providing 'defer' as a keyword alongside '_Defer',
+however since clang is going to enable _Defer and stddefer.h for older c
+standards by default as an extension, and i think we should too, i'm
+unsure if having the -fdefer-ts flag has any benefit, as it would just
+enable another spelling and nothing else, or did i missunderstand
+anything that'd lead for it to be useful?
+
+this time i've kept the changelog to the notes in patch 3/3 as it was
+basically the same as here.
+
+1: https://open-std.org/JTC1/SC22/WG14/www/docs/n3734.pdf
+
+Anna (navi) Figueiredo Gomes (3):
+  c: handle expression nodes in push_cleanup
+  c: introduce jump barriers for statement expressions
+  c: implement defer
+
+ gcc/Makefile.in                |   1 +
+ gcc/c-family/c-common.cc       |   1 +
+ gcc/c-family/c-common.h        |   1 +
+ gcc/c-family/c-cppbuiltin.cc   |   3 +
+ gcc/c/c-decl.cc                | 136 +++++++++++++-----
+ gcc/c/c-parser.cc              |  39 +++++
+ gcc/c/c-tree.h                 |   8 +-
+ gcc/c/c-typeck.cc              |  56 ++++++--
+ gcc/ginclude/stddefer.h        |  38 +++++
+ gcc/testsuite/gcc.dg/defer-1.c | 256 +++++++++++++++++++++++++++++++++
+ gcc/testsuite/gcc.dg/defer-2.c |  78 ++++++++++
+ gcc/testsuite/gcc.dg/defer-3.c |  17 +++
+ gcc/testsuite/gcc.dg/defer-4.c |   8 ++
+ 13 files changed, 594 insertions(+), 48 deletions(-)
+ create mode 100644 gcc/ginclude/stddefer.h
+ create mode 100644 gcc/testsuite/gcc.dg/defer-1.c
+ create mode 100644 gcc/testsuite/gcc.dg/defer-2.c
+ create mode 100644 gcc/testsuite/gcc.dg/defer-3.c
+ create mode 100644 gcc/testsuite/gcc.dg/defer-4.c
+
+Range-diff against v5:
+1:  da835e79572 ! 1:  0cef84aef53 c: handle expression nodes in push_cleanup
+    @@ Commit message
+     
+         gcc/c/ChangeLog:
+     
+    -            * c-typeck.cc (push_cleanup): Adjust.
+    +            * c-typeck.cc (push_cleanup): Handle EXPR_P nodes.
+     
+         Signed-off-by: Anna (navi) Figueiredo Gomes <navi@vlhl.dev>
+     
+2:  b0fd9d8165a ! 2:  edcbef53584 c: introduce jump barriers for statement expressions
+    @@ Commit message
+         gcc/c/ChangeLog:
+     
+                 * c-decl.cc (struct c_jump_barrier): New structure.
+    -            (struct c_spot_bindings): Adjust.
+    -            (set_spot_bindings): Likewise.
+    +            (struct c_spot_bindings): Extract out members to struct c_jump_barrier.
+    +            (set_spot_bindings): Adjust member access for c_jump_barrier.
+                 (c_binding_adjust_jump_barrier): New function.
+    -            (c_bindings_start_stmt_expr): Adjust.
+    +            (c_bindings_start_stmt_expr): Call c_binding_adjust_jump_barrier.
+                 (c_bindings_end_stmt_expr): Likewise.
+    -            (lookup_label_for_goto): Likewise.
+    +            (lookup_label_for_goto): Adjust member access for c_jump_barrier.
+                 (check_earlier_gotos): Likewise.
+                 (c_release_switch_bindings): Likewise.
+                 (c_check_switch_jump_warnings): Likewise.
+3:  113bd001f17 ! 3:  476d6e8e0d2 c: implement the defer keyword
+    @@ Metadata
+     Author: Anna (navi) Figueiredo Gomes <navi@vlhl.dev>
+     
+      ## Commit message ##
+    -    c: implement the defer keyword
+    +    c: implement defer
+     
+    -    based on the technical specification n3589[1], and set behind the
+    -    command line flag '-fdefer-ts'
+    +    based on the technical specification 25755[1] as an extension
+    +
+    +    _Defer is provided as a keyword if gnu extensions are enabled, and
+    +    stddefer.h provided a macro for the 'defer' spelling
+     
+         deferred statements execute at the end of the scope they're added on,
+         similar to the cleanup attribute, and they have much of the same
+    @@ Commit message
+         local jump shall jump over a defer statement, nor shall return, break,
+         and continue, jump out of one
+     
+    -    1: https://open-std.org/JTC1/SC22/WG14/www/docs/n3589.pdf
+    +    1: https://open-std.org/JTC1/SC22/WG14/www/docs/n3734.pdf
+     
+         gcc/ChangeLog:
+     
+    -            * doc/invoke.texi: Add -fdefer-ts documentation.
+    -            * doc/standards.texi: Likewise.
+    +            * Makefile.in:
+    +            * doc/invoke.texi:
+    +            * ginclude/stddefer.h: New file.
+     
+         gcc/c-family/ChangeLog:
+     
+    -            * c-common.cc: Add defer keyword.
+    +            * c-common.cc: Add _Defer keywords.
+                 * c-common.h (enum rid): Add RID_DEFER.
+    -            (D_CXX11): Adjust.
+    -            (D_EXT): Likewise.
+    -            (D_EXT89): Likewise.
+    -            (D_EXT11): Likewise.
+    -            (D_ASM): Likewise.
+    -            (D_OBJC): Likewise.
+    -            (D_CXX_OBJC): Likewise.
+    -            (D_CXXWARN): Likewise.
+    -            (D_CXX_CONCEPTS): Likewise.
+    -            (D_TRANSMEM): Likewise.
+    -            (D_CXX_CHAR8_T): Likewise.
+    -            (D_CXX20): Likewise.
+    -            (D_CXX_COROUTINES): Likewise.
+    -            (D_CXX_MODULES): Likewise.
+    -            (D_DEFER): Add defer keyword mask.
+                 * c-cppbuiltin.cc (c_cpp_builtins): Set __STDC_DEFER_TS25755__.
+    -            * c.opt: Add -fdefer-ts flag.
+     
+         gcc/c/ChangeLog:
+     
+                 * c-decl.cc (struct c_spot_bindings): Add defer_blocks.
+                 (struct c_scope): Add has_defer_block flag.
+                 (set_spot_bindings): Clear defer_blocks.
+    -            (c_binding_adjust_jump_barrier): Adjust for defer.
+    +            (c_binding_adjust_jump_barrier): Handle deferred blocks.
+                 (c_bindings_start_stmt_expr): Rename to c_bindings_start_jump_barrier.
+    -            (c_bindings_start_jump_barrier): Adjust for defer.
+    +            (c_bindings_start_jump_barrier): Handle deferred statements.
+                 (c_bindings_end_stmt_expr): Rename to c_bindings_end_jump_barrier.
+    -            (c_bindings_end_jump_barrier): Adjust for defer.
+    +            (c_bindings_end_jump_barrier): Handle deferred statements.
+                 (lookup_label_for_goto): Check defer contraints.
+                 (check_earlier_gotos): Likewise.
+                 (c_release_switch_bindings): Likewise.
+    @@ Commit message
+                 (c_bindings_end_jump_barrier): New function.
+                 (c_begin_defer_block): New function.
+                 (c_end_defer_block): New function.
+    -            * c-typeck.cc (c_finish_return): Adjust.
+    -            (c_finish_bc_stmt): Adjust.
+    +            * c-typeck.cc (c_finish_return):
+    +            (c_finish_bc_stmt): Check for IN_DEFER_STMT.
+                 (c_begin_stmt_expr): Likewise.
+                 (c_finish_stmt_expr): Likewise.
+                 (c_begin_defer_block): New function.
+    @@ Commit message
+     
+         Signed-off-by: Anna (navi) Figueiredo Gomes <navi@vlhl.dev>
+     
+    +
+    + ## Notes ##
+    +    v6:
+    +     * remove -fdefer-ts flag and 'defer' as a keyword
+    +     * add stddefer.h containing a defer -> _Defer macro
+    +    v5:
+    +     * enable '_Defer' keyword when extensions are enabled
+    +    v4:
+    +     * remove constraint on local backwards jump, making behaviour the same
+    +    as the cleanup attribute.
+    +    v3:
+    +     * remove the need of -std=c2y for -fdefer-ts to take effect
+    +    v2:
+    +     * added a test jumping into a defer block from above.
+    +     * reworded the lookup_label_for_goto error message to mention the error
+    +    is a jump into the defer block, instead of out.
+    +     * moved the 'defer' keyword behind a -fdefer-ts flag, and added texinfo
+    +    docs plus related failure test.
+    +
+    + ## gcc/Makefile.in ##
+    +@@ gcc/Makefile.in: USER_H = $(srcdir)/ginclude/float.h \
+    + 	 $(srcdir)/ginclude/stdatomic.h \
+    + 	 $(srcdir)/ginclude/stdckdint.h \
+    + 	 $(srcdir)/ginclude/stdcountof.h \
+    ++	 $(srcdir)/ginclude/stddefer.h \
+    + 	 $(EXTRA_HEADERS)
+    + 
+    + USER_H_INC_NEXT_PRE = @user_headers_inc_next_pre@
+    +
+      ## gcc/c-family/c-common.cc ##
+     @@ gcc/c-family/c-common.cc: const struct c_common_resword c_common_reswords[] =
+    -   { "continue",		RID_CONTINUE,	0 },
+    -   { "decltype",         RID_DECLTYPE,   D_CXXONLY | D_CXX11 | D_CXXWARN },
+    -   { "default",		RID_DEFAULT,	0 },
+    -+  { "defer",		RID_DEFER,	D_DEFER | D_CONLY },
+    -   { "delete",		RID_DELETE,	D_CXXONLY | D_CXXWARN },
+    -   { "do",		RID_DO,		0 },
+    -   { "double",		RID_DOUBLE,	0 },
+    +   { "_Decimal64",       RID_DFLOAT64,  D_CONLY },
+    +   { "_Decimal128",      RID_DFLOAT128, D_CONLY },
+    +   { "_Decimal64x",      RID_DFLOAT64X, D_CONLY },
+    ++  { "_Defer",           RID_DEFER,     D_CONLY | D_EXT },
+    +   { "_Fract",           RID_FRACT,     D_CONLY | D_EXT },
+    +   { "_Accum",           RID_ACCUM,     D_CONLY | D_EXT },
+    +   { "_Sat",             RID_SAT,       D_CONLY | D_EXT },
+     
+      ## gcc/c-family/c-common.h ##
+     @@ gcc/c-family/c-common.h: enum rid
+    @@ gcc/c-family/c-common.h: enum rid
+      
+        /* TS 18661-3 keywords, in the same sequence as the TI_* values.  */
+        RID_FLOAT16,
+    -@@ gcc/c-family/c-common.h: extern machine_mode c_default_pointer_mode;
+    - #define D_CXX20		0x8000  /* In C++, C++20 only.  */
+    - #define D_CXX_COROUTINES 0x10000  /* In C++, only with coroutines.  */
+    - #define D_CXX_MODULES	0x20000  /* In C++, only with modules.  */
+    -+#define D_DEFER		0x40000 /* In C, only with -fdefer-ts */
+    - 
+    - #define D_CXX_CONCEPTS_FLAGS D_CXXONLY | D_CXX_CONCEPTS
+    - #define D_CXX_CHAR8_T_FLAGS D_CXXONLY | D_CXX_CHAR8_T
+     
+      ## gcc/c-family/c-cppbuiltin.cc ##
+     @@ gcc/c-family/c-cppbuiltin.cc: c_cpp_builtins (cpp_reader *pfile)
+        if (flag_iso)
+          cpp_define (pfile, "__STRICT_ANSI__");
+      
+    -+  if (flag_defer_ts)
+    ++  if (!flag_no_gnu_keywords)
+     +    builtin_define_with_int_value ("__STDC_DEFER_TS25755__", 1);
+     +
+        if (!flag_signed_char)
+          cpp_define (pfile, "__CHAR_UNSIGNED__");
+      
+     
+    - ## gcc/c-family/c.opt ##
+    -@@ gcc/c-family/c.opt: fdefault-inline
+    - C++ ObjC++ Ignore
+    - Does nothing.  Preserved for backward compatibility.
+    - 
+    -+fdefer-ts
+    -+C Var(flag_defer_ts)
+    -+Enables support for defer statements from ISO/DIS TS 25755 for ISO C2Y
+    -+
+    - fdiagnostics-show-template-tree
+    - C++ ObjC++ Var(flag_diagnostics_show_template_tree) Init(0)
+    - Print hierarchical comparisons when template types are mismatched.
+    -
+      ## gcc/c/c-decl.cc ##
+     @@ gcc/c/c-decl.cc: struct GTY(()) c_spot_bindings {
+           of the label or goto.  This lets us look at older or newer
+    @@ gcc/c/c-decl.cc: c_check_switch_jump_warnings (struct c_spot_bindings *switch_bi
+      
+     
+      ## gcc/c/c-parser.cc ##
+    -@@ gcc/c/c-parser.cc: c_parse_init (void)
+    -     mask |= D_C99;
+    -   if (!flag_isoc23)
+    -     mask |= D_C23;
+    -+  if (!flag_defer_ts)
+    -+    mask |= D_DEFER;
+    -   if (flag_no_asm)
+    -     {
+    -       mask |= D_ASM | D_EXT;
+     @@ gcc/c/c-parser.cc: static void c_parser_statement_after_labels (c_parser *, bool *, tree,
+      static tree c_parser_c99_block_statement (c_parser *, bool *,
+      					  location_t * = NULL);
+    @@ gcc/c/c-typeck.cc: c_finish_stmt_expr (location_t loc, tree body)
+         and popping new statement lists from the tree.  */
+      
+     
+    - ## gcc/doc/invoke.texi ##
+    -@@ gcc/doc/invoke.texi: in the following sections.
+    - -fpermitted-flt-eval-methods=@var{standard}
+    - -fplan9-extensions  -fsigned-bitfields  -funsigned-bitfields
+    - -fsigned-char  -funsigned-char  -fstrict-flex-arrays[=@var{n}]
+    ---fsso-struct=@var{endianness}}
+    -+-fsso-struct=@var{endianness} -fdefer-ts}
+    - 
+    - @item C++ Language Options
+    - @xref{C++ Dialect Options,,Options Controlling C++ Dialect}.
+    -@@ gcc/doc/invoke.texi: the target (the default).  This option is not supported for C++.
+    - @strong{Warning:} the @option{-fsso-struct} switch causes GCC to generate
+    - code that is not binary compatible with code generated without it if the
+    - specified endianness is not the native endianness of the target.
+    -+
+    -+@opindex fdefer-ts
+    -+@item -fdefer-ts
+    -+Enables support for the defer keyword, as specified by ISO/DIS TS 25755.
+    - @end table
+    - 
+    - @node C++ Dialect Options
+    -
+    - ## gcc/doc/standards.texi ##
+    -@@ gcc/doc/standards.texi: enabled with @option{-std=c23} or @option{-std=iso9899:2024}.
+    - 
+    - A further version of the C standard, known as @dfn{C2Y}, is under
+    - development; experimental and incomplete support for this is enabled
+    --with @option{-std=c2y}.
+    -+with @option{-std=c2y}. GCC implements the defer technical specification,
+    -+ISO/DIS TS 25755, enabled with @option{-fdefer-ts}.
+    - 
+    - By default, GCC provides some extensions to the C language that, on
+    - rare occasions conflict with the C standard.  @xref{C
+    + ## gcc/ginclude/stddefer.h (new) ##
+    +@@
+    ++/* Copyright (C) 1998-2025 Free Software Foundation, Inc.
+    ++
+    ++This file is part of GCC.
+    ++
+    ++GCC is free software; you can redistribute it and/or modify
+    ++it under the terms of the GNU General Public License as published by
+    ++the Free Software Foundation; either version 3, or (at your option)
+    ++any later version.
+    ++
+    ++GCC is distributed in the hope that it will be useful,
+    ++but WITHOUT ANY WARRANTY; without even the implied warranty of
+    ++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    ++GNU General Public License for more details.
+    ++
+    ++Under Section 7 of GPL version 3, you are granted additional
+    ++permissions described in the GCC Runtime Library Exception, version
+    ++3.1, as published by the Free Software Foundation.
+    ++
+    ++You should have received a copy of the GNU General Public License and
+    ++a copy of the GCC Runtime Library Exception along with this program;
+    ++see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+    ++<http://www.gnu.org/licenses/>.  */
+    ++
+    ++/*
+    ++ * ISO C Standard:  7.16  Boolean type and values  <stddefer.h>
+    ++ */
+    ++
+    ++#ifndef _STDDEFER_H_
+    ++#define _STDDEFER_H_
+    ++
+    ++#ifndef __cplusplus
+    ++
+    ++#define __STDC_VERSION_STDDEFER_H__ 202602L
+    ++#define defer	_Defer
+    ++
+    ++#endif /* __cplusplus */
+    ++
+    ++#endif	/* stddefer.h */
+     
+      ## gcc/testsuite/gcc.dg/defer-1.c (new) ##
+     @@
+     +/* { dg-do run } */
+    -+/* { dg-options "-fdefer-ts" } */
+    ++/* { dg-options "" } */
+     +
+    ++#include <stddefer.h>
+     +#include <setjmp.h>
+     +
+     +#define assert(x) if (!(x)) __builtin_abort ()
+     +
+    -+#if __STDC_DEFER_TS25755__ != 1
+    ++#if __STDC_DEFER_TS25755__ != 2
+     +# error "missing defer flag"
+     +#endif
+     +
+    @@ gcc/testsuite/gcc.dg/defer-1.c (new)
+      ## gcc/testsuite/gcc.dg/defer-2.c (new) ##
+     @@
+     +/* { dg-do compile } */
+    -+/* { dg-options "-fdefer-ts" } */
+    ++/* { dg-options "-fdefer-kw" } */
+    ++
+    ++#include <stddefer.h>
+     +
+     +void a ()
+     +{
+    @@ gcc/testsuite/gcc.dg/defer-2.c (new)
+      ## gcc/testsuite/gcc.dg/defer-3.c (new) ##
+     @@
+     +/* { dg-do run } */
+    -+/* { dg-options "-fdefer-ts" } */
+    ++/* { dg-options "" } */
+    ++
+    ++#include <stddefer.h>
+     +
+     +extern void exit(int);
+     +extern void abort(void);
+    @@ gcc/testsuite/gcc.dg/defer-3.c (new)
+      ## gcc/testsuite/gcc.dg/defer-4.c (new) ##
+     @@
+     +/* { dg-do compile } */
+    ++/* { dg-options "" } */
+     +
+     +int main(void)
+     +{
+    ++  _Defer;
+     +  defer; /* { dg-error "'defer' undeclared" "undeclared identifier" } */
+     +}
+-- 
+2.51.0
+
+
+From navi@vlhl.dev  Thu Dec  4 20:38:57 2025
+From: navi@vlhl.dev (Anna (navi) Figueiredo Gomes)
+Date: Thu,  4 Dec 2025 21:38:57 +0100
+Subject: [PATCH v6 1/3] c: handle expression nodes in push_cleanup
+In-Reply-To: <20251204203922.27745-1-navi@vlhl.dev>
+References: <20251204203922.27745-1-navi@vlhl.dev>
+Message-ID: <20251204203922.27745-2-navi@vlhl.dev>
+
+for future use with defer statements, as they do not have a declaration
+associated, and are bound to the scope with a BIND_EXPR
+
+gcc/c/ChangeLog:
+
+	* c-typeck.cc (push_cleanup): Handle EXPR_P nodes.
+
+Signed-off-by: Anna (navi) Figueiredo Gomes <navi@vlhl.dev>
+---
+ gcc/c/c-typeck.cc | 10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/gcc/c/c-typeck.cc b/gcc/c/c-typeck.cc
+index ed6e56e7279..f26184e5603 100644
+--- a/gcc/c/c-typeck.cc
++++ b/gcc/c/c-typeck.cc
+@@ -13586,14 +13586,20 @@ c_end_compound_stmt (location_t loc, tree stmt, bool do_scope)
+    meant to apply to normal control flow transfer.  */
+ 
+ void
+-push_cleanup (tree decl, tree cleanup, bool eh_only)
++push_cleanup (tree node, tree cleanup, bool eh_only)
+ {
++  location_t loc = UNKNOWN_LOCATION;
+   enum tree_code code;
+   tree stmt, list;
+   bool stmt_expr;
+ 
++  if (DECL_P (node))
++    loc = DECL_SOURCE_LOCATION (node);
++  else if (EXPR_P (node))
++    loc = EXPR_LOCATION (node);
++
+   code = eh_only ? TRY_CATCH_EXPR : TRY_FINALLY_EXPR;
+-  stmt = build_stmt (DECL_SOURCE_LOCATION (decl), code, NULL, cleanup);
++  stmt = build_stmt (loc, code, NULL, cleanup);
+   add_stmt (stmt);
+   stmt_expr = STATEMENT_LIST_STMT_EXPR (cur_stmt_list);
+   list = push_stmt_list ();
+-- 
+2.51.0
+
+
+From navi@vlhl.dev  Thu Dec  4 20:38:58 2025
+From: navi@vlhl.dev (Anna (navi) Figueiredo Gomes)
+Date: Thu,  4 Dec 2025 21:38:58 +0100
+Subject: [PATCH v6 2/3] c: introduce jump barriers for statement expressions
+In-Reply-To: <20251204203922.27745-1-navi@vlhl.dev>
+References: <20251204203922.27745-1-navi@vlhl.dev>
+Message-ID: <20251204203922.27745-3-navi@vlhl.dev>
+
+represent the start and end of scope which a local jump is not allowed
+to cross as a jump barrier, moving this logic out into a function allows
+for defer statements to use the same codepath
+
+gcc/c/ChangeLog:
+
+	* c-decl.cc (struct c_jump_barrier): New structure.
+	(struct c_spot_bindings): Extract out members to struct c_jump_barrier.
+	(set_spot_bindings): Adjust member access for c_jump_barrier.
+	(c_binding_adjust_jump_barrier): New function.
+	(c_bindings_start_stmt_expr): Call c_binding_adjust_jump_barrier.
+	(c_bindings_end_stmt_expr): Likewise.
+	(lookup_label_for_goto): Adjust member access for c_jump_barrier.
+	(check_earlier_gotos): Likewise.
+	(c_release_switch_bindings): Likewise.
+	(c_check_switch_jump_warnings): Likewise.
+
+Signed-off-by: Anna (navi) Figueiredo Gomes <navi@vlhl.dev>
+---
+ gcc/c/c-decl.cc | 72 +++++++++++++++++++++++++------------------------
+ 1 file changed, 37 insertions(+), 35 deletions(-)
+
+diff --git a/gcc/c/c-decl.cc b/gcc/c/c-decl.cc
+index 7850365f35c..56ca3078226 100644
+--- a/gcc/c/c-decl.cc
++++ b/gcc/c/c-decl.cc
+@@ -379,6 +379,16 @@ c_tree_size (enum tree_code code)
+    scopes are popped, we update these structures and gather the decls
+    that matter at that time.  */
+ 
++struct GTY(()) c_jump_barrier {
++  /* The number of barriers that have started since this label or goto
++     statement was defined.  This is zero if we are at the same barrier.
++     It is positive if we are in a barrier that started since this spot.
++     If it goes negative, it is reset to zero and .left is set to true.  */
++  int count;
++  /* Whether we started in a barrier but are no longer in it.  */
++  bool left;
++};
++
+ struct GTY(()) c_spot_bindings {
+   /* The currently open scope which holds bindings defined when the
+      label was defined or the goto statement was found.  */
+@@ -387,16 +397,7 @@ struct GTY(()) c_spot_bindings {
+      of the label or goto.  This lets us look at older or newer
+      bindings in the scope, as appropriate.  */
+   struct c_binding *bindings_in_scope;
+-  /* The number of statement expressions that have started since this
+-     label or goto statement was defined.  This is zero if we are at
+-     the same statement expression level.  It is positive if we are in
+-     a statement expression started since this spot.  It is negative
+-     if this spot was in a statement expression and we have left
+-     it.  */
+-  int stmt_exprs;
+-  /* Whether we started in a statement expression but are no longer in
+-     it.  This is set to true if stmt_exprs ever goes negative.  */
+-  bool left_stmt_expr;
++  struct c_jump_barrier stmt_exprs;
+ };
+ 
+ /* This structure is used to keep track of bindings seen when a goto
+@@ -983,8 +984,8 @@ set_spot_bindings (struct c_spot_bindings *p, bool defining)
+       p->scope = NULL;
+       p->bindings_in_scope = NULL;
+     }
+-  p->stmt_exprs = 0;
+-  p->left_stmt_expr = false;
++  p->stmt_exprs.count = 0;
++  p->stmt_exprs.left = false;
+ }
+ 
+ /* Update spot bindings P as we pop out of SCOPE.  Return true if we
+@@ -1603,6 +1604,18 @@ finish_underspecified_init (tree name, unsigned int prev_state)
+ 
+ /* Adjust the bindings for the start of a statement expression.  */
+ 
++static void
++c_binding_adjust_jump_barrier (struct c_spot_bindings *binding, bool start)
++{
++  struct c_jump_barrier *barrier = &binding->stmt_exprs;
++  barrier->count += start ? 1 : -1;
++  if (barrier->count < 0)
++    {
++      barrier->count = 0;
++      barrier->left = true;
++    }
++}
++
+ void
+ c_bindings_start_stmt_expr (struct c_spot_bindings* switch_bindings)
+ {
+@@ -1624,14 +1637,15 @@ c_bindings_start_stmt_expr (struct c_spot_bindings* switch_bindings)
+ 	  if (TREE_CODE (b->decl) != LABEL_DECL)
+ 	    continue;
+ 	  label_vars = b->u.label;
+-	  ++label_vars->label_bindings.stmt_exprs;
++
++	  c_binding_adjust_jump_barrier (&label_vars->label_bindings, true);
+ 	  FOR_EACH_VEC_SAFE_ELT (label_vars->gotos, ix, g)
+-	    ++g->goto_bindings.stmt_exprs;
++	      c_binding_adjust_jump_barrier (&g->goto_bindings, true);
+ 	}
+     }
+ 
+   if (switch_bindings != NULL)
+-    ++switch_bindings->stmt_exprs;
++      c_binding_adjust_jump_barrier (switch_bindings, true);
+ }
+ 
+ /* Adjust the bindings for the end of a statement expression.  */
+@@ -1657,28 +1671,16 @@ c_bindings_end_stmt_expr (struct c_spot_bindings *switch_bindings)
+ 	  if (TREE_CODE (b->decl) != LABEL_DECL)
+ 	    continue;
+ 	  label_vars = b->u.label;
+-	  --label_vars->label_bindings.stmt_exprs;
+-	  if (label_vars->label_bindings.stmt_exprs < 0)
+-	    {
+-	      label_vars->label_bindings.left_stmt_expr = true;
+-	      label_vars->label_bindings.stmt_exprs = 0;
+-	    }
++	  c_binding_adjust_jump_barrier (&label_vars->label_bindings, false);
+ 	  FOR_EACH_VEC_SAFE_ELT (label_vars->gotos, ix, g)
+-	    {
+-	      --g->goto_bindings.stmt_exprs;
+-	      if (g->goto_bindings.stmt_exprs < 0)
+-		{
+-		  g->goto_bindings.left_stmt_expr = true;
+-		  g->goto_bindings.stmt_exprs = 0;
+-		}
+-	    }
++	    c_binding_adjust_jump_barrier (&g->goto_bindings, false);
+ 	}
+     }
+ 
+   if (switch_bindings != NULL)
+     {
+-      --switch_bindings->stmt_exprs;
+-      gcc_assert (switch_bindings->stmt_exprs >= 0);
++      c_binding_adjust_jump_barrier (switch_bindings, defer, false);
++      gcc_assert (switch_bindings->stmt_exprs.count >= 0);
+     }
+ }
+ 
+@@ -4149,7 +4151,7 @@ lookup_label_for_goto (location_t loc, tree name)
+   FOR_EACH_VEC_SAFE_ELT (label_vars->decls_in_scope, ix, decl)
+     warn_about_goto (loc, label, decl);
+ 
+-  if (label_vars->label_bindings.left_stmt_expr)
++  if (label_vars->label_bindings.stmt_exprs.left)
+     {
+       auto_diagnostic_group d;
+       error_at (loc, "jump into statement expression");
+@@ -4240,7 +4242,7 @@ check_earlier_gotos (tree label, struct c_label_vars* label_vars)
+ 	    }
+ 	}
+ 
+-      if (g->goto_bindings.stmt_exprs > 0)
++      if (g->goto_bindings.stmt_exprs.count > 0)
+ 	{
+ 	  auto_diagnostic_group d;
+ 	  error_at (g->loc, "jump into statement expression");
+@@ -4331,7 +4333,7 @@ c_get_switch_bindings (void)
+ void
+ c_release_switch_bindings (struct c_spot_bindings *bindings)
+ {
+-  gcc_assert (bindings->stmt_exprs == 0 && !bindings->left_stmt_expr);
++  gcc_assert (bindings->stmt_exprs.count == 0 && !bindings->stmt_exprs.left);
+   XDELETE (bindings);
+ }
+ 
+@@ -4395,7 +4397,7 @@ c_check_switch_jump_warnings (struct c_spot_bindings *switch_bindings,
+ 	}
+     }
+ 
+-  if (switch_bindings->stmt_exprs > 0)
++  if (switch_bindings->stmt_exprs.count > 0)
+     {
+       saw_error = true;
+       auto_diagnostic_group d;
+-- 
+2.51.0
+
+
+From navi@vlhl.dev  Thu Dec  4 20:38:59 2025
+From: navi@vlhl.dev (Anna (navi) Figueiredo Gomes)
+Date: Thu,  4 Dec 2025 21:38:59 +0100
+Subject: [PATCH v6 3/3] c: implement defer
+In-Reply-To: <20251204203922.27745-1-navi@vlhl.dev>
+References: <20251204203922.27745-1-navi@vlhl.dev>
+Message-ID: <20251204203922.27745-4-navi@vlhl.dev>
+
+based on the technical specification 25755[1] as an extension
+
+_Defer is provided as a keyword if gnu extensions are enabled, and
+stddefer.h provided a macro for the 'defer' spelling
+
+deferred statements execute at the end of the scope they're added on,
+similar to the cleanup attribute, and they have much of the same
+constraints as statement expressions, with added limitation that no
+local jump shall jump over a defer statement, nor shall return, break,
+and continue, jump out of one
+
+1: https://open-std.org/JTC1/SC22/WG14/www/docs/n3734.pdf
+
+gcc/ChangeLog:
+
+	* Makefile.in:
+	* doc/invoke.texi:
+	* ginclude/stddefer.h: New file.
+
+gcc/c-family/ChangeLog:
+
+	* c-common.cc: Add _Defer keywords.
+	* c-common.h (enum rid): Add RID_DEFER.
+	* c-cppbuiltin.cc (c_cpp_builtins): Set __STDC_DEFER_TS25755__.
+
+gcc/c/ChangeLog:
+
+	* c-decl.cc (struct c_spot_bindings): Add defer_blocks.
+	(struct c_scope): Add has_defer_block flag.
+	(set_spot_bindings): Clear defer_blocks.
+	(c_binding_adjust_jump_barrier): Handle deferred blocks.
+	(c_bindings_start_stmt_expr): Rename to c_bindings_start_jump_barrier.
+	(c_bindings_start_jump_barrier): Handle deferred statements.
+	(c_bindings_end_stmt_expr): Rename to c_bindings_end_jump_barrier.
+	(c_bindings_end_jump_barrier): Handle deferred statements.
+	(lookup_label_for_goto): Check defer contraints.
+	(check_earlier_gotos): Likewise.
+	(c_release_switch_bindings): Likewise.
+	(c_check_switch_jump_warnings): Likewise.
+	* c-parser.cc (c_parser_defer_statement): New function.
+	(c_parser_statement_after_labels): Check defer contraints and parse defer.
+	* c-tree.h (IN_DEFER_STMT): Add variant.
+	(c_bindings_start_stmt_expr): Rename to c_bindings_start_jump_barrier.
+	(c_bindings_end_stmt_expr): Rename to c_bindings_end_jump_barrier.
+	(c_bindings_start_jump_barrier): New function.
+	(c_bindings_end_jump_barrier): New function.
+	(c_begin_defer_block): New function.
+	(c_end_defer_block): New function.
+	* c-typeck.cc (c_finish_return):
+	(c_finish_bc_stmt): Check for IN_DEFER_STMT.
+	(c_begin_stmt_expr): Likewise.
+	(c_finish_stmt_expr): Likewise.
+	(c_begin_defer_block): New function.
+	(c_end_defer_block): New function.
+
+gcc/testsuite/ChangeLog:
+
+	* gcc.dg/defer-1.c: New test.
+	* gcc.dg/defer-2.c: New test.
+	* gcc.dg/defer-3.c: New test.
+	* gcc.dg/defer-4.c: New test.
+
+Signed-off-by: Anna (navi) Figueiredo Gomes <navi@vlhl.dev>
+---
+
+Notes:
+    v6:
+     * remove -fdefer-ts flag and 'defer' as a keyword
+     * add stddefer.h containing a defer -> _Defer macro
+    v5:
+     * enable '_Defer' keyword when extensions are enabled
+    v4:
+     * remove constraint on local backwards jump, making behaviour the same
+    as the cleanup attribute.
+    v3:
+     * remove the need of -std=c2y for -fdefer-ts to take effect
+    v2:
+     * added a test jumping into a defer block from above.
+     * reworded the lookup_label_for_goto error message to mention the error
+    is a jump into the defer block, instead of out.
+     * moved the 'defer' keyword behind a -fdefer-ts flag, and added texinfo
+    docs plus related failure test.
+
+ gcc/Makefile.in                |   1 +
+ gcc/c-family/c-common.cc       |   1 +
+ gcc/c-family/c-common.h        |   1 +
+ gcc/c-family/c-cppbuiltin.cc   |   3 +
+ gcc/c/c-decl.cc                |  80 +++++++++--
+ gcc/c/c-parser.cc              |  39 +++++
+ gcc/c/c-tree.h                 |   8 +-
+ gcc/c/c-typeck.cc              |  46 +++++-
+ gcc/ginclude/stddefer.h        |  38 +++++
+ gcc/testsuite/gcc.dg/defer-1.c | 256 +++++++++++++++++++++++++++++++++
+ gcc/testsuite/gcc.dg/defer-2.c |  78 ++++++++++
+ gcc/testsuite/gcc.dg/defer-3.c |  17 +++
+ gcc/testsuite/gcc.dg/defer-4.c |   8 ++
+ 13 files changed, 557 insertions(+), 19 deletions(-)
+ create mode 100644 gcc/ginclude/stddefer.h
+ create mode 100644 gcc/testsuite/gcc.dg/defer-1.c
+ create mode 100644 gcc/testsuite/gcc.dg/defer-2.c
+ create mode 100644 gcc/testsuite/gcc.dg/defer-3.c
+ create mode 100644 gcc/testsuite/gcc.dg/defer-4.c
+
+diff --git a/gcc/Makefile.in b/gcc/Makefile.in
+index d7d5cbe7277..e9ac6a437c5 100644
+--- a/gcc/Makefile.in
++++ b/gcc/Makefile.in
+@@ -481,6 +481,7 @@ USER_H = $(srcdir)/ginclude/float.h \
+ 	 $(srcdir)/ginclude/stdnoreturn.h \
+ 	 $(srcdir)/ginclude/stdatomic.h \
+ 	 $(srcdir)/ginclude/stdckdint.h \
++	 $(srcdir)/ginclude/stddefer.h \
+ 	 $(EXTRA_HEADERS)
+ 
+ USER_H_INC_NEXT_PRE = @user_headers_inc_next_pre@
+diff --git a/gcc/c-family/c-common.cc b/gcc/c-family/c-common.cc
+index e7dd4602ac1..af019bd37bf 100644
+--- a/gcc/c-family/c-common.cc
++++ b/gcc/c-family/c-common.cc
+@@ -412,6 +412,7 @@ const struct c_common_resword c_common_reswords[] =
+   { "_Decimal64",       RID_DFLOAT64,  D_CONLY },
+   { "_Decimal128",      RID_DFLOAT128, D_CONLY },
+   { "_Decimal64x",      RID_DFLOAT64X, D_CONLY },
++  { "_Defer",           RID_DEFER,     D_CONLY | D_EXT },
+   { "_Fract",           RID_FRACT,     D_CONLY | D_EXT },
+   { "_Accum",           RID_ACCUM,     D_CONLY | D_EXT },
+   { "_Sat",             RID_SAT,       D_CONLY | D_EXT },
+diff --git a/gcc/c-family/c-common.h b/gcc/c-family/c-common.h
+index 7c7e21d2d0e..be7d51193c6 100644
+--- a/gcc/c-family/c-common.h
++++ b/gcc/c-family/c-common.h
+@@ -113,6 +113,7 @@ enum rid
+   RID_BUILTIN_HAS_ATTRIBUTE,   RID_BUILTIN_ASSOC_BARRIER,  RID_BUILTIN_STDC,
+   RID_BUILTIN_COUNTED_BY_REF,
+   RID_DFLOAT32, RID_DFLOAT64, RID_DFLOAT128, RID_DFLOAT64X,
++  RID_DEFER,
+ 
+   /* TS 18661-3 keywords, in the same sequence as the TI_* values.  */
+   RID_FLOAT16,
+diff --git a/gcc/c-family/c-cppbuiltin.cc b/gcc/c-family/c-cppbuiltin.cc
+index 4aea9028863..d9acaa1d72c 100644
+--- a/gcc/c-family/c-cppbuiltin.cc
++++ b/gcc/c-family/c-cppbuiltin.cc
+@@ -1596,6 +1596,9 @@ c_cpp_builtins (cpp_reader *pfile)
+   if (flag_iso)
+     cpp_define (pfile, "__STRICT_ANSI__");
+ 
++  if (!flag_no_gnu_keywords)
++    builtin_define_with_int_value ("__STDC_DEFER_TS25755__", 1);
++
+   if (!flag_signed_char)
+     cpp_define (pfile, "__CHAR_UNSIGNED__");
+ 
+diff --git a/gcc/c/c-decl.cc b/gcc/c/c-decl.cc
+index 56ca3078226..0bfb964de26 100644
+--- a/gcc/c/c-decl.cc
++++ b/gcc/c/c-decl.cc
+@@ -397,7 +397,7 @@ struct GTY(()) c_spot_bindings {
+      of the label or goto.  This lets us look at older or newer
+      bindings in the scope, as appropriate.  */
+   struct c_binding *bindings_in_scope;
+-  struct c_jump_barrier stmt_exprs;
++  struct c_jump_barrier stmt_exprs, defer_blocks;
+ };
+ 
+ /* This structure is used to keep track of bindings seen when a goto
+@@ -533,6 +533,10 @@ struct GTY((chain_next ("%h.outer"))) c_scope {
+      decl_jump_unsafe would return true for any of the bindings.  This
+      is used to avoid looping over all the bindings unnecessarily.  */
+   BOOL_BITFIELD has_jump_unsafe_decl : 1;
++
++  /* True if this scope has any deferred statement.  This is used to
++   * check invalid goto jumps. */
++  BOOL_BITFIELD has_defer_block : 1;
+ };
+ 
+ /* The scope currently in effect.  */
+@@ -986,6 +990,8 @@ set_spot_bindings (struct c_spot_bindings *p, bool defining)
+     }
+   p->stmt_exprs.count = 0;
+   p->stmt_exprs.left = false;
++  p->defer_blocks.count = 0;
++  p->defer_blocks.left = false;
+ }
+ 
+ /* Update spot bindings P as we pop out of SCOPE.  Return true if we
+@@ -1605,9 +1611,12 @@ finish_underspecified_init (tree name, unsigned int prev_state)
+ /* Adjust the bindings for the start of a statement expression.  */
+ 
+ static void
+-c_binding_adjust_jump_barrier (struct c_spot_bindings *binding, bool start)
++c_binding_adjust_jump_barrier (struct c_spot_bindings *binding,
++			       bool defer, bool start)
+ {
+-  struct c_jump_barrier *barrier = &binding->stmt_exprs;
++  struct c_jump_barrier *barrier = defer
++    ? &binding->defer_blocks
++    : &binding->stmt_exprs;
+   barrier->count += start ? 1 : -1;
+   if (barrier->count < 0)
+     {
+@@ -1617,10 +1626,13 @@ c_binding_adjust_jump_barrier (struct c_spot_bindings *binding, bool start)
+ }
+ 
+ void
+-c_bindings_start_stmt_expr (struct c_spot_bindings* switch_bindings)
++c_bindings_start_jump_barrier (bool defer, struct c_spot_bindings* switch_bindings)
+ {
+   struct c_scope *scope;
+ 
++  if (defer)
++    current_scope->has_defer_block = true;
++
+   for (scope = current_scope; scope != NULL; scope = scope->outer)
+     {
+       struct c_binding *b;
+@@ -1638,20 +1650,24 @@ c_bindings_start_stmt_expr (struct c_spot_bindings* switch_bindings)
+ 	    continue;
+ 	  label_vars = b->u.label;
+ 
+-	  c_binding_adjust_jump_barrier (&label_vars->label_bindings, true);
++	  c_binding_adjust_jump_barrier (&label_vars->label_bindings, defer, true);
+ 	  FOR_EACH_VEC_SAFE_ELT (label_vars->gotos, ix, g)
+-	      c_binding_adjust_jump_barrier (&g->goto_bindings, true);
++	      c_binding_adjust_jump_barrier (&g->goto_bindings, defer, true);
+ 	}
+     }
+ 
+   if (switch_bindings != NULL)
+-      c_binding_adjust_jump_barrier (switch_bindings, true);
++    {
++      if (defer)
++	switch_bindings->scope->has_defer_block = true;
++      c_binding_adjust_jump_barrier (switch_bindings, defer, true);
++    }
+ }
+ 
+ /* Adjust the bindings for the end of a statement expression.  */
+ 
+ void
+-c_bindings_end_stmt_expr (struct c_spot_bindings *switch_bindings)
++c_bindings_end_jump_barrier (bool defer, struct c_spot_bindings *switch_bindings)
+ {
+   struct c_scope *scope;
+ 
+@@ -1671,9 +1687,9 @@ c_bindings_end_stmt_expr (struct c_spot_bindings *switch_bindings)
+ 	  if (TREE_CODE (b->decl) != LABEL_DECL)
+ 	    continue;
+ 	  label_vars = b->u.label;
+-	  c_binding_adjust_jump_barrier (&label_vars->label_bindings, false);
++	  c_binding_adjust_jump_barrier (&label_vars->label_bindings, defer, false);
+ 	  FOR_EACH_VEC_SAFE_ELT (label_vars->gotos, ix, g)
+-	    c_binding_adjust_jump_barrier (&g->goto_bindings, false);
++	    c_binding_adjust_jump_barrier (&g->goto_bindings, defer, false);
+ 	}
+     }
+ 
+@@ -1681,6 +1697,7 @@ c_bindings_end_stmt_expr (struct c_spot_bindings *switch_bindings)
+     {
+       c_binding_adjust_jump_barrier (switch_bindings, defer, false);
+       gcc_assert (switch_bindings->stmt_exprs.count >= 0);
++      gcc_assert (switch_bindings->defer_blocks.count >= 0);
+     }
+ }
+ 
+@@ -4158,6 +4175,12 @@ lookup_label_for_goto (location_t loc, tree name)
+       inform (DECL_SOURCE_LOCATION (label), "label %qD defined here", label);
+     }
+ 
++  if (label_vars->label_bindings.defer_blocks.left)
++    {
++      error_at (loc, "jump into defer block");
++      inform (DECL_SOURCE_LOCATION (label), "label %qD defined here", label);
++    }
++
+   return label;
+ }
+ 
+@@ -4249,6 +4272,23 @@ check_earlier_gotos (tree label, struct c_label_vars* label_vars)
+ 	  inform (DECL_SOURCE_LOCATION (label), "label %qD defined here",
+ 		  label);
+ 	}
++
++      if (g->goto_bindings.defer_blocks.count > 0)
++	{
++	  error_at (g->loc, "jump into defer block");
++	  inform (DECL_SOURCE_LOCATION (label), "label %qD defined here", label);
++	}
++      else if (g->goto_bindings.defer_blocks.left)
++	{
++	  error_at (g->loc, "jump out of defer block");
++	  inform (DECL_SOURCE_LOCATION (label), "label %qD defined here", label);
++	}
++      else if (label_vars->label_bindings.scope->has_defer_block
++	       || g->goto_bindings.scope->has_defer_block)
++	{
++	  error_at (g->loc, "jump over defer block");
++	  inform (DECL_SOURCE_LOCATION (label), "label %qD defined here", label);
++	}
+     }
+ 
+   /* Now that the label is defined, we will issue warnings about
+@@ -4334,6 +4374,7 @@ void
+ c_release_switch_bindings (struct c_spot_bindings *bindings)
+ {
+   gcc_assert (bindings->stmt_exprs.count == 0 && !bindings->stmt_exprs.left);
++  gcc_assert (bindings->defer_blocks.count == 0 && !bindings->defer_blocks.left);
+   XDELETE (bindings);
+ }
+ 
+@@ -4405,6 +4446,25 @@ c_check_switch_jump_warnings (struct c_spot_bindings *switch_bindings,
+       inform (switch_loc, "switch starts here");
+     }
+ 
++  if (switch_bindings->defer_blocks.count > 0)
++    {
++      saw_error = true;
++      error_at (case_loc, "switch jumps into defer block");
++      inform (switch_loc, "switch starts here");
++    }
++  else if (switch_bindings->defer_blocks.left)
++    {
++      saw_error = true;
++      error_at (case_loc, "switch jumps out of defer block");
++      inform (switch_loc, "switch starts here");
++    }
++  else if (switch_bindings->scope->has_defer_block)
++    {
++      saw_error = true;
++      error_at (case_loc, "switch jumps over defer block");
++      inform (switch_loc, "switch starts here");
++    }
++
+   return saw_error;
+ }
+ 
+diff --git a/gcc/c/c-parser.cc b/gcc/c/c-parser.cc
+index 4a13fc0d384..a86b41b2356 100644
+--- a/gcc/c/c-parser.cc
++++ b/gcc/c/c-parser.cc
+@@ -1763,6 +1763,7 @@ static void c_parser_statement_after_labels (c_parser *, bool *, tree,
+ static tree c_parser_c99_block_statement (c_parser *, bool *,
+ 					  location_t * = NULL);
+ static void c_parser_if_statement (c_parser *, bool *, vec<tree> *);
++static void c_parser_defer_statement (c_parser *parser, bool *if_p, tree before_labels);
+ static void c_parser_switch_statement (c_parser *, bool *, tree);
+ static void c_parser_while_statement (c_parser *, bool, unsigned short, bool,
+ 				      bool *, tree);
+@@ -8228,6 +8229,9 @@ c_parser_statement_after_labels (c_parser *parser, bool *if_p,
+ 	case RID_FOR:
+ 	  c_parser_for_statement (parser, false, 0, false, if_p, before_labels);
+ 	  break;
++	case RID_DEFER:
++	  c_parser_defer_statement (parser, if_p, before_labels);
++	  break;
+ 	case RID_GOTO:
+ 	  c_parser_consume_token (parser);
+ 	  if (c_parser_next_token_is (parser, CPP_NAME))
+@@ -8754,6 +8758,41 @@ c_parser_if_statement (c_parser *parser, bool *if_p, vec<tree> *chain)
+   c_parser_maybe_reclassify_token (parser);
+ }
+ 
++/* Parse a defer statement (ISO/DIS TS 25755 6.4).
++
++   defer-statement:
++     defer deferred-block */
++
++static void
++c_parser_defer_statement (c_parser *parser, bool *if_p, tree before_labels)
++{
++  location_t loc = c_parser_peek_token (parser)->location;
++  unsigned char save_in_statement = in_statement;
++  tree deferred;
++
++  gcc_assert (c_parser_next_token_is_keyword (parser, RID_DEFER));
++  c_parser_consume_token (parser);
++
++  if (c_parser_next_token_is (parser, CPP_SEMICOLON))
++    {
++      c_end_defer_block (loc, c_begin_defer_block ());
++      add_stmt (build_empty_stmt (loc));
++      c_parser_consume_token (parser);
++      warning_at (loc, OPT_Wempty_body,
++	"suggest braces around empty body in %<defer%> statement");
++      return;
++    }
++
++  deferred = c_begin_defer_block ();
++
++  in_statement = IN_DEFER_STMT;
++  c_parser_statement_after_labels (parser, if_p, before_labels);
++  in_statement = save_in_statement;
++
++  deferred = c_end_defer_block (loc, deferred);
++  push_cleanup(deferred, deferred, false);
++}
++
+ /* Parse a switch statement (C90 6.6.4, C99 6.8.4, C11 6.8.4).
+ 
+    switch-statement:
+diff --git a/gcc/c/c-tree.h b/gcc/c/c-tree.h
+index bb0b113754e..7ab9d009e76 100644
+--- a/gcc/c/c-tree.h
++++ b/gcc/c/c-tree.h
+@@ -643,6 +643,7 @@ extern struct obstack parser_obstack;
+ #define IN_OMP_FOR		8
+ #define IN_OBJC_FOREACH		16
+ #define IN_NAMED_STMT		32
++#define IN_DEFER_STMT		64
+ extern unsigned char in_statement;
+ 
+ extern bool switch_statement_break_seen_p;
+@@ -654,8 +655,8 @@ extern void finish_underspecified_init (tree, unsigned int);
+ extern void push_scope (void);
+ extern tree pop_scope (void);
+ extern void c_mark_decl_jump_unsafe_in_current_scope ();
+-extern void c_bindings_start_stmt_expr (struct c_spot_bindings *);
+-extern void c_bindings_end_stmt_expr (struct c_spot_bindings *);
++extern void c_bindings_start_jump_barrier (bool, struct c_spot_bindings *);
++extern void c_bindings_end_jump_barrier (bool, struct c_spot_bindings *);
+ 
+ extern void record_inline_static (location_t, tree, tree,
+ 				  enum c_inline_static_type);
+@@ -869,6 +870,9 @@ extern tree c_end_compound_stmt (location_t, tree, bool);
+ extern void c_finish_if_stmt (location_t, tree, tree, tree);
+ extern void c_finish_loop (location_t, location_t, tree, location_t, tree,
+ 			   tree, tree, tree, bool);
++
++extern tree c_begin_defer_block (void);
++extern tree c_end_defer_block (location_t loc, tree body);
+ extern tree c_begin_stmt_expr (void);
+ extern tree c_finish_stmt_expr (location_t, tree);
+ extern tree c_process_expr_stmt (location_t, tree);
+diff --git a/gcc/c/c-typeck.cc b/gcc/c/c-typeck.cc
+index f26184e5603..7a939a823e1 100644
+--- a/gcc/c/c-typeck.cc
++++ b/gcc/c/c-typeck.cc
+@@ -12871,6 +12871,12 @@ c_finish_return (location_t loc, tree retval, tree origtype, bool musttail_p)
+     warning_at (xloc, 0,
+ 		"function declared %<noreturn%> has a %<return%> statement");
+ 
++  if (in_statement & IN_DEFER_STMT)
++    {
++      error_at (loc, "return from defer block");
++      return NULL_TREE;
++    }
++
+   set_musttail_on_return (retval, xloc, musttail_p);
+ 
+   if (retval)
+@@ -13252,6 +13258,9 @@ c_finish_bc_stmt (location_t loc, tree label, bool is_break, tree name)
+       case IN_OMP_FOR:
+ 	error_at (loc, "break statement used with OpenMP for loop");
+ 	return NULL_TREE;
++      case IN_DEFER_STMT:
++	error_at (loc, "break statement jumps out of defer block");
++	return NULL_TREE;
+       case IN_ITERATION_STMT:
+       case IN_OBJC_FOREACH:
+ 	break;
+@@ -13269,6 +13278,9 @@ c_finish_bc_stmt (location_t loc, tree label, bool is_break, tree name)
+       case IN_OMP_BLOCK:
+ 	error_at (loc, "invalid exit from OpenMP structured block");
+ 	return NULL_TREE;
++      case IN_DEFER_STMT:
++	error_at (loc, "continue statement jumps out of defer block");
++	return NULL_TREE;
+       case IN_ITERATION_STMT:
+       case IN_OMP_FOR:
+       case IN_OBJC_FOREACH:
+@@ -13414,9 +13426,9 @@ c_begin_stmt_expr (void)
+   keep_next_level ();
+   ret = c_begin_compound_stmt (true);
+ 
+-  c_bindings_start_stmt_expr (c_switch_stack == NULL
+-			      ? NULL
+-			      : c_switch_stack->bindings);
++  c_bindings_start_jump_barrier (false, c_switch_stack == NULL
++			     ? NULL
++			     : c_switch_stack->bindings);
+ 
+   /* Mark the current statement list as belonging to a statement list.  */
+   STATEMENT_LIST_STMT_EXPR (ret) = 1;
+@@ -13435,9 +13447,9 @@ c_finish_stmt_expr (location_t loc, tree body)
+ 
+   body = c_end_compound_stmt (loc, body, true);
+ 
+-  c_bindings_end_stmt_expr (c_switch_stack == NULL
+-			    ? NULL
+-			    : c_switch_stack->bindings);
++  c_bindings_end_jump_barrier (false, c_switch_stack == NULL
++			  ? NULL
++			  : c_switch_stack->bindings);
+ 
+   /* Locate the last statement in BODY.  See c_end_compound_stmt
+      about always returning a BIND_EXPR.  */
+@@ -13532,7 +13544,27 @@ c_finish_stmt_expr (location_t loc, tree body)
+     return t;
+   }
+ }
+-
++
++tree
++c_begin_defer_block (void)
++{
++  c_bindings_start_jump_barrier (true, c_switch_stack == NULL
++			     ? NULL
++			     : c_switch_stack->bindings);
++
++  return c_begin_compound_stmt (true);
++}
++
++tree
++c_end_defer_block (location_t loc, tree body)
++{
++  c_bindings_end_jump_barrier (true, c_switch_stack == NULL
++			  ? NULL
++			  : c_switch_stack->bindings);
++
++  return c_end_compound_stmt (loc, body, true);
++}
++
+ /* Begin and end compound statements.  This is as simple as pushing
+    and popping new statement lists from the tree.  */
+ 
+diff --git a/gcc/ginclude/stddefer.h b/gcc/ginclude/stddefer.h
+new file mode 100644
+index 00000000000..b142eebe490
+--- /dev/null
++++ b/gcc/ginclude/stddefer.h
+@@ -0,0 +1,38 @@
++/* Copyright (C) 1998-2025 Free Software Foundation, Inc.
++
++This file is part of GCC.
++
++GCC is free software; you can redistribute it and/or modify
++it under the terms of the GNU General Public License as published by
++the Free Software Foundation; either version 3, or (at your option)
++any later version.
++
++GCC is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++GNU General Public License for more details.
++
++Under Section 7 of GPL version 3, you are granted additional
++permissions described in the GCC Runtime Library Exception, version
++3.1, as published by the Free Software Foundation.
++
++You should have received a copy of the GNU General Public License and
++a copy of the GCC Runtime Library Exception along with this program;
++see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
++<http://www.gnu.org/licenses/>.  */
++
++/*
++ * ISO C Standard:  7.16  Boolean type and values  <stddefer.h>
++ */
++
++#ifndef _STDDEFER_H_
++#define _STDDEFER_H_
++
++#ifndef __cplusplus
++
++#define __STDC_VERSION_STDDEFER_H__ 202602L
++#define defer	_Defer
++
++#endif /* __cplusplus */
++
++#endif	/* stddefer.h */
+diff --git a/gcc/testsuite/gcc.dg/defer-1.c b/gcc/testsuite/gcc.dg/defer-1.c
+new file mode 100644
+index 00000000000..8432a04a2e8
+--- /dev/null
++++ b/gcc/testsuite/gcc.dg/defer-1.c
+@@ -0,0 +1,256 @@
++/* { dg-do run } */
++/* { dg-options "" } */
++
++#include <stddefer.h>
++#include <setjmp.h>
++
++#define assert(x) if (!(x)) __builtin_abort ()
++
++#if __STDC_DEFER_TS25755__ != 2
++# error "missing defer flag"
++#endif
++
++int a ()
++{
++  int r = 5;
++  return r;
++
++  defer r *= 2;
++}
++
++int b ()
++{
++  int r = 0;
++  goto b;
++  {
++    defer r += 2;
++  }
++b:
++  r += 5;
++  return r;
++}
++
++int c ()
++{
++  int r = 0;
++  {
++    defer r += 2;
++    goto b;
++  }
++b:
++  r += 5;
++  return r;
++}
++
++int d ()
++{
++  int r = 0;
++  goto b;
++  {
++b:
++    defer r += 2;
++  }
++  r += 5;
++  return r;
++}
++
++int e ()
++{
++  int r = 0;
++  {
++    goto b;
++    defer r += 2;
++  }
++b:;
++  r += 5;
++  return r;
++}
++
++int f ()
++{
++  int r = 4;
++  int *p = &r;
++  defer *p = 5;
++  return *p;
++}
++
++int g ()
++{
++  int r = 1;
++  {
++    defer r += 2;
++    if (true)
++      defer r *= 2;
++    r += 10;
++  }
++  return r;
++}
++
++int h ()
++{
++  int r = 1;
++  {
++    defer r += 2;
++    for (int i = 0; i < 5; i++)
++      defer r *= 2;
++  }
++  return r;
++}
++
++int i ()
++{
++  int r = 0;
++  {
++    defer {
++      defer r *= 4;
++      r *= 2;
++      defer {
++	r += 3;
++      }
++    }
++    defer r += 1;
++  }
++
++  return r;
++}
++
++int j ()
++{
++  int r = 0;
++  {
++    defer if (0) r = 5;
++  }
++  return r;
++}
++
++int global = 0;
++
++int k ()
++{
++  global = 5;
++  defer global = 10;
++  return global;
++}
++
++int l ()
++{
++  int r = 5;
++  int j = 2;
++
++  {
++    defer {
++      int j = 10;
++      r *= j;
++    }
++  }
++
++  return r;
++}
++
++int m ()
++{
++  int r = 0;
++
++  void clear(int *value) {
++    *value = 10;
++  }
++
++  {
++    [[gnu::cleanup(clear)]] int j = 1;
++    defer r = j * 2;
++  }
++  return r;
++}
++
++int n ()
++{
++  jmp_buf env;
++  int r = 0;
++
++  if (setjmp(env) != 0)
++    return r;
++
++  defer r = 1;
++
++  {
++    defer r = 2;
++    r++;
++    longjmp(env, 1);
++  }
++}
++
++int o ()
++{
++  int r = 0;
++
++  int foo() {
++    r = 2;
++    defer r *= 2;
++    return r;
++  }
++
++  return foo() + r;
++}
++
++int p (int *arg)
++{
++  *arg = 2;
++  defer *arg *= 2;
++  return *arg;
++}
++
++int q ()
++{
++  int r = 1;
++  {
++b:
++    defer r *= 2;
++    if (r < 10)
++      goto b;
++  }
++
++  return r;
++}
++
++int r ()
++{
++  int r = 1;
++  {
++    defer r *= 2;
++b:
++    if (r < 10)
++      {
++	r++;
++	goto b;
++      }
++  }
++
++  return r;
++}
++
++int
++main ()
++{
++  int arg;
++
++  assert (a () == 5);
++  assert (b () == 5);
++  assert (c () == 7);
++  assert (d () == 7);
++  assert (e () == 5);
++  assert (f () == 4);
++  assert (g () == 14);
++  assert (h () == 34);
++  assert (i () == 20);
++  assert (j () == 0);
++  assert (k () == 5 && global == 10);
++  assert (l () == 50);
++  assert (m () == 2);
++  assert (n () == 1);
++  assert (o () == 6);
++  assert (p (&arg) == 2 && arg == 4);
++  assert (q () == 32);
++  assert (r () == 20);
++
++  return 0;
++}
+diff --git a/gcc/testsuite/gcc.dg/defer-2.c b/gcc/testsuite/gcc.dg/defer-2.c
+new file mode 100644
+index 00000000000..3e07a1b7840
+--- /dev/null
++++ b/gcc/testsuite/gcc.dg/defer-2.c
+@@ -0,0 +1,78 @@
++/* { dg-do compile } */
++/* { dg-options "-fdefer-kw" } */
++
++#include <stddefer.h>
++
++void a ()
++{
++  goto b; /* { dg-error "jump over defer block" } */
++  defer;
++b:
++}
++
++void b () {
++  defer {
++    goto b; /* { dg-error "jump out of defer block" } */
++  }
++b:
++}
++
++int c () {
++  defer {
++    return 5; /* { dg-error "return from defer block" } */
++  }
++  return 1;
++}
++
++void d () {
++  defer {
++b:
++  }
++  goto b; /* { dg-error "jump into defer block" } */
++}
++
++void e () {
++  goto b; /* { dg-error "jump over defer block" } */
++  {
++    defer;
++b:
++  }
++}
++
++void f ()
++{
++  goto b; /* { dg-error "jump into defer block" } */
++  defer {
++b:
++  };
++}
++
++void g () {
++  switch (1) {
++    defer;
++    default: /* { dg-error "switch jumps over defer block" } */
++    defer;
++    break;
++  }
++}
++
++void h () {
++  switch (1) {
++    default:
++      defer {
++	break; /* { dg-error "break statement jumps out of defer block" } */
++      }
++  }
++
++  for (;;) {
++    defer {
++      break; /* { dg-error "break statement jumps out of defer block" } */
++    }
++  }
++
++  for (;;) {
++    defer {
++      continue; /* { dg-error "continue statement jumps out of defer block" } */
++    }
++  }
++}
+diff --git a/gcc/testsuite/gcc.dg/defer-3.c b/gcc/testsuite/gcc.dg/defer-3.c
+new file mode 100644
+index 00000000000..ea2fff6b761
+--- /dev/null
++++ b/gcc/testsuite/gcc.dg/defer-3.c
+@@ -0,0 +1,17 @@
++/* { dg-do run } */
++/* { dg-options "" } */
++
++#include <stddefer.h>
++
++extern void exit(int);
++extern void abort(void);
++
++int main(void) {
++  {
++    defer {
++      exit(0);
++    }
++  }
++  abort();
++  return 1;
++}
+diff --git a/gcc/testsuite/gcc.dg/defer-4.c b/gcc/testsuite/gcc.dg/defer-4.c
+new file mode 100644
+index 00000000000..67dd5d29365
+--- /dev/null
++++ b/gcc/testsuite/gcc.dg/defer-4.c
+@@ -0,0 +1,8 @@
++/* { dg-do compile } */
++/* { dg-options "" } */
++
++int main(void)
++{
++  _Defer;
++  defer; /* { dg-error "'defer' undeclared" "undeclared identifier" } */
++}
+-- 
+2.51.0
+
+
