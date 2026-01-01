@@ -24,10 +24,19 @@ CPPFLAGS = -w -O2 -march=x86-64-v3
 LDFLAGS  = -s
 
 .SUFFIXES: .c .cpp .o
+
+# Parse GGML version from ggml/CMakeLists.txt
+GGML_VERSION_MAJOR := $(shell sed -n 's/^set(GGML_VERSION_MAJOR \(.*\))/\1/p' ggml/CMakeLists.txt)
+GGML_VERSION_MINOR := $(shell sed -n 's/^set(GGML_VERSION_MINOR \(.*\))/\1/p' ggml/CMakeLists.txt)
+GGML_VERSION_PATCH := $(shell sed -n 's/^set(GGML_VERSION_PATCH \(.*\))/\1/p' ggml/CMakeLists.txt)
+GGML_VERSION := $(GGML_VERSION_MAJOR).$(GGML_VERSION_MINOR).$(GGML_VERSION_PATCH)
+
+GGML_COMMIT := $(shell git -C ggml rev-parse --short HEAD || echo unknown)
+
 def = \
-  -DGGML_COMMIT='"unknown"' \
+  -DGGML_COMMIT='"$(GGML_COMMIT)"' \
   -DGGML_USE_CPU \
-  -DGGML_VERSION='"0.9.4"' \
+  -DGGML_VERSION='"$(GGML_VERSION)"' \
   -DLLAMA_USE_HTTPLIB
 inc = \
   -I. \
