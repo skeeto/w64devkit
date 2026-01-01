@@ -17,7 +17,7 @@
 #   $ make -j$(nproc) -f path/to/w64devkit/contrib/llama.mak
 #
 # Incremental builds are unsupported, so clean rebuild after pulling. It
-# was last tested at b7376, and an update will inevitably break it.
+# was last tested at b7607, and an update will inevitably break it.
 
 CROSS    =
 CPPFLAGS = -w -O2 -march=x86-64-v3
