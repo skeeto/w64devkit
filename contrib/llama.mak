@@ -17,7 +17,7 @@
 #   $ make -j$(nproc) -f path/to/w64devkit/contrib/llama.mak
 #
 # Incremental builds are unsupported, so clean rebuild after pulling. It
-# was last tested at b7607, and an update will inevitably break it.
+# was last tested at b7710, and an update will inevitably break it.
 
 CROSS    =
 CPPFLAGS = -w -O2 -march=x86-64-v3
@@ -71,6 +71,7 @@ exe = \
   tools/mtmd/mtmd-helper.cpp.o \
   tools/mtmd/mtmd.cpp.o \
   w64dk-build-info.cpp.o \
+  w64dk-license.c.o \
   $(addsuffix .o,$(wildcard \
       common/*.cpp \
       tools/server/*.cpp \
@@ -92,7 +93,7 @@ llama.dll.a: llama.def
 clean:
 	rm -f $(dll) $(exe) llama.def llama.dll llama.dll.a llama-server.exe \
 	   tools/server/index.html.gz.hpp tools/server/loading.html.hpp \
-	   w64dk-build-info.cpp
+	   w64dk-build-info.cpp w64dk-license.c
 
 .ONESHELL:  # needed for heredocs
 
@@ -106,6 +107,20 @@ w64dk-build-info.cpp:
 	EOF
 
 w64dk-build-info.cpp.o: w64dk-build-info.cpp
+
+licenses = LICENSE $(wildcard licenses/LICENSE-*)
+w64dk-license.c: $(licenses)
+	cat >$@ <<-EOF
+	const char *LICENSES[] = {
+	$$(for f in $(licenses); do
+	    printf '    "%s", (char[]){\n' "$${f##*-}"
+	    printf '        #embed "%s"\n' "$$f"
+	    printf '        , 0\n'
+	    printf '    },\n'
+	done)
+	    0
+	};
+	EOF
 
 tools/server/index.html.gz.hpp: tools/server/public/index.html.gz
 	cd tools/server/public/ && xxd -i index.html.gz >../index.html.gz.hpp
