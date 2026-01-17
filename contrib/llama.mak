@@ -17,7 +17,7 @@
 #   $ make -j$(nproc) -f path/to/w64devkit/contrib/llama.mak
 #
 # Incremental builds are unsupported, so clean rebuild after pulling. It
-# was last tested at b7710, and an update will inevitably break it.
+# was last tested at b7761, and an update will inevitably break it.
 
 CROSS    =
 CPPFLAGS = -w -O2 -march=x86-64-v3
@@ -74,6 +74,7 @@ exe = \
   w64dk-license.c.o \
   $(addsuffix .o,$(wildcard \
       common/*.cpp \
+      common/jinja/*.cpp \
       tools/server/*.cpp \
       tools/mtmd/models/*.cpp \
       vendor/cpp-httplib/*.cpp \
