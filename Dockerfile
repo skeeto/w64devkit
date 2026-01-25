@@ -19,7 +19,7 @@ ARG PDCURSES_VERSION=3.9
 ARG VIM_VERSION=9.0
 
 RUN apt-get update && apt-get install --yes --no-install-recommends \
-  build-essential curl libgmp-dev libmpc-dev libmpfr-dev m4 p7zip-full
+  build-essential curl gnat libgmp-dev libmpc-dev libmpfr-dev m4 p7zip-full
 
 # Download, verify, and unpack
 
@@ -61,6 +61,23 @@ COPY src/w64devkit.c src/w64devkit.ico src/libmemory.c src/libchkstk.S \
      src/peports.c src/profile $PREFIX/src/
 
 ARG ARCH=x86_64-w64-mingw32
+
+# Build native Linux GCC with Ada support for bootstrapping
+
+WORKDIR /x-ada
+RUN /gcc-$GCC_VERSION/configure \
+        --prefix=/ada-bootstrap \
+        --enable-languages=ada \
+        --disable-multilib \
+        --disable-nls \
+        --disable-bootstrap \
+        --disable-libsanitizer \
+        CFLAGS="-Os" \
+        CXXFLAGS="-Os" \
+ && make -j$(nproc) \
+ && make install
+
+ENV PATH="/ada-bootstrap/bin:${PATH}"
 
 # Build cross-compiler
 
@@ -108,7 +125,7 @@ RUN cat $PREFIX/src/gcc-*.patch | patch -d/gcc-$GCC_VERSION -p1 \
         --enable-static \
         --disable-shared \
         --with-pic \
-        --enable-languages=c,c++,fortran \
+        --enable-languages=c,c++,fortran,ada \
         --enable-libgomp \
         --enable-threads=posix \
         --enable-version-specific-runtime-libs \
@@ -275,7 +292,7 @@ RUN echo 'BEGIN {print "pecoff"}' \
         --with-gmp=/deps \
         --with-mpc=/deps \
         --with-mpfr=/deps \
-        --enable-languages=c,c++,fortran \
+        --enable-languages=c,c++,fortran,ada \
         --enable-libgomp \
         --enable-threads=posix \
         --enable-version-specific-runtime-libs \
@@ -313,6 +330,8 @@ RUN $ARCH-gcc -DEXE=gcc.exe -DCMD=cc \
         -o $PREFIX/bin/c89.exe $PREFIX/src/alias.c -lkernel32 \
  && printf '%s\n' addr2line ar as c++filt cpp dlltool dllwrap elfedit g++ \
       gcc gcc-ar gcc-nm gcc-ranlib gcov gcov-dump gcov-tool gendef gfortran \
+      gnat gnatbind gnatchop gnatclean gnatkr gnatlink gnatls gnatmake \
+      gnatname gnatprep \
       ld nm objcopy objdump ranlib readelf size strings strip uuidgen widl \
       windmc windres \
     | xargs -I{} -P$(nproc) \
