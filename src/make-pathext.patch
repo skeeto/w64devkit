@@ -1,0 +1,255 @@
+GNU Make's normal behavior is to search the entire $PATH for .exe, then
+search the entire $PATH for .cmd, then .bat, etc. This is wrong for two
+reasons. First, $PATH position should have priority over file extension
+such that, e.g., .com in an earlier path wins over .exe in a later path.
+Extensions should resolve collisions only within a directory. Second, it
+should use $PATHEXT instead of a hard-coded list of extensions, allowing
+users to choose resolution order.
+
+This patch brings Make's pseudo-shell in line with real shells, both
+busybox-w32 ash and cmd.exe. For example:
+
+    $ mkdir a b
+    $ echo 'main(){puts("com");}' | cc -ansi -o a/example.com -xc -
+    $ echo 'main(){puts("exe");}' | cc -ansi -o b/example.exe -xc -
+    $ printf '_:\n\texample\n\tx= examplehi\n' >Makefile
+
+Before this patch:
+
+    $ make
+    exe
+    com
+
+Due to this Make bug we can detect that the first was run with Make's
+pseudo-shell and the second was run with a real shell (due to the more
+complex expression). After this patch the results become consistent:
+
+    $ make
+    com
+    com
+
+This patch was written by Opus 4.6 via Claude Code prompted by the above
+description, manually reviewed.
+
+--- a/src/w32/subproc/sub_proc.c
++++ b/src/w32/subproc/sub_proc.c
+@@ -475,55 +475,181 @@ process_init_fd(HANDLE stdinh, HANDLE stdouth, HANDLE stderrh)
+ }
+ 
+ 
++/* Try to open FULL_FNAME as an existing file and return its handle.  */
++static HANDLE
++try_open(char *full_fname)
++{
++        return CreateFile(full_fname, GENERIC_READ,
++                          FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
++                          OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
++}
++
++/* Try each PATHEXT extension for FNAME in DIR.  If DIR is NULL, just
++   try FNAME with each extension directly.  EXTENSIONS is a list of
++   NEXTENSIONS extensions to try.  On success, the full path is stored
++   in FULL_FNAME and the file handle is returned.  */
++static HANDLE
++find_in_dir(const char *dir, const char *fname,
++            const char **extensions, int nextensions,
++            char *full_fname, DWORD full_len)
++{
++        HANDLE h;
++        int i;
++
++        for (i = 0; i < nextensions; i++) {
++                if (dir)
++                        snprintf(full_fname, full_len, "%s\\%s%s",
++                                 dir, fname, extensions[i]);
++                else
++                        snprintf(full_fname, full_len, "%s%s",
++                                 fname, extensions[i]);
++                h = try_open(full_fname);
++                if (h != INVALID_HANDLE_VALUE)
++                        return h;
++        }
++        return INVALID_HANDLE_VALUE;
++}
++
+ static HANDLE
+ find_file(const char *exec_path, const char *path_var,
+           char *full_fname, DWORD full_len)
+ {
+         HANDLE exec_handle;
+-        char *fname;
+-        char *ext;
+-        DWORD req_len;
++        static const char *default_extensions[] =
++          { ".com", ".exe", ".bat", ".cmd" };
++        const char **extensions;
++        int nextensions;
++        char *pathext_buf = NULL;
++        int has_ext = 0;
+         int i;
+-        static const char *extensions[] =
+-          /* Should .com come before no-extension case?  */
+-          { ".exe", ".cmd", ".bat", "", ".com", NULL };
+ 
+-        fname = xmalloc(strlen(exec_path) + 5);
+-        strcpy(fname, exec_path);
+-        ext = fname + strlen(fname);
++        /* Parse %PATHEXT% into an extension list.  Fall back to a default
++           list that matches cmd.exe behavior when PATHEXT is unset.  */
++        {
++                const char *pathext = getenv("PATHEXT");
++                if (pathext && *pathext) {
++                        const char *p;
++                        int count = 1;
++                        char *q;
+ 
+-        for (i = 0; extensions[i]; i++) {
+-                strcpy(ext, extensions[i]);
+-                if (((req_len = SearchPath (path_var, fname, NULL, full_len,
+-                                            full_fname, NULL)) > 0
+-                     /* For compatibility with previous code, which
+-                        used OpenFile, and with Windows operation in
+-                        general, also look in various default
+-                        locations, such as Windows directory and
+-                        Windows System directory.  Warning: this also
+-                        searches PATH in the Make's environment, which
+-                        might not be what the Makefile wants, but it
+-                        seems to be OK as a fallback, after the
+-                        previous SearchPath failed to find on child's
+-                        PATH.  */
+-                     || (req_len = SearchPath (NULL, fname, NULL, full_len,
+-                                               full_fname, NULL)) > 0)
+-                    && req_len <= full_len
+-                    && (exec_handle =
+-                                CreateFile(full_fname,
+-                                           GENERIC_READ,
+-                                           FILE_SHARE_READ | FILE_SHARE_WRITE,
+-                                           NULL,
+-                                           OPEN_EXISTING,
+-                                           FILE_ATTRIBUTE_NORMAL,
+-                                           NULL)) != INVALID_HANDLE_VALUE) {
+-                        free(fname);
+-                        return(exec_handle);
++                        for (p = pathext; *p; p++)
++                                if (*p == ';')
++                                        count++;
++                        pathext_buf = xmalloc(strlen(pathext) + 1);
++                        strcpy(pathext_buf, pathext);
++                        extensions = xmalloc(count * sizeof(*extensions));
++                        nextensions = 0;
++                        for (q = pathext_buf; *q; ) {
++                                char *semi = strchr(q, ';');
++                                if (semi)
++                                        *semi = '\0';
++                                if (*q)
++                                        extensions[nextensions++] = q;
++                                if (semi)
++                                        q = semi + 1;
++                                else
++                                        break;
++                        }
++                } else {
++                        extensions = default_extensions;
++                        nextensions = sizeof(default_extensions)
++                                      / sizeof(default_extensions[0]);
+                 }
+         }
+ 
+-        free(fname);
+-        return INVALID_HANDLE_VALUE;
++        /* If exec_path already has a recognized extension, search for it
++           as-is without appending extensions.  */
++        {
++                const char *dot = strrchr(exec_path, '.');
++                if (dot) {
++                        for (i = 0; i < nextensions; i++)
++                                if (_stricmp(dot, extensions[i]) == 0) {
++                                        has_ext = 1;
++                                        break;
++                                }
++                }
++        }
++
++        if (has_ext) {
++                /* Already has an extension: search PATH directory by directory,
++                   then fall back to SearchPath(NULL, ...).  */
++                if (path_var) {
++                        char *path_copy = xmalloc(strlen(path_var) + 1);
++                        char *dir;
++                        strcpy(path_copy, path_var);
++                        for (dir = path_copy; *dir; ) {
++                                char *semi = strchr(dir, ';');
++                                if (semi)
++                                        *semi = '\0';
++                                if (*dir) {
++                                        snprintf(full_fname, full_len,
++                                                 "%s\\%s", dir, exec_path);
++                                        exec_handle = try_open(full_fname);
++                                        if (exec_handle
++                                            != INVALID_HANDLE_VALUE) {
++                                                free(path_copy);
++                                                goto done;
++                                        }
++                                }
++                                if (semi)
++                                        dir = semi + 1;
++                                else
++                                        break;
++                        }
++                        free(path_copy);
++                }
++                /* Fallback: current directory and Windows system directories.  */
++                if (SearchPath(NULL, exec_path, NULL, full_len,
++                               full_fname, NULL) > 0) {
++                        exec_handle = try_open(full_fname);
++                        if (exec_handle != INVALID_HANDLE_VALUE)
++                                goto done;
++                }
++                exec_handle = INVALID_HANDLE_VALUE;
++                goto done;
++        }
++
++        /* No recognized extension: search each PATH directory trying
++           every PATHEXT extension before moving on.  This ensures that
++           PATH order takes priority, with PATHEXT breaking ties within
++           a single directory -- matching cmd.exe behavior.  */
++        if (path_var) {
++                char *path_copy = xmalloc(strlen(path_var) + 1);
++                char *dir;
++                strcpy(path_copy, path_var);
++                for (dir = path_copy; *dir; ) {
++                        char *semi = strchr(dir, ';');
++                        if (semi)
++                                *semi = '\0';
++                        if (*dir) {
++                                exec_handle = find_in_dir(
++                                        dir, exec_path,
++                                        extensions, nextensions,
++                                        full_fname, full_len);
++                                if (exec_handle != INVALID_HANDLE_VALUE) {
++                                        free(path_copy);
++                                        goto done;
++                                }
++                        }
++                        if (semi)
++                                dir = semi + 1;
++                        else
++                                break;
++                }
++                free(path_copy);
++        }
++
++        /* Fallback: current directory and Windows system directories.  */
++        exec_handle = find_in_dir(NULL, exec_path,
++                                  extensions, nextensions,
++                                  full_fname, full_len);
++
++done:
++        if (pathext_buf) {
++                free((void *)extensions);
++                free(pathext_buf);
++        }
++        return exec_handle;
+ }
+ 
+ /*
