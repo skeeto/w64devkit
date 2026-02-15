@@ -12,6 +12,7 @@ Included tools:
 * [busybox-w32][bb] : standard unix utilities, including sh
 * [Vim][vim] : powerful text editor
 * [Universal Ctags][ctags] : source navigation
+* [Ccache][ccache] : compiler cache
 
 It is an MSVCRT toolchain with pthreads, C++11 threads, and OpenMP. All
 included runtime components are static. **Docker/Podman is not required to
@@ -71,6 +72,16 @@ The x86 kit requires Windows XP or later and an SSE2-capable processor
 the same by default. Runtimes contain SSE2 instructions, so GCC `-march`
 will not reliably target less capable processors when runtimes are linked
 (exceptions: `-lmemory`, `-lchkstk`).
+
+## Build cache
+
+Prepending `$W64DEVKIT_HOME/lib/ccache` to your `PATH` will transparently
+and automatically cache all builds in Ccache.
+
+    PATH="$W64DEVKIT_HOME/lib/ccache;$PATH"
+
+Or use `ccache`, `ccache-gcc`, or `ccache-g++` directly. You can activate
+a suggested Ccache configuration via `w64devkit.ini`.
 
 ## Optimized for size
 
@@ -199,6 +210,7 @@ binaries.
 [bb]: https://frippery.org/busybox/
 [break]: https://nullprogram.com/blog/2022/06/26/
 [bs]: https://www.rdegges.com/2016/i-dont-give-a-shit-about-licensing/
+[ccache]: https://ccache.dev/
 [crt]: https://nullprogram.com/blog/2023/02/15/
 [ctags]: https://github.com/universal-ctags/ctags
 [debugbreak]: https://nullprogram.com/blog/2022/07/31/

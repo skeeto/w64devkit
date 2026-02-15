@@ -106,6 +106,25 @@ static b32 s8equals(s8 a, s8 b)
     return 1;
 }
 
+typedef struct {
+    s8  tail;
+    s8  head;
+    b32 eof;
+} Cut;
+
+static Cut s8cut(s8 s, u8 c)
+{
+    u8 *beg = s.s;
+    u8 *end = s.s + s.len;
+    u8 *cut = beg;
+    for (; cut<end && *cut!=c; cut++) {}
+    Cut r = {};
+    r.eof  = cut == end;
+    r.head = s8span(beg, cut);
+    r.tail = s8span(cut+!r.eof, end);
+    return r;
+}
+
 static void fatal(c16 *msg)
 {
     MessageBoxW(0, msg, u"w64devkit launcher", 0x10);
@@ -301,6 +320,7 @@ typedef enum {
     sym_inherit,
     sym_minimal,
     sym_strict,
+    sym_ccache,
 } Symbol;
 
 static Symbol intern(s8 s)
@@ -316,6 +336,7 @@ static Symbol intern(s8 s)
         {S("inherit"),   sym_inherit},
         {S("minimal"),   sym_minimal},
         {S("strict"),    sym_strict},
+        {S("ccache"),    sym_ccache},
     };
     for (iz i = 0; i < countof(symbols); i++) {
         if (s8equals(symbols[i].name, s)) {
@@ -386,6 +407,7 @@ typedef struct {
     c16   *home;
     c16   *title;
     Symbol path_type;
+    b32    ccache;
     b32    ok;
 } Config;
 
@@ -432,7 +454,19 @@ static Config loadconfig(Arena *perm, Arena scratch)
                 } else if (key == sym_title) {
                     conf.title = expandvalue(t.name, perm, scratch);
                 } else if (key == sym_path_type) {
-                    conf.path_type = intern(t.name);
+                    Cut c = s8cut(t.name, '+');
+                    conf.path_type = c.head.len ? intern(c.head) : sym_inherit;
+                    // Parse feature flags, skipping unknowns
+                    while (c.tail.len) {
+                        c = s8cut(c.tail, '+');
+                        switch (intern(c.head)) {
+                        default:
+                            break;
+                        case sym_ccache:
+                            conf.ccache = 1;
+                            break;
+                        }
+                    }
                 }
             }
             break;
@@ -453,6 +487,11 @@ static Buf16 newbuf16(Arena *a, iz cap)
     buf.buf = new(a, c16, cap);
     buf.cap = cap;
     return buf;
+}
+
+static s16 buf16str(Buf16 *buf)
+{
+    return (s16){buf->buf, buf->len};
 }
 
 static void buf16cat(Buf16 *buf, s16 s)
@@ -580,6 +619,10 @@ static i32 w64devkit()
 
     // Continue building PATH
     path = moduledir;
+    if (conf.ccache) {
+        buf16cat(&path, U(u"\\lib\\ccache;"));
+        buf16cat(&path, buf16str(&moduledir));
+    }
     buf16cat(&path, U(u"\\bin"));
     switch (conf.path_type) {
     case sym_inherit:
@@ -593,11 +636,21 @@ static i32 w64devkit()
     case sym_strict:
         break;
     default:
-        fatal(u"w64devkit.ini: 'path type' must be inherit|minimal|strict");
+        fatal(u"w64devkit.ini: 'path type' must be "
+              u"inherit|minimal|strict[+ccache]");
     }
     buf16c16(&path, 0);  // null terminator
     if (path.err || !SetEnvironmentVariableW(u"PATH", path.buf)) {
         fatal(u"Failed to configure $PATH");
+    }
+
+    if (conf.ccache) {
+        Arena tmp = *perm;
+        Buf16 ccdir = newbuf16(&tmp, MAX_ENVVAR);
+        buf16cat(&ccdir, buf16str(&moduledir));
+        buf16cat(&ccdir, U(u"\\var\\ccache"));
+        buf16c16(&ccdir, 0);
+        SetEnvironmentVariableW(u"CCACHE_DIR", ccdir.buf);
     }
 
     // Set the console title as late as possible, but not after starting
