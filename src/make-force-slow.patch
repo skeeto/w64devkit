@@ -1,0 +1,19 @@
+Disable "fast" path pseudo-shell
+
+When a build command is sufficiently simple, GNU Make simulates a shell
+("fast") instead of starting a real shell ("slow"). This simulation is
+defective, such as incorrectly resolving executables, ignoring $PATHEXT,
+and so on. The "fast" path does not appear to be faster, so rather than
+fix it just disable it with a small patch.
+
+--- a/src/job.c
++++ b/src/job.c
+@@ -2909,7 +2909,7 @@
+     free (s1);
+     free (s2);
+   }
+-  if (slow_flag)
++  if (slow_flag || batch_filename)
+     goto slow;
+ #else  /* not WINDOWS32 */
+ #if defined (__MSDOS__) || defined (__EMX__)
