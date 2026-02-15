@@ -17,9 +17,12 @@ ARG MPC_VERSION=1.3.1
 ARG MPFR_VERSION=4.2.2
 ARG PDCURSES_VERSION=3.9
 ARG VIM_VERSION=9.0
+ARG CCACHE_VERSION=4.12.3
+ARG XXHASH_VERSION=0.8.3
+ARG ZSTD_VERSION=1.5.7
 
 RUN apt-get update && apt-get install --yes --no-install-recommends \
-  build-essential curl libgmp-dev libmpc-dev libmpfr-dev m4 p7zip-full
+  build-essential cmake curl libgmp-dev libmpc-dev libmpfr-dev m4 p7zip-full
 
 # Download, verify, and unpack
 
@@ -38,7 +41,10 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
     https://mirror.math.princeton.edu/pub/vim/unix/vim-$VIM_VERSION.tar.bz2 \
     https://github.com/universal-ctags/ctags/archive/refs/tags/v$CTAGS_VERSION.tar.gz \
     https://downloads.sourceforge.net/project/mingw-w64/mingw-w64/mingw-w64-release/mingw-w64-v$MINGW_VERSION.tar.bz2 \
-    https://downloads.sourceforge.net/project/pdcurses/pdcurses/$PDCURSES_VERSION/PDCurses-$PDCURSES_VERSION.tar.gz
+    https://downloads.sourceforge.net/project/pdcurses/pdcurses/$PDCURSES_VERSION/PDCurses-$PDCURSES_VERSION.tar.gz \
+    https://github.com/ccache/ccache/releases/download/v$CCACHE_VERSION/ccache-$CCACHE_VERSION.tar.xz \
+    https://github.com/Cyan4973/xxhash/archive/refs/tags/v$XXHASH_VERSION.tar.gz \
+    https://github.com/facebook/zstd/releases/download/v$ZSTD_VERSION/zstd-$ZSTD_VERSION.tar.gz
 COPY src/SHA256SUMS $PREFIX/src/
 RUN sha256sum -c $PREFIX/src/SHA256SUMS \
  && tar xJf 7z$Z7_VERSION-src.tar.xz --xform 's%^%7z/%' \
@@ -55,7 +61,10 @@ RUN sha256sum -c $PREFIX/src/SHA256SUMS \
  && tar xzf make-$MAKE_VERSION.tar.gz \
  && tar xjf mingw-w64-v$MINGW_VERSION.tar.bz2 \
  && tar xzf PDCurses-$PDCURSES_VERSION.tar.gz \
- && tar xjf vim-$VIM_VERSION.tar.bz2
+ && tar xjf vim-$VIM_VERSION.tar.bz2 \
+ && tar xJf ccache-$CCACHE_VERSION.tar.xz \
+ && tar xzf xxHash-$XXHASH_VERSION.tar.gz \
+ && tar xzf zstd-$ZSTD_VERSION.tar.gz
 COPY src/w64devkit.c src/w64devkit.ico src/libmemory.c src/libchkstk.S \
      src/alias.c src/debugbreak.c src/pkg-config.c src/vc++filt.c \
      src/peports.c src/profile $PREFIX/src/
@@ -476,6 +485,49 @@ RUN sed -i /RT_MANIFEST/d win32/ctags.rc \
         CC=$ARCH-gcc WINDRES=$ARCH-windres \
         OPT= CFLAGS=-Os LDFLAGS=-s \
  && cp ctags.exe $PREFIX/bin/
+
+WORKDIR /xxHash-$XXHASH_VERSION
+RUN make -j$(nproc) CC=$ARCH-gcc AR=$ARCH-ar CFLAGS="-Os" libxxhash.a \
+ && cp libxxhash.a /deps/lib/ \
+ && cp xxhash.h /deps/include/
+
+WORKDIR /zstd-$ZSTD_VERSION/lib
+RUN make -j$(nproc) CC=$ARCH-gcc AR=$ARCH-ar CFLAGS="-Os" libzstd.a \
+ && cp libzstd.a /deps/lib/ \
+ && cp zstd.h zstd_errors.h zdict.h /deps/include/
+
+WORKDIR /ccache
+RUN cmake -DCMAKE_BUILD_TYPE=MinSizeRel \
+        -DCMAKE_SYSTEM_NAME=Windows \
+        -DCMAKE_C_COMPILER=$ARCH-gcc \
+        -DCMAKE_CXX_COMPILER=$ARCH-g++ \
+        -DCMAKE_RC_COMPILER=$ARCH-windres \
+        -DCMAKE_FIND_ROOT_PATH=/deps \
+        -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY \
+        -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY \
+        -DCMAKE_EXE_LINKER_FLAGS="-s" \
+        -DDEPS=LOCAL \
+        -DREDIS_STORAGE_BACKEND=OFF \
+        -DHTTP_STORAGE_BACKEND=OFF \
+        -DENABLE_TESTING=OFF \
+        -DENABLE_DOCUMENTATION=OFF \
+        /ccache-$CCACHE_VERSION \
+ && make -j$(nproc) \
+ && cp ccache.exe $PREFIX/bin/
+
+RUN $ARCH-gcc -DEXE=ccache.exe -DCMD=gcc \
+        -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
+        -o $PREFIX/bin/ccache-gcc.exe $PREFIX/src/alias.c -lkernel32 \
+ && $ARCH-gcc -DEXE=ccache.exe -DCMD=g++ \
+        -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
+        -o $PREFIX/bin/ccache-g++.exe $PREFIX/src/alias.c -lkernel32 \
+ && mkdir -p $PREFIX/lib/ccache \
+ && printf '%s\n' cc c89 c99 gcc g++ c++ $ARCH-gcc $ARCH-g++ \
+    | xargs -I{} -P$(nproc) \
+          $ARCH-gcc -DEXE=../../bin/ccache.exe -DCMD={} \
+            -Os -fno-asynchronous-unwind-tables \
+            -Wl,--gc-sections -s -nostdlib \
+            -o $PREFIX/lib/ccache/{}.com $PREFIX/src/alias.c -lkernel32
 
 WORKDIR /7z
 COPY src/7z.mak $PREFIX/src/
