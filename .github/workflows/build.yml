@@ -1,0 +1,76 @@
+name: Build and test
+
+concurrency:
+  group: w64devkit-${{ github.event.pull_request.head.sha || github.sha }}
+
+on:
+  push:
+  pull_request:
+    branches: [ "master" ]
+
+# Must set Settings -> Actions -> General -> Workflow permissions to
+# "Read and write permissions"
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
+
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: ["x64", "x86"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Apply x86 patch
+        if: matrix.arch == 'x86'
+        run: patch -p1 -i src/variant-x86.patch
+
+      - name: Generate archive name and version string
+        id: filename
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          GIT_VERSION="$(git describe --tags --always)"
+          echo "version=${GIT_VERSION:1}" >> $GITHUB_OUTPUT
+          echo "archive=w64devkit-$ARCH-${GIT_VERSION:1}" >> $GITHUB_OUTPUT
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          tags: w64devkit:${{ matrix.arch }}
+          load: true
+          cache-from: type=gha,scope=w64devkit-${{ matrix.arch }}
+          cache-to: type=gha,scope=w64devkit-${{ matrix.arch }},mode=max
+          
+      - name: Extract artifact
+        run: |
+          docker run --rm w64devkit:${{ matrix.arch }} > w64devkit.exe
+          
+      - name: Rename artifact
+        run: |
+          mv w64devkit.exe ${{ steps.filename.outputs.archive }}.exe
+          ls -lh ${{ steps.filename.outputs.archive }}.exe
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.filename.outputs.archive }}.exe
+          path: ${{ steps.filename.outputs.archive }}.exe
+          compression-level: 0
+
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ steps.filename.outputs.version }}
+          files: w64devkit-*.exe
+          draft: true
