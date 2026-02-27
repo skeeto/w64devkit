@@ -61,11 +61,11 @@ jobs:
           ls -lh ${{ steps.filename.outputs.archive }}.exe
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.filename.outputs.archive }}.exe
           path: ${{ steps.filename.outputs.archive }}.exe
-          compression-level: 0
+          archive: false
 
       - name: Create Release
         if: startsWith(github.ref, 'refs/tags/')
