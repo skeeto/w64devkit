@@ -1,0 +1,58 @@
+name: Build and test
+
+on:
+  pull_request: {}
+  push:
+    branches:
+      - '*'
+    tags:
+      - '*'
+
+# Must set Settings -> Actions -> General -> Workflow permissions to
+# "Read and write permissions"
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: ["x64", "x86"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Apply x86 patch
+        if: matrix.arch == 'x86'
+        run: patch -p1 -i src/variant-x86.patch
+
+      - name: Generate archive name and version string
+        id: filename
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          GIT_VERSION="$(git describe --tags --always)"
+          echo "version=${GIT_VERSION:1}" >> $GITHUB_OUTPUT
+          echo "archive=w64devkit-$ARCH-${GIT_VERSION:1}" >> $GITHUB_OUTPUT
+
+      - name: Build
+        run: |
+          docker build -t w64devkit .
+          docker run --rm w64devkit > ${{ steps.filename.outputs.archive }}.exe
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.filename.outputs.archive }}
+          path: w64devkit-*.exe
+
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ steps.filename.outputs.version }}
+          files: w64devkit-*.exe
+          draft: true
