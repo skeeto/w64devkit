@@ -20,6 +20,8 @@ ARG VIM_VERSION=9.0
 ARG CCACHE_VERSION=4.12.3
 ARG XXHASH_VERSION=0.8.3
 ARG ZSTD_VERSION=1.5.7
+ARG CMAKE_VERSION=4.2.3
+ARG NINJA_VERSION=1.13.1
 
 RUN apt-get update && apt-get install --yes --no-install-recommends \
   build-essential cmake curl libgmp-dev libmpc-dev libmpfr-dev m4 p7zip-full
@@ -44,7 +46,9 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
     https://downloads.sourceforge.net/project/pdcurses/pdcurses/$PDCURSES_VERSION/PDCurses-$PDCURSES_VERSION.tar.gz \
     https://github.com/ccache/ccache/releases/download/v$CCACHE_VERSION/ccache-$CCACHE_VERSION.tar.xz \
     https://github.com/Cyan4973/xxhash/archive/refs/tags/v$XXHASH_VERSION.tar.gz \
-    https://github.com/facebook/zstd/releases/download/v$ZSTD_VERSION/zstd-$ZSTD_VERSION.tar.gz
+    https://github.com/facebook/zstd/releases/download/v$ZSTD_VERSION/zstd-$ZSTD_VERSION.tar.gz \
+    https://github.com/Kitware/CMake/releases/download/v$CMAKE_VERSION/cmake-$CMAKE_VERSION.tar.gz \
+    https://github.com/ninja-build/ninja/archive/refs/tags/v$NINJA_VERSION.tar.gz
 COPY src/SHA256SUMS $PREFIX/src/
 RUN sha256sum -c $PREFIX/src/SHA256SUMS \
  && tar xJf 7z$Z7_VERSION-src.tar.xz --xform 's%^%7z/%' \
@@ -64,7 +68,9 @@ RUN sha256sum -c $PREFIX/src/SHA256SUMS \
  && tar xjf vim-$VIM_VERSION.tar.bz2 \
  && tar xJf ccache-$CCACHE_VERSION.tar.xz \
  && tar xzf xxHash-$XXHASH_VERSION.tar.gz \
- && tar xzf zstd-$ZSTD_VERSION.tar.gz
+ && tar xzf zstd-$ZSTD_VERSION.tar.gz \
+ && tar xzf cmake-$CMAKE_VERSION.tar.gz \
+ && tar xzf ninja-$NINJA_VERSION.tar.gz
 COPY src/w64devkit.c src/w64devkit.ico src/libmemory.c src/libchkstk.S \
      src/alias.c src/debugbreak.c src/pkg-config.c src/vc++filt.c \
      src/peports.c src/profile $PREFIX/src/
@@ -535,6 +541,34 @@ RUN $ARCH-gcc -DEXE=ccache.exe -DCMD=gcc \
             -Wl,--gc-sections -s -nostdlib \
             -o $PREFIX/lib/ccache/{}.com $PREFIX/src/alias.c -lkernel32
 
+WORKDIR /ninja
+RUN cmake -DCMAKE_BUILD_TYPE=MinSizeRel \
+        -DCMAKE_SYSTEM_NAME=Windows \
+        -DCMAKE_CXX_COMPILER=$ARCH-g++ \
+        -DCMAKE_EXE_LINKER_FLAGS="-s" \
+        -DBUILD_TESTING=OFF \
+        /ninja-$NINJA_VERSION \
+ && make -j$(nproc) \
+ && cp ninja.exe $PREFIX/bin/
+
+WORKDIR /cmake
+COPY src/cmake-force-ninja.patch $PREFIX/src/
+RUN cat $PREFIX/src/cmake-*.patch | patch -d/cmake-$CMAKE_VERSION -p1 \
+ && cmake -DCMAKE_BUILD_TYPE=MinSizeRel \
+        -DCMAKE_SYSTEM_NAME=Windows \
+        -DCMAKE_C_COMPILER=$ARCH-gcc \
+        -DCMAKE_CXX_COMPILER=$ARCH-g++ \
+        -DCMAKE_RC_COMPILER=$ARCH-windres \
+        -DCMAKE_EXE_LINKER_FLAGS="-s" \
+        -DCMAKE_INSTALL_PREFIX=$PREFIX \
+        -DBUILD_CursesDialog=OFF \
+        -DBUILD_QtDialog=OFF \
+        -DBUILD_TESTING=OFF \
+        -DCMAKE_USE_OPENSSL=OFF \
+        /cmake-$CMAKE_VERSION \
+ && make -j$(nproc) \
+ && make install
+
 WORKDIR /7z
 COPY src/7z.mak $PREFIX/src/
 RUN sed -i s/CommCtrl/commctrl/ $(grep -Rl CommCtrl CPP/) \
@@ -545,7 +579,8 @@ RUN sed -i s/CommCtrl/commctrl/ $(grep -Rl CommCtrl CPP/) \
 # Pack up a release
 
 WORKDIR /
-RUN rm -rf $PREFIX/share/man/ $PREFIX/share/info/ $PREFIX/share/gcc-*
+RUN rm -rf $PREFIX/share/man/ $PREFIX/share/info/ $PREFIX/share/gcc-* \
+           $PREFIX/doc/ $PREFIX/man/
 COPY README.md Dockerfile w64devkit.ini $PREFIX/
 RUN printf "id ICON \"$PREFIX/src/w64devkit.ico\"" >w64devkit.rc \
  && $ARCH-windres -o w64devkit.o w64devkit.rc \

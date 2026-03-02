@@ -1,0 +1,8 @@
+Default to Ninja even if Visual Studio is installed.
+
+--- a/Source/cmake.cxx
++++ b/Source/cmake.cxx
+@@ -2818,2 +2818,3 @@ std::unique_ptr<cmGlobalGenerator> cmake::EvaluateDefaultGlobalGenerator()
+ #if defined(_WIN32) && !defined(__CYGWIN__) && !defined(CMAKE_BOOT_MINGW)
++  return cm::make_unique<cmGlobalNinjaGenerator>(this);
+   std::string found;

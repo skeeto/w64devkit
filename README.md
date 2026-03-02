@@ -9,6 +9,7 @@ Included tools:
 * [Mingw-w64 GCC][w64] : compilers, linker, assembler
 * [GDB][gdb] : debugger
 * [GNU Make][make] : standard build tool
+* [CMake][cmake] with [Ninja][ninja]: build system
 * [busybox-w32][bb] : standard unix utilities, including sh
 * [Vim][vim] : powerful text editor
 * [Universal Ctags][ctags] : source navigation
@@ -71,7 +72,7 @@ The x86 kit requires Windows XP or later and an SSE2-capable processor
 (e.g. at least Pentium 4); limited Unicode support. The toolchain targets
 the same by default. Runtimes contain SSE2 instructions, so GCC `-march`
 will not reliably target less capable processors when runtimes are linked
-(exceptions: `-lmemory`, `-lchkstk`).
+(exceptions: `-lmemory`, `-lchkstk`). CMake requires at least Windows 7.
 
 ## Build cache
 
@@ -211,6 +212,7 @@ binaries.
 [break]: https://nullprogram.com/blog/2022/06/26/
 [bs]: https://www.rdegges.com/2016/i-dont-give-a-shit-about-licensing/
 [ccache]: https://ccache.dev/
+[cmake]: https://cmake.org/
 [crt]: https://nullprogram.com/blog/2023/02/15/
 [ctags]: https://github.com/universal-ctags/ctags
 [debugbreak]: https://nullprogram.com/blog/2022/07/31/
@@ -231,6 +233,7 @@ binaries.
 [lic2]: https://sourceforge.net/p/mingw-w64/mingw-w64/ci/master/tree/mingw-w64-libraries/winpthreads/COPYING
 [make]: https://www.gnu.org/software/make/
 [names]: https://learn.microsoft.com/en-us/cpp/build/reference/decorated-names
+[ninja]: https://ninja-build.org/
 [san]: http://mingw-w64.org/doku.php/contribute#sanitizers_asan_tsan_usan
 [san2]: https://groups.google.com/forum/#!topic/address-sanitizer/q0e5EBVKZT4
 [vim]: https://www.vim.org/
