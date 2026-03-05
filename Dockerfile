@@ -1,27 +1,33 @@
-FROM debian:trixie-slim
+ARG VERSION=2.5.0 \
+    PREFIX=/w64devkit \
+    Z7_VERSION=2301 \
+    BINUTILS_VERSION=2.45 \
+    BUSYBOX_VERSION=FRP-5857-g3681e397f \
+    CTAGS_VERSION=6.0.0 \
+    EXPAT_VERSION=2.7.2 \
+    GCC_VERSION=15.2.0 \
+    GDB_VERSION=16.2 \
+    GMP_VERSION=6.3.0 \
+    LIBICONV_VERSION=1.18 \
+    MAKE_VERSION=4.4.1 \
+    MINGW_VERSION=13.0.0 \
+    MPC_VERSION=1.3.1 \
+    MPFR_VERSION=4.2.2 \
+    PDCURSES_VERSION=3.9 \
+    VIM_VERSION=9.0 \
+    CCACHE_VERSION=4.12.3 \
+    XXHASH_VERSION=0.8.3 \
+    ZSTD_VERSION=1.5.7 \
+    CMAKE_VERSION=4.2.3 \
+    NINJA_VERSION=1.13.1
 
-ARG VERSION=2.5.0
-ARG PREFIX=/w64devkit
-ARG Z7_VERSION=2301
-ARG BINUTILS_VERSION=2.45
-ARG BUSYBOX_VERSION=FRP-5857-g3681e397f
-ARG CTAGS_VERSION=6.0.0
-ARG EXPAT_VERSION=2.7.2
-ARG GCC_VERSION=15.2.0
-ARG GDB_VERSION=16.2
-ARG GMP_VERSION=6.3.0
-ARG LIBICONV_VERSION=1.18
-ARG MAKE_VERSION=4.4.1
-ARG MINGW_VERSION=13.0.0
-ARG MPC_VERSION=1.3.1
-ARG MPFR_VERSION=4.2.2
-ARG PDCURSES_VERSION=3.9
-ARG VIM_VERSION=9.0
-ARG CCACHE_VERSION=4.12.3
-ARG XXHASH_VERSION=0.8.3
-ARG ZSTD_VERSION=1.5.7
-ARG CMAKE_VERSION=4.2.3
-ARG NINJA_VERSION=1.13.1
+FROM debian:trixie-slim AS base
+ARG VERSION PREFIX Z7_VERSION BINUTILS_VERSION BUSYBOX_VERSION \
+    CTAGS_VERSION EXPAT_VERSION GCC_VERSION GDB_VERSION GMP_VERSION \
+    LIBICONV_VERSION MAKE_VERSION MINGW_VERSION MPC_VERSION MPFR_VERSION \
+    PDCURSES_VERSION VIM_VERSION CCACHE_VERSION XXHASH_VERSION ZSTD_VERSION \
+    CMAKE_VERSION NINJA_VERSION
+ENV PREFIX=$PREFIX
 
 RUN apt-get update && apt-get install --yes --no-install-recommends \
   build-essential cmake curl libgmp-dev libmpc-dev libmpfr-dev m4 p7zip-full
@@ -71,11 +77,13 @@ RUN sha256sum -c $PREFIX/src/SHA256SUMS \
  && tar xzf zstd-$ZSTD_VERSION.tar.gz \
  && tar xzf cmake-$CMAKE_VERSION.tar.gz \
  && tar xzf ninja-$NINJA_VERSION.tar.gz
-COPY src/w64devkit.c src/w64devkit.ico src/libmemory.c src/libchkstk.S \
-     src/alias.c src/debugbreak.c src/pkg-config.c src/vc++filt.c \
-     src/peports.c src/profile $PREFIX/src/
 
+COPY src/w64devkit.ico src/alias.c $PREFIX/src/
+
+FROM base AS cross
 ARG ARCH=x86_64-w64-mingw32
+ARG BINUTILS_VERSION GCC_VERSION GMP_VERSION MINGW_VERSION MPC_VERSION MPFR_VERSION
+ENV ARCH=$ARCH
 
 # Build cross-compiler
 
@@ -143,6 +151,7 @@ RUN cat $PREFIX/src/gcc-*.patch | patch -d/gcc-$GCC_VERSION -p1 \
 
 ENV PATH="/bootstrap/bin:${PATH}"
 
+COPY src/libmemory.c src/libchkstk.S $PREFIX/src/
 RUN mkdir -p $PREFIX/lib \
  && CC=$ARCH-gcc AR=$ARCH-ar DESTDIR=$PREFIX/lib/ \
         sh $PREFIX/src/libmemory.c \
@@ -338,15 +347,19 @@ RUN $ARCH-gcc -DEXE=gcc.exe -DCMD=cc \
 
 # Build some extra development tools
 
+FROM cross AS build-gendef
+ARG MINGW_VERSION
+
 WORKDIR /mingw-tools/gendef
-COPY src/gendef-silent.patch $PREFIX/src/
-RUN patch -d/mingw-w64-v$MINGW_VERSION -p1 <$PREFIX/src/gendef-silent.patch \
+COPY src/gendef-*.patch $PREFIX/src/
+RUN cat $PREFIX/src/gendef-*.patch | patch -d/mingw-w64-v$MINGW_VERSION -p1 \
  && /mingw-w64-v$MINGW_VERSION/mingw-w64-tools/gendef/configure \
         --host=$ARCH \
         CFLAGS="-Os" \
         LDFLAGS="-s" \
  && make -j$(nproc) \
- && cp gendef.exe $PREFIX/bin/
+ && mkdir -p /out/bin \
+ && cp gendef.exe /out/bin/
 
 WORKDIR /mingw-w64-v$MINGW_VERSION/mingw-w64-tools/widl
 COPY src/uuidgen.c $PREFIX/src/
@@ -357,9 +370,12 @@ RUN ./configure \
         CFLAGS="-Os" \
         LDFLAGS="-s" \
  && make -j$(nproc) \
- && cp widl.exe $PREFIX/bin/ \
- && $ARCH-gcc -nostartfiles -Oz -s -o $PREFIX/bin/uuidgen.exe \
+ && cp widl.exe /out/bin/ \
+ && $ARCH-gcc -nostartfiles -Oz -s -o /out/bin/uuidgen.exe \
         $PREFIX/src/uuidgen.c -lmemory
+
+FROM cross AS build-gdb
+ARG EXPAT_VERSION GDB_VERSION LIBICONV_VERSION PDCURSES_VERSION
 
 WORKDIR /expat
 RUN /expat-$EXPAT_VERSION/configure \
@@ -402,7 +418,11 @@ RUN cat $PREFIX/src/gdb-*.patch | patch -d/gdb-$GDB_VERSION -p1 \
         CXXFLAGS="-Os -D__MINGW_USE_VC2005_COMPAT -DPDC_WIDE -I/deps/include" \
         LDFLAGS="-s -L/deps/lib" \
  && make MAKEINFO=true -j$(nproc) \
- && cp gdb/.libs/gdb.exe gdbserver/gdbserver.exe $PREFIX/bin/
+ && mkdir -p /out/bin \
+ && cp gdb/.libs/gdb.exe gdbserver/gdbserver.exe /out/bin/
+
+FROM cross AS build-make
+ARG MAKE_VERSION
 
 WORKDIR /make
 COPY src/make-*.patch $PREFIX/src/
@@ -413,11 +433,14 @@ RUN cat $PREFIX/src/make-*.patch | patch -d/make-$MAKE_VERSION -p1 \
         CFLAGS="-std=gnu17 -Os" \
         LDFLAGS="-s" \
  && make -j$(nproc) \
- && cp make.exe $PREFIX/bin/ \
+ && mkdir -p /out/bin \
+ && cp make.exe /out/bin/ \
  && $ARCH-gcc -DEXE=make.exe -DCMD=make \
         -Os -fno-asynchronous-unwind-tables \
         -Wl,--gc-sections -s -nostdlib \
-        -o $PREFIX/bin/mingw32-make.exe $PREFIX/src/alias.c -lkernel32
+        -o /out/bin/mingw32-make.exe $PREFIX/src/alias.c -lkernel32
+
+FROM cross AS build-busybox
 
 WORKDIR /busybox-w32
 COPY src/busybox-* $PREFIX/src/
@@ -440,7 +463,8 @@ RUN cat $PREFIX/src/busybox-*.patch | patch -p1 \
  && sed -ri 's/^(CONFIG_XXD)=y/\1=n/' .config \
  && make -j$(nproc) CROSS_COMPILE=$ARCH- \
     CONFIG_EXTRA_CFLAGS="-D_WIN32_WINNT=0x502" \
- && cp busybox.exe $PREFIX/bin/
+ && mkdir -p /out/bin \
+ && cp busybox.exe /out/bin/
 
 # Create BusyBox command aliases (like "busybox --install")
 RUN $ARCH-gcc -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections -s \
@@ -458,7 +482,9 @@ RUN $ARCH-gcc -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections -s \
       tr true truncate ts ttysize uname uncompress unexpand uniq unix2dos \
       unlzma unlzop unxz unzip uptime usleep uudecode uuencode watch \
       wc wget which whoami whois xargs xz xzcat yes zcat \
-    | xargs -I{} cp alias.exe $PREFIX/bin/{}.exe
+    | xargs -I{} cp alias.exe /out/bin/{}.exe
+
+FROM cross AS build-vim
 
 # TODO: Either somehow use $VIM_VERSION or normalize the workdir
 WORKDIR /vim90
@@ -470,19 +496,23 @@ RUN cat $PREFIX/src/vim-*.patch | patch -p1 \
         FEATURES=HUGE VIMDLL=yes NETBEANS=no WINVER=0x0501 \
  && $ARCH-strip src/vimrun.exe \
  && rm -rf runtime/tutor/tutor.* \
- && cp -r runtime $PREFIX/share/vim \
- && cp src/vimrun.exe src/gvim.exe src/vim.exe src/*.dll $PREFIX/share/vim/ \
+ && mkdir -p /out/bin /out/share \
+ && cp -r runtime /out/share/vim \
+ && cp src/vimrun.exe src/gvim.exe src/vim.exe src/*.dll /out/share/vim/ \
  && printf '@set SHELL=\r\n@start "" "%%~dp0/../share/vim/gvim.exe" %%*\r\n' \
-        >$PREFIX/bin/gvim.bat \
+        >/out/bin/gvim.bat \
  && printf '@set SHELL=\r\n@"%%~dp0/../share/vim/vim.exe" %%*\r\n' \
-        >$PREFIX/bin/vim.bat \
+        >/out/bin/vim.bat \
  && printf '@set SHELL=\r\n@"%%~dp0/../share/vim/vim.exe" %%*\r\n' \
-        >$PREFIX/bin/vi.bat \
+        >/out/bin/vi.bat \
  && printf '@vim -N -u NONE "+read %s" "+write" "%s"\r\n' \
         '$VIMRUNTIME/tutor/tutor' '%TMP%/tutor%RANDOM%' \
-        >$PREFIX/bin/vimtutor.bat \
- && $ARCH-gcc -nostartfiles -O2 -funroll-loops -s -o $PREFIX/bin/xxd.exe \
+        >/out/bin/vimtutor.bat \
+ && $ARCH-gcc -nostartfiles -O2 -funroll-loops -s -o /out/bin/xxd.exe \
         $PREFIX/src/rexxd.c -lmemory
+
+FROM cross AS build-ctags
+ARG CTAGS_VERSION
 
 WORKDIR /ctags-$CTAGS_VERSION
 RUN sed -i /RT_MANIFEST/d win32/ctags.rc \
@@ -490,7 +520,11 @@ RUN sed -i /RT_MANIFEST/d win32/ctags.rc \
  && make -j$(nproc) -f mk_mingw.mak \
         CC=$ARCH-gcc WINDRES=$ARCH-windres \
         OPT= CFLAGS=-Os LDFLAGS=-s \
- && cp ctags.exe $PREFIX/bin/
+ && mkdir -p /out/bin \
+ && cp ctags.exe /out/bin/
+
+FROM cross AS build-ccache
+ARG CCACHE_VERSION XXHASH_VERSION ZSTD_VERSION
 
 WORKDIR /xxHash-$XXHASH_VERSION
 RUN make -j$(nproc) CC=$ARCH-gcc AR=$ARCH-ar CFLAGS="-Os" libxxhash.a \
@@ -519,27 +553,30 @@ RUN cmake -DCMAKE_BUILD_TYPE=MinSizeRel \
         -DENABLE_DOCUMENTATION=OFF \
         /ccache-$CCACHE_VERSION \
  && make -j$(nproc) \
- && cp ccache.exe $PREFIX/bin/
+ && mkdir -p /out/bin /out/lib/ccache \
+ && cp ccache.exe /out/bin/
 
 RUN $ARCH-gcc -DEXE=ccache.exe -DCMD=gcc \
         -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
-        -o $PREFIX/bin/ccache-gcc.exe $PREFIX/src/alias.c -lkernel32 \
+        -o /out/bin/ccache-gcc.exe $PREFIX/src/alias.c -lkernel32 \
  && $ARCH-gcc -DEXE=ccache.exe -DCMD=g++ \
         -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
-        -o $PREFIX/bin/ccache-g++.exe $PREFIX/src/alias.c -lkernel32 \
- && mkdir -p $PREFIX/lib/ccache \
+        -o /out/bin/ccache-g++.exe $PREFIX/src/alias.c -lkernel32 \
  && printf '%s\n' gcc cc c89 c99 $ARCH-gcc \
     | xargs -I{} -P$(nproc) \
           $ARCH-gcc -DEXE=../../bin/ccache.exe -DCMD=gcc \
             -Os -fno-asynchronous-unwind-tables \
             -Wl,--gc-sections -s -nostdlib \
-            -o $PREFIX/lib/ccache/{}.com $PREFIX/src/alias.c -lkernel32 \
+            -o /out/lib/ccache/{}.com $PREFIX/src/alias.c -lkernel32 \
  && printf '%s\n' g++ c++ $ARCH-g++ \
     | xargs -I{} -P$(nproc) \
           $ARCH-gcc -DEXE=../../bin/ccache.exe -DCMD=g++ \
             -Os -fno-asynchronous-unwind-tables \
             -Wl,--gc-sections -s -nostdlib \
-            -o $PREFIX/lib/ccache/{}.com $PREFIX/src/alias.c -lkernel32
+            -o /out/lib/ccache/{}.com $PREFIX/src/alias.c -lkernel32
+
+FROM cross AS build-ninja
+ARG NINJA_VERSION
 
 WORKDIR /ninja
 RUN cmake -DCMAKE_BUILD_TYPE=MinSizeRel \
@@ -549,10 +586,14 @@ RUN cmake -DCMAKE_BUILD_TYPE=MinSizeRel \
         -DBUILD_TESTING=OFF \
         /ninja-$NINJA_VERSION \
  && make -j$(nproc) \
- && cp ninja.exe $PREFIX/bin/
+ && mkdir -p /out/bin \
+ && cp ninja.exe /out/bin/
+
+FROM cross AS build-cmake
+ARG CMAKE_VERSION
 
 WORKDIR /cmake
-COPY src/cmake-force-ninja.patch $PREFIX/src/
+COPY src/cmake-*.patch $PREFIX/src/
 RUN cat $PREFIX/src/cmake-*.patch | patch -d/cmake-$CMAKE_VERSION -p1 \
  && cmake -DCMAKE_BUILD_TYPE=MinSizeRel \
         -DCMAKE_SYSTEM_NAME=Windows \
@@ -567,7 +608,10 @@ RUN cat $PREFIX/src/cmake-*.patch | patch -d/cmake-$CMAKE_VERSION -p1 \
         -DCMAKE_USE_OPENSSL=OFF \
         /cmake-$CMAKE_VERSION \
  && make -j$(nproc) \
- && make install
+ && DESTDIR=/out make install \
+ && rm -rf /out$PREFIX/doc/ /out$PREFIX/man/
+
+FROM cross AS build-7z
 
 WORKDIR /7z
 COPY src/7z.mak $PREFIX/src/
@@ -578,9 +622,24 @@ RUN sed -i s/CommCtrl/commctrl/ $(grep -Rl CommCtrl CPP/) \
 
 # Pack up a release
 
+FROM cross AS final
+ARG MINGW_VERSION VERSION
+
+COPY --from=build-gendef /out/ $PREFIX/
+COPY --from=build-gdb /out/ $PREFIX/
+COPY --from=build-make /out/ $PREFIX/
+COPY --from=build-busybox /out/ $PREFIX/
+COPY --from=build-vim /out/ $PREFIX/
+COPY --from=build-ctags /out/ $PREFIX/
+COPY --from=build-ccache /out/ $PREFIX/
+COPY --from=build-ninja /out/ $PREFIX/
+COPY --from=build-cmake /out$PREFIX/ $PREFIX/
+COPY --from=build-7z /7z/7z.sfx /7z/
+
+COPY src $PREFIX/src
+
 WORKDIR /
-RUN rm -rf $PREFIX/share/man/ $PREFIX/share/info/ $PREFIX/share/gcc-* \
-           $PREFIX/doc/ $PREFIX/man/
+RUN rm -rf $PREFIX/share/man/ $PREFIX/share/info/ $PREFIX/share/gcc-*
 COPY README.md Dockerfile w64devkit.ini $PREFIX/
 RUN printf "id ICON \"$PREFIX/src/w64devkit.ico\"" >w64devkit.rc \
  && $ARCH-windres -o w64devkit.o w64devkit.rc \
@@ -617,5 +676,4 @@ RUN printf "id ICON \"$PREFIX/src/w64devkit.ico\"" >w64devkit.rc \
         >>$PREFIX/COPYING.MinGW-w64-runtime.txt \
  && echo $VERSION >$PREFIX/VERSION.txt \
  && 7z a -mx=9 -mtm=- $PREFIX.7z $PREFIX
-ENV PREFIX=${PREFIX}
 CMD cat /7z/7z.sfx $PREFIX.7z
