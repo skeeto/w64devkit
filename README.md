@@ -16,8 +16,8 @@ Included tools:
 * [Ccache][ccache] : compiler cache
 
 It is an MSVCRT toolchain with pthreads, C++11 threads, and OpenMP. All
-included runtime components are static. **Docker/Podman is not required to
-use the development kit**. It's merely a reliable, clean environment for
+included runtime components are static. **Docker is not required to use
+the development kit**. It's merely a reliable, clean environment for
 building the kit itself.
 
 ## Build

@@ -1,92 +1,201 @@
-FROM debian:trixie-slim
+ARG VERSION=2.5.0 \
+    PREFIX=/w64devkit
 
-ARG VERSION=2.5.0
-ARG PREFIX=/w64devkit
-ARG Z7_VERSION=2301
-ARG BINUTILS_VERSION=2.45
-ARG BUSYBOX_VERSION=FRP-5857-g3681e397f
-ARG CTAGS_VERSION=6.0.0
-ARG EXPAT_VERSION=2.7.2
-ARG GCC_VERSION=15.2.0
-ARG GDB_VERSION=16.2
-ARG GMP_VERSION=6.3.0
-ARG LIBICONV_VERSION=1.18
-ARG MAKE_VERSION=4.4.1
-ARG MINGW_VERSION=13.0.0
-ARG MPC_VERSION=1.3.1
-ARG MPFR_VERSION=4.2.2
-ARG PDCURSES_VERSION=3.9
-ARG VIM_VERSION=9.0
-ARG CCACHE_VERSION=4.12.3
-ARG XXHASH_VERSION=0.8.3
-ARG ZSTD_VERSION=1.5.7
-ARG CMAKE_VERSION=4.2.3
-ARG NINJA_VERSION=1.13.1
+FROM debian:trixie-slim AS base
+ARG PREFIX
+ENV PREFIX=$PREFIX
 
 RUN apt-get update && apt-get install --yes --no-install-recommends \
   build-essential cmake curl libgmp-dev libmpc-dev libmpfr-dev m4 p7zip-full
 
-# Download, verify, and unpack
+COPY src/w64devkit.ico src/alias.c $PREFIX/src/
 
+# Download stages: each independently downloads, verifies, and unpacks its
+# own sources into /dl/. Version+hash ARGs are local to each stage so that
+# changing one dependency only invalidates its own download stage cache.
+# Source directories are normalized (no version in the directory name).
+
+FROM base AS dl-cross
+ARG BINUTILS_VERSION=2.45 \
+    BINUTILS_SHA256=c50c0e7f9cb188980e2cc97e4537626b1672441815587f1eab69d2a1bfbef5d2 \
+    GCC_VERSION=15.2.0 \
+    GCC_SHA256=438fd996826b0c82485a29da03a72d71d6e3541a83ec702df4271f6fe025d24e \
+    GMP_VERSION=6.3.0 \
+    GMP_SHA256=a3c2b80201b89e68616f4ad30bc66aee4927c3ce50e33929ca819d5c43538898 \
+    MINGW_VERSION=13.0.0 \
+    MINGW_SHA256=5afe822af5c4edbf67daaf45eec61d538f49eef6b19524de64897c6b95828caf \
+    MPC_VERSION=1.3.1 \
+    MPC_SHA256=ab642492f5cf882b74aa0cb730cd410a81edcdbec895183ce930e706c1c759b8 \
+    MPFR_VERSION=4.2.2 \
+    MPFR_SHA256=b67ba0383ef7e8a8563734e2e889ef5ec3c3b898a01d00fa0a6869ad81c6ce01
+WORKDIR /dl
 RUN curl --insecure --location --remote-name-all --remote-header-name \
-    https://downloads.sourceforge.net/project/sevenzip/7-Zip/23.01/7z$Z7_VERSION-src.tar.xz \
     https://ftpmirror.gnu.org/gnu/binutils/binutils-$BINUTILS_VERSION.tar.xz \
     https://ftpmirror.gnu.org/gnu/gcc/gcc-$GCC_VERSION/gcc-$GCC_VERSION.tar.xz \
-    https://ftpmirror.gnu.org/gnu/gdb/gdb-$GDB_VERSION.tar.xz \
-    https://github.com/libexpat/libexpat/releases/download/R_$(echo $EXPAT_VERSION | tr . _)/expat-$EXPAT_VERSION.tar.xz \
     https://ftpmirror.gnu.org/gnu/gmp/gmp-$GMP_VERSION.tar.xz \
     https://ftpmirror.gnu.org/gnu/mpc/mpc-$MPC_VERSION.tar.gz \
     https://ftpmirror.gnu.org/gnu/mpfr/mpfr-$MPFR_VERSION.tar.xz \
-    https://ftpmirror.gnu.org/gnu/make/make-$MAKE_VERSION.tar.gz \
-    https://ftpmirror.gnu.org/gnu/libiconv/libiconv-$LIBICONV_VERSION.tar.gz \
-    https://frippery.org/files/busybox/busybox-w32-$BUSYBOX_VERSION.tgz \
-    https://mirror.math.princeton.edu/pub/vim/unix/vim-$VIM_VERSION.tar.bz2 \
-    https://github.com/universal-ctags/ctags/archive/refs/tags/v$CTAGS_VERSION.tar.gz \
     https://downloads.sourceforge.net/project/mingw-w64/mingw-w64/mingw-w64-release/mingw-w64-v$MINGW_VERSION.tar.bz2 \
+ && printf '%s  %s\n' \
+      $BINUTILS_SHA256 binutils-$BINUTILS_VERSION.tar.xz \
+      $GCC_SHA256 gcc-$GCC_VERSION.tar.xz \
+      $GMP_SHA256 gmp-$GMP_VERSION.tar.xz \
+      $MPC_SHA256 mpc-$MPC_VERSION.tar.gz \
+      $MPFR_SHA256 mpfr-$MPFR_VERSION.tar.xz \
+      $MINGW_SHA256 mingw-w64-v$MINGW_VERSION.tar.bz2 \
+    | sha256sum -c \
+ && mkdir binutils \
+ && tar xJf binutils-$BINUTILS_VERSION.tar.xz -C binutils --strip-components=1 \
+ && mkdir gcc \
+ && tar xJf gcc-$GCC_VERSION.tar.xz -C gcc --strip-components=1 \
+ && mkdir gmp \
+ && tar xJf gmp-$GMP_VERSION.tar.xz -C gmp --strip-components=1 \
+ && mkdir mpc \
+ && tar xzf mpc-$MPC_VERSION.tar.gz -C mpc --strip-components=1 \
+ && mkdir mpfr \
+ && tar xJf mpfr-$MPFR_VERSION.tar.xz -C mpfr --strip-components=1 \
+ && mkdir mingw \
+ && tar xjf mingw-w64-v$MINGW_VERSION.tar.bz2 -C mingw --strip-components=1
+
+FROM base AS dl-gdb
+ARG GDB_VERSION=16.2 \
+    GDB_SHA256=4002cb7f23f45c37c790536a13a720942ce4be0402d929c9085e92f10d480119 \
+    EXPAT_VERSION=2.7.2 \
+    EXPAT_SHA256=21b778b34ec837c2ac285aef340f9fb5fa063a811b21ea4d2412a9702c88995c \
+    LIBICONV_VERSION=1.18 \
+    LIBICONV_SHA256=3b08f5f4f9b4eb82f151a7040bfd6fe6c6fb922efe4b1659c66ea933276965e8 \
+    PDCURSES_VERSION=3.9 \
+    PDCURSES_SHA256=590dbe0f5835f66992df096d3602d0271103f90cf8557a5d124f693c2b40d7ec
+WORKDIR /dl
+RUN curl --insecure --location --remote-name-all --remote-header-name \
+    https://ftpmirror.gnu.org/gnu/gdb/gdb-$GDB_VERSION.tar.xz \
+    https://github.com/libexpat/libexpat/releases/download/R_$(echo $EXPAT_VERSION | tr . _)/expat-$EXPAT_VERSION.tar.xz \
+    https://ftpmirror.gnu.org/gnu/libiconv/libiconv-$LIBICONV_VERSION.tar.gz \
     https://downloads.sourceforge.net/project/pdcurses/pdcurses/$PDCURSES_VERSION/PDCurses-$PDCURSES_VERSION.tar.gz \
+ && printf '%s  %s\n' \
+      $GDB_SHA256 gdb-$GDB_VERSION.tar.xz \
+      $EXPAT_SHA256 expat-$EXPAT_VERSION.tar.xz \
+      $LIBICONV_SHA256 libiconv-$LIBICONV_VERSION.tar.gz \
+      $PDCURSES_SHA256 PDCurses-$PDCURSES_VERSION.tar.gz \
+    | sha256sum -c \
+ && mkdir gdb \
+ && tar xJf gdb-$GDB_VERSION.tar.xz -C gdb --strip-components=1 \
+ && mkdir expat \
+ && tar xJf expat-$EXPAT_VERSION.tar.xz -C expat --strip-components=1 \
+ && mkdir libiconv \
+ && tar xzf libiconv-$LIBICONV_VERSION.tar.gz -C libiconv --strip-components=1 \
+ && mkdir pdcurses \
+ && tar xzf PDCurses-$PDCURSES_VERSION.tar.gz -C pdcurses --strip-components=1
+
+FROM base AS dl-make
+ARG MAKE_VERSION=4.4.1 \
+    MAKE_SHA256=dd16fb1d67bfab79a72f5e8390735c49e3e8e70b4945a15ab1f81ddb78658fb3
+WORKDIR /dl
+RUN curl --insecure --location --remote-name-all --remote-header-name \
+    https://ftpmirror.gnu.org/gnu/make/make-$MAKE_VERSION.tar.gz \
+ && printf '%s  %s\n' $MAKE_SHA256 make-$MAKE_VERSION.tar.gz | sha256sum -c \
+ && mkdir make \
+ && tar xzf make-$MAKE_VERSION.tar.gz -C make --strip-components=1
+
+FROM base AS dl-busybox
+ARG BUSYBOX_VERSION=FRP-5857-g3681e397f \
+    BUSYBOX_SHA256=3a1b3ecc813036d1be42aa71e8c4da9e2c8d9d1d6203d99e48a831b7a6647145
+WORKDIR /dl
+RUN curl --insecure --location --remote-name-all --remote-header-name \
+    https://frippery.org/files/busybox/busybox-w32-$BUSYBOX_VERSION.tgz \
+ && printf '%s  %s\n' $BUSYBOX_SHA256 busybox-w32-$BUSYBOX_VERSION.tgz \
+    | sha256sum -c \
+ && mkdir busybox \
+ && tar xzf busybox-w32-$BUSYBOX_VERSION.tgz -C busybox --strip-components=1
+
+FROM base AS dl-vim
+ARG VIM_VERSION=9.0 \
+    VIM_SHA256=a6456bc154999d83d0c20d968ac7ba6e7df0d02f3cb6427fb248660bacfb336e
+WORKDIR /dl
+RUN curl --insecure --location --remote-name-all --remote-header-name \
+    https://mirror.math.princeton.edu/pub/vim/unix/vim-$VIM_VERSION.tar.bz2 \
+ && printf '%s  %s\n' $VIM_SHA256 vim-$VIM_VERSION.tar.bz2 | sha256sum -c \
+ && mkdir vim \
+ && tar xjf vim-$VIM_VERSION.tar.bz2 -C vim --strip-components=1
+
+FROM base AS dl-ctags
+ARG CTAGS_VERSION=6.0.0 \
+    CTAGS_SHA256=71229a73f25529c9e3dabb2cb7310c55405d31caee8e8a9ab5c71b2406d4005a
+WORKDIR /dl
+RUN curl --insecure --location --remote-name-all --remote-header-name \
+    https://github.com/universal-ctags/ctags/archive/refs/tags/v$CTAGS_VERSION.tar.gz \
+ && printf '%s  %s\n' $CTAGS_SHA256 ctags-$CTAGS_VERSION.tar.gz | sha256sum -c \
+ && mkdir ctags \
+ && tar xzf ctags-$CTAGS_VERSION.tar.gz -C ctags --strip-components=1
+
+FROM base AS dl-ccache
+ARG CCACHE_VERSION=4.12.3 \
+    CCACHE_SHA256=c8e3ef79531966ecfa05bd1666c483b473df9af00896935cc468cb5ed573c16e \
+    XXHASH_VERSION=0.8.3 \
+    XXHASH_SHA256=aae608dfe8213dfd05d909a57718ef82f30722c392344583d3f39050c7f29a80 \
+    ZSTD_VERSION=1.5.7 \
+    ZSTD_SHA256=eb33e51f49a15e023950cd7825ca74a4a2b43db8354825ac24fc1b7ee09e6fa3
+WORKDIR /dl
+RUN curl --insecure --location --remote-name-all --remote-header-name \
     https://github.com/ccache/ccache/releases/download/v$CCACHE_VERSION/ccache-$CCACHE_VERSION.tar.xz \
     https://github.com/Cyan4973/xxhash/archive/refs/tags/v$XXHASH_VERSION.tar.gz \
     https://github.com/facebook/zstd/releases/download/v$ZSTD_VERSION/zstd-$ZSTD_VERSION.tar.gz \
-    https://github.com/Kitware/CMake/releases/download/v$CMAKE_VERSION/cmake-$CMAKE_VERSION.tar.gz \
-    https://github.com/ninja-build/ninja/archive/refs/tags/v$NINJA_VERSION.tar.gz
-COPY src/SHA256SUMS $PREFIX/src/
-RUN sha256sum -c $PREFIX/src/SHA256SUMS \
- && tar xJf 7z$Z7_VERSION-src.tar.xz --xform 's%^%7z/%' \
- && tar xJf binutils-$BINUTILS_VERSION.tar.xz \
- && tar xzf busybox-w32-$BUSYBOX_VERSION.tgz \
- && tar xzf ctags-$CTAGS_VERSION.tar.gz \
- && tar xJf gcc-$GCC_VERSION.tar.xz \
- && tar xJf gdb-$GDB_VERSION.tar.xz \
- && tar xJf expat-$EXPAT_VERSION.tar.xz \
- && tar xzf libiconv-$LIBICONV_VERSION.tar.gz \
- && tar xJf gmp-$GMP_VERSION.tar.xz \
- && tar xzf mpc-$MPC_VERSION.tar.gz \
- && tar xJf mpfr-$MPFR_VERSION.tar.xz \
- && tar xzf make-$MAKE_VERSION.tar.gz \
- && tar xjf mingw-w64-v$MINGW_VERSION.tar.bz2 \
- && tar xzf PDCurses-$PDCURSES_VERSION.tar.gz \
- && tar xjf vim-$VIM_VERSION.tar.bz2 \
- && tar xJf ccache-$CCACHE_VERSION.tar.xz \
- && tar xzf xxHash-$XXHASH_VERSION.tar.gz \
- && tar xzf zstd-$ZSTD_VERSION.tar.gz \
- && tar xzf cmake-$CMAKE_VERSION.tar.gz \
- && tar xzf ninja-$NINJA_VERSION.tar.gz
-COPY src/w64devkit.c src/w64devkit.ico src/libmemory.c src/libchkstk.S \
-     src/alias.c src/debugbreak.c src/pkg-config.c src/vc++filt.c \
-     src/peports.c src/profile $PREFIX/src/
+ && printf '%s  %s\n' \
+      $CCACHE_SHA256 ccache-$CCACHE_VERSION.tar.xz \
+      $XXHASH_SHA256 xxHash-$XXHASH_VERSION.tar.gz \
+      $ZSTD_SHA256 zstd-$ZSTD_VERSION.tar.gz \
+    | sha256sum -c \
+ && mkdir ccache \
+ && tar xJf ccache-$CCACHE_VERSION.tar.xz -C ccache --strip-components=1 \
+ && mkdir xxhash \
+ && tar xzf xxHash-$XXHASH_VERSION.tar.gz -C xxhash --strip-components=1 \
+ && mkdir zstd \
+ && tar xzf zstd-$ZSTD_VERSION.tar.gz -C zstd --strip-components=1
 
-ARG ARCH=x86_64-w64-mingw32
+FROM base AS dl-ninja
+ARG NINJA_VERSION=1.13.1 \
+    NINJA_SHA256=f0055ad0369bf2e372955ba55128d000cfcc21777057806015b45e4accbebf23
+WORKDIR /dl
+RUN curl --insecure --location --remote-name-all --remote-header-name \
+    https://github.com/ninja-build/ninja/archive/refs/tags/v$NINJA_VERSION.tar.gz \
+ && printf '%s  %s\n' $NINJA_SHA256 ninja-$NINJA_VERSION.tar.gz | sha256sum -c \
+ && mkdir ninja \
+ && tar xzf ninja-$NINJA_VERSION.tar.gz -C ninja --strip-components=1
+
+FROM base AS dl-cmake
+ARG CMAKE_VERSION=4.2.3 \
+    CMAKE_SHA256=7efaccde8c5a6b2968bad6ce0fe60e19b6e10701a12fce948c2bf79bac8a11e9
+WORKDIR /dl
+RUN curl --insecure --location --remote-name-all --remote-header-name \
+    https://github.com/Kitware/CMake/releases/download/v$CMAKE_VERSION/cmake-$CMAKE_VERSION.tar.gz \
+ && printf '%s  %s\n' $CMAKE_SHA256 cmake-$CMAKE_VERSION.tar.gz | sha256sum -c \
+ && mkdir cmake \
+ && tar xzf cmake-$CMAKE_VERSION.tar.gz -C cmake --strip-components=1
+
+FROM base AS dl-7z
+ARG Z7_VERSION=2301 \
+    Z7_SHA256=356071007360e5a1824d9904993e8b2480b51b570e8c9faf7c0f58ebe4bf9f74
+WORKDIR /dl
+RUN curl --insecure --location --remote-name-all --remote-header-name \
+    https://downloads.sourceforge.net/project/sevenzip/7-Zip/23.01/7z$Z7_VERSION-src.tar.xz \
+ && printf '%s  %s\n' $Z7_SHA256 7z$Z7_VERSION-src.tar.xz | sha256sum -c \
+ && mkdir 7z \
+ && tar xJf 7z$Z7_VERSION-src.tar.xz -C 7z
 
 # Build cross-compiler
 
-WORKDIR /binutils-$BINUTILS_VERSION
+FROM dl-cross AS cross
+ARG ARCH=x86_64-w64-mingw32
+ENV ARCH=$ARCH
+
+WORKDIR /dl/binutils
 COPY src/binutils-*.patch $PREFIX/src/
 RUN sed -ri 's/(static bool insert_timestamp = )/\1!/' ld/emultempl/pe*.em \
  && sed -ri 's/(int pe_enable_stdcall_fixup = )/\1!!/' ld/emultempl/pe*.em \
  && sed -ri 's/(static int use_big_obj = )/\1!/' gas/config/tc-i386.c \
  && cat $PREFIX/src/binutils-*.patch | patch -p1
 WORKDIR /x-binutils
-RUN /binutils-$BINUTILS_VERSION/configure \
+RUN /dl/binutils/configure \
         --prefix=/bootstrap \
         --with-sysroot=/bootstrap \
         --target=$ARCH \
@@ -98,12 +207,12 @@ RUN /binutils-$BINUTILS_VERSION/configure \
 
 # Fixes i686 Windows XP regression
 # https://sourceforge.net/p/mingw-w64/bugs/821/
-RUN sed -i /OpenThreadToken/d /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/lib32/kernel32.def
+RUN sed -i /OpenThreadToken/d /dl/mingw/mingw-w64-crt/lib32/kernel32.def
 
 WORKDIR /x-mingw-headers
 RUN echo '#include <crtdefs.h>' \
-      >/mingw-w64-v$MINGW_VERSION/mingw-w64-headers/crt/stddef.h \
- && /mingw-w64-v$MINGW_VERSION/mingw-w64-headers/configure \
+      >/dl/mingw/mingw-w64-headers/crt/stddef.h \
+ && /dl/mingw/mingw-w64-headers/configure \
         --prefix=/bootstrap \
         --host=$ARCH \
         --with-default-msvcrt=msvcrt-os \
@@ -115,8 +224,8 @@ RUN ln -s /bootstrap mingw
 
 WORKDIR /x-gcc
 COPY src/gcc-*.patch $PREFIX/src/
-RUN cat $PREFIX/src/gcc-*.patch | patch -d/gcc-$GCC_VERSION -p1 \
- && /gcc-$GCC_VERSION/configure \
+RUN cat $PREFIX/src/gcc-*.patch | patch -d/dl/gcc -p1 \
+ && /dl/gcc/configure \
         --prefix=/bootstrap \
         --with-sysroot=/bootstrap \
         --target=$ARCH \
@@ -143,6 +252,7 @@ RUN cat $PREFIX/src/gcc-*.patch | patch -d/gcc-$GCC_VERSION -p1 \
 
 ENV PATH="/bootstrap/bin:${PATH}"
 
+COPY src/libmemory.c src/libchkstk.S $PREFIX/src/
 RUN mkdir -p $PREFIX/lib \
  && CC=$ARCH-gcc AR=$ARCH-ar DESTDIR=$PREFIX/lib/ \
         sh $PREFIX/src/libmemory.c \
@@ -152,7 +262,7 @@ RUN mkdir -p $PREFIX/lib \
  && ln $PREFIX/lib/libchkstk.a /bootstrap/lib/
 
 WORKDIR /x-mingw-crt
-RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
+RUN /dl/mingw/mingw-w64-crt/configure \
         --prefix=/bootstrap \
         --with-sysroot=/bootstrap \
         --host=$ARCH \
@@ -166,7 +276,7 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
  && make install
 
 WORKDIR /x-winpthreads
-RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-libraries/winpthreads/configure \
+RUN /dl/mingw/mingw-w64-libraries/winpthreads/configure \
         --prefix=/bootstrap \
         --with-sysroot=/bootstrap \
         --host=$ARCH \
@@ -184,7 +294,7 @@ RUN make -j$(nproc) \
 # Cross-compile GCC
 
 WORKDIR /binutils
-RUN /binutils-$BINUTILS_VERSION/configure \
+RUN /dl/binutils/configure \
         --prefix=$PREFIX \
         --with-sysroot=$PREFIX \
         --host=$ARCH \
@@ -198,7 +308,7 @@ RUN /binutils-$BINUTILS_VERSION/configure \
  && rm $PREFIX/bin/elfedit.exe $PREFIX/bin/readelf.exe
 
 WORKDIR /gmp
-RUN /gmp-$GMP_VERSION/configure \
+RUN /dl/gmp/configure \
         --prefix=/deps \
         --host=$ARCH \
         --disable-assembly \
@@ -212,7 +322,7 @@ RUN /gmp-$GMP_VERSION/configure \
  && make install
 
 WORKDIR /mpfr
-RUN /mpfr-$MPFR_VERSION/configure \
+RUN /dl/mpfr/configure \
         --prefix=/deps \
         --host=$ARCH \
         --with-gmp=/deps \
@@ -225,7 +335,7 @@ RUN /mpfr-$MPFR_VERSION/configure \
  && make install
 
 WORKDIR /mpc
-RUN /mpc-$MPC_VERSION/configure \
+RUN /dl/mpc/configure \
         --prefix=/deps \
         --host=$ARCH \
         --with-gmp=/deps \
@@ -239,7 +349,7 @@ RUN /mpc-$MPC_VERSION/configure \
  && make install
 
 WORKDIR /mingw-headers
-RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-headers/configure \
+RUN /dl/mingw/mingw-w64-headers/configure \
         --prefix=$PREFIX \
         --host=$ARCH \
         --enable-idl \
@@ -248,7 +358,7 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-headers/configure \
  && make install
 
 WORKDIR /mingw-crt
-RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
+RUN /dl/mingw/mingw-w64-crt/configure \
         --prefix=$PREFIX \
         --with-sysroot=$PREFIX \
         --host=$ARCH \
@@ -262,7 +372,7 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
  && make install
 
 WORKDIR /winpthreads
-RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-libraries/winpthreads/configure \
+RUN /dl/mingw/mingw-w64-libraries/winpthreads/configure \
         --prefix=$PREFIX \
         --with-sysroot=$PREFIX \
         --host=$ARCH \
@@ -276,9 +386,9 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-libraries/winpthreads/configure \
 WORKDIR /gcc
 COPY src/crossgcc-*.patch $PREFIX/src/
 RUN echo 'BEGIN {print "pecoff"}' \
-         >/gcc-$GCC_VERSION/libbacktrace/filetype.awk \
- && cat $PREFIX/src/crossgcc-*.patch | patch -d/gcc-$GCC_VERSION -p1 \
- && /gcc-$GCC_VERSION/configure \
+         >/dl/gcc/libbacktrace/filetype.awk \
+ && cat $PREFIX/src/crossgcc-*.patch | patch -d/dl/gcc -p1 \
+ && /dl/gcc/configure \
         --prefix=$PREFIX \
         --with-sysroot=$PREFIX \
         --with-native-system-header-dir=/include \
@@ -338,17 +448,20 @@ RUN $ARCH-gcc -DEXE=gcc.exe -DCMD=cc \
 
 # Build some extra development tools
 
+FROM cross AS build-gendef
+
 WORKDIR /mingw-tools/gendef
-COPY src/gendef-silent.patch $PREFIX/src/
-RUN patch -d/mingw-w64-v$MINGW_VERSION -p1 <$PREFIX/src/gendef-silent.patch \
- && /mingw-w64-v$MINGW_VERSION/mingw-w64-tools/gendef/configure \
+COPY src/gendef-*.patch $PREFIX/src/
+RUN cat $PREFIX/src/gendef-*.patch | patch -d/dl/mingw -p1 \
+ && /dl/mingw/mingw-w64-tools/gendef/configure \
         --host=$ARCH \
         CFLAGS="-Os" \
         LDFLAGS="-s" \
  && make -j$(nproc) \
- && cp gendef.exe $PREFIX/bin/
+ && mkdir -p /out/bin \
+ && cp gendef.exe /out/bin/
 
-WORKDIR /mingw-w64-v$MINGW_VERSION/mingw-w64-tools/widl
+WORKDIR /dl/mingw/mingw-w64-tools/widl
 COPY src/uuidgen.c $PREFIX/src/
 RUN ./configure \
         --host=$ARCH \
@@ -357,12 +470,15 @@ RUN ./configure \
         CFLAGS="-Os" \
         LDFLAGS="-s" \
  && make -j$(nproc) \
- && cp widl.exe $PREFIX/bin/ \
- && $ARCH-gcc -nostartfiles -Oz -s -o $PREFIX/bin/uuidgen.exe \
+ && cp widl.exe /out/bin/ \
+ && $ARCH-gcc -nostartfiles -Oz -s -o /out/bin/uuidgen.exe \
         $PREFIX/src/uuidgen.c -lmemory
 
+FROM cross AS build-gdb
+COPY --from=dl-gdb /dl/ /dl/
+
 WORKDIR /expat
-RUN /expat-$EXPAT_VERSION/configure \
+RUN /dl/expat/configure \
         --prefix=/deps \
         --host=$ARCH \
         --disable-shared \
@@ -374,14 +490,14 @@ RUN /expat-$EXPAT_VERSION/configure \
  && make -j$(nproc) \
  && make install
 
-WORKDIR /PDCurses-$PDCURSES_VERSION
+WORKDIR /dl/pdcurses
 RUN make -j$(nproc) -C wincon \
         CC=$ARCH-gcc AR=$ARCH-ar CFLAGS="-I.. -Os -DPDC_WIDE" pdcurses.a \
  && cp wincon/pdcurses.a /deps/lib/libcurses.a \
  && cp curses.h /deps/include
 
 WORKDIR /libiconv
-RUN /libiconv-$LIBICONV_VERSION/configure \
+RUN /dl/libiconv/configure \
         --prefix=/deps \
         --host=$ARCH \
         --disable-nls \
@@ -393,33 +509,41 @@ RUN /libiconv-$LIBICONV_VERSION/configure \
 
 WORKDIR /gdb
 COPY src/gdb-*.patch $PREFIX/src/
-RUN cat $PREFIX/src/gdb-*.patch | patch -d/gdb-$GDB_VERSION -p1 \
- && sed -i 's/quiet = 0/quiet = 1/' /gdb-$GDB_VERSION/gdb/main.c \
- && /gdb-$GDB_VERSION/configure \
+RUN cat $PREFIX/src/gdb-*.patch | patch -d/dl/gdb -p1 \
+ && sed -i 's/quiet = 0/quiet = 1/' /dl/gdb/gdb/main.c \
+ && /dl/gdb/configure \
         --host=$ARCH \
         --enable-tui \
         CFLAGS="-std=gnu17 -Os -D__MINGW_USE_VC2005_COMPAT -DPDC_WIDE -I/deps/include" \
         CXXFLAGS="-Os -D__MINGW_USE_VC2005_COMPAT -DPDC_WIDE -I/deps/include" \
         LDFLAGS="-s -L/deps/lib" \
  && make MAKEINFO=true -j$(nproc) \
- && cp gdb/.libs/gdb.exe gdbserver/gdbserver.exe $PREFIX/bin/
+ && mkdir -p /out/bin \
+ && cp gdb/.libs/gdb.exe gdbserver/gdbserver.exe /out/bin/
+
+FROM cross AS build-make
+COPY --from=dl-make /dl/ /dl/
 
 WORKDIR /make
 COPY src/make-*.patch $PREFIX/src/
-RUN cat $PREFIX/src/make-*.patch | patch -d/make-$MAKE_VERSION -p1 \
- && /make-$MAKE_VERSION/configure \
+RUN cat $PREFIX/src/make-*.patch | patch -d/dl/make -p1 \
+ && /dl/make/configure \
         --host=$ARCH \
         --disable-nls \
         CFLAGS="-std=gnu17 -Os" \
         LDFLAGS="-s" \
  && make -j$(nproc) \
- && cp make.exe $PREFIX/bin/ \
+ && mkdir -p /out/bin \
+ && cp make.exe /out/bin/ \
  && $ARCH-gcc -DEXE=make.exe -DCMD=make \
         -Os -fno-asynchronous-unwind-tables \
         -Wl,--gc-sections -s -nostdlib \
-        -o $PREFIX/bin/mingw32-make.exe $PREFIX/src/alias.c -lkernel32
+        -o /out/bin/mingw32-make.exe $PREFIX/src/alias.c -lkernel32
 
-WORKDIR /busybox-w32
+FROM cross AS build-busybox
+COPY --from=dl-busybox /dl/ /dl/
+
+WORKDIR /dl/busybox
 COPY src/busybox-* $PREFIX/src/
 RUN cat $PREFIX/src/busybox-*.patch | patch -p1 \
  && make mingw64u_defconfig \
@@ -440,7 +564,8 @@ RUN cat $PREFIX/src/busybox-*.patch | patch -p1 \
  && sed -ri 's/^(CONFIG_XXD)=y/\1=n/' .config \
  && make -j$(nproc) CROSS_COMPILE=$ARCH- \
     CONFIG_EXTRA_CFLAGS="-D_WIN32_WINNT=0x502" \
- && cp busybox.exe $PREFIX/bin/
+ && mkdir -p /out/bin \
+ && cp busybox.exe /out/bin/
 
 # Create BusyBox command aliases (like "busybox --install")
 RUN $ARCH-gcc -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections -s \
@@ -458,10 +583,12 @@ RUN $ARCH-gcc -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections -s \
       tr true truncate ts ttysize uname uncompress unexpand uniq unix2dos \
       unlzma unlzop unxz unzip uptime usleep uudecode uuencode watch \
       wc wget which whoami whois xargs xz xzcat yes zcat \
-    | xargs -I{} cp alias.exe $PREFIX/bin/{}.exe
+    | xargs -I{} cp alias.exe /out/bin/{}.exe
 
-# TODO: Either somehow use $VIM_VERSION or normalize the workdir
-WORKDIR /vim90
+FROM cross AS build-vim
+COPY --from=dl-vim /dl/ /dl/
+
+WORKDIR /dl/vim
 COPY src/rexxd.c src/vim-*.patch $PREFIX/src/
 RUN cat $PREFIX/src/vim-*.patch | patch -p1 \
  && ARCH= make -C src -j$(nproc) -f Make_ming.mak CC="$ARCH-gcc -std=gnu17" \
@@ -470,34 +597,42 @@ RUN cat $PREFIX/src/vim-*.patch | patch -p1 \
         FEATURES=HUGE VIMDLL=yes NETBEANS=no WINVER=0x0501 \
  && $ARCH-strip src/vimrun.exe \
  && rm -rf runtime/tutor/tutor.* \
- && cp -r runtime $PREFIX/share/vim \
- && cp src/vimrun.exe src/gvim.exe src/vim.exe src/*.dll $PREFIX/share/vim/ \
+ && mkdir -p /out/bin /out/share \
+ && cp -r runtime /out/share/vim \
+ && cp src/vimrun.exe src/gvim.exe src/vim.exe src/*.dll /out/share/vim/ \
  && printf '@set SHELL=\r\n@start "" "%%~dp0/../share/vim/gvim.exe" %%*\r\n' \
-        >$PREFIX/bin/gvim.bat \
+        >/out/bin/gvim.bat \
  && printf '@set SHELL=\r\n@"%%~dp0/../share/vim/vim.exe" %%*\r\n' \
-        >$PREFIX/bin/vim.bat \
+        >/out/bin/vim.bat \
  && printf '@set SHELL=\r\n@"%%~dp0/../share/vim/vim.exe" %%*\r\n' \
-        >$PREFIX/bin/vi.bat \
+        >/out/bin/vi.bat \
  && printf '@vim -N -u NONE "+read %s" "+write" "%s"\r\n' \
         '$VIMRUNTIME/tutor/tutor' '%TMP%/tutor%RANDOM%' \
-        >$PREFIX/bin/vimtutor.bat \
- && $ARCH-gcc -nostartfiles -O2 -funroll-loops -s -o $PREFIX/bin/xxd.exe \
+        >/out/bin/vimtutor.bat \
+ && $ARCH-gcc -nostartfiles -O2 -funroll-loops -s -o /out/bin/xxd.exe \
         $PREFIX/src/rexxd.c -lmemory
 
-WORKDIR /ctags-$CTAGS_VERSION
+FROM cross AS build-ctags
+COPY --from=dl-ctags /dl/ /dl/
+
+WORKDIR /dl/ctags
 RUN sed -i /RT_MANIFEST/d win32/ctags.rc \
  && make -j$(nproc) -f mk_mingw.mak CC=gcc packcc.exe \
  && make -j$(nproc) -f mk_mingw.mak \
         CC=$ARCH-gcc WINDRES=$ARCH-windres \
         OPT= CFLAGS=-Os LDFLAGS=-s \
- && cp ctags.exe $PREFIX/bin/
+ && mkdir -p /out/bin \
+ && cp ctags.exe /out/bin/
 
-WORKDIR /xxHash-$XXHASH_VERSION
+FROM cross AS build-ccache
+COPY --from=dl-ccache /dl/ /dl/
+
+WORKDIR /dl/xxhash
 RUN make -j$(nproc) CC=$ARCH-gcc AR=$ARCH-ar CFLAGS="-Os" libxxhash.a \
  && cp libxxhash.a /deps/lib/ \
  && cp xxhash.h /deps/include/
 
-WORKDIR /zstd-$ZSTD_VERSION/lib
+WORKDIR /dl/zstd/lib
 RUN make -j$(nproc) CC=$ARCH-gcc AR=$ARCH-ar CFLAGS="-Os" libzstd.a \
  && cp libzstd.a /deps/lib/ \
  && cp zstd.h zstd_errors.h zdict.h /deps/include/
@@ -517,29 +652,32 @@ RUN cmake -DCMAKE_BUILD_TYPE=MinSizeRel \
         -DHTTP_STORAGE_BACKEND=OFF \
         -DENABLE_TESTING=OFF \
         -DENABLE_DOCUMENTATION=OFF \
-        /ccache-$CCACHE_VERSION \
+        /dl/ccache \
  && make -j$(nproc) \
- && cp ccache.exe $PREFIX/bin/
+ && mkdir -p /out/bin /out/lib/ccache \
+ && cp ccache.exe /out/bin/
 
 RUN $ARCH-gcc -DEXE=ccache.exe -DCMD=gcc \
         -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
-        -o $PREFIX/bin/ccache-gcc.exe $PREFIX/src/alias.c -lkernel32 \
+        -o /out/bin/ccache-gcc.exe $PREFIX/src/alias.c -lkernel32 \
  && $ARCH-gcc -DEXE=ccache.exe -DCMD=g++ \
         -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
-        -o $PREFIX/bin/ccache-g++.exe $PREFIX/src/alias.c -lkernel32 \
- && mkdir -p $PREFIX/lib/ccache \
+        -o /out/bin/ccache-g++.exe $PREFIX/src/alias.c -lkernel32 \
  && printf '%s\n' gcc cc c89 c99 $ARCH-gcc \
     | xargs -I{} -P$(nproc) \
           $ARCH-gcc -DEXE=../../bin/ccache.exe -DCMD=gcc \
             -Os -fno-asynchronous-unwind-tables \
             -Wl,--gc-sections -s -nostdlib \
-            -o $PREFIX/lib/ccache/{}.com $PREFIX/src/alias.c -lkernel32 \
+            -o /out/lib/ccache/{}.com $PREFIX/src/alias.c -lkernel32 \
  && printf '%s\n' g++ c++ $ARCH-g++ \
     | xargs -I{} -P$(nproc) \
           $ARCH-gcc -DEXE=../../bin/ccache.exe -DCMD=g++ \
             -Os -fno-asynchronous-unwind-tables \
             -Wl,--gc-sections -s -nostdlib \
-            -o $PREFIX/lib/ccache/{}.com $PREFIX/src/alias.c -lkernel32
+            -o /out/lib/ccache/{}.com $PREFIX/src/alias.c -lkernel32
+
+FROM cross AS build-ninja
+COPY --from=dl-ninja /dl/ /dl/
 
 WORKDIR /ninja
 RUN cmake -DCMAKE_BUILD_TYPE=MinSizeRel \
@@ -547,13 +685,17 @@ RUN cmake -DCMAKE_BUILD_TYPE=MinSizeRel \
         -DCMAKE_CXX_COMPILER=$ARCH-g++ \
         -DCMAKE_EXE_LINKER_FLAGS="-s" \
         -DBUILD_TESTING=OFF \
-        /ninja-$NINJA_VERSION \
+        /dl/ninja \
  && make -j$(nproc) \
- && cp ninja.exe $PREFIX/bin/
+ && mkdir -p /out/bin \
+ && cp ninja.exe /out/bin/
+
+FROM cross AS build-cmake
+COPY --from=dl-cmake /dl/ /dl/
 
 WORKDIR /cmake
-COPY src/cmake-force-ninja.patch $PREFIX/src/
-RUN cat $PREFIX/src/cmake-*.patch | patch -d/cmake-$CMAKE_VERSION -p1 \
+COPY src/cmake-*.patch $PREFIX/src/
+RUN cat $PREFIX/src/cmake-*.patch | patch -d/dl/cmake -p1 \
  && cmake -DCMAKE_BUILD_TYPE=MinSizeRel \
         -DCMAKE_SYSTEM_NAME=Windows \
         -DCMAKE_C_COMPILER=$ARCH-gcc \
@@ -565,11 +707,15 @@ RUN cat $PREFIX/src/cmake-*.patch | patch -d/cmake-$CMAKE_VERSION -p1 \
         -DBUILD_QtDialog=OFF \
         -DBUILD_TESTING=OFF \
         -DCMAKE_USE_OPENSSL=OFF \
-        /cmake-$CMAKE_VERSION \
+        /dl/cmake \
  && make -j$(nproc) \
- && make install
+ && DESTDIR=/out make install \
+ && rm -rf /out$PREFIX/doc/ /out$PREFIX/man/
 
-WORKDIR /7z
+FROM cross AS build-7z
+COPY --from=dl-7z /dl/ /dl/
+
+WORKDIR /dl/7z
 COPY src/7z.mak $PREFIX/src/
 RUN sed -i s/CommCtrl/commctrl/ $(grep -Rl CommCtrl CPP/) \
  && sed -i s%7z\\.ico%$PREFIX/src/w64devkit.ico% \
@@ -578,9 +724,24 @@ RUN sed -i s/CommCtrl/commctrl/ $(grep -Rl CommCtrl CPP/) \
 
 # Pack up a release
 
+FROM cross AS final
+ARG VERSION
+
+COPY --from=build-gendef /out/ $PREFIX/
+COPY --from=build-gdb /out/ $PREFIX/
+COPY --from=build-make /out/ $PREFIX/
+COPY --from=build-busybox /out/ $PREFIX/
+COPY --from=build-vim /out/ $PREFIX/
+COPY --from=build-ctags /out/ $PREFIX/
+COPY --from=build-ccache /out/ $PREFIX/
+COPY --from=build-ninja /out/ $PREFIX/
+COPY --from=build-cmake /out$PREFIX/ $PREFIX/
+COPY --from=build-7z /dl/7z/7z.sfx /7z/
+
+COPY src $PREFIX/src
+
 WORKDIR /
-RUN rm -rf $PREFIX/share/man/ $PREFIX/share/info/ $PREFIX/share/gcc-* \
-           $PREFIX/doc/ $PREFIX/man/
+RUN rm -rf $PREFIX/share/man/ $PREFIX/share/info/ $PREFIX/share/gcc-*
 COPY README.md Dockerfile w64devkit.ini $PREFIX/
 RUN printf "id ICON \"$PREFIX/src/w64devkit.ico\"" >w64devkit.rc \
  && $ARCH-windres -o w64devkit.o w64devkit.rc \
@@ -609,13 +770,12 @@ RUN printf "id ICON \"$PREFIX/src/w64devkit.ico\"" >w64devkit.rc \
         -o $PREFIX/bin/$ARCH-pkg-config.exe $PREFIX/src/alias.c -lkernel32 \
  && sed -i s/'\<ARCH\>'/$ARCH/g $PREFIX/src/profile \
  && mkdir -p $PREFIX/lib/pkgconfig \
- && cp /mingw-w64-v$MINGW_VERSION/COPYING.MinGW-w64-runtime/COPYING.MinGW-w64-runtime.txt \
+ && cp /dl/mingw/COPYING.MinGW-w64-runtime/COPYING.MinGW-w64-runtime.txt \
         $PREFIX/ \
  && printf "\n===========\nwinpthreads\n===========\n\n" \
         >>$PREFIX/COPYING.MinGW-w64-runtime.txt . \
- && cat /mingw-w64-v$MINGW_VERSION/mingw-w64-libraries/winpthreads/COPYING \
+ && cat /dl/mingw/mingw-w64-libraries/winpthreads/COPYING \
         >>$PREFIX/COPYING.MinGW-w64-runtime.txt \
  && echo $VERSION >$PREFIX/VERSION.txt \
  && 7z a -mx=9 -mtm=- $PREFIX.7z $PREFIX
-ENV PREFIX=${PREFIX}
 CMD cat /7z/7z.sfx $PREFIX.7z
