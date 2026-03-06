@@ -522,13 +522,13 @@ RUN $ARCH-gcc -DEXE=ccache.exe -DCMD=gcc \
         -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
         -o $PREFIX/bin/ccache-g++.exe $PREFIX/src/alias.c -lkernel32 \
  && mkdir -p $PREFIX/lib/ccache \
- && printf '%s\n' gcc cc c89 c99 \
+ && printf '%s\n' gcc cc c89 c99 $ARCH-gcc \
     | xargs -I{} -P$(nproc) \
           $ARCH-gcc -DEXE=../../bin/ccache.exe -DCMD=gcc \
             -Os -fno-asynchronous-unwind-tables \
             -Wl,--gc-sections -s -nostdlib \
             -o $PREFIX/lib/ccache/{}.com $PREFIX/src/alias.c -lkernel32 \
- && printf '%s\n' g++ c++ $ARCH-gcc $ARCH-g++ \
+ && printf '%s\n' g++ c++ $ARCH-g++ \
     | xargs -I{} -P$(nproc) \
           $ARCH-gcc -DEXE=../../bin/ccache.exe -DCMD=g++ \
             -Os -fno-asynchronous-unwind-tables \
