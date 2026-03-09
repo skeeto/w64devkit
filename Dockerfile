@@ -30,11 +30,11 @@ ARG BINUTILS_VERSION=2.45 \
     MPFR_SHA256=b67ba0383ef7e8a8563734e2e889ef5ec3c3b898a01d00fa0a6869ad81c6ce01
 WORKDIR /dl
 RUN curl --insecure --location --remote-name-all --remote-header-name \
-    https://ftpmirror.gnu.org/gnu/binutils/binutils-$BINUTILS_VERSION.tar.xz \
-    https://ftpmirror.gnu.org/gnu/gcc/gcc-$GCC_VERSION/gcc-$GCC_VERSION.tar.xz \
-    https://ftpmirror.gnu.org/gnu/gmp/gmp-$GMP_VERSION.tar.xz \
-    https://ftpmirror.gnu.org/gnu/mpc/mpc-$MPC_VERSION.tar.gz \
-    https://ftpmirror.gnu.org/gnu/mpfr/mpfr-$MPFR_VERSION.tar.xz \
+    https://ftp.gnu.org/gnu/binutils/binutils-$BINUTILS_VERSION.tar.xz \
+    https://ftp.gnu.org/gnu/gcc/gcc-$GCC_VERSION/gcc-$GCC_VERSION.tar.xz \
+    https://ftp.gnu.org/gnu/gmp/gmp-$GMP_VERSION.tar.xz \
+    https://ftp.gnu.org/gnu/mpc/mpc-$MPC_VERSION.tar.gz \
+    https://ftp.gnu.org/gnu/mpfr/mpfr-$MPFR_VERSION.tar.xz \
     https://downloads.sourceforge.net/project/mingw-w64/mingw-w64/mingw-w64-release/mingw-w64-v$MINGW_VERSION.tar.bz2 \
  && printf '%s  %s\n' \
       $BINUTILS_SHA256 binutils-$BINUTILS_VERSION.tar.xz \
@@ -68,9 +68,9 @@ ARG GDB_VERSION=16.2 \
     PDCURSES_SHA256=590dbe0f5835f66992df096d3602d0271103f90cf8557a5d124f693c2b40d7ec
 WORKDIR /dl
 RUN curl --insecure --location --remote-name-all --remote-header-name \
-    https://ftpmirror.gnu.org/gnu/gdb/gdb-$GDB_VERSION.tar.xz \
+    https://ftp.gnu.org/gnu/gdb/gdb-$GDB_VERSION.tar.xz \
     https://github.com/libexpat/libexpat/releases/download/R_$(echo $EXPAT_VERSION | tr . _)/expat-$EXPAT_VERSION.tar.xz \
-    https://ftpmirror.gnu.org/gnu/libiconv/libiconv-$LIBICONV_VERSION.tar.gz \
+    https://ftp.gnu.org/gnu/libiconv/libiconv-$LIBICONV_VERSION.tar.gz \
     https://downloads.sourceforge.net/project/pdcurses/pdcurses/$PDCURSES_VERSION/PDCurses-$PDCURSES_VERSION.tar.gz \
  && printf '%s  %s\n' \
       $GDB_SHA256 gdb-$GDB_VERSION.tar.xz \
@@ -92,7 +92,7 @@ ARG MAKE_VERSION=4.4.1 \
     MAKE_SHA256=dd16fb1d67bfab79a72f5e8390735c49e3e8e70b4945a15ab1f81ddb78658fb3
 WORKDIR /dl
 RUN curl --insecure --location --remote-name-all --remote-header-name \
-    https://ftpmirror.gnu.org/gnu/make/make-$MAKE_VERSION.tar.gz \
+    https://ftp.gnu.org/gnu/make/make-$MAKE_VERSION.tar.gz \
  && printf '%s  %s\n' $MAKE_SHA256 make-$MAKE_VERSION.tar.gz | sha256sum -c \
  && mkdir make \
  && tar xzf make-$MAKE_VERSION.tar.gz -C make --strip-components=1
