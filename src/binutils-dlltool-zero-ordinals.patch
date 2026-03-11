@@ -20,5 +20,5 @@ in the wild.
 @@ -3759,3 +3760,3 @@
      if (!d_exports_lexically[i]->noname || show_allnames)
 -      d_exports_lexically[i]->hint = hint++;
-+      d_exports_lexically[i]->hint = 0;
++      d_exports_lexically[i]->hint = hint;
  

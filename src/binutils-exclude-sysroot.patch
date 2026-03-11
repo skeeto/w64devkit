@@ -40,7 +40,7 @@ the known list. Its absence is essentially a Binutils bug.
 +  if (abfd && abfd->my_archive && ld_canon_sysroot)
 +    {
 +      const char *path = bfd_get_filename (abfd->my_archive);
-+      const char *real = lrealpath (path);
++      char *real = lrealpath (path);
 +      int len = ld_canon_sysroot_len;
 +      int match = !filename_ncmp (real, ld_canon_sysroot, len)
 +		  && IS_DIR_SEPARATOR (real[len]);
