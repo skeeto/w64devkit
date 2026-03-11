@@ -129,8 +129,8 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
  && tar xzf ctags-$CTAGS_VERSION.tar.gz -C ctags --strip-components=1
 
 FROM base AS dl-ccache
-ARG CCACHE_VERSION=4.12.3 \
-    CCACHE_SHA256=c8e3ef79531966ecfa05bd1666c483b473df9af00896935cc468cb5ed573c16e \
+ARG CCACHE_VERSION=4.13.1 \
+    CCACHE_SHA256=85638df95c4d3907d9dd686583f2e0b2bd4c232d36e025a5c48e91524b491c4b \
     XXHASH_VERSION=0.8.3 \
     XXHASH_SHA256=aae608dfe8213dfd05d909a57718ef82f30722c392344583d3f39050c7f29a80 \
     ZSTD_VERSION=1.5.7 \
