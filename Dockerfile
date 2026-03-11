@@ -153,8 +153,8 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
  && tar xzf zstd-$ZSTD_VERSION.tar.gz -C zstd --strip-components=1
 
 FROM base AS dl-ninja
-ARG NINJA_VERSION=1.13.1 \
-    NINJA_SHA256=f0055ad0369bf2e372955ba55128d000cfcc21777057806015b45e4accbebf23
+ARG NINJA_VERSION=1.13.2 \
+    NINJA_SHA256=974d6b2f4eeefa25625d34da3cb36bdcebe7fbce40f4c16ac0835fd1c0cbae17
 WORKDIR /dl
 RUN curl --insecure --location --remote-name-all --remote-header-name \
     https://github.com/ninja-build/ninja/archive/refs/tags/v$NINJA_VERSION.tar.gz \
