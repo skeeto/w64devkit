@@ -31,6 +31,11 @@ This takes about 15 minutes on modern systems. You will need an internet
 connection during the first few minutes of the build. **Note:** Do not use
 PowerShell because it lacks file redirection.
 
+### Build via GitHub Actions
+
+GitHub can build w64devkit for you. Fork the repository, enable GitHub
+Actions, push your commits, then download the freshly-built artifacts.
+
 ## Usage
 
 The self-extracting 7z archive contains tools in a typical unix-like
