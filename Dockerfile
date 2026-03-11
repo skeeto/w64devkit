@@ -119,8 +119,8 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
  && tar xjf vim-$VIM_VERSION.tar.bz2 -C vim --strip-components=1
 
 FROM base AS dl-ctags
-ARG CTAGS_VERSION=6.0.0 \
-    CTAGS_SHA256=71229a73f25529c9e3dabb2cb7310c55405d31caee8e8a9ab5c71b2406d4005a
+ARG CTAGS_VERSION=6.2.1 \
+    CTAGS_SHA256=f56829e9a576025e98955597ee967099a871987b3476fbd8dbbc2b9dc921f824
 WORKDIR /dl
 RUN curl --insecure --location --remote-name-all --remote-header-name \
     https://github.com/universal-ctags/ctags/archive/refs/tags/v$CTAGS_VERSION.tar.gz \
