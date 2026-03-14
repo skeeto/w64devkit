@@ -8,29 +8,27 @@
 #   $ ./multibuild.sh -as "$(git describe | tr v -)"
 
 set -e
-arch=""
+arch=
 dryrun=
-flavors=""
 suffix="$(git describe --exact-match 2>/dev/null | tr v - || true)"
 
 usage() {
     cat <<EOF
-usage: multibuild.sh [-48abfhnOs] [-s SUFFIX]
-  -4         Enable x86 build (default: no)
-  -8         Enable x64 build (default: auto)
-  -a         All: Enable all builds
+usage: multibuild.sh [-48ahn] [-s SUFFIX]
+  -4         Enable x86 build
+  -8         Enable x64 build
+  -a         All architectures
   -h         Print this help message
   -n         Dry run, print commands but do nothing
-  -O         Compact with advzip (default: no, less compatible)
-  -s SUFFIX  Append a version suffix (e.g. "-s -1.2.3", default:auto)
+  -s SUFFIX  Append a version suffix (default: auto from git tag)
 EOF
 }
 
-while getopts 48abfhmnOs: opt; do
+while getopts 48ahns: opt; do
     case $opt in
-        4) arch="$arch w64devkit-x86";;
-        8) arch="$arch w64devkit-x64";;
-        a) flavors="X"; arch="w64devkit-x64 w64devkit-x86";;
+        4) arch="$arch x86";;
+        8) arch="$arch x64";;
+        a) arch="x64 x86";;
         h) usage; exit 0;;
         n) dryrun=echo;;
         s) suffix="$OPTARG";;
@@ -45,46 +43,29 @@ if [ $# -gt 0 ]; then
     exit 1
 fi
 
-if [ -z "$arch" ]; then
-    arch="w64devkit-x64"
-fi
-if [ -z "$flavors" ]; then
-    flavors="X"
-fi
-
-builds=
-for base in $arch; do
-    for flavor in $flavors; do
-        builds="$builds $base$(echo $flavor | tr -d X)"
-    done
-done
-
+: ${arch:=x64}
+tmp=
 target="tmp-w64-$$"
 cleanup() {
-    $dryrun git checkout .
-    $dryrun git stash pop
-    $dryrun docker rmi --no-prune $target || true
+    rm -rf -- "$tmp"
+    $dryrun docker rmi --no-prune $target 2>/dev/null || true
 }
-trap cleanup INT TERM
+trap cleanup EXIT
 
-$dryrun git stash
-for build in $builds; do
-    $dryrun git checkout .
-    (
-        IFS=-
-        set $build; shift
-        for flavor in "$@"; do
-            if [ -e src/variant-$flavor.patch ]; then
-                $dryrun patch -p1 -i src/variant-$flavor.patch
-            fi
-        done
-    )
-    $dryrun docker build -t $target .
-    if [ -n "$dryrun" ]; then
-        $dryrun docker run --rm $target ">$build$suffix.7z.exe"
+for variant in $arch; do
+    if [ -e "src/variant-$variant.patch" ]; then
+        tmp=$(mktemp -d)
+        $dryrun cp Dockerfile "$tmp/"
+        $dryrun patch "$tmp/Dockerfile" "src/variant-$variant.patch"
+        $dryrun docker build -f "$tmp/Dockerfile" -t $target .
+        rm -rf -- "$tmp"
     else
-        docker run --rm $target >$build$suffix.7z.exe
+        $dryrun docker build -t $target .
+    fi
+    out="w64devkit-$variant$suffix.7z.exe"
+    if [ -n "$dryrun" ]; then
+        $dryrun docker run --rm $target ">$out"
+    else
+        docker run --rm $target >"$out"
     fi
 done
-
-cleanup
