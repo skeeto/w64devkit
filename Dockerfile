@@ -63,27 +63,32 @@ ARG GDB_VERSION=17.1 \
     EXPAT_VERSION=2.7.4 \
     EXPAT_SHA256=9e9cabb457c1e09de91db2706d8365645792638eb3be1f94dbb2149301086ac0 \
     LIBICONV_VERSION=1.19 \
-    LIBICONV_SHA256=88dd96a8c0464eca144fc791ae60cd31cd8ee78321e67397e25fc095c4a19aa6 \
-    PDCURSES_VERSION=3.9 \
-    PDCURSES_SHA256=590dbe0f5835f66992df096d3602d0271103f90cf8557a5d124f693c2b40d7ec
+    LIBICONV_SHA256=88dd96a8c0464eca144fc791ae60cd31cd8ee78321e67397e25fc095c4a19aa6
 WORKDIR /dl
 RUN curl --insecure --location --remote-name-all --remote-header-name \
     https://ftp.gnu.org/gnu/gdb/gdb-$GDB_VERSION.tar.xz \
     https://github.com/libexpat/libexpat/releases/download/R_$(echo $EXPAT_VERSION | tr . _)/expat-$EXPAT_VERSION.tar.xz \
     https://ftp.gnu.org/gnu/libiconv/libiconv-$LIBICONV_VERSION.tar.gz \
-    https://downloads.sourceforge.net/project/pdcurses/pdcurses/$PDCURSES_VERSION/PDCurses-$PDCURSES_VERSION.tar.gz \
  && printf '%s  %s\n' \
       $GDB_SHA256 gdb-$GDB_VERSION.tar.xz \
       $EXPAT_SHA256 expat-$EXPAT_VERSION.tar.xz \
       $LIBICONV_SHA256 libiconv-$LIBICONV_VERSION.tar.gz \
-      $PDCURSES_SHA256 PDCurses-$PDCURSES_VERSION.tar.gz \
     | sha256sum -c \
  && mkdir gdb \
  && tar xJf gdb-$GDB_VERSION.tar.xz -C gdb --strip-components=1 \
  && mkdir expat \
  && tar xJf expat-$EXPAT_VERSION.tar.xz -C expat --strip-components=1 \
  && mkdir libiconv \
- && tar xzf libiconv-$LIBICONV_VERSION.tar.gz -C libiconv --strip-components=1 \
+ && tar xzf libiconv-$LIBICONV_VERSION.tar.gz -C libiconv --strip-components=1
+
+FROM base AS dl-pdcurses
+ARG PDCURSES_VERSION=3.9 \
+    PDCURSES_SHA256=590dbe0f5835f66992df096d3602d0271103f90cf8557a5d124f693c2b40d7ec
+WORKDIR /dl
+RUN curl --insecure --location --remote-name-all --remote-header-name \
+    https://downloads.sourceforge.net/project/pdcurses/pdcurses/$PDCURSES_VERSION/PDCurses-$PDCURSES_VERSION.tar.gz \
+ && printf '%s  %s\n' $PDCURSES_SHA256 PDCurses-$PDCURSES_VERSION.tar.gz \
+    | sha256sum -c \
  && mkdir pdcurses \
  && tar xzf PDCurses-$PDCURSES_VERSION.tar.gz -C pdcurses --strip-components=1
 
@@ -474,8 +479,21 @@ RUN ./configure \
  && $ARCH-gcc -nostartfiles -Oz -s -o /out/bin/uuidgen.exe \
         $PREFIX/src/uuidgen.c -lmemory
 
+# Build PDCurses once and reuse it for both gdb and ccmake.
+FROM cross AS build-pdcurses
+COPY --from=dl-pdcurses /dl/pdcurses /dl/pdcurses
+
+WORKDIR /dl/pdcurses
+RUN make -j$(nproc) -C wincon \
+       CC=$ARCH-gcc AR=$ARCH-ar CFLAGS="-I.. -Os -DPDC_WIDE" pdcurses.a \
+ && mkdir -p /deps/lib /deps/include \
+ && cp wincon/pdcurses.a /deps/lib/libcurses.a \
+ && cp curses.h /deps/include/curses.h
+
 FROM cross AS build-gdb
 COPY --from=dl-gdb /dl/ /dl/
+COPY --from=build-pdcurses /deps/lib/libcurses.a /deps/lib/
+COPY --from=build-pdcurses /deps/include/curses.h /deps/include/
 
 WORKDIR /expat
 RUN /dl/expat/configure \
@@ -489,12 +507,6 @@ RUN /dl/expat/configure \
         LDFLAGS="-s" \
  && make -j$(nproc) \
  && make install
-
-WORKDIR /dl/pdcurses
-RUN make -j$(nproc) -C wincon \
-        CC=$ARCH-gcc AR=$ARCH-ar CFLAGS="-I.. -Os -DPDC_WIDE" pdcurses.a \
- && cp wincon/pdcurses.a /deps/lib/libcurses.a \
- && cp curses.h /deps/include
 
 WORKDIR /libiconv
 RUN /dl/libiconv/configure \
@@ -692,6 +704,8 @@ RUN cmake -DCMAKE_BUILD_TYPE=MinSizeRel \
 
 FROM cross AS build-cmake
 COPY --from=dl-cmake /dl/ /dl/
+COPY --from=build-pdcurses /deps/lib/libcurses.a /deps/lib/
+COPY --from=build-pdcurses /deps/include/curses.h /deps/include/
 
 WORKDIR /cmake
 COPY src/cmake-*.patch $PREFIX/src/
@@ -703,7 +717,9 @@ RUN cat $PREFIX/src/cmake-*.patch | patch -d/dl/cmake -p1 \
         -DCMAKE_RC_COMPILER=$ARCH-windres \
         -DCMAKE_EXE_LINKER_FLAGS="-s" \
         -DCMAKE_INSTALL_PREFIX=$PREFIX \
-        -DBUILD_CursesDialog=OFF \
+        -DBUILD_CursesDialog=ON \
+        -DCURSES_LIBRARY=/deps/lib/libcurses.a \
+        -DCURSES_INCLUDE_PATH=/deps/include \
         -DBUILD_QtDialog=OFF \
         -DBUILD_TESTING=OFF \
         -DCMAKE_USE_OPENSSL=OFF \

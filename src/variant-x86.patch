@@ -44,7 +44,8 @@
 - && make mingw64u_defconfig \
 + && make mingw64_defconfig \
   && sed -ri 's/^(CONFIG_AR)=y/\1=n/' .config \
-@@ -683,2 +688,3 @@ RUN cat $PREFIX/src/cmake-*.patch | patch -d/dl/cmake -p1 \
-         -DCMAKE_RC_COMPILER=$ARCH-windres \
-+        -DCMAKE_CXX_FLAGS="-Os -D_WIN32_WINNT=0x0601" \
+@@ -721,3 +729,4 @@ RUN cat $PREFIX/src/cmake-*.patch | patch -d/dl/cmake -p1 \
          -DCMAKE_EXE_LINKER_FLAGS="-s" \
++        -DCMAKE_CXX_FLAGS="-Os -D_WIN32_WINNT=0x0601" \
+         -DCMAKE_INSTALL_PREFIX=$PREFIX \
+         -DBUILD_CursesDialog=ON \
