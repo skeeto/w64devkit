@@ -51,11 +51,11 @@ enum : i32 {
     FILE_SHARE_ALL = 7,
 };
 
-#define W32 [[gnu::dllimport, gnu::stdcall]]
+#define W32 __attribute__((dllimport, stdcall))
 W32 b32    CloseHandle(uz);
 W32 uz     CreateFileW(c16 *, i32, i32, void *, i32, i32, uz);
 W32 b32    CreateProcessW(c16*,c16*,void*,void*,i32,i32,c16*,c16*,Si*,Pi*);
-W32 void   ExitProcess[[noreturn]](i32);
+__attribute__((dllimport, stdcall, noreturn)) void ExitProcess(i32);
 W32 u32    ExpandEnvironmentStringsW(c16 *, c16 *, u32);
 W32 u32    GetEnvironmentVariableW(c16 *, c16 *, u32);
 W32 i32    GetExitCodeProcess(uz, i32 *);
@@ -671,7 +671,7 @@ static i32 w64devkit()
     return ret;
 }
 
-[[gnu::stdcall]]
+__attribute__((stdcall))
 void mainCRTStartup()
 {
     i32 r = w64devkit();

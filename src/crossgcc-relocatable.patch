@@ -1,6 +1,6 @@
 Relocatable mingw paths (c/o Hannes Domani)
---- a/gcc/config/mingw/mingw32.h
-+++ b/gcc/config/mingw/mingw32.h
+--- a/gcc/config/i386/mingw32.h
++++ b/gcc/config/i386/mingw32.h
 @@ -91,3 +91,3 @@
  #undef NATIVE_SYSTEM_HEADER_COMPONENT
 -#define NATIVE_SYSTEM_HEADER_COMPONENT "MINGW"

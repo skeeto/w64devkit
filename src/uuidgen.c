@@ -22,7 +22,7 @@
 #define N "\r\n"
 
 #define countof(a)      (iz)(sizeof(a) / sizeof(*(a)))
-#define affirm(c)       while (!(c)) unreachable()
+#define affirm(c)       while (!(c)) __builtin_unreachable()
 #define S(s)            (Str){(u8 *)s, sizeof(s)-1}
 #define new(a, n, t)    (t *)alloc(a, n, sizeof(t), _Alignof(t))
 #define maxof(t)        ((t)-1<1 ? (((t)1<<(sizeof(t)*8-2))-1)*2+1 : (t)-1)
@@ -361,10 +361,10 @@ static i32 uuidgen(i32 argc, u8 **argv, Plt *plt, Arena scratch, Block seed)
 typedef uint16_t    char16_t;
 typedef char16_t    c16;
 
-#define W32 [[gnu::dllimport, gnu::stdcall]]
+#define W32 __attribute__((dllimport, stdcall))
 W32 c16   **CommandLineToArgvW(c16 *, i32 *);
 W32 uz      CreateFileW(c16 *, i32, i32, uz, i32, i32, uz);
-W32 void    ExitProcess[[noreturn]](i32);
+__attribute__((dllimport, stdcall, noreturn)) void ExitProcess(i32);
 W32 c16    *GetCommandLineW();
 W32 b32     GetConsoleMode(uz, i32 *);
 W32 uz      GetProcAddress(uz, char *);
@@ -381,8 +381,8 @@ enum {
     CREATE_ALWAYS           = 2,
     FILE_ATTRIBUTE_NORMAL   = 0x80,
     FILE_SHARE_ALL          = 7,
-    GENERIC_READ            = (i32)0x8000'0000,
-    GENERIC_WRITE           = (i32)0x4000'0000,
+    GENERIC_READ            = (i32)0x80000000,
+    GENERIC_WRITE           = (i32)0x40000000,
 };
 
 static i32 trunc32(iz n)
@@ -438,7 +438,7 @@ static b32 plt_redirect(Plt *plt, u8 *path, Arena scratch)
     return plt->h[1] != (uz)-1;
 }
 
-[[gnu::stdcall]]
+__attribute__((stdcall))
 i32 mainCRTStartup()
 {
     static u8 mem[1<<21];
@@ -468,7 +468,7 @@ i32 mainCRTStartup()
     plt->h[2] = GetStdHandle(-12);
     i32 r = uuidgen(argc, argv, plt, a, seed);
     ExitProcess(r);
-    unreachable();
+    __builtin_unreachable();
 }
 
 
@@ -528,7 +528,7 @@ static u64 rand64()
     return r;
 }
 
-[[gnu::used]]
+__attribute__((used))
 static void entrypoint(uz *stack)
 {
     static u8 mem[1<<21];
@@ -583,7 +583,7 @@ int main(int argc, char **argv)
     if (rnd == -1 || read(rnd, &seed, sizeof(seed)) != (iz)sizeof(seed)) {
         struct timespec ts = {};
         clock_gettime(CLOCK_REALTIME, &ts);
-        seed.x ^= (u64)ts.tv_sec*1'000'000'000 + (u64)ts.tv_nsec;
+        seed.x ^= (u64)ts.tv_sec*1000000000 + (u64)ts.tv_nsec;
         seed.y ^= (uz)main;  // ASLR
     }
 
