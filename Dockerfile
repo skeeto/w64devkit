@@ -246,11 +246,11 @@ RUN cat $PREFIX/src/gcc-*.patch | patch -d/dl/gcc -p1 \
         --disable-nls \
         --disable-lto \
         --disable-multilib \
-        CFLAGS_FOR_TARGET="-Os" \
-        CXXFLAGS_FOR_TARGET="-Os" \
+        CFLAGS_FOR_TARGET="-O2" \
+        CXXFLAGS_FOR_TARGET="-O2" \
         LDFLAGS_FOR_TARGET="-s" \
-        CFLAGS="-Os" \
-        CXXFLAGS="-Os" \
+        CFLAGS="-O2" \
+        CXXFLAGS="-O2" \
         LDFLAGS="-s" \
  && make -j$(nproc) all-gcc \
  && make install-gcc
@@ -275,7 +275,7 @@ RUN /dl/mingw/mingw-w64-crt/configure \
         --disable-dependency-tracking \
         --disable-lib32 \
         --enable-lib64 \
-        CFLAGS="-Os" \
+        CFLAGS="-O2" \
         LDFLAGS="-s" \
  && make -j$(nproc) \
  && make install
@@ -287,7 +287,7 @@ RUN /dl/mingw/mingw-w64-libraries/winpthreads/configure \
         --host=$ARCH \
         --enable-static \
         --disable-shared \
-        CFLAGS="-Os" \
+        CFLAGS="-O2" \
         LDFLAGS="-s" \
  && make -j$(nproc) \
  && make install
@@ -306,7 +306,7 @@ RUN /dl/binutils/configure \
         --target=$ARCH \
         --disable-nls \
         --with-static-standard-libraries \
-        CFLAGS="-Os" \
+        CFLAGS="-O2" \
         LDFLAGS="-s" \
  && make MAKEINFO=true tooldir=$PREFIX -j$(nproc) \
  && make MAKEINFO=true tooldir=$PREFIX install \
@@ -320,8 +320,8 @@ RUN /dl/gmp/configure \
         --enable-static \
         --disable-shared \
         CC=$ARCH-gcc \
-        CFLAGS="-std=gnu17 -Os" \
-        CXXFLAGS="-Os" \
+        CFLAGS="-std=gnu17 -O2" \
+        CXXFLAGS="-O2" \
         LDFLAGS="-s" \
  && make -j$(nproc) \
  && make install
@@ -334,7 +334,7 @@ RUN /dl/mpfr/configure \
         --enable-static \
         --disable-shared \
         CC=$ARCH-gcc \
-        CFLAGS="-Os" \
+        CFLAGS="-O2" \
         LDFLAGS="-s" \
  && make -j$(nproc) \
  && make install
@@ -348,7 +348,7 @@ RUN /dl/mpc/configure \
         --enable-static \
         --disable-shared \
         CC=$ARCH-gcc \
-        CFLAGS="-Os" \
+        CFLAGS="-O2" \
         LDFLAGS="-s" \
  && make -j$(nproc) \
  && make install
@@ -371,7 +371,7 @@ RUN /dl/mingw/mingw-w64-crt/configure \
         --disable-dependency-tracking \
         --disable-lib32 \
         --enable-lib64 \
-        CFLAGS="-Os" \
+        CFLAGS="-O2" \
         LDFLAGS="-s" \
  && make -j$(nproc) \
  && make install
@@ -383,7 +383,7 @@ RUN /dl/mingw/mingw-w64-libraries/winpthreads/configure \
         --host=$ARCH \
         --enable-static \
         --disable-shared \
-        CFLAGS="-Os" \
+        CFLAGS="-O2" \
         LDFLAGS="-s" \
  && make -j$(nproc) \
  && make install
@@ -416,30 +416,30 @@ RUN echo 'BEGIN {print "pecoff"}' \
         --disable-nls \
         --disable-win32-registry \
         --enable-mingw-wildcard \
-        CFLAGS_FOR_TARGET="-Os" \
-        CXXFLAGS_FOR_TARGET="-Os" \
+        CFLAGS_FOR_TARGET="-O2" \
+        CXXFLAGS_FOR_TARGET="-O2" \
         LDFLAGS_FOR_TARGET="-s" \
-        CFLAGS="-Os" \
-        CXXFLAGS="-Os" \
+        CFLAGS="-O2" \
+        CXXFLAGS="-O2" \
         LDFLAGS="-s" \
  && make -j$(nproc) \
  && make install \
  && rm -f $PREFIX/bin/ld.bfd.exe \
  && $ARCH-gcc -DEXE=g++.exe -DCMD=c++ \
-        -Os -fno-asynchronous-unwind-tables \
+        -Oz -fno-asynchronous-unwind-tables \
         -Wl,--gc-sections -s -nostdlib \
         -o $PREFIX/bin/c++.exe \
         $PREFIX/src/alias.c -lkernel32
 
 # Create various tool aliases
 RUN $ARCH-gcc -DEXE=gcc.exe -DCMD=cc \
-        -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
+        -Oz -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
         -o $PREFIX/bin/cc.exe $PREFIX/src/alias.c -lkernel32 \
  && $ARCH-gcc -DEXE=gcc.exe -DCMD="cc -std=c99" \
-        -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
+        -Oz -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
         -o $PREFIX/bin/c99.exe $PREFIX/src/alias.c -lkernel32 \
  && $ARCH-gcc -DEXE=gcc.exe -DCMD="cc -ansi" \
-        -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
+        -Oz -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
         -o $PREFIX/bin/c89.exe $PREFIX/src/alias.c -lkernel32 \
  && printf '%s\n' addr2line ar as c++filt cpp dlltool dllwrap elfedit g++ \
       gcc gcc-ar gcc-nm gcc-ranlib gcov gcov-dump gcov-tool gendef gfortran \
@@ -447,7 +447,7 @@ RUN $ARCH-gcc -DEXE=gcc.exe -DCMD=cc \
       windmc windres \
     | xargs -I{} -P$(nproc) \
           $ARCH-gcc -DEXE={}.exe -DCMD=$ARCH-{} \
-            -Os -fno-asynchronous-unwind-tables \
+            -Oz -fno-asynchronous-unwind-tables \
             -Wl,--gc-sections -s -nostdlib \
             -o $PREFIX/bin/$ARCH-{}.exe $PREFIX/src/alias.c -lkernel32
 
@@ -460,7 +460,7 @@ COPY src/gendef-*.patch $PREFIX/src/
 RUN cat $PREFIX/src/gendef-*.patch | patch -d/dl/mingw -p1 \
  && /dl/mingw/mingw-w64-tools/gendef/configure \
         --host=$ARCH \
-        CFLAGS="-Os" \
+        CFLAGS="-O2" \
         LDFLAGS="-s" \
  && make -j$(nproc) \
  && mkdir -p /out/bin \
@@ -472,7 +472,7 @@ RUN ./configure \
         --host=$ARCH \
         --prefix=$PREFIX \
         --with-widl-includedir=$PREFIX/include \
-        CFLAGS="-Os" \
+        CFLAGS="-O2" \
         LDFLAGS="-s" \
  && make -j$(nproc) \
  && cp widl.exe /out/bin/ \
@@ -485,7 +485,7 @@ COPY --from=dl-pdcurses /dl/pdcurses /dl/pdcurses
 
 WORKDIR /dl/pdcurses
 RUN make -j$(nproc) -C wincon \
-       CC=$ARCH-gcc AR=$ARCH-ar CFLAGS="-I.. -Os -DPDC_WIDE" pdcurses.a \
+       CC=$ARCH-gcc AR=$ARCH-ar CFLAGS="-I.. -O2 -DPDC_WIDE" pdcurses.a \
  && mkdir -p /deps/lib /deps/include \
  && cp wincon/pdcurses.a /deps/lib/libcurses.a \
  && cp curses.h /deps/include/curses.h
@@ -503,7 +503,7 @@ RUN /dl/expat/configure \
         --without-docbook \
         --without-examples \
         --without-tests \
-        CFLAGS="-Os" \
+        CFLAGS="-O2" \
         LDFLAGS="-s" \
  && make -j$(nproc) \
  && make install
@@ -514,7 +514,7 @@ RUN /dl/libiconv/configure \
         --host=$ARCH \
         --disable-nls \
         --disable-shared \
-        CFLAGS="-Os" \
+        CFLAGS="-O2" \
         LDFLAGS="-s" \
  && make -j$(nproc) \
  && make install
@@ -526,8 +526,8 @@ RUN cat $PREFIX/src/gdb-*.patch | patch -d/dl/gdb -p1 \
  && /dl/gdb/configure \
         --host=$ARCH \
         --enable-tui \
-        CFLAGS="-std=gnu17 -Os -D__MINGW_USE_VC2005_COMPAT -DPDC_WIDE -I/deps/include" \
-        CXXFLAGS="-Os -D__MINGW_USE_VC2005_COMPAT -DPDC_WIDE -I/deps/include" \
+        CFLAGS="-std=gnu17 -O2 -D__MINGW_USE_VC2005_COMPAT -DPDC_WIDE -I/deps/include" \
+        CXXFLAGS="-O2 -D__MINGW_USE_VC2005_COMPAT -DPDC_WIDE -I/deps/include" \
         LDFLAGS="-s -L/deps/lib" \
  && make MAKEINFO=true -j$(nproc) \
  && mkdir -p /out/bin \
@@ -542,13 +542,13 @@ RUN cat $PREFIX/src/make-*.patch | patch -d/dl/make -p1 \
  && /dl/make/configure \
         --host=$ARCH \
         --disable-nls \
-        CFLAGS="-std=gnu17 -Os" \
+        CFLAGS="-std=gnu17 -O2" \
         LDFLAGS="-s" \
  && make -j$(nproc) \
  && mkdir -p /out/bin \
  && cp make.exe /out/bin/ \
  && $ARCH-gcc -DEXE=make.exe -DCMD=make \
-        -Os -fno-asynchronous-unwind-tables \
+        -Oz -fno-asynchronous-unwind-tables \
         -Wl,--gc-sections -s -nostdlib \
         -o /out/bin/mingw32-make.exe $PREFIX/src/alias.c -lkernel32
 
@@ -580,7 +580,7 @@ RUN cat $PREFIX/src/busybox-*.patch | patch -p1 \
  && cp busybox.exe /out/bin/
 
 # Create BusyBox command aliases (like "busybox --install")
-RUN $ARCH-gcc -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections -s \
+RUN $ARCH-gcc -Oz -fno-asynchronous-unwind-tables -Wl,--gc-sections -s \
       -nostdlib -o alias.exe $PREFIX/src/busybox-alias.c -lkernel32 \
  && printf '%s\n' arch ash awk base32 base64 basename bash bc bunzip2 bzcat \
       bzip2 cal cat chattr chmod cksum clear cmp comm cp cpio crc32 cut date \
@@ -604,7 +604,7 @@ WORKDIR /dl/vim
 COPY src/rexxd.c src/vim-*.patch $PREFIX/src/
 RUN cat $PREFIX/src/vim-*.patch | patch -p1 \
  && ARCH= make -C src -j$(nproc) -f Make_ming.mak CC="$ARCH-gcc -std=gnu17" \
-        OPTIMIZE=SIZE STATIC_STDCPLUS=yes HAS_GCC_EH=no \
+        OPTIMIZE=SPEED STATIC_STDCPLUS=yes HAS_GCC_EH=no \
         UNDER_CYGWIN=yes CROSS=yes CROSS_COMPILE=$ARCH- \
         FEATURES=HUGE VIMDLL=yes NETBEANS=no WINVER=0x0501 \
  && $ARCH-strip src/vimrun.exe \
@@ -632,7 +632,7 @@ RUN sed -i /RT_MANIFEST/d win32/ctags.rc \
  && make -j$(nproc) -f mk_mingw.mak CC=gcc packcc.exe \
  && make -j$(nproc) -f mk_mingw.mak \
         CC=$ARCH-gcc WINDRES=$ARCH-windres \
-        OPT= CFLAGS=-Os LDFLAGS=-s \
+        OPT= CFLAGS=-O2 LDFLAGS=-s \
  && mkdir -p /out/bin \
  && cp ctags.exe /out/bin/
 
@@ -640,17 +640,17 @@ FROM cross AS build-ccache
 COPY --from=dl-ccache /dl/ /dl/
 
 WORKDIR /dl/xxhash
-RUN make -j$(nproc) CC=$ARCH-gcc AR=$ARCH-ar CFLAGS="-Os" libxxhash.a \
+RUN make -j$(nproc) CC=$ARCH-gcc AR=$ARCH-ar CFLAGS="-O2" libxxhash.a \
  && cp libxxhash.a /deps/lib/ \
  && cp xxhash.h /deps/include/
 
 WORKDIR /dl/zstd/lib
-RUN make -j$(nproc) CC=$ARCH-gcc AR=$ARCH-ar CFLAGS="-Os" libzstd.a \
+RUN make -j$(nproc) CC=$ARCH-gcc AR=$ARCH-ar CFLAGS="-O2" libzstd.a \
  && cp libzstd.a /deps/lib/ \
  && cp zstd.h zstd_errors.h zdict.h /deps/include/
 
 WORKDIR /ccache
-RUN cmake -DCMAKE_BUILD_TYPE=MinSizeRel \
+RUN cmake -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_SYSTEM_NAME=Windows \
         -DCMAKE_C_COMPILER=$ARCH-gcc \
         -DCMAKE_CXX_COMPILER=$ARCH-g++ \
@@ -670,21 +670,21 @@ RUN cmake -DCMAKE_BUILD_TYPE=MinSizeRel \
  && cp ccache.exe /out/bin/
 
 RUN $ARCH-gcc -DEXE=ccache.exe -DCMD=gcc \
-        -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
+        -Oz -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
         -o /out/bin/ccache-gcc.exe $PREFIX/src/alias.c -lkernel32 \
  && $ARCH-gcc -DEXE=ccache.exe -DCMD=g++ \
-        -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
+        -Oz -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
         -o /out/bin/ccache-g++.exe $PREFIX/src/alias.c -lkernel32 \
  && printf '%s\n' gcc cc c89 c99 $ARCH-gcc \
     | xargs -I{} -P$(nproc) \
           $ARCH-gcc -DEXE=../../bin/ccache.exe -DCMD=gcc \
-            -Os -fno-asynchronous-unwind-tables \
+            -Oz -fno-asynchronous-unwind-tables \
             -Wl,--gc-sections -s -nostdlib \
             -o /out/lib/ccache/{}.com $PREFIX/src/alias.c -lkernel32 \
  && printf '%s\n' g++ c++ $ARCH-g++ \
     | xargs -I{} -P$(nproc) \
           $ARCH-gcc -DEXE=../../bin/ccache.exe -DCMD=g++ \
-            -Os -fno-asynchronous-unwind-tables \
+            -Oz -fno-asynchronous-unwind-tables \
             -Wl,--gc-sections -s -nostdlib \
             -o /out/lib/ccache/{}.com $PREFIX/src/alias.c -lkernel32
 
@@ -692,7 +692,7 @@ FROM cross AS build-ninja
 COPY --from=dl-ninja /dl/ /dl/
 
 WORKDIR /ninja
-RUN cmake -DCMAKE_BUILD_TYPE=MinSizeRel \
+RUN cmake -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_SYSTEM_NAME=Windows \
         -DCMAKE_CXX_COMPILER=$ARCH-g++ \
         -DCMAKE_EXE_LINKER_FLAGS="-s" \
@@ -710,7 +710,7 @@ COPY --from=build-pdcurses /deps/include/curses.h /deps/include/
 WORKDIR /cmake
 COPY src/cmake-*.patch $PREFIX/src/
 RUN cat $PREFIX/src/cmake-*.patch | patch -d/dl/cmake -p1 \
- && cmake -DCMAKE_BUILD_TYPE=MinSizeRel \
+ && cmake -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_SYSTEM_NAME=Windows \
         -DCMAKE_C_COMPILER=$ARCH-gcc \
         -DCMAKE_CXX_COMPILER=$ARCH-g++ \
@@ -761,28 +761,28 @@ RUN rm -rf $PREFIX/share/man/ $PREFIX/share/info/ $PREFIX/share/gcc-*
 COPY README.md Dockerfile w64devkit.ini $PREFIX/
 RUN printf "id ICON \"$PREFIX/src/w64devkit.ico\"" >w64devkit.rc \
  && $ARCH-windres -o w64devkit.o w64devkit.rc \
- && $ARCH-gcc -DVERSION=$VERSION -nostdlib -fno-asynchronous-unwind-tables \
+ && $ARCH-gcc -DVERSION=$VERSION -Oz -nostdlib -fno-asynchronous-unwind-tables \
         -fno-builtin -Wl,--gc-sections -s -o $PREFIX/w64devkit.exe \
         $PREFIX/src/w64devkit.c w64devkit.o -lkernel32 -luser32 -lmemory \
  && $ARCH-gcc \
-        -Os -fno-asynchronous-unwind-tables \
+        -Oz -fno-asynchronous-unwind-tables \
         -Wl,--gc-sections -s -nostdlib \
         -o $PREFIX/bin/debugbreak.exe $PREFIX/src/debugbreak.c \
         -lkernel32 \
  && $ARCH-gcc \
-        -Os -fno-asynchronous-unwind-tables -fno-builtin -Wl,--gc-sections \
+        -Oz -fno-asynchronous-unwind-tables -fno-builtin -Wl,--gc-sections \
         -s -nostdlib -o $PREFIX/bin/pkg-config.exe $PREFIX/src/pkg-config.c \
         -lkernel32 \
  && $ARCH-gcc \
-        -Os -fno-asynchronous-unwind-tables -fno-builtin -Wl,--gc-sections \
+        -O2 -fno-asynchronous-unwind-tables -fno-builtin -Wl,--gc-sections \
         -s -nostdlib -o $PREFIX/bin/vc++filt.exe $PREFIX/src/vc++filt.c \
         -lkernel32 -lshell32 -ldbghelp \
  && $ARCH-gcc \
-        -Os -fno-asynchronous-unwind-tables -fno-builtin -Wl,--gc-sections \
+        -O2 -fno-asynchronous-unwind-tables -fno-builtin -Wl,--gc-sections \
         -s -nostdlib -o $PREFIX/bin/peports.exe $PREFIX/src/peports.c \
-        -lkernel32 -lshell32 \
+        -lkernel32 -lshell32 -lmemory \
  && $ARCH-gcc -DEXE=pkg-config.exe -DCMD=pkg-config \
-        -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
+        -Oz -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
         -o $PREFIX/bin/$ARCH-pkg-config.exe $PREFIX/src/alias.c -lkernel32 \
  && sed -i s/'\<ARCH\>'/$ARCH/g $PREFIX/src/profile \
  && mkdir -p $PREFIX/lib/pkgconfig \

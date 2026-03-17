@@ -19,7 +19,7 @@
 -        --enable-lib64 \
 +        --enable-lib32 \
 +        --disable-lib64 \
-         CFLAGS="-Os" \
+         CFLAGS="-O2" \
 @@ -336,2 +338,3 @@ RUN /dl/mingw/mingw-w64-headers/configure \
          --with-default-msvcrt=msvcrt-os \
 +        --with-default-win32-winnt=0x0501 \
@@ -30,7 +30,7 @@
 -        --enable-lib64 \
 +        --enable-lib32 \
 +        --disable-lib64 \
-         CFLAGS="-Os" \
+         CFLAGS="-O2" \
 @@ -374,2 +377,3 @@ RUN echo 'BEGIN {print "pecoff"}' \
          --with-native-system-header-dir=/include \
 +        --with-arch=pentium4 \
@@ -46,6 +46,6 @@
   && sed -ri 's/^(CONFIG_AR)=y/\1=n/' .config \
 @@ -721,3 +729,4 @@ RUN cat $PREFIX/src/cmake-*.patch | patch -d/dl/cmake -p1 \
          -DCMAKE_EXE_LINKER_FLAGS="-s" \
-+        -DCMAKE_CXX_FLAGS="-Os -D_WIN32_WINNT=0x0601" \
++        -DCMAKE_CXX_FLAGS="-O2 -D_WIN32_WINNT=0x0601" \
          -DCMAKE_INSTALL_PREFIX=$PREFIX \
          -DBUILD_CursesDialog=ON \
