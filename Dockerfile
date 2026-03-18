@@ -506,13 +506,17 @@ RUN /dl/ncurses/configure \
  && printf 'CREATE /deps/lib/libcurses.a\nADDLIB /deps/lib/libncursesw.a\nADDLIB /deps/lib/libpanelw.a\nADDLIB /deps/lib/libformw.a\nADDLIB /deps/lib/libmenuw.a\nSAVE\nEND\n' | $ARCH-ar -M \
  && rm /deps/lib/libncursesw.a /deps/lib/libpanelw.a /deps/lib/libformw.a /deps/lib/libmenuw.a \
  && sed -i '1s/^/#define NCURSES_STATIC\n/' /deps/include/ncursesw/ncurses_dll.h \
- && cp /deps/include/ncursesw/curses.h /deps/include/curses.h \
- && cp /deps/include/ncursesw/form.h /deps/include/form.h
+ && mkdir -p /deps/flat/include /deps/flat/lib \
+ && for h in curses.h ncurses.h ncurses_dll.h unctrl.h form.h panel.h menu.h; do \
+      test -f /deps/include/ncursesw/$h \
+        && cp /deps/include/ncursesw/$h /deps/flat/include/$h; \
+    done \
+ && cp /deps/lib/libcurses.a /deps/flat/lib/libcurses.a
 
 FROM cross AS build-gdb
 COPY --from=dl-gdb /dl/ /dl/
-COPY --from=build-ncurses /deps/lib/libcurses.a /deps/lib/
-COPY --from=build-ncurses /deps/include/ /deps/include/
+COPY --from=build-ncurses /deps/flat/lib/libcurses.a /deps/lib/
+COPY --from=build-ncurses /deps/flat/include/ /deps/include/
 
 WORKDIR /expat
 RUN /dl/expat/configure \
@@ -548,12 +552,7 @@ RUN cat $PREFIX/src/gdb-*.patch | patch -d/dl/gdb -p1 \
         CFLAGS="-std=gnu17 -O2 -D__MINGW_USE_VC2005_COMPAT -DNCURSES_STATIC -I/deps/include" \
         CXXFLAGS="-O2 -D__MINGW_USE_VC2005_COMPAT -DNCURSES_STATIC -I/deps/include" \
         LDFLAGS="-s -L/deps/lib"
-RUN make MAKEINFO=true -j$(nproc) 2>&1 \
-        || { echo "=== PARALLEL BUILD FAILED, RETRYING SERIAL ===" \
-          && make MAKEINFO=true -j1 V=1 2>&1 | tee /tmp/gdb-build.log \
-          ; echo "=== LAST 80 LINES ===" \
-          && tail -80 /tmp/gdb-build.log \
-          && false; } \
+RUN make MAKEINFO=true -j$(nproc) \
  && mkdir -p /out/bin \
  && cp gdb/.libs/gdb.exe gdbserver/gdbserver.exe /out/bin/
 
@@ -728,8 +727,8 @@ RUN cmake -DCMAKE_BUILD_TYPE=Release \
 
 FROM cross AS build-cmake
 COPY --from=dl-cmake /dl/ /dl/
-COPY --from=build-ncurses /deps/lib/libcurses.a /deps/lib/
-COPY --from=build-ncurses /deps/include/ /deps/include/
+COPY --from=build-ncurses /deps/flat/lib/libcurses.a /deps/lib/
+COPY --from=build-ncurses /deps/flat/include/ /deps/include/
 
 WORKDIR /cmake
 COPY src/cmake-*.patch $PREFIX/src/
