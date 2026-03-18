@@ -490,7 +490,6 @@ RUN /dl/ncurses/configure \
         --without-cxx-binding \
         --enable-widec \
         --enable-term-driver \
-        --enable-sp-funcs \
         --with-fallbacks=ms-terminal \
         --without-progs \
         --without-tests \
@@ -544,8 +543,8 @@ RUN cat $PREFIX/src/gdb-*.patch | patch -d/dl/gdb -p1 \
  && /dl/gdb/configure \
         --host=$ARCH \
         --enable-tui \
-        CFLAGS="-std=gnu17 -O2 -D__MINGW_USE_VC2005_COMPAT -I/deps/include" \
-        CXXFLAGS="-O2 -D__MINGW_USE_VC2005_COMPAT -I/deps/include" \
+        CFLAGS="-std=gnu17 -O2 -D__MINGW_USE_VC2005_COMPAT -DNCURSES_STATIC -I/deps/include" \
+        CXXFLAGS="-O2 -D__MINGW_USE_VC2005_COMPAT -DNCURSES_STATIC -I/deps/include" \
         LDFLAGS="-s -L/deps/lib" \
  && make MAKEINFO=true -j$(nproc) \
  && mkdir -p /out/bin \
