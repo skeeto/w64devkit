@@ -505,8 +505,7 @@ RUN /dl/ncurses/configure \
  && make install
 RUN printf 'CREATE /deps/lib/libcurses.a\nADDLIB /deps/lib/libncursesw.a\nADDLIB /deps/lib/libpanelw.a\nADDLIB /deps/lib/libformw.a\nADDLIB /deps/lib/libmenuw.a\nSAVE\nEND\n' | $ARCH-ar -M \
  && rm /deps/lib/libncursesw.a /deps/lib/libpanelw.a /deps/lib/libformw.a /deps/lib/libmenuw.a \
- && sed -i '1s/^/#define NCURSES_STATIC\n/' /deps/include/ncursesw/ncurses_dll.h \
- && ln -s ncursesw/curses.h /deps/include/curses.h
+ && sed -i '1s/^/#define NCURSES_STATIC\n/' /deps/include/ncursesw/ncurses_dll.h
 
 FROM cross AS build-gdb
 COPY --from=dl-gdb /dl/ /dl/
@@ -544,10 +543,11 @@ RUN cat $PREFIX/src/gdb-*.patch | patch -d/dl/gdb -p1 \
  && /dl/gdb/configure \
         --host=$ARCH \
         --enable-tui \
-        CFLAGS="-std=gnu17 -O2 -D__MINGW_USE_VC2005_COMPAT -DNCURSES_STATIC -I/deps/include" \
-        CXXFLAGS="-O2 -D__MINGW_USE_VC2005_COMPAT -DNCURSES_STATIC -I/deps/include" \
+        CFLAGS="-std=gnu17 -O2 -D__MINGW_USE_VC2005_COMPAT -DNCURSES_STATIC -I/deps/include -I/deps/include/ncursesw" \
+        CXXFLAGS="-O2 -D__MINGW_USE_VC2005_COMPAT -DNCURSES_STATIC -I/deps/include -I/deps/include/ncursesw" \
         LDFLAGS="-s -L/deps/lib"
-RUN make MAKEINFO=true -j$(nproc) \
+RUN make MAKEINFO=true -j$(nproc) 2>&1 \
+        || make MAKEINFO=true -j1 V=1 2>&1 | tail -100 \
  && mkdir -p /out/bin \
  && cp gdb/.libs/gdb.exe gdbserver/gdbserver.exe /out/bin/
 
@@ -737,7 +737,7 @@ RUN cat $PREFIX/src/cmake-*.patch | patch -d/dl/cmake -p1 \
         -DCMAKE_INSTALL_PREFIX=$PREFIX \
         -DBUILD_CursesDialog=ON \
         -DCURSES_LIBRARY=/deps/lib/libcurses.a \
-        -DCURSES_INCLUDE_PATH=/deps/include \
+        -DCURSES_INCLUDE_PATH=/deps/include/ncursesw \
         -DBUILD_QtDialog=OFF \
         -DBUILD_TESTING=OFF \
         -DCMAKE_USE_OPENSSL=OFF \
