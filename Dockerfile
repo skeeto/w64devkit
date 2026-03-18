@@ -512,6 +512,11 @@ COPY --from=dl-gdb /dl/ /dl/
 COPY --from=build-ncurses /deps/lib/libcurses.a /deps/lib/
 COPY --from=build-ncurses /deps/include/ /deps/include/
 
+# Verify ncurses static linking works before spending 17min on GDB
+RUN printf '#include <ncursesw/ncurses.h>\n#include <ncursesw/panel.h>\nint main(void){WINDOW*w=newwin(1,1,0,0);new_panel(w);return 0;}\n' \
+    | $ARCH-gcc -x c - -DNCURSES_STATIC -I/deps/include -L/deps/lib -lcurses -o /tmp/nctest \
+ && echo "ncurses sanity check passed"
+
 WORKDIR /expat
 RUN /dl/expat/configure \
         --prefix=/deps \
