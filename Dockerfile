@@ -547,8 +547,9 @@ RUN cat $PREFIX/src/gdb-*.patch | patch -d/dl/gdb -p1 \
         --enable-tui \
         CFLAGS="-std=gnu17 -O2 -D__MINGW_USE_VC2005_COMPAT -DNCURSES_STATIC -I/deps/include" \
         CXXFLAGS="-O2 -D__MINGW_USE_VC2005_COMPAT -DNCURSES_STATIC -I/deps/include" \
-        LDFLAGS="-s -L/deps/lib" \
- && make MAKEINFO=true -j$(nproc) \
+        LDFLAGS="-s -L/deps/lib"
+RUN make MAKEINFO=true -j$(nproc) \
+        || { make MAKEINFO=true -j1 2>&1 | tail -50; false; } \
  && mkdir -p /out/bin \
  && cp gdb/.libs/gdb.exe gdbserver/gdbserver.exe /out/bin/
 
