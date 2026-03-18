@@ -510,12 +510,8 @@ RUN /dl/ncurses/configure \
 FROM cross AS build-gdb
 COPY --from=dl-gdb /dl/ /dl/
 COPY --from=build-ncurses /deps/lib/libcurses.a /deps/lib/
-COPY --from=build-ncurses /deps/include/ /deps/include/
-
-# Verify ncurses static linking works before spending 17min on GDB
-RUN printf '#include <ncursesw/ncurses.h>\n#include <ncursesw/panel.h>\nint main(void){WINDOW*w=newwin(1,1,0,0);new_panel(w);return 0;}\n' \
-    | $ARCH-gcc -x c - -DNCURSES_STATIC -I/deps/include -L/deps/lib -lcurses -o /tmp/nctest \
- && echo "ncurses sanity check passed"
+COPY --from=build-ncurses /deps/include/curses.h /deps/include/
+COPY --from=build-ncurses /deps/include/ncursesw/ /deps/include/ncursesw/
 
 WORKDIR /expat
 RUN /dl/expat/configure \
@@ -547,9 +543,9 @@ RUN cat $PREFIX/src/gdb-*.patch | patch -d/dl/gdb -p1 \
  && sed -i 's/quiet = 0/quiet = 1/' /dl/gdb/gdb/main.c \
  && /dl/gdb/configure \
         --host=$ARCH \
-        --disable-tui \
-        CFLAGS="-std=gnu17 -O2 -D__MINGW_USE_VC2005_COMPAT -I/deps/include" \
-        CXXFLAGS="-O2 -D__MINGW_USE_VC2005_COMPAT -I/deps/include" \
+        --enable-tui \
+        CFLAGS="-std=gnu17 -O2 -D__MINGW_USE_VC2005_COMPAT -DNCURSES_STATIC -I/deps/include" \
+        CXXFLAGS="-O2 -D__MINGW_USE_VC2005_COMPAT -DNCURSES_STATIC -I/deps/include" \
         LDFLAGS="-s -L/deps/lib" \
  && make MAKEINFO=true -j$(nproc) \
  && mkdir -p /out/bin \
@@ -727,7 +723,8 @@ RUN cmake -DCMAKE_BUILD_TYPE=Release \
 FROM cross AS build-cmake
 COPY --from=dl-cmake /dl/ /dl/
 COPY --from=build-ncurses /deps/lib/libcurses.a /deps/lib/
-COPY --from=build-ncurses /deps/include/ /deps/include/
+COPY --from=build-ncurses /deps/include/curses.h /deps/include/
+COPY --from=build-ncurses /deps/include/ncursesw/ /deps/include/ncursesw/
 
 WORKDIR /cmake
 COPY src/cmake-*.patch $PREFIX/src/
