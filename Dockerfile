@@ -504,6 +504,7 @@ RUN /dl/ncurses/configure \
  && make -j$(nproc) \
  && make install \
  && printf 'CREATE /deps/lib/libcurses.a\nADDLIB /deps/lib/libncursesw.a\nADDLIB /deps/lib/libpanelw.a\nSAVE\nEND\n' | $ARCH-ar -M \
+ && rm /deps/lib/libncursesw.a /deps/lib/libpanelw.a \
  && sed -i '1s/^/#define NCURSES_STATIC\n/' /deps/include/ncursesw/ncurses_dll.h \
  && cp /deps/include/ncursesw/curses.h /deps/include/curses.h
 
