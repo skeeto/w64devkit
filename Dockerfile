@@ -504,7 +504,8 @@ RUN /dl/ncurses/configure \
  && make -j$(nproc) \
  && make install \
  && printf 'CREATE /deps/lib/libcurses.a\nADDLIB /deps/lib/libncursesw.a\nADDLIB /deps/lib/libpanelw.a\nSAVE\nEND\n' | $ARCH-ar -M \
- && printf '#define NCURSES_STATIC\n#include <ncursesw/curses.h>\n' > /deps/include/curses.h
+ && sed -i '1s/^/#define NCURSES_STATIC\n/' /deps/include/ncursesw/ncurses_dll.h \
+ && cp /deps/include/ncursesw/curses.h /deps/include/curses.h
 
 FROM cross AS build-gdb
 COPY --from=dl-gdb /dl/ /dl/

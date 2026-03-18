@@ -1,5 +1,5 @@
---- a/Dockerfile
-+++ b/Dockerfile
+--- a/Dockerfile	2026-03-18 06:16:54.594093813 +0000
++++ b/Dockerfile	2026-03-18 06:16:54.595713787 +0000
 @@ -190,7 +190,7 @@
  # Build cross-compiler
  
@@ -63,7 +63,7 @@
          --enable-mingw-wildcard \
          CFLAGS_FOR_TARGET="-O2" \
          CXXFLAGS_FOR_TARGET="-O2" \
-@@ -574,7 +578,7 @@
+@@ -575,7 +579,7 @@
  WORKDIR /dl/busybox
  COPY src/busybox-* $PREFIX/src/
  RUN cat $PREFIX/src/busybox-*.patch | patch -p1 \
@@ -72,7 +72,7 @@
   && sed -ri 's/^(CONFIG_AR)=y/\1=n/' .config \
   && sed -ri 's/^(CONFIG_ASCII)=y/\1=n/' .config \
   && sed -ri 's/^(CONFIG_DPKG\w*)=y/\1=n/' .config \
-@@ -732,6 +736,7 @@
+@@ -733,6 +737,7 @@
          -DCMAKE_CXX_COMPILER=$ARCH-g++ \
          -DCMAKE_RC_COMPILER=$ARCH-windres \
          -DCMAKE_EXE_LINKER_FLAGS="-s" \
