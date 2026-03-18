@@ -498,16 +498,15 @@ RUN /dl/ncurses/configure \
         --without-debug \
         --disable-database \
         --disable-shared \
-        --enable-overwrite \
         --prefix=/deps \
         CFLAGS="-O2" \
         LDFLAGS="-s" \
  && make -j$(nproc) \
- && make install \
- && printf 'CREATE /deps/lib/libcurses.a\nADDLIB /deps/lib/libncursesw.a\nADDLIB /deps/lib/libpanelw.a\nADDLIB /deps/lib/libformw.a\nADDLIB /deps/lib/libmenuw.a\nSAVE\nEND\n' | $ARCH-ar -M \
+ && make install
+RUN printf 'CREATE /deps/lib/libcurses.a\nADDLIB /deps/lib/libncursesw.a\nADDLIB /deps/lib/libpanelw.a\nADDLIB /deps/lib/libformw.a\nADDLIB /deps/lib/libmenuw.a\nSAVE\nEND\n' | $ARCH-ar -M \
  && rm /deps/lib/libncursesw.a /deps/lib/libpanelw.a /deps/lib/libformw.a /deps/lib/libmenuw.a \
- && sed -i '1s/^/#define NCURSES_STATIC\n/' /deps/include/ncurses_dll.h \
- && sed -i '1s/^/#define NCURSES_STATIC\n/' /deps/include/ncursesw/ncurses_dll.h
+ && sed -i '1s/^/#define NCURSES_STATIC\n/' /deps/include/ncursesw/ncurses_dll.h \
+ && ln -s ncursesw/curses.h /deps/include/curses.h
 
 FROM cross AS build-gdb
 COPY --from=dl-gdb /dl/ /dl/
