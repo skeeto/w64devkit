@@ -490,6 +490,7 @@ RUN /dl/ncurses/configure \
         --without-cxx-binding \
         --enable-widec \
         --enable-term-driver \
+        --enable-sp-funcs \
         --with-fallbacks=ms-terminal \
         --without-progs \
         --without-tests \
