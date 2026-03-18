@@ -547,9 +547,9 @@ RUN cat $PREFIX/src/gdb-*.patch | patch -d/dl/gdb -p1 \
  && sed -i 's/quiet = 0/quiet = 1/' /dl/gdb/gdb/main.c \
  && /dl/gdb/configure \
         --host=$ARCH \
-        --enable-tui \
-        CFLAGS="-std=gnu17 -O2 -D__MINGW_USE_VC2005_COMPAT -DNCURSES_STATIC -I/deps/include" \
-        CXXFLAGS="-O2 -D__MINGW_USE_VC2005_COMPAT -DNCURSES_STATIC -I/deps/include" \
+        --disable-tui \
+        CFLAGS="-std=gnu17 -O2 -D__MINGW_USE_VC2005_COMPAT -I/deps/include" \
+        CXXFLAGS="-O2 -D__MINGW_USE_VC2005_COMPAT -I/deps/include" \
         LDFLAGS="-s -L/deps/lib" \
  && make MAKEINFO=true -j$(nproc) \
  && mkdir -p /out/bin \
