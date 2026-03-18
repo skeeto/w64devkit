@@ -503,13 +503,7 @@ RUN /dl/ncurses/configure \
         LDFLAGS="-s" \
  && make -j$(nproc) \
  && make install \
- && $ARCH-ar -M <<'EOF'
-CREATE /deps/lib/libcurses.a
-ADDLIB /deps/lib/libncursesw.a
-ADDLIB /deps/lib/libpanelw.a
-SAVE
-END
-EOF
+ && printf 'CREATE /deps/lib/libcurses.a\nADDLIB /deps/lib/libncursesw.a\nADDLIB /deps/lib/libpanelw.a\nSAVE\nEND\n' | $ARCH-ar -M \
  && cp /deps/include/ncursesw/curses.h /deps/include/curses.h
 
 FROM cross AS build-gdb
