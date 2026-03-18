@@ -498,6 +498,7 @@ RUN /dl/ncurses/configure \
         --without-debug \
         --disable-database \
         --disable-shared \
+        --enable-overwrite \
         --prefix=/deps \
         CFLAGS="-O2" \
         LDFLAGS="-s" \
@@ -505,18 +506,13 @@ RUN /dl/ncurses/configure \
  && make install \
  && printf 'CREATE /deps/lib/libcurses.a\nADDLIB /deps/lib/libncursesw.a\nADDLIB /deps/lib/libpanelw.a\nADDLIB /deps/lib/libformw.a\nADDLIB /deps/lib/libmenuw.a\nSAVE\nEND\n' | $ARCH-ar -M \
  && rm /deps/lib/libncursesw.a /deps/lib/libpanelw.a /deps/lib/libformw.a /deps/lib/libmenuw.a \
- && sed -i '1s/^/#define NCURSES_STATIC\n/' /deps/include/ncursesw/ncurses_dll.h \
- && mkdir -p /deps/flat/include /deps/flat/lib \
- && for h in curses.h ncurses.h ncurses_dll.h unctrl.h form.h panel.h menu.h; do \
-      test -f /deps/include/ncursesw/$h \
-        && cp /deps/include/ncursesw/$h /deps/flat/include/$h; \
-    done \
- && cp /deps/lib/libcurses.a /deps/flat/lib/libcurses.a
+ && sed -i '1s/^/#define NCURSES_STATIC\n/' /deps/include/ncurses_dll.h \
+ && sed -i '1s/^/#define NCURSES_STATIC\n/' /deps/include/ncursesw/ncurses_dll.h
 
 FROM cross AS build-gdb
 COPY --from=dl-gdb /dl/ /dl/
-COPY --from=build-ncurses /deps/flat/lib/libcurses.a /deps/lib/
-COPY --from=build-ncurses /deps/flat/include/ /deps/include/
+COPY --from=build-ncurses /deps/lib/libcurses.a /deps/lib/
+COPY --from=build-ncurses /deps/include/ /deps/include/
 
 WORKDIR /expat
 RUN /dl/expat/configure \
@@ -727,8 +723,8 @@ RUN cmake -DCMAKE_BUILD_TYPE=Release \
 
 FROM cross AS build-cmake
 COPY --from=dl-cmake /dl/ /dl/
-COPY --from=build-ncurses /deps/flat/lib/libcurses.a /deps/lib/
-COPY --from=build-ncurses /deps/flat/include/ /deps/include/
+COPY --from=build-ncurses /deps/lib/libcurses.a /deps/lib/
+COPY --from=build-ncurses /deps/include/ /deps/include/
 
 WORKDIR /cmake
 COPY src/cmake-*.patch $PREFIX/src/
