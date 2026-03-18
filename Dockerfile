@@ -509,7 +509,7 @@ RUN /dl/ncurses/configure \
 FROM cross AS build-gdb
 COPY --from=dl-gdb /dl/ /dl/
 COPY --from=build-ncurses /deps/lib/libcurses.a /deps/lib/
-COPY --from=build-ncurses /deps/include/curses.h /deps/include/
+COPY --from=build-ncurses /deps/include/ /deps/include/
 
 WORKDIR /expat
 RUN /dl/expat/configure \
@@ -721,7 +721,7 @@ RUN cmake -DCMAKE_BUILD_TYPE=Release \
 FROM cross AS build-cmake
 COPY --from=dl-cmake /dl/ /dl/
 COPY --from=build-ncurses /deps/lib/libcurses.a /deps/lib/
-COPY --from=build-ncurses /deps/include/curses.h /deps/include/
+COPY --from=build-ncurses /deps/include/ /deps/include/
 
 WORKDIR /cmake
 COPY src/cmake-*.patch $PREFIX/src/
