@@ -1,0 +1,113 @@
+--- a/archival/libarchive/Kbuild.src
++++ b/archival/libarchive/Kbuild.src
+@@ -6,3 +6,3 @@
+ 
+-lib-y:= common.o
++lib-y:= common.o decompress_unzstd.o
+ 
+--- /dev/null
++++ b/archival/libarchive/decompress_unzstd.c
+@@ -0,0 +1,12 @@
++#include "libbb.h"
++#include "bb_archive.h"
++
++IF_DESKTOP(long long) int FAST_FUNC
++unpack_zstd_stream(transformer_state_t *xstate)
++{
++	/* This runs in a forked child. Exec external unzstd. */
++	xmove_fd(xstate->src_fd, STDIN_FILENO);
++	xmove_fd(xstate->dst_fd, STDOUT_FILENO);
++	execlp("unzstd", "unzstd", (char *)0);
++	bb_perror_msg_and_die("can't execute '%s'", "unzstd");
++}
+--- a/archival/libarchive/open_transformer.c
++++ b/archival/libarchive/open_transformer.c
+@@ -212,2 +212,12 @@ static transformer_state_t *setup_transformer_on_fd(int fd, int die_if_not_compr
+ 
++	if (xstate->magic.b16[0] == ZSTD_MAGIC1) {
++		xstate->signature_skipped = 4;
++		xread(fd, &xstate->magic.b16[1], 2);
++		if (xstate->magic.b16[1] == ZSTD_MAGIC2) {
++			xstate->xformer = unpack_zstd_stream;
++			USE_FOR_NOMMU(xstate->xformer_prog = "unzstd";)
++			goto found_magic;
++		}
++	}
++
+ 	/* No known magic seen */
+@@ -217,2 +227,3 @@ static transformer_state_t *setup_transformer_on_fd(int fd, int die_if_not_compr
+ 			IF_FEATURE_SEAMLESS_XZ("/xz")
++			"/zstd"
+ 			" magic");
+--- a/archival/tar.c
++++ b/archival/tar.c
+@@ -813,2 +813,5 @@ static llist_t *append_file_list_to_list(llist_t *list)
+ //usage:	)
++//usage:	IF_FEATURE_TAR_LONG_OPTIONS(
++//usage:     "\n	--zstd	(De)compress using zstd"
++//usage:	)
+ //usage:     "\n	-a	(De)compress based on extension"
+@@ -854,2 +857,3 @@ enum {
+ 	IF_FEATURE_SEAMLESS_LZMA(OPTBIT_LZMA        ,)
++	OPTBIT_ZSTD,
+ 	OPTBIT_NORECURSION,
+@@ -881,2 +885,3 @@ enum {
+ 	OPT_LZMA             = IF_FEATURE_TAR_LONG_OPTIONS(IF_FEATURE_SEAMLESS_LZMA((1 << OPTBIT_LZMA))) + 0, // lzma
++	OPT_ZSTD             = IF_FEATURE_TAR_LONG_OPTIONS((1 << OPTBIT_ZSTD)) + 0, // zstd
+ 	OPT_NORECURSION      = IF_FEATURE_TAR_LONG_OPTIONS((1 << OPTBIT_NORECURSION    )) + 0, // no-recursion
+@@ -887,3 +892,3 @@ enum {
+ 
+-	OPT_ANY_COMPRESS = (OPT_BZIP2 | OPT_LZMA | OPT_GZIP | OPT_XZ | OPT_COMPRESS),
++	OPT_ANY_COMPRESS = (OPT_BZIP2 | OPT_LZMA | OPT_GZIP | OPT_XZ | OPT_COMPRESS | OPT_ZSTD),
+ };
+@@ -931,2 +936,3 @@ static const char tar_longopts[] ALIGN1 =
+ # endif
++	"zstd\0"                No_argument       "\xf7"
+ 	"no-recursion\0"	No_argument       "\xfa"
+@@ -1208,2 +1214,4 @@ int tar_main(int argc UNUSED_PARAM, char **argv)
+ 					opt |= OPT_LZMA;
++				if (is_suffixed_with(tar_filename, "zst"))
++					opt |= OPT_ZSTD;
+ 			}
+@@ -1232,2 +1240,4 @@ int tar_main(int argc UNUSED_PARAM, char **argv)
+ 			zipMode = "xz";
++		if (opt & OPT_ZSTD)
++			zipMode = "zstd";
+ # endif
+@@ -1272,2 +1282,6 @@ int tar_main(int argc UNUSED_PARAM, char **argv)
+ 		}
++		if (opt & OPT_ZSTD) {
++			USE_FOR_MMU(xformer = unpack_zstd_stream;)
++			USE_FOR_NOMMU(xformer_prog = "unzstd";)
++		}
+ 
+--- a/include/bb_archive.h
++++ b/include/bb_archive.h
+@@ -29,2 +29,5 @@ enum {
+ 	XZ_MAGIC2a  = 256 * 'Z' + 0,
++	/* .zst signature: 0x28, 0xb5, 0x2f, 0xfd */
++	ZSTD_MAGIC1 = 256 * 0x28 + 0xb5,
++	ZSTD_MAGIC2 = 256 * 0x2f + 0xfd,
+ #else
+@@ -37,2 +40,4 @@ enum {
+ 	XZ_MAGIC2a  = 'Z' + 0 * 256,
++	ZSTD_MAGIC1 = 0x28 + 0xb5 * 256,
++	ZSTD_MAGIC2 = 0x2f + 0xfd * 256,
+ #endif
+@@ -266,2 +271,3 @@ IF_DESKTOP(long long) int unpack_lzma_stream(transformer_state_t *xstate) FAST_F
+ IF_DESKTOP(long long) int unpack_xz_stream(transformer_state_t *xstate) FAST_FUNC;
++IF_DESKTOP(long long) int unpack_zstd_stream(transformer_state_t *xstate) FAST_FUNC;
+ 
+--- a/win32/popen.c
++++ b/win32/popen.c
+@@ -302,8 +302,6 @@ pid_t mingw_fork_compressor(int fd, const char *compressor, const char *mode)
+ 	cmd = xasprintf("%s -cf -", compressor);
+-#if ENABLE_FEATURE_SEAMLESS_XZ || ENABLE_FEATURE_SEAMLESS_LZMA
+-	// xz and lzma applets don't support compression, we must use
++	// xz, lzma and zstd applets don't support compression, we must use
+ 	// an external command.
+-	if (mode[0] == 'w' && index_in_strings("lzma\0xz\0", compressor) >= 0)
++	if (mode[0] == 'w' && index_in_strings("lzma\0xz\0zstd\0", compressor) >= 0)
+ 		mode = "w+";
+-#endif
+ 

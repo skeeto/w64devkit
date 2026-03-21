@@ -133,29 +133,35 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
  && mkdir ctags \
  && tar xzf ctags-$CTAGS_VERSION.tar.gz -C ctags --strip-components=1
 
+FROM base AS dl-zstd
+ARG ZSTD_VERSION=1.5.7 \
+    ZSTD_SHA256=eb33e51f49a15e023950cd7825ca74a4a2b43db8354825ac24fc1b7ee09e6fa3
+WORKDIR /dl
+RUN curl --insecure --location --remote-name-all --remote-header-name \
+    https://github.com/facebook/zstd/releases/download/v$ZSTD_VERSION/zstd-$ZSTD_VERSION.tar.gz \
+ && printf '%s  %s\n' \
+      $ZSTD_SHA256 zstd-$ZSTD_VERSION.tar.gz \
+    | sha256sum -c \
+ && mkdir zstd \
+ && tar xzf zstd-$ZSTD_VERSION.tar.gz -C zstd --strip-components=1
+
 FROM base AS dl-ccache
 ARG CCACHE_VERSION=4.13.2 \
     CCACHE_SHA256=4a0d835f1b3fd7e2ac58a511718bbc902532941f377f7990a3d33b5cf8733ba6 \
     XXHASH_VERSION=0.8.3 \
-    XXHASH_SHA256=aae608dfe8213dfd05d909a57718ef82f30722c392344583d3f39050c7f29a80 \
-    ZSTD_VERSION=1.5.7 \
-    ZSTD_SHA256=eb33e51f49a15e023950cd7825ca74a4a2b43db8354825ac24fc1b7ee09e6fa3
+    XXHASH_SHA256=aae608dfe8213dfd05d909a57718ef82f30722c392344583d3f39050c7f29a80
 WORKDIR /dl
 RUN curl --insecure --location --remote-name-all --remote-header-name \
     https://github.com/ccache/ccache/releases/download/v$CCACHE_VERSION/ccache-$CCACHE_VERSION.tar.xz \
     https://github.com/Cyan4973/xxhash/archive/refs/tags/v$XXHASH_VERSION.tar.gz \
-    https://github.com/facebook/zstd/releases/download/v$ZSTD_VERSION/zstd-$ZSTD_VERSION.tar.gz \
  && printf '%s  %s\n' \
       $CCACHE_SHA256 ccache-$CCACHE_VERSION.tar.xz \
       $XXHASH_SHA256 xxHash-$XXHASH_VERSION.tar.gz \
-      $ZSTD_SHA256 zstd-$ZSTD_VERSION.tar.gz \
     | sha256sum -c \
  && mkdir ccache \
  && tar xJf ccache-$CCACHE_VERSION.tar.xz -C ccache --strip-components=1 \
  && mkdir xxhash \
- && tar xzf xxHash-$XXHASH_VERSION.tar.gz -C xxhash --strip-components=1 \
- && mkdir zstd \
- && tar xzf zstd-$ZSTD_VERSION.tar.gz -C zstd --strip-components=1
+ && tar xzf xxHash-$XXHASH_VERSION.tar.gz -C xxhash --strip-components=1
 
 FROM base AS dl-ninja
 ARG NINJA_VERSION=1.13.2 \
@@ -636,18 +642,31 @@ RUN sed -i /RT_MANIFEST/d win32/ctags.rc \
  && mkdir -p /out/bin \
  && cp ctags.exe /out/bin/
 
-FROM cross AS build-ccache
-COPY --from=dl-ccache /dl/ /dl/
-
-WORKDIR /dl/xxhash
-RUN make -j$(nproc) CC=$ARCH-gcc AR=$ARCH-ar CFLAGS="-O2" libxxhash.a \
- && cp libxxhash.a /deps/lib/ \
- && cp xxhash.h /deps/include/
+FROM cross AS build-zstd
+COPY --from=dl-zstd /dl/ /dl/
 
 WORKDIR /dl/zstd/lib
 RUN make -j$(nproc) CC=$ARCH-gcc AR=$ARCH-ar CFLAGS="-O2" libzstd.a \
  && cp libzstd.a /deps/lib/ \
  && cp zstd.h zstd_errors.h zdict.h /deps/include/
+
+WORKDIR /dl/zstd
+RUN make -j$(nproc) -C programs zstd \
+        CC=$ARCH-gcc CFLAGS="-O2" LDFLAGS="-s" EXT=.exe \
+ && mkdir -p /out/bin \
+ && cp programs/zstd.exe /out/bin/ \
+ && $ARCH-gcc -DEXE=zstd.exe -DCMD=unzstd \
+        -Oz -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
+        -o /out/bin/unzstd.exe $PREFIX/src/alias.c -lkernel32
+
+FROM cross AS build-ccache
+COPY --from=dl-ccache /dl/ /dl/
+COPY --from=build-zstd /deps/ /deps/
+
+WORKDIR /dl/xxhash
+RUN make -j$(nproc) CC=$ARCH-gcc AR=$ARCH-ar CFLAGS="-O2" libxxhash.a \
+ && cp libxxhash.a /deps/lib/ \
+ && cp xxhash.h /deps/include/
 
 WORKDIR /ccache
 RUN cmake -DCMAKE_BUILD_TYPE=Release \
@@ -753,6 +772,7 @@ COPY --from=build-make /out/ $PREFIX/
 COPY --from=build-busybox /out/ $PREFIX/
 COPY --from=build-vim /out/ $PREFIX/
 COPY --from=build-ctags /out/ $PREFIX/
+COPY --from=build-zstd /out/ $PREFIX/
 COPY --from=build-ccache /out/ $PREFIX/
 COPY --from=build-ninja /out/ $PREFIX/
 COPY --from=build-cmake /out$PREFIX/ $PREFIX/
