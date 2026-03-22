@@ -1,0 +1,6 @@
+--- a/config.mak.uname
++++ b/config.mak.uname
+@@ -499,3 +499,2 @@
+ 	NO_POSIX_GOODIES = UnfortunatelyYes
+-	NATIVE_CRLF = YesPlease
+ 	DEFAULT_HELP_FORMAT = html

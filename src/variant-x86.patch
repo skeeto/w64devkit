@@ -49,3 +49,17 @@
 +        -DCMAKE_CXX_FLAGS="-O2 -D_WIN32_WINNT=0x0601" \
          -DCMAKE_INSTALL_PREFIX=$PREFIX \
          -DBUILD_CursesDialog=ON \
+@@ -787,3 +796,3 @@ RUN /dl/curl/configure \
+-        CFLAGS="-O2" \
++        CFLAGS="-O2 -D_WIN32_WINNT=0x0601" \
+         LDFLAGS="-s -L/deps/lib" \
+         CPPFLAGS="-I/deps/include" \
+@@ -800,3 +809,3 @@ RUN /dl/curl/configure \
+         uname_S=MINGW \
+-        MSYSTEM=MINGW64 \
++        MSYSTEM=MINGW32 \
+         CURL_CONFIG=/deps/bin/curl-config \
+@@ -812,3 +821,3 @@ RUN make -j$(nproc) \
+-        CFLAGS="-O2 -I/deps/include" \
++        CFLAGS="-O2 -D_POSIX_C_SOURCE=200112L -I/deps/include" \
+         LDFLAGS="-s -L/deps/lib" \

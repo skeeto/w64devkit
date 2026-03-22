@@ -157,6 +157,30 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
  && mkdir zstd \
  && tar xzf zstd-$ZSTD_VERSION.tar.gz -C zstd --strip-components=1
 
+FROM base AS dl-git
+ARG GIT_VERSION=2.53.0 \
+    GIT_SHA256=5818bd7d80b061bbbdfec8a433d609dc8818a05991f731ffc4a561e2ca18c653 \
+    CURL_VERSION=8.19.0 \
+    CURL_SHA256=4eb41489790d19e190d7ac7e18e82857cdd68af8f4e66b292ced562d333f11df \
+    ZLIB_VERSION=1.3.2 \
+    ZLIB_SHA256=d7a0654783a4da529d1bb793b7ad9c3318020af77667bcae35f95d0e42a792f3
+WORKDIR /dl
+RUN curl --insecure --location --remote-name-all --remote-header-name \
+    https://mirrors.edge.kernel.org/pub/software/scm/git/git-$GIT_VERSION.tar.xz \
+    https://curl.se/download/curl-$CURL_VERSION.tar.xz \
+    https://zlib.net/zlib-$ZLIB_VERSION.tar.xz \
+ && printf '%s  %s\n' \
+      $GIT_SHA256 git-$GIT_VERSION.tar.xz \
+      $CURL_SHA256 curl-$CURL_VERSION.tar.xz \
+      $ZLIB_SHA256 zlib-$ZLIB_VERSION.tar.xz \
+    | sha256sum -c \
+ && mkdir git \
+ && tar xJf git-$GIT_VERSION.tar.xz -C git --strip-components=1 \
+ && mkdir curl \
+ && tar xJf curl-$CURL_VERSION.tar.xz -C curl --strip-components=1 \
+ && mkdir zlib \
+ && tar xJf zlib-$ZLIB_VERSION.tar.xz -C zlib --strip-components=1
+
 FROM base AS dl-ninja
 ARG NINJA_VERSION=1.13.2 \
     NINJA_SHA256=974d6b2f4eeefa25625d34da3cb36bdcebe7fbce40f4c16ac0835fd1c0cbae17
@@ -728,6 +752,90 @@ RUN cat $PREFIX/src/cmake-*.patch | patch -d/dl/cmake -p1 \
  && DESTDIR=/out make install \
  && rm -rf /out$PREFIX/doc/ /out$PREFIX/man/
 
+FROM cross AS build-git
+COPY --from=dl-git /dl/ /dl/
+COPY --from=dl-gdb /dl/expat/ /dl/expat/
+
+WORKDIR /dl/expat
+RUN ./configure \
+        --prefix=/deps \
+        --host=$ARCH \
+        --disable-shared \
+        --without-docbook \
+        --without-examples \
+        --without-tests \
+        CFLAGS="-O2" \
+        LDFLAGS="-s" \
+ && make -j$(nproc) \
+ && make install
+
+WORKDIR /dl/zlib
+RUN CC=$ARCH-gcc AR=$ARCH-ar RANLIB=$ARCH-ranlib \
+    ./configure --prefix=/deps --static \
+ && make -j$(nproc) CFLAGS="-O2" \
+ && make install
+
+WORKDIR /curl
+RUN /dl/curl/configure \
+        --host=$ARCH \
+        --prefix=/deps \
+        --enable-static \
+        --disable-shared \
+        --with-schannel \
+        --with-zlib=/deps \
+        --without-openssl \
+        --without-libpsl \
+        CFLAGS="-O2" \
+        LDFLAGS="-s -L/deps/lib" \
+        CPPFLAGS="-I/deps/include" \
+ && make -j$(nproc) \
+ && make install
+
+COPY src/git-* $PREFIX/src/
+WORKDIR /dl/git
+RUN cat $PREFIX/src/git-*.patch | patch -p1 \
+ && make -j$(nproc) \
+        CC=$ARCH-gcc \
+        AR=$ARCH-ar \
+        WINDRES=$ARCH-windres \
+        RC="$ARCH-windres -O coff" \
+        uname_S=MINGW \
+        MSYSTEM=MINGW64 \
+        CURL_CONFIG=/deps/bin/curl-config \
+        INSTALL=/usr/bin/install \
+        DEFAULT_PAGER=less.exe \
+        DEFAULT_EDITOR=vi.bat \
+        NO_OPENSSL=1 \
+        NO_ICONV=1 \
+        NO_REGEX=1 \
+        NO_GETTEXT=1 \
+        NO_TCLTK=1 \
+        NO_GITWEB=1 \
+        USE_LIBPCRE= \
+        CFLAGS="-O2 -I/deps/include" \
+        LDFLAGS="-s -L/deps/lib" \
+        prefix=/ \
+        DESTDIR=/out \
+        install \
+ && rm -rf /out/share/man /out/share/gitweb /out/share/locale \
+ && rm -f /out/bin/git-cvsserver /out/bin/git-shell.exe
+
+# Replace bin/git.exe with an alias stub pointing to libexec/git-core/git.exe
+RUN rm /out/bin/git.exe \
+ && $ARCH-gcc -DEXE=../libexec/git-core/git.exe -DCMD=git.exe \
+        -Oz -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
+        -o /out/bin/git.exe $PREFIX/src/alias.c -lkernel32
+
+WORKDIR /out/libexec/git-core
+RUN hash=$(md5sum git.exe | cut -d' ' -f1) \
+ && for f in git-*.exe; do \
+      [ "$(md5sum "$f" | cut -d' ' -f1)" = "$hash" ] || continue; \
+      rm "$f"; \
+      $ARCH-gcc -DEXE=git.exe "-DCMD=$f" \
+        -Oz -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
+        -o "$f" $PREFIX/src/alias.c -lkernel32; \
+    done
+
 FROM cross AS build-7z
 COPY --from=dl-7z /dl/ /dl/
 
@@ -752,6 +860,7 @@ COPY --from=build-ctags /out/ $PREFIX/
 COPY --from=build-ccache /out/ $PREFIX/
 COPY --from=build-ninja /out/ $PREFIX/
 COPY --from=build-cmake /out$PREFIX/ $PREFIX/
+COPY --from=build-git /out/ $PREFIX/
 COPY --from=build-7z /dl/7z/7z.sfx /7z/
 
 COPY src $PREFIX/src
