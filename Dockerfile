@@ -24,8 +24,8 @@ ARG BINUTILS_VERSION=2.46.0 \
     GMP_SHA256=a3c2b80201b89e68616f4ad30bc66aee4927c3ce50e33929ca819d5c43538898 \
     MINGW_VERSION=13.0.0 \
     MINGW_SHA256=5afe822af5c4edbf67daaf45eec61d538f49eef6b19524de64897c6b95828caf \
-    MPC_VERSION=1.3.1 \
-    MPC_SHA256=ab642492f5cf882b74aa0cb730cd410a81edcdbec895183ce930e706c1c759b8 \
+    MPC_VERSION=1.4.0 \
+    MPC_SHA256=3210b3a546b1cb00c296ca360891d7740ee6ff06deb02a27a35b20cd3c0bb1a5 \
     MPFR_VERSION=4.2.2 \
     MPFR_SHA256=b67ba0383ef7e8a8563734e2e889ef5ec3c3b898a01d00fa0a6869ad81c6ce01
 WORKDIR /dl
@@ -33,14 +33,14 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
     https://ftp.gnu.org/gnu/binutils/binutils-$BINUTILS_VERSION.tar.xz \
     https://ftp.gnu.org/gnu/gcc/gcc-$GCC_VERSION/gcc-$GCC_VERSION.tar.xz \
     https://ftp.gnu.org/gnu/gmp/gmp-$GMP_VERSION.tar.xz \
-    https://ftp.gnu.org/gnu/mpc/mpc-$MPC_VERSION.tar.gz \
+    https://ftp.gnu.org/gnu/mpc/mpc-$MPC_VERSION.tar.xz \
     https://ftp.gnu.org/gnu/mpfr/mpfr-$MPFR_VERSION.tar.xz \
     https://downloads.sourceforge.net/project/mingw-w64/mingw-w64/mingw-w64-release/mingw-w64-v$MINGW_VERSION.tar.bz2 \
  && printf '%s  %s\n' \
       $BINUTILS_SHA256 binutils-$BINUTILS_VERSION.tar.xz \
       $GCC_SHA256 gcc-$GCC_VERSION.tar.xz \
       $GMP_SHA256 gmp-$GMP_VERSION.tar.xz \
-      $MPC_SHA256 mpc-$MPC_VERSION.tar.gz \
+      $MPC_SHA256 mpc-$MPC_VERSION.tar.xz \
       $MPFR_SHA256 mpfr-$MPFR_VERSION.tar.xz \
       $MINGW_SHA256 mingw-w64-v$MINGW_VERSION.tar.bz2 \
     | sha256sum -c \
@@ -51,7 +51,7 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
  && mkdir gmp \
  && tar xJf gmp-$GMP_VERSION.tar.xz -C gmp --strip-components=1 \
  && mkdir mpc \
- && tar xzf mpc-$MPC_VERSION.tar.gz -C mpc --strip-components=1 \
+ && tar xJf mpc-$MPC_VERSION.tar.xz -C mpc --strip-components=1 \
  && mkdir mpfr \
  && tar xJf mpfr-$MPFR_VERSION.tar.xz -C mpfr --strip-components=1 \
  && mkdir mingw \
