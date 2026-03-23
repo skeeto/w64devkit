@@ -81,16 +81,16 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
  && mkdir libiconv \
  && tar xzf libiconv-$LIBICONV_VERSION.tar.gz -C libiconv --strip-components=1
 
-FROM base AS dl-pdcurses
-ARG PDCURSES_VERSION=3.9 \
-    PDCURSES_SHA256=590dbe0f5835f66992df096d3602d0271103f90cf8557a5d124f693c2b40d7ec
+FROM base AS dl-ncurses
+ARG NCURSES_VERSION=6.6 \
+    NCURSES_SHA256=355b4cbbed880b0381a04c46617b7656e362585d52e9cf84a67e2009b749ff11
 WORKDIR /dl
 RUN curl --insecure --location --remote-name-all --remote-header-name \
-    https://downloads.sourceforge.net/project/pdcurses/pdcurses/$PDCURSES_VERSION/PDCurses-$PDCURSES_VERSION.tar.gz \
- && printf '%s  %s\n' $PDCURSES_SHA256 PDCurses-$PDCURSES_VERSION.tar.gz \
+    https://invisible-island.net/archives/ncurses/ncurses-$NCURSES_VERSION.tar.gz \
+ && printf '%s  %s\n' $NCURSES_SHA256 ncurses-$NCURSES_VERSION.tar.gz \
     | sha256sum -c \
- && mkdir pdcurses \
- && tar xzf PDCurses-$PDCURSES_VERSION.tar.gz -C pdcurses --strip-components=1
+ && mkdir ncurses \
+ && tar xzf ncurses-$NCURSES_VERSION.tar.gz -C ncurses --strip-components=1
 
 FROM base AS dl-make
 ARG MAKE_VERSION=4.4.1 \
@@ -479,21 +479,38 @@ RUN ./configure \
  && $ARCH-gcc -nostartfiles -Oz -s -o /out/bin/uuidgen.exe \
         $PREFIX/src/uuidgen.c -lmemory
 
-# Build PDCurses once and reuse it for both gdb and ccmake.
-FROM cross AS build-pdcurses
-COPY --from=dl-pdcurses /dl/pdcurses /dl/pdcurses
+# Build ncurses once and reuse it for both gdb and ccmake.
+FROM cross AS build-ncurses
+COPY --from=dl-ncurses /dl/ncurses /dl/ncurses
 
-WORKDIR /dl/pdcurses
-RUN make -j$(nproc) -C wincon \
-       CC=$ARCH-gcc AR=$ARCH-ar CFLAGS="-I.. -O2 -DPDC_WIDE" pdcurses.a \
- && mkdir -p /deps/lib /deps/include \
- && cp wincon/pdcurses.a /deps/lib/libcurses.a \
- && cp curses.h /deps/include/curses.h
+WORKDIR /ncurses
+RUN /dl/ncurses/configure \
+        --host=$ARCH \
+        --without-ada \
+        --without-cxx-binding \
+        --enable-widec \
+        --enable-term-driver \
+        --enable-sp-funcs \
+        --with-fallbacks=ms-terminal \
+        --without-progs \
+        --without-tests \
+        --without-manpages \
+        --without-debug \
+        --disable-database \
+        --disable-shared \
+        --prefix=/deps \
+        CFLAGS="-O2" \
+        LDFLAGS="-s" \
+ && make -j$(nproc) \
+ && make install
+RUN printf 'CREATE /deps/lib/libcurses.a\nADDLIB /deps/lib/libncursesw.a\nADDLIB /deps/lib/libpanelw.a\nADDLIB /deps/lib/libformw.a\nADDLIB /deps/lib/libmenuw.a\nSAVE\nEND\n' | $ARCH-ar -M \
+ && rm /deps/lib/libncursesw.a /deps/lib/libpanelw.a /deps/lib/libformw.a /deps/lib/libmenuw.a \
+ && sed -i '1s/^/#define NCURSES_STATIC\n/' /deps/include/ncursesw/ncurses_dll.h
 
 FROM cross AS build-gdb
 COPY --from=dl-gdb /dl/ /dl/
-COPY --from=build-pdcurses /deps/lib/libcurses.a /deps/lib/
-COPY --from=build-pdcurses /deps/include/curses.h /deps/include/
+COPY --from=build-ncurses /deps/lib/libcurses.a /deps/lib/
+COPY --from=build-ncurses /deps/include/ /deps/include/
 
 WORKDIR /expat
 RUN /dl/expat/configure \
@@ -526,10 +543,10 @@ RUN cat $PREFIX/src/gdb-*.patch | patch -d/dl/gdb -p1 \
  && /dl/gdb/configure \
         --host=$ARCH \
         --enable-tui \
-        CFLAGS="-std=gnu17 -O2 -D__MINGW_USE_VC2005_COMPAT -DPDC_WIDE -I/deps/include" \
-        CXXFLAGS="-O2 -D__MINGW_USE_VC2005_COMPAT -DPDC_WIDE -I/deps/include" \
-        LDFLAGS="-s -L/deps/lib" \
- && make MAKEINFO=true -j$(nproc) \
+        CFLAGS="-std=gnu17 -O2 -D__MINGW_USE_VC2005_COMPAT -DNCURSES_STATIC -I/deps/include -I/deps/include/ncursesw" \
+        CXXFLAGS="-O2 -D__MINGW_USE_VC2005_COMPAT -DNCURSES_STATIC -I/deps/include -I/deps/include/ncursesw" \
+        LDFLAGS="-s -L/deps/lib"
+RUN make MAKEINFO=true -j$(nproc) \
  && mkdir -p /out/bin \
  && cp gdb/.libs/gdb.exe gdbserver/gdbserver.exe /out/bin/
 
@@ -704,8 +721,8 @@ RUN cmake -DCMAKE_BUILD_TYPE=Release \
 
 FROM cross AS build-cmake
 COPY --from=dl-cmake /dl/ /dl/
-COPY --from=build-pdcurses /deps/lib/libcurses.a /deps/lib/
-COPY --from=build-pdcurses /deps/include/curses.h /deps/include/
+COPY --from=build-ncurses /deps/lib/libcurses.a /deps/lib/
+COPY --from=build-ncurses /deps/include/ /deps/include/
 
 WORKDIR /cmake
 COPY src/cmake-*.patch $PREFIX/src/
@@ -719,7 +736,7 @@ RUN cat $PREFIX/src/cmake-*.patch | patch -d/dl/cmake -p1 \
         -DCMAKE_INSTALL_PREFIX=$PREFIX \
         -DBUILD_CursesDialog=ON \
         -DCURSES_LIBRARY=/deps/lib/libcurses.a \
-        -DCURSES_INCLUDE_PATH=/deps/include \
+        -DCURSES_INCLUDE_PATH=/deps/include/ncursesw \
         -DBUILD_QtDialog=OFF \
         -DBUILD_TESTING=OFF \
         -DCMAKE_USE_OPENSSL=OFF \

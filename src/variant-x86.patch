@@ -1,51 +1,82 @@
---- a/Dockerfile
-+++ b/Dockerfile
-@@ -167,3 +167,3 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
+--- a/Dockerfile	2026-03-18 13:02:04.857926873 +0000
++++ b/Dockerfile	2026-03-18 13:02:04.859390567 +0000
+@@ -190,7 +190,7 @@
+ # Build cross-compiler
+ 
  FROM dl-cross AS cross
 -ARG ARCH=x86_64-w64-mingw32
 +ARG ARCH=i686-w64-mingw32
  ENV ARCH=$ARCH
-@@ -198,2 +198,3 @@ RUN echo '#include <crtdefs.h>' \
+ 
+ WORKDIR /dl/binutils
+@@ -221,6 +221,7 @@
+         --prefix=/bootstrap \
+         --host=$ARCH \
          --with-default-msvcrt=msvcrt-os \
 +        --with-default-win32-winnt=0x0501 \
   && make -j$(nproc) \
-@@ -210,2 +211,3 @@ RUN cat $PREFIX/src/gcc-*.patch | patch -d/dl/gcc -p1 \
+  && make install
+ 
+@@ -233,6 +234,7 @@
+  && /dl/gcc/configure \
+         --prefix=/bootstrap \
          --with-sysroot=/bootstrap \
 +        --with-arch=pentium4 \
          --target=$ARCH \
-@@ -250,4 +252,4 @@ RUN /dl/mingw/mingw-w64-crt/configure \
-         --disable-dependency-tracking \
--        --disable-lib32 \
--        --enable-lib64 \
-+        --enable-lib32 \
-+        --disable-lib64 \
-         CFLAGS="-O2" \
-@@ -336,2 +338,3 @@ RUN /dl/mingw/mingw-w64-headers/configure \
+         --enable-static \
+         --disable-shared \
+@@ -273,8 +275,8 @@
+         --host=$ARCH \
          --with-default-msvcrt=msvcrt-os \
-+        --with-default-win32-winnt=0x0501 \
-  && make -j$(nproc) \
-@@ -346,4 +349,4 @@ RUN /dl/mingw/mingw-w64-crt/configure \
          --disable-dependency-tracking \
 -        --disable-lib32 \
 -        --enable-lib64 \
 +        --enable-lib32 \
 +        --disable-lib64 \
          CFLAGS="-O2" \
-@@ -374,2 +377,3 @@ RUN echo 'BEGIN {print "pecoff"}' \
+         LDFLAGS="-s" \
+  && make -j$(nproc) \
+@@ -369,8 +371,8 @@
+         --host=$ARCH \
+         --with-default-msvcrt=msvcrt-os \
+         --disable-dependency-tracking \
+-        --disable-lib32 \
+-        --enable-lib64 \
++        --enable-lib32 \
++        --disable-lib64 \
+         CFLAGS="-O2" \
+         LDFLAGS="-s" \
+  && make -j$(nproc) \
+@@ -397,6 +399,7 @@
+         --prefix=$PREFIX \
+         --with-sysroot=$PREFIX \
          --with-native-system-header-dir=/include \
 +        --with-arch=pentium4 \
          --target=$ARCH \
-@@ -392,2 +396,3 @@ RUN echo 'BEGIN {print "pecoff"}' \
+         --host=$ARCH \
+         --enable-static \
+@@ -415,6 +418,7 @@
+         --disable-multilib \
+         --disable-nls \
          --disable-win32-registry \
 +        --disable-win32-utf8-manifest \
          --enable-mingw-wildcard \
-@@ -528,3 +533,3 @@ COPY src/busybox-* $PREFIX/src/
+         CFLAGS_FOR_TARGET="-O2" \
+         CXXFLAGS_FOR_TARGET="-O2" \
+@@ -576,7 +580,7 @@
+ WORKDIR /dl/busybox
+ COPY src/busybox-* $PREFIX/src/
  RUN cat $PREFIX/src/busybox-*.patch | patch -p1 \
 - && make mingw64u_defconfig \
 + && make mingw64_defconfig \
   && sed -ri 's/^(CONFIG_AR)=y/\1=n/' .config \
-@@ -721,3 +729,4 @@ RUN cat $PREFIX/src/cmake-*.patch | patch -d/dl/cmake -p1 \
+  && sed -ri 's/^(CONFIG_ASCII)=y/\1=n/' .config \
+  && sed -ri 's/^(CONFIG_DPKG\w*)=y/\1=n/' .config \
+@@ -735,6 +739,7 @@
+         -DCMAKE_CXX_COMPILER=$ARCH-g++ \
+         -DCMAKE_RC_COMPILER=$ARCH-windres \
          -DCMAKE_EXE_LINKER_FLAGS="-s" \
 +        -DCMAKE_CXX_FLAGS="-O2 -D_WIN32_WINNT=0x0601" \
          -DCMAKE_INSTALL_PREFIX=$PREFIX \
          -DBUILD_CursesDialog=ON \
+         -DCURSES_LIBRARY=/deps/lib/libcurses.a \
