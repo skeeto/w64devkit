@@ -726,7 +726,11 @@ RUN cat $PREFIX/src/cmake-*.patch | patch -d/dl/cmake -p1 \
         /dl/cmake \
  && make -j$(nproc) \
  && DESTDIR=/out make install \
- && rm -rf /out$PREFIX/doc/ /out$PREFIX/man/
+ && rm -rf /out$PREFIX/doc/ /out$PREFIX/man/ \
+       /out$PREFIX/share/bash-completion/ \
+       /out$PREFIX/share/emacs/ \
+       /out$PREFIX/share/aclocal/ \
+       /out$PREFIX/share/cmake-*/Help/
 
 FROM cross AS build-7z
 COPY --from=dl-7z /dl/ /dl/
