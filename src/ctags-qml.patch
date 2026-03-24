@@ -1,0 +1,493 @@
+Generate tags for .qml source files
+
+This path was written by Claude Code.
+
+--- a/main/parsers_p.h
++++ b/main/parsers_p.h
+@@ -155,2 +155,3 @@
+ 	PythonLoggingConfigParser, \
++	QmlParser, \
+ 	QemuHXParser, \
+--- /dev/null
++++ b/parsers/qml.c
+@@ -0,0 +1,474 @@
++/*
++*   This module contains functions for generating tags for Qt QML files.
++*/
++
++#include "general.h"
++
++#include <ctype.h>
++#include <string.h>
++
++#include "entry.h"
++#include "parse.h"
++#include "read.h"
++#include "routines.h"
++#include "vstring.h"
++
++typedef enum {
++	K_COMPONENT,
++	K_ID,
++	K_PROPERTY,
++	K_SIGNAL,
++	K_FUNCTION,
++	K_ENUM,
++	K_ENUMERATOR,
++} qmlKind;
++
++static kindDefinition QmlKinds[] = {
++	{ true, 'c', "component",  "components"  },
++	{ true, 'i', "id",         "ids"         },
++	{ true, 'p', "property",   "properties"  },
++	{ true, 's', "signal",     "signals"     },
++	{ true, 'f', "function",   "functions"   },
++	{ true, 'g', "enum",       "enums"       },
++	{ true, 'e', "enumerator", "enumerators" },
++};
++
++static bool isQmlIdentStart (int c)
++{
++	return (isalpha ((unsigned char) c) || c == '_');
++}
++
++static bool isQmlIdentChar (int c)
++{
++	return (isalnum ((unsigned char) c) || c == '_');
++}
++
++static char *trimLeft (char *s)
++{
++	while (*s != '\0' && isspace ((unsigned char) *s))
++		s++;
++	return s;
++}
++
++static void trimRight (char *s)
++{
++	size_t len = strlen (s);
++	while (len > 0 && isspace ((unsigned char) s[len - 1]))
++		s[--len] = '\0';
++}
++
++static bool matchWord (const char *s, const char *word)
++{
++	size_t len = strlen (word);
++	return (strncmp (s, word, len) == 0 &&
++			(s[len] == '\0' || isspace ((unsigned char) s[len]) ||
++			 strchr (":{(", s[len]) != NULL));
++}
++
++static const char *skipWord (const char *s, const char *word)
++{
++	size_t len = strlen (word);
++	return s + len;
++}
++
++static char *makeComponentName (void)
++{
++	const char *base = baseFilename (getInputFileName ());
++	char *name = eStrdup (base);
++	size_t len = strlen (name);
++
++	if (len > 4 &&
++		tolower ((unsigned char) name[len - 1]) == 'l' &&
++		tolower ((unsigned char) name[len - 2]) == 'm' &&
++		tolower ((unsigned char) name[len - 3]) == 'q' &&
++		name[len - 4] == '.')
++		name[len - 4] = '\0';
++
++	return name;
++}
++
++static void sanitizeLine (char *dst, const char *src, bool *inBlockComment)
++{
++	bool inString = false;
++	bool escaped = false;
++	char quote = '\0';
++	size_t i;
++	size_t j = 0;
++
++	for (i = 0; src[i] != '\0'; i++)
++	{
++		char c = src[i];
++		char next = src[i + 1];
++
++		if (*inBlockComment)
++		{
++			if (c == '*' && next == '/')
++			{
++				*inBlockComment = false;
++				dst[j++] = ' ';
++				dst[j++] = ' ';
++				i++;
++			}
++			else
++				dst[j++] = ' ';
++			continue;
++		}
++
++		if (inString)
++		{
++			if (escaped)
++				escaped = false;
++			else if (c == '\\')
++				escaped = true;
++			else if (c == quote)
++				inString = false;
++			dst[j++] = ' ';
++			continue;
++		}
++
++		if (c == '/' && next == '*')
++		{
++			*inBlockComment = true;
++			dst[j++] = ' ';
++			dst[j++] = ' ';
++			i++;
++			continue;
++		}
++		if (c == '/' && next == '/')
++			break;
++
++		if (c == '"' || c == '\'' || c == '`')
++		{
++			inString = true;
++			quote = c;
++			escaped = false;
++			dst[j++] = ' ';
++			continue;
++		}
++
++		dst[j++] = c;
++	}
++
++	dst[j] = '\0';
++}
++
++static void updateBraceDepth (const char *line, int *braceDepth)
++{
++	const char *p;
++
++	for (p = line; *p != '\0'; p++)
++	{
++		if (*p == '{')
++			(*braceDepth)++;
++		else if (*p == '}' && *braceDepth > 0)
++			(*braceDepth)--;
++	}
++}
++
++static void makeQmlTag (const char *name, int kind, unsigned long lineNumber,
++						bool fileScope, const char *scopeName, int scopeKind,
++						const char *typeName)
++{
++	tagEntryInfo e;
++
++	if (name == NULL || *name == '\0' || !QmlKinds[kind].enabled)
++		return;
++
++	initTagEntry (&e, name, kind);
++	updateTagLine (&e, lineNumber, getInputFilePositionForLine (lineNumber));
++	e.isFileScope = fileScope;
++
++	if (scopeName != NULL)
++	{
++		e.extensionFields.scopeKindIndex = scopeKind;
++		e.extensionFields.scopeName = scopeName;
++	}
++
++	if (typeName != NULL && *typeName != '\0')
++	{
++		e.extensionFields.typeRef[0] = "typename";
++		e.extensionFields.typeRef[1] = typeName;
++	}
++
++	makeTagEntry (&e);
++}
++
++static bool parseIdentifier (const char *s, char *name, size_t nameSize, const char **end)
++{
++	size_t len = 0;
++
++	if (!isQmlIdentStart ((unsigned char) *s))
++		return false;
++
++	while (isQmlIdentChar ((unsigned char) *s))
++	{
++		if (len + 1 < nameSize)
++			name[len++] = *s;
++		s++;
++	}
++
++	name[len] = '\0';
++	if (end != NULL)
++		*end = s;
++	return true;
++}
++
++static bool parseTypeName (const char *s, char *typeName, size_t typeNameSize, const char **end)
++{
++	size_t len = 0;
++
++	if (!isQmlIdentStart ((unsigned char) *s))
++		return false;
++
++	while (*s != '\0' &&
++		   !isspace ((unsigned char) *s) &&
++		   *s != ':' && *s != '=' && *s != '{' && *s != '(')
++	{
++		if (len + 1 < typeNameSize)
++			typeName[len++] = *s;
++		s++;
++	}
++
++	typeName[len] = '\0';
++	if (end != NULL)
++		*end = s;
++	return (len > 0);
++}
++
++static bool parseRootObjectLine (const char *line)
++{
++	const char *p = line;
++	char name[128];
++
++	p = trimLeft ((char *) p);
++	if (!parseTypeName (p, name, sizeof name, &p))
++		return false;
++
++	p = trimLeft ((char *) p);
++	return (*p == '{');
++}
++
++static bool parseIdLine (const char *line, char *name, size_t nameSize)
++{
++	const char *p = trimLeft ((char *) line);
++
++	if (!matchWord (p, "id"))
++		return false;
++
++	p = skipWord (p, "id");
++	while (*p != '\0' && isspace ((unsigned char) *p))
++		p++;
++	if (*p != ':')
++		return false;
++	p++;
++	while (*p != '\0' && isspace ((unsigned char) *p))
++		p++;
++
++	return parseIdentifier (p, name, nameSize, NULL);
++}
++
++static bool parsePropertyLine (const char *line, char *name, size_t nameSize,
++							   char *typeName, size_t typeNameSize)
++{
++	const char *p = trimLeft ((char *) line);
++	static const char *const modifiers[] = {
++		"readonly",
++		"required",
++		"default",
++		"final",
++		NULL
++	};
++	int i;
++
++	for (i = 0; modifiers[i] != NULL; i++)
++	{
++		if (matchWord (p, modifiers[i]))
++		{
++			p = skipWord (p, modifiers[i]);
++			p = trimLeft ((char *) p);
++			i = -1;
++		}
++	}
++
++	if (!matchWord (p, "property"))
++		return false;
++
++	p = skipWord (p, "property");
++	p = trimLeft ((char *) p);
++	if (!parseTypeName (p, typeName, typeNameSize, &p))
++		return false;
++
++	p = trimLeft ((char *) p);
++	return parseIdentifier (p, name, nameSize, NULL);
++}
++
++static bool parseSignalLine (const char *line, char *name, size_t nameSize)
++{
++	const char *p = trimLeft ((char *) line);
++
++	if (!matchWord (p, "signal"))
++		return false;
++
++	p = skipWord (p, "signal");
++	p = trimLeft ((char *) p);
++	if (!parseIdentifier (p, name, nameSize, &p))
++		return false;
++
++	p = trimLeft ((char *) p);
++	return (*p == '(');
++}
++
++static bool parseFunctionLine (const char *line, char *name, size_t nameSize)
++{
++	const char *p = trimLeft ((char *) line);
++
++	if (!matchWord (p, "function"))
++		return false;
++
++	p = skipWord (p, "function");
++	p = trimLeft ((char *) p);
++	if (!parseIdentifier (p, name, nameSize, &p))
++		return false;
++
++	p = trimLeft ((char *) p);
++	return (*p == '(');
++}
++
++static bool parseEnumLine (const char *line, char *name, size_t nameSize, const char **bodyStart)
++{
++	const char *p = trimLeft ((char *) line);
++
++	if (!matchWord (p, "enum"))
++		return false;
++
++	p = skipWord (p, "enum");
++	p = trimLeft ((char *) p);
++	if (!parseIdentifier (p, name, nameSize, &p))
++		return false;
++
++	p = trimLeft ((char *) p);
++	if (*p != '{')
++		return false;
++
++	if (bodyStart != NULL)
++		*bodyStart = p + 1;
++	return true;
++}
++
++static void parseEnumMembers (const char *body, const char *enumScope, unsigned long lineNumber)
++{
++	const char *p = body;
++	char name[128];
++
++	while (*p != '\0')
++	{
++		p = trimLeft ((char *) p);
++		while (*p == ',')
++			p++;
++		p = trimLeft ((char *) p);
++
++		if (*p == '\0' || *p == '}')
++			break;
++
++		if (parseIdentifier (p, name, sizeof name, &p))
++		{
++			makeQmlTag (name, K_ENUMERATOR, lineNumber, false,
++						enumScope, K_ENUM, NULL);
++			while (*p != '\0' && *p != ',' && *p != '}')
++				p++;
++		}
++		else
++			p++;
++	}
++}
++
++static void findQmlTags (void)
++{
++	const unsigned char *line;
++	bool inBlockComment = false;
++	bool inEnum = false;
++	bool componentEmitted = false;
++	int braceDepth = 0;
++	char *componentName = makeComponentName ();
++	vString *enumScope = vStringNew ();
++
++	while ((line = readLineFromInputFile ()) != NULL)
++	{
++		unsigned long lineNumber = getInputLineNumber ();
++		char *clean = eStrdup ((const char *) line);
++		char *trimmed;
++		char name[128];
++		char typeName[256];
++
++		sanitizeLine (clean, (const char *) line, &inBlockComment);
++		trimRight (clean);
++		trimmed = trimLeft (clean);
++
++		if (!componentEmitted && braceDepth == 0 && parseRootObjectLine (trimmed))
++		{
++			makeQmlTag (componentName, K_COMPONENT, lineNumber, false, NULL, -1, NULL);
++			componentEmitted = true;
++		}
++
++		if (componentEmitted && braceDepth == 1)
++		{
++			if (parseIdLine (trimmed, name, sizeof name))
++				makeQmlTag (name, K_ID, lineNumber, true,
++							componentName, K_COMPONENT, NULL);
++			else if (parsePropertyLine (trimmed, name, sizeof name,
++										typeName, sizeof typeName))
++				makeQmlTag (name, K_PROPERTY, lineNumber, false,
++							componentName, K_COMPONENT, typeName);
++			else if (parseSignalLine (trimmed, name, sizeof name))
++				makeQmlTag (name, K_SIGNAL, lineNumber, false,
++							componentName, K_COMPONENT, NULL);
++			else if (parseFunctionLine (trimmed, name, sizeof name))
++				makeQmlTag (name, K_FUNCTION, lineNumber, false,
++							componentName, K_COMPONENT, NULL);
++			else
++			{
++				const char *enumBody = NULL;
++
++				if (parseEnumLine (trimmed, name, sizeof name, &enumBody))
++				{
++					makeQmlTag (name, K_ENUM, lineNumber, false,
++								componentName, K_COMPONENT, NULL);
++					vStringClear (enumScope);
++					vStringCatS (enumScope, componentName);
++					vStringPut (enumScope, '.');
++					vStringCatS (enumScope, name);
++					parseEnumMembers (enumBody, vStringValue (enumScope), lineNumber);
++					inEnum = true;
++				}
++			}
++		}
++		else if (inEnum && vStringLength (enumScope) > 0)
++			parseEnumMembers (trimmed, vStringValue (enumScope), lineNumber);
++
++		if (inEnum && strchr (trimmed, '}') != NULL)
++		{
++			inEnum = false;
++			vStringClear (enumScope);
++		}
++
++		updateBraceDepth (trimmed, &braceDepth);
++		eFree (clean);
++	}
++
++	vStringDelete (enumScope);
++	eFree (componentName);
++}
++
++extern parserDefinition* QmlParser (void)
++{
++	static const char *const extensions[] = { "qml", NULL };
++	parserDefinition *const def = parserNew ("QML");
++
++	def->versionCurrent = 1;
++	def->versionAge = 1;
++	def->extensions = extensions;
++	def->kindTable = QmlKinds;
++	def->kindCount = ARRAY_SIZE (QmlKinds);
++	def->parser = findQmlTags;
++	return def;
++}
+--- a/source.mak
++++ b/source.mak
+@@ -404,2 +404,3 @@ PARSER_SRCS =				\
+ 	parsers/python-logging-config.c	\
++	parsers/qml.c			\
+ 	parsers/quarto.c		\

@@ -634,7 +634,9 @@ FROM cross AS build-ctags
 COPY --from=dl-ctags /dl/ /dl/
 
 WORKDIR /dl/ctags
-RUN sed -i /RT_MANIFEST/d win32/ctags.rc \
+COPY src/ctags-*.patch $PREFIX/src/
+RUN cat $PREFIX/src/ctags-*.patch | patch -p1 \
+ && sed -i /RT_MANIFEST/d win32/ctags.rc \
  && make -j$(nproc) -f mk_mingw.mak CC=gcc packcc.exe \
  && make -j$(nproc) -f mk_mingw.mak \
         CC=$ARCH-gcc WINDRES=$ARCH-windres \
