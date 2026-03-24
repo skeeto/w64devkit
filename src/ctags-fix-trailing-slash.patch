@@ -1,0 +1,66 @@
+Universal Ctags incorrectly rejects paths with trailing spaces
+
+--- a/main/routines.c
++++ b/main/routines.c
+@@ -440,2 +440,24 @@ extern void setCurrentDirectory (void) /* TODO */
+ 
++#ifdef _WIN32
++static char *trimTrailingDirectorySeparatorsNew (const char *const path)
++{
++	size_t len = strlen (path);
++	bool trimmed = false;
++
++	while (len > 0  &&  (path [len - 1] == '/' || path [len - 1] == '\\'))
++	{
++		if (len == 1
++			|| (len == 2  &&  path [0] == '\\'  &&  path [1] == '\\')
++			|| (len == 3  &&  isalpha ((unsigned char) path [0])
++						   &&  path [1] == ':'
++						   &&  (path [2] == '/' || path [2] == '\\')))
++			break;
++		len--;
++		trimmed = true;
++	}
++
++	return trimmed? eStrndup (path, len): NULL;
++}
++#endif
++
+ /* For caching of stat() calls */
+@@ -447,10 +469,26 @@ extern fileStatus *eStat (const char *const fileName)
+ 	{
++		const char *statName;
++#ifdef _WIN32
++		char *retryName = NULL;
++#endif
+ 		eStatFree (&file);
+ 		file.name = eStrdup (fileName);
+-		if (lstat (file.name, &status) != 0)
+-			file.exists = false;
+-		else
++		statName = file.name;
++		file.exists = (bool) (lstat (statName, &status) == 0);
++#ifdef _WIN32
++		if (! file.exists)
++		{
++			retryName = trimTrailingDirectorySeparatorsNew (fileName);
++			if (retryName != NULL  &&  lstat (retryName, &status) == 0)
++			{
++				statName = retryName;
++				file.exists = true;
++			}
++		}
++#endif
++
++		if (file.exists)
+ 		{
+ 			file.isSymbolicLink = (bool) S_ISLNK (status.st_mode);
+-			if (file.isSymbolicLink  &&  stat (file.name, &status) != 0)
++			if (file.isSymbolicLink  &&  stat (statName, &status) != 0)
+ 				file.exists = false;
+@@ -469,2 +507,5 @@ extern fileStatus *eStat (const char *const fileName)
+ 		}
++#ifdef _WIN32
++		eFree (retryName);
++#endif
+ 	}
