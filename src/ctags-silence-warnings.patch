@@ -1,0 +1,9 @@
+--- a/main/parse.c
++++ b/main/parse.c
+@@ -1816,4 +1816,4 @@ extern void enableLanguage (const langType language, const bool state)
+ 
+-	static bool warned_toml;
+-	static bool warned_cargo;
++	static bool warned_toml = 1;
++	static bool warned_cargo = 1;
+ 
