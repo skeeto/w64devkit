@@ -1,54 +1,3 @@
-From f401c2b735c106d7b5b3f2e69358e520c780ad4c Mon Sep 17 00:00:00 2001
-From: Peter Damianov <peter0x44@disroot.org>
-Date: Thu, 6 Nov 2025 00:14:44 +0000
-Subject: [PATCH] libiberty: Add BigObj COFF support for LTO on Windows targets
- [PR122472]
-
-This patch adds support for the BigObj COFF object file format to libiberty's
-simple-object-coff.c. BigObj extends regular COFF to support a 32-bit section
-count.
-
-BigObj differs from COFF in a few ways:
-
-* A different header structure
-* 32-bit section counts instead of 16-bit
-* 32-bit symbol section numbers instead of 16-bit
-* 20-byte symbols instead of 18-byte symbols
-  (due to the extended section numbers)
-
-For a more detailed summary, read my blog post on this subject:
-https://peter0x44.github.io/posts/bigobj_format_explained/
-
-libiberty/ChangeLog:
-
-	PR target/122472
-	* simple-object-coff.c (struct external_filehdr_bigobj): New
-	structure for BigObj file header.
-	(bigobj_magic): New constant for BigObj magic bytes.
-	(struct external_syment_bigobj): New structure for BigObj
-	20-byte symbol table entries.
-	(union external_auxent_bigobj): New union for BigObj 20-byte
-	auxiliary symbol entries.
-	(struct simple_object_coff_read): Add is_bigobj flag and make
-	nscns 32-bit to support both formats.
-	(struct simple_object_coff_attributes): Add is_bigobj flag.
-	(simple_object_coff_match): Add BigObj format detection.
-	(simple_object_coff_read_strtab): Use format-specific symbol
-	size when calculating string table offset.
-	(simple_object_coff_attributes_merge): Check is_bigobj flag.
-	(simple_object_coff_write_filehdr_bigobj): New function.
-	(simple_object_coff_write_to_file): Add logic for writing
-	BigObj vs regular COFF format with appropriate symbol
-	and auxiliary entry structures.
-
-Signed-off-by: Peter Damianov <peter0x44@disroot.org>
-Signed-off-by: Jonathan Yong <10walls@gmail.com>
----
- libiberty/simple-object-coff.c | 459 +++++++++++++++++++++++++++------
- 1 file changed, 379 insertions(+), 80 deletions(-)
-
-diff --git a/libiberty/simple-object-coff.c b/libiberty/simple-object-coff.c
-index 922477f7445..7f3b4628d6e 100644
 --- a/libiberty/simple-object-coff.c
 +++ b/libiberty/simple-object-coff.c
 @@ -57,6 +57,32 @@ struct external_filehdr
@@ -653,6 +602,3 @@ index 922477f7445..7f3b4628d6e 100644
  
    return NULL;
  }
--- 
-2.52.0
-
