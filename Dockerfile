@@ -807,6 +807,10 @@ RUN printf "id ICON \"$PREFIX/src/w64devkit.ico\"" >w64devkit.rc \
         -O2 -fno-asynchronous-unwind-tables -fno-builtin -Wl,--gc-sections \
         -s -nostdlib -o $PREFIX/bin/peports.exe $PREFIX/src/peports.c \
         -lkernel32 -lshell32 -lmemory \
+ && $ARCH-gcc \
+        -Oz -fno-asynchronous-unwind-tables -fno-builtin -Wl,--gc-sections \
+        -s -nostdlib -o $PREFIX/bin/recycle.exe $PREFIX/src/recycle.c \
+        -lkernel32 -lshell32 -lmemory \
  && $ARCH-gcc -DEXE=pkg-config.exe -DCMD=pkg-config \
         -Oz -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
         -o $PREFIX/bin/$ARCH-pkg-config.exe $PREFIX/src/alias.c -lkernel32 \
