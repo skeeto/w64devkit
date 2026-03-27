@@ -77,7 +77,8 @@ The x86 kit requires Windows XP or later and an SSE2-capable processor
 (e.g. at least Pentium 4); limited Unicode support. The toolchain targets
 the same by default. Runtimes contain SSE2 instructions, so GCC `-march`
 will not reliably target less capable processors when runtimes are linked
-(exceptions: `-lmemory`, `-lchkstk`). CMake requires at least Windows 7.
+(exceptions: `-lmemory`, `-lchkstk`). CMake, Ninja, and CCache require at
+least Windows 7.
 
 ## Build cache
 
@@ -212,6 +213,10 @@ w64devkit includes the concatenated set of all licenses in the file
 `COPYING.MinGW-w64-runtime.txt`, which should be distributed with your
 binaries.
 
+## See Also
+
+* [LLVM MinGW][llvm-mingw]: similar goals, but with LLVM
+
 
 [bb]: https://frippery.org/busybox/
 [break]: https://nullprogram.com/blog/2022/06/26/
@@ -236,11 +241,12 @@ binaries.
 [gpl]: https://www.gnu.org/licenses/gcc-exception-3.1.en.html
 [lic1]: https://sourceforge.net/p/mingw-w64/mingw-w64/ci/master/tree/COPYING.MinGW-w64-runtime/COPYING.MinGW-w64-runtime.txt
 [lic2]: https://sourceforge.net/p/mingw-w64/mingw-w64/ci/master/tree/mingw-w64-libraries/winpthreads/COPYING
+[llvm-mingw]: https://github.com/mstorsjo/llvm-mingw
 [make]: https://www.gnu.org/software/make/
 [names]: https://learn.microsoft.com/en-us/cpp/build/reference/decorated-names
 [ninja]: https://ninja-build.org/
-[san]: http://mingw-w64.org/doku.php/contribute#sanitizers_asan_tsan_usan
 [san2]: https://groups.google.com/forum/#!topic/address-sanitizer/q0e5EBVKZT4
+[san]: http://mingw-w64.org/doku.php/contribute#sanitizers_asan_tsan_usan
 [vim]: https://www.vim.org/
 [w64]: http://mingw-w64.org/
 [w64devkit]: https://github.com/skeeto/w64devkit
