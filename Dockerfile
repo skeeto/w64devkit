@@ -22,8 +22,8 @@ ARG BINUTILS_VERSION=2.46.0 \
     GCC_SHA256=438fd996826b0c82485a29da03a72d71d6e3541a83ec702df4271f6fe025d24e \
     GMP_VERSION=6.3.0 \
     GMP_SHA256=a3c2b80201b89e68616f4ad30bc66aee4927c3ce50e33929ca819d5c43538898 \
-    MINGW_VERSION=13.0.0 \
-    MINGW_SHA256=5afe822af5c4edbf67daaf45eec61d538f49eef6b19524de64897c6b95828caf \
+    MINGW_VERSION=14.0.0 \
+    MINGW_SHA256=6eaf921d9eb987d3820b364ea9775bc19b965ec81490b6fdd716526c28e1995c \
     MPC_VERSION=1.4.0 \
     MPC_SHA256=3210b3a546b1cb00c296ca360891d7740ee6ff06deb02a27a35b20cd3c0bb1a5 \
     MPFR_VERSION=4.2.2 \
@@ -221,7 +221,7 @@ RUN /dl/binutils/configure \
 RUN sed -i /OpenThreadToken/d /dl/mingw/mingw-w64-crt/lib32/kernel32.def
 
 WORKDIR /x-mingw-headers
-RUN echo '#include <crtdefs.h>' \
+RUN printf '#include <crtdefs.h>\n#if __has_include_next(<stddef.h>)\n#include_next <stddef.h>\n#endif\n' \
       >/dl/mingw/mingw-w64-headers/crt/stddef.h \
  && /dl/mingw/mingw-w64-headers/configure \
         --prefix=/bootstrap \
