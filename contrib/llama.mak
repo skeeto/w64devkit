@@ -18,7 +18,7 @@
 #   $ make ... VULKAN_SDK=C:/VulkanSDK/1.4.328.1
 #
 # Incremental builds are unsupported, so clean rebuild after pulling. It
-# was last tested at b8124, and an update will inevitably break it.
+# was last tested at b8565, and an update will inevitably break it.
 
 CC       = gcc
 CXX      = g++
@@ -75,6 +75,7 @@ exe = \
   tools/mtmd/clip.cpp.o \
   tools/mtmd/mtmd-audio.cpp.o \
   tools/mtmd/mtmd-helper.cpp.o \
+  tools/mtmd/mtmd-image.cpp.o \
   tools/mtmd/mtmd.cpp.o \
   w64dk-build-info.cpp.o \
   w64dk-license.c.o \
