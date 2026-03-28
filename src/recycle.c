@@ -44,6 +44,7 @@ W32 char16_t  **CommandLineToArgvW(char16_t *, int32_t *);
 W32 void        ExitProcess(int32_t);
 W32 int32_t     FormatMessageW(int32_t,uintptr_t,int32_t,int32_t,char16_t**,int32_t,uintptr_t);
 W32 char16_t   *GetCommandLineW();
+W32 int32_t     GetFullPathNameW(char16_t *, int32_t, char16_t *, char16_t **);
 W32 uintptr_t   GetStdHandle(int32_t);
 W32 int32_t     SHFileOperationW(FileOp *);
 W32 int32_t     WriteConsoleW(uintptr_t,char16_t*,int32_t,int32_t *,uintptr_t);
@@ -64,7 +65,7 @@ static char *alloc(Arena *a, ptrdiff_t count, ptrdiff_t size, ptrdiff_t align)
     ptrdiff_t pad = (ptrdiff_t)-(uintptr_t)a->beg & (align - 1);
     affirm(count < (a->end - a->beg - pad)/size);
     char *r = a->beg + pad;
-    a->beg += pad;
+    a->beg += pad + count*size;
     return __builtin_memset(r, 0, tousize(count*size));
 }
 
@@ -73,14 +74,6 @@ static int32_t len16(char16_t *s)
     int32_t len = 0;
     for (; s[len]; len++) {}
     return len;
-}
-
-static char16_t *termzz(Arena *a, char16_t *s)
-{
-    ptrdiff_t len = len16(s);
-    char16_t *r   = new(a, len+2, char16_t);
-    __builtin_memcpy(r, s, tousize(len)*2);
-    return r;
 }
 
 static char16_t *geterror(int32_t err)
@@ -94,6 +87,14 @@ static char16_t *geterror(int32_t err)
     return r;
 }
 
+static int32_t isshellerr(int32_t code)
+{
+    code &= ~0x10000;  // strip ERRORONDEST
+    return (code >= 0x71 && code <= 0x88) ||
+            code == 0xB7                  ||
+            code == 0x402;
+}
+
 static void report(char16_t *path, int32_t code)
 {
     uintptr_t h = GetStdHandle(-12);
@@ -102,9 +103,13 @@ static void report(char16_t *path, int32_t code)
     WriteConsoleW(h, path, len16(path), &(int32_t){}, 0);
     static char16_t mid[] = u": ";
     WriteConsoleW(h, mid, lenof(mid)-1, &(int32_t){}, 0);
-    char16_t *err = geterror(code);
-    WriteConsoleW(h, err, len16(err), &(int32_t){}, 0);
-    WriteConsoleW(h, u"\n", 1, &(int32_t){}, 0);
+    if (isshellerr(code)) {
+        static char16_t msg[] = u"Could not recycle\n";
+        WriteConsoleW(h, msg, lenof(msg)-1, &(int32_t){}, 0);
+    } else {
+        char16_t *err = geterror(code);
+        WriteConsoleW(h, err, len16(err), &(int32_t){}, 0);
+    }
 }
 
 static int32_t recycle(int32_t argc, char16_t **argv, Arena scratch)
@@ -113,9 +118,13 @@ static int32_t recycle(int32_t argc, char16_t **argv, Arena scratch)
     for (int32_t i = 1; i < argc; i++) {
         Arena a = scratch;
 
+        ptrdiff_t len  = GetFullPathNameW(argv[i], 0, 0, 0);
+        char16_t *full = new(&a, len+2, char16_t);  // double terminator
+        GetFullPathNameW(argv[i], len, full, 0);
+
         FileOp op = {};
         op.func  = FO_DELETE;
-        op.from  = termzz(&a, argv[i]);
+        op.from  = full;
         op.flags =
             FOF_ALLOWUNDO |
             FOF_NOCONFIRMATION |
