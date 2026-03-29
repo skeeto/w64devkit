@@ -60,24 +60,18 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
 FROM base AS dl-gdb
 ARG GDB_VERSION=17.1 \
     GDB_SHA256=14996f5f74c9f68f5a543fdc45bca7800207f91f92aeea6c2e791822c7c6d876 \
-    EXPAT_VERSION=2.7.5 \
-    EXPAT_SHA256=1032dfef4ff17f70464827daa28369b20f6584d108bc36f17ab1676e1edd2f91 \
     LIBICONV_VERSION=1.19 \
     LIBICONV_SHA256=88dd96a8c0464eca144fc791ae60cd31cd8ee78321e67397e25fc095c4a19aa6
 WORKDIR /dl
 RUN curl --insecure --location --remote-name-all --remote-header-name \
     https://ftp.gnu.org/gnu/gdb/gdb-$GDB_VERSION.tar.xz \
-    https://github.com/libexpat/libexpat/releases/download/R_$(echo $EXPAT_VERSION | tr . _)/expat-$EXPAT_VERSION.tar.xz \
     https://ftp.gnu.org/gnu/libiconv/libiconv-$LIBICONV_VERSION.tar.gz \
  && printf '%s  %s\n' \
       $GDB_SHA256 gdb-$GDB_VERSION.tar.xz \
-      $EXPAT_SHA256 expat-$EXPAT_VERSION.tar.xz \
       $LIBICONV_SHA256 libiconv-$LIBICONV_VERSION.tar.gz \
     | sha256sum -c \
  && mkdir gdb \
  && tar xJf gdb-$GDB_VERSION.tar.xz -C gdb --strip-components=1 \
- && mkdir expat \
- && tar xJf expat-$EXPAT_VERSION.tar.xz -C expat --strip-components=1 \
  && mkdir libiconv \
  && tar xzf libiconv-$LIBICONV_VERSION.tar.gz -C libiconv --strip-components=1
 
@@ -501,18 +495,11 @@ COPY --from=dl-gdb /dl/ /dl/
 COPY --from=build-pdcurses /deps/lib/libcurses.a /deps/lib/
 COPY --from=build-pdcurses /deps/include/curses.h /deps/include/
 
-WORKDIR /expat
-RUN /dl/expat/configure \
-        --prefix=/deps \
-        --host=$ARCH \
-        --disable-shared \
-        --without-docbook \
-        --without-examples \
-        --without-tests \
-        CFLAGS="-O2" \
-        LDFLAGS="-s" \
- && make -j$(nproc) \
- && make install
+COPY src/expat.h /deps/include/
+RUN $ARCH-g++ -DEXPAT_IMPL -O2 -include /deps/include/expat.h \
+        -xc++ -c -o expat.o - </dev/null \
+ && $ARCH-ar rcs /deps/lib/libminiexpat.a expat.o \
+ && echo 'INPUT ( -lminiexpat -lstdc++ )' >/deps/lib/libexpat.a
 
 WORKDIR /libiconv
 RUN /dl/libiconv/configure \
