@@ -46,6 +46,7 @@ def = \
   -DGGML_COMMIT='"$(ggml_commit)"' \
   -DGGML_USE_CPU \
   -DGGML_VERSION='"$(ggml_version)"' \
+  -DLLAMA_BUILD_WEBUI \
   -DLLAMA_USE_HTTPLIB
 inc = \
   -I. \
@@ -125,7 +126,8 @@ llama.dll.a: llama.def
 
 clean:
 	rm -f $(dll) $(exe) llama.def llama.dll llama.dll.a llama-server.exe \
-	   tools/server/index.html.gz.hpp tools/server/loading.html.hpp \
+	   tools/server/index.html.hpp tools/server/bundle.js.hpp \
+	   tools/server/bundle.css.hpp tools/server/loading.html.hpp \
 	   w64dk-build-info.cpp w64dk-license.c $(vk_shaders_gen)
 	rm -rf $(vk_build_dir)
 
@@ -156,13 +158,19 @@ w64dk-license.c: $(licenses)
 	};
 	EOF
 
-tools/server/index.html.gz.hpp: tools/server/public/index.html.gz
-	cd tools/server/public/ && xxd -i index.html.gz >../index.html.gz.hpp
+tools/server/index.html.hpp: tools/server/public/index.html
+	cd tools/server/public/ && xxd -i index.html >../index.html.hpp
+tools/server/bundle.js.hpp: tools/server/public/bundle.js
+	cd tools/server/public/ && xxd -i bundle.js >../bundle.js.hpp
+tools/server/bundle.css.hpp: tools/server/public/bundle.css
+	cd tools/server/public/ && xxd -i bundle.css >../bundle.css.hpp
 tools/server/loading.html.hpp: tools/server/public/loading.html
 	cd tools/server/public/ && xxd -i loading.html >../loading.html.hpp
 tools/server/server-http.cpp.o: \
   tools/server/server.cpp \
-  tools/server/index.html.gz.hpp \
+  tools/server/index.html.hpp \
+  tools/server/bundle.js.hpp \
+  tools/server/bundle.css.hpp \
   tools/server/loading.html.hpp
 
 llama.def: $(dll)
