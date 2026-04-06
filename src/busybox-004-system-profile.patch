@@ -3,5 +3,5 @@
 @@ -16349,3 +16349,3 @@
  
 -		hp = exe_relative_path("/etc/profile");
-+		hp = exe_relative_path("../src/profile");
++		hp = exe_relative_path("../etc/profile");
  		read_profile(hp);

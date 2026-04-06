@@ -781,6 +781,7 @@ COPY --from=build-cmake /out$PREFIX/ $PREFIX/
 COPY --from=build-7z /dl/7z/7z.sfx /7z/
 
 COPY src $PREFIX/src
+COPY etc $PREFIX/etc
 
 WORKDIR /
 RUN rm -rf $PREFIX/share/man/ $PREFIX/share/info/ $PREFIX/share/gcc-*
@@ -814,7 +815,7 @@ RUN printf "id ICON \"$PREFIX/src/w64devkit.ico\"" >w64devkit.rc \
  && $ARCH-gcc -DEXE=pkg-config.exe -DCMD=pkg-config \
         -Oz -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
         -o $PREFIX/bin/$ARCH-pkg-config.exe $PREFIX/src/alias.c -lkernel32 \
- && sed -i s/'\<ARCH\>'/$ARCH/g $PREFIX/src/profile \
+ && sed -i s/'\<ARCH\>'/$ARCH/g $PREFIX/etc/profile \
  && mkdir -p $PREFIX/lib/pkgconfig \
  && cp /dl/mingw/COPYING.MinGW-w64-runtime/COPYING.MinGW-w64-runtime.txt \
         $PREFIX/ \
