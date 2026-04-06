@@ -61,8 +61,7 @@ Then to start an interactive unix shell:
 
 * Fully offline. No internet access is ever required or attempted.
 
-* A focus on static linking all runtime components. The runtime is
-  optimized for size.
+* A focus on static linking all runtime components.
 
 * Trivial to build from source, meaning it's easy to tweak and adjust any
   part of the kit for your own requirements.
@@ -90,13 +89,12 @@ and automatically cache all builds in Ccache.
 Or use `ccache`, `ccache-gcc`, or `ccache-g++` directly. You can activate
 a suggested Ccache configuration via `w64devkit.ini`.
 
-## Optimized for size
+## Special linking considerations
 
-Runtime components are optimized for size, leading to smaller application
-executables. Unique to w64devkit, `libmemory.a` is a library of `memset`,
-`memcpy`, `memmove`, `memcmp`, and `strlen` implemented as x86 string
-instructions. When [not linking a CRT][crt], linking `-lmemory` provides
-tiny definitions, particularly when GCC requires them.
+Unique to w64devkit, `libmemory.a` is a library of `memset`, `memcpy`,
+`memmove`, `memcmp`, and `strlen` implemented as x86 string instructions.
+When [not linking a CRT][crt], linking `-lmemory` provides tiny
+definitions, particularly when GCC requires them.
 
 Also unique to w64devkit, `libchkstk.a` has a leaner, faster definition of
 `___chkstk_ms` than GCC (`-lgcc`), as well as `__chkstk`, sometimes needed
