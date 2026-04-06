@@ -812,6 +812,8 @@ RUN printf "id ICON \"$PREFIX/src/w64devkit.ico\"" >w64devkit.rc \
         -Oz -fno-asynchronous-unwind-tables -fno-builtin -Wl,--gc-sections \
         -s -nostdlib -o $PREFIX/bin/recycle.exe $PREFIX/src/recycle.c \
         -lkernel32 -lshell32 -lmemory \
+ && $ARCH-g++ -std=c++20 -O2 -fno-exceptions -s -o $PREFIX/bin/quilt.exe \
+        $PREFIX/src/quilt.cpp \
  && $ARCH-gcc -DEXE=pkg-config.exe -DCMD=pkg-config \
         -Oz -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
         -o $PREFIX/bin/$ARCH-pkg-config.exe $PREFIX/src/alias.c -lkernel32 \

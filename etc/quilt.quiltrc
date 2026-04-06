@@ -1,0 +1,84 @@
+# /etc/quilt.quiltrc — system-wide defaults for quilt
+#
+# This file is sourced by quilt on startup (after ~/.quiltrc). Set
+# variables here to configure quilt behavior. Lines beginning with #
+# are comments. Values may be unquoted, single-quoted (literal), or
+# double-quoted (with \" and \\ escapes).
+#
+# Search order: ~/.quiltrc, then /etc/quilt.quiltrc. Use --quiltrc to
+# override, or --quiltrc - to skip all config files.
+
+# ── Patch and series locations ──────────────────────────────────────
+
+# Directory where patch files are stored, relative to the source tree
+# root. Quilt searches upward from the working directory for a directory
+# containing this subdirectory to find the source root.
+#QUILT_PATCHES=patches
+
+# Name of the series file within the patches directory. The series file
+# lists patches in application order, one per line, with optional -pN
+# strip-level and -R flags.
+#QUILT_SERIES=series
+
+# Directory for backup files and metadata (.version, applied-patches).
+# Analogous to .git for git — this is where quilt tracks patch state.
+#QUILT_PC=.pc
+
+# ── Diff and patch generation ──────────────────────────────────────
+
+# Suppress Index: header lines in generated patches. These lines are
+# informational and not used by patch(1), so omitting them produces
+# cleaner diffs that are easier to review.
+QUILT_NO_DIFF_INDEX=1
+
+# Suppress timestamps in --- and +++ diff headers. Timestamps cause
+# unnecessary churn when refreshing patches and are not needed for
+# applying them.
+QUILT_NO_DIFF_TIMESTAMPS=1
+
+# Default diff algorithm for the built-in diff engine, used by both
+# the diff and refresh commands. Supported values: myers (default),
+# minimal, patience, histogram. The --diff-algorithm flag on the
+# command line overrides this. This variable is a quilt.cpp extension
+# and is safely ignored by original quilt.
+#QUILT_DIFF_ALGORITHM=myers
+
+# Extra options passed to the diff program when generating patches.
+# For example, -p to show C function names in hunk headers when using
+# an external diff. Parsed with shell-like splitting.
+#QUILT_DIFF_OPTS=
+
+# Extra options passed to patch(1) (or the built-in patch engine)
+# during push and fold operations. Parsed with shell-like splitting.
+#QUILT_PATCH_OPTS=
+
+# ── Output formatting ─────────────────────────────────────────────
+
+# When set, patch names in output are prefixed with the patches
+# directory (e.g. "patches/foo.patch" instead of "foo.patch").
+#QUILT_PATCHES_PREFIX=
+
+# ── Default command arguments ──────────────────────────────────────
+#
+# These inject arguments at the beginning of the named command's
+# argument list, as if you had typed them on the command line. Values
+# are parsed with shell-like splitting (single/double quotes, $VAR
+# expansion). Any QUILT_<COMMAND>_ARGS variable is supported — the
+# command name is uppercased (e.g. QUILT_PUSH_ARGS, QUILT_POP_ARGS,
+# QUILT_IMPORT_ARGS, QUILT_MAIL_ARGS, etc.).
+
+# Default arguments for refresh. -p ab uses a/file and b/file path
+# labels instead of file.orig/file, matching git diff output.
+QUILT_REFRESH_ARGS="-p ab"
+
+# Default arguments for diff.
+#QUILT_DIFF_ARGS=
+
+# Default arguments for push.
+#QUILT_PUSH_ARGS=
+
+# ── External programs ──────────────────────────────────────────────
+
+# Editor used by quilt edit and quilt header -e. Falls back to the
+# system default if unset.
+#EDITOR=vi
