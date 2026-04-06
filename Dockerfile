@@ -183,6 +183,16 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
  && mkdir cmake \
  && tar xzf cmake-$CMAKE_VERSION.tar.gz -C cmake --strip-components=1
 
+FROM base AS dl-dcmake
+ARG DCMAKE_VERSION=1.0.0 \
+    DCMAKE_SHA256=3d29da8d7a689ed6a57d49b6f06df97423518acefbc85fc28c05b0c6fbb0143e
+WORKDIR /dl
+RUN curl --insecure --location --remote-name-all --remote-header-name \
+    https://github.com/skeeto/dcmake/releases/download/v$DCMAKE_VERSION/dcmake-$DCMAKE_VERSION.tar.gz \
+ && printf '%s  %s\n' $DCMAKE_SHA256 dcmake-$DCMAKE_VERSION.tar.gz | sha256sum -c \
+ && mkdir dcmake \
+ && tar xzf dcmake-$DCMAKE_VERSION.tar.gz -C dcmake --strip-components=1
+
 FROM base AS dl-7z
 ARG Z7_VERSION=2301 \
     Z7_SHA256=356071007360e5a1824d9904993e8b2480b51b570e8c9faf7c0f58ebe4bf9f74
@@ -723,6 +733,20 @@ RUN cmake -DCMAKE_BUILD_TYPE=Release \
  && mkdir -p /out/bin \
  && cp ninja.exe /out/bin/
 
+FROM cross AS build-dcmake
+COPY --from=dl-dcmake /dl/ /dl/
+
+WORKDIR /dcmake
+RUN cmake -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_SYSTEM_NAME=Windows \
+        -DCMAKE_CXX_COMPILER=$ARCH-g++ \
+        -DCMAKE_RC_COMPILER=$ARCH-windres \
+        -DCMAKE_EXE_LINKER_FLAGS="-s" \
+        /dl/dcmake \
+ && make -j$(nproc) \
+ && mkdir -p /out/bin \
+ && cp dcmake.exe /out/bin/
+
 FROM cross AS build-cmake
 COPY --from=dl-cmake /dl/ /dl/
 COPY --from=build-pdcurses /deps/lib/libcurses.a /deps/lib/
@@ -777,6 +801,7 @@ COPY --from=build-ctags /out/ $PREFIX/
 COPY --from=build-zstd /out/ $PREFIX/
 COPY --from=build-ccache /out/ $PREFIX/
 COPY --from=build-ninja /out/ $PREFIX/
+COPY --from=build-dcmake /out/ $PREFIX/
 COPY --from=build-cmake /out$PREFIX/ $PREFIX/
 COPY --from=build-7z /dl/7z/7z.sfx /7z/
 

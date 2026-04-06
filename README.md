@@ -9,7 +9,7 @@ Included tools:
 * [Mingw-w64 GCC][w64] : compilers, linker, assembler
 * [GDB][gdb] : debugger
 * [GNU Make][make] : standard build tool
-* [CMake][cmake] with [Ninja][ninja]: build system
+* [CMake][cmake] with [Ninja][ninja] and [a debugger][dcmake] : build system
 * [busybox-w32][bb] : standard unix utilities, including sh
 * [Vim][vim] : powerful text editor
 * [Universal Ctags][ctags] : source navigation
@@ -222,6 +222,7 @@ binaries.
 [ccache]: https://ccache.dev/
 [cmake]: https://cmake.org/
 [crt]: https://nullprogram.com/blog/2023/02/15/
+[dcmake]: https://github.com/skeeto/dcmake
 [ctags]: https://github.com/universal-ctags/ctags
 [debugbreak]: https://nullprogram.com/blog/2022/07/31/
 [doc-bb]: https://busybox.net/downloads/BusyBox.txt
