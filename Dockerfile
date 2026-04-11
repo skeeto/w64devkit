@@ -184,8 +184,8 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
  && tar xzf cmake-$CMAKE_VERSION.tar.gz -C cmake --strip-components=1
 
 FROM base AS dl-dcmake
-ARG DCMAKE_VERSION=1.4.0 \
-    DCMAKE_SHA256=44fc883f6294132135dd216fb615400e46ecbd1a5caaa1ba03bf0c23fc37865b
+ARG DCMAKE_VERSION=1.5.0 \
+    DCMAKE_SHA256=3049caf3ef961fb5e52bb548267e1ef10dbce670f36e26de4fa9022d1e02c957
 WORKDIR /dl
 RUN curl --insecure --location --remote-name-all --remote-header-name \
     https://github.com/skeeto/dcmake/releases/download/v$DCMAKE_VERSION/dcmake-$DCMAKE_VERSION.tar.gz \
