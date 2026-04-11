@@ -1,0 +1,29 @@
+Fix deps log recovery failing to remove corrupt records
+
+In DepsLog::Load(), the file offset used for truncation-based recovery
+was advanced past each record immediately after reading its bytes from
+disk, but before validating the record's semantic correctness (e.g. the
+path checksum or node-id range checks). When a record was structurally
+complete but semantically invalid, recovery truncated the file to an
+offset that included the bad record, so it was never removed.
+
+This created an infinite cycle: every build would load the deps log, hit
+the corrupt record, "recover" by truncating everything after it (but not
+the record itself), then append new dependency records that would be
+destroyed by the next build's recovery. The result was spurious rebuilds
+on every invocation.
+
+Move the offset update to the end of the loop body, after all validation
+has passed. Now when a record fails validation, the offset still points
+before it, and truncation correctly removes it.
+
+--- a/src/deps_log.cc
++++ b/src/deps_log.cc
+@@ -205,3 +205,2 @@ LoadStatus DepsLog::Load(const string& path, State* state, string* err) {
+     }
+-    offset += size + sizeof(size);
+ 
+@@ -270,2 +269,3 @@ LoadStatus DepsLog::Load(const string& path, State* state, string* err) {
+     }
++    offset += size + sizeof(size);
+   }

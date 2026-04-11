@@ -721,9 +721,11 @@ RUN $ARCH-gcc -DEXE=ccache.exe -DCMD=gcc \
 
 FROM cross AS build-ninja
 COPY --from=dl-ninja /dl/ /dl/
+COPY src/ninja-*.patch $PREFIX/src/
 
 WORKDIR /ninja
-RUN cmake -DCMAKE_BUILD_TYPE=Release \
+RUN cat $PREFIX/src/ninja-*.patch | patch -d/dl/ninja -p1 \
+ && cmake -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_SYSTEM_NAME=Windows \
         -DCMAKE_CXX_COMPILER=$ARCH-g++ \
         -DCMAKE_EXE_LINKER_FLAGS="-s" \
