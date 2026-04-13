@@ -789,6 +789,22 @@ RUN sed -i s/CommCtrl/commctrl/ $(grep -Rl CommCtrl CPP/) \
            CPP/7zip/Bundles/SFXWin/resource.rc \
  && make -f $PREFIX/src/7z.mak -j$(nproc) CROSS=$ARCH-
 
+# Collect source tarballs
+FROM base AS source
+COPY --from=dl-cross /dl/*.* /source/
+COPY --from=dl-gdb /dl/*.* /source/
+COPY --from=dl-pdcurses /dl/*.* /source/
+COPY --from=dl-make /dl/*.* /source/
+COPY --from=dl-busybox /dl/*.* /source/
+COPY --from=dl-vim /dl/*.* /source/
+COPY --from=dl-ctags /dl/*.* /source/
+COPY --from=dl-zstd /dl/*.* /source/
+COPY --from=dl-ccache /dl/*.* /source/
+COPY --from=dl-ninja /dl/*.* /source/
+COPY --from=dl-cmake /dl/*.* /source/
+COPY --from=dl-dcmake /dl/*.* /source/
+COPY --from=dl-7z /dl/*.* /source/
+
 # Pack up a release
 
 FROM cross AS final
