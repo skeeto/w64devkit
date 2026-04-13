@@ -13,6 +13,7 @@ on:
 # "Read and write permissions"
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   build-x64:
@@ -68,26 +69,14 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ steps.filename.outputs.archive }}.7z.exe
+          name: w64devkit-x64-unsigned
           path: ${{ steps.filename.outputs.archive }}.7z.exe
-          archive: false
 
       - name: Upload source tarball
         uses: actions/upload-artifact@v7
         with:
-          name: source.tar
+          name: source-tarball
           path: source.tar
-          archive: false
-
-      - name: Create Release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
-        with:
-          name: ${{ steps.filename.outputs.version }}
-          files: |
-            w64devkit-*.7z.exe
-            source.tar
-          draft: true
 
   build-x86:
     runs-on: ubuntu-latest
@@ -130,14 +119,92 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ steps.filename.outputs.archive }}.7z.exe
+          name: w64devkit-x86-unsigned
           path: ${{ steps.filename.outputs.archive }}.7z.exe
-          archive: false
 
-      - name: Create Release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
+  sign:
+    needs: [build-x64, build-x86]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: windows-latest
+    environment: release
+
+    steps:
+      - name: Download x64 executable
+        uses: actions/download-artifact@v7
         with:
-          name: ${{ steps.filename.outputs.version }}
-          files: w64devkit-*.7z.exe
-          draft: true
+          name: w64devkit-x64-unsigned
+
+      - name: Download x86 executable
+        uses: actions/download-artifact@v7
+        with:
+          name: w64devkit-x86-unsigned
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+
+      - name: Sign executables
+        uses: azure/trusted-signing-action@v0.5.0
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          endpoint: ${{ secrets.TRUSTED_SIGNING_ENDPOINT }}
+          trusted-signing-account-name: ${{ secrets.TRUSTED_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ secrets.CERTIFICATE_PROFILE }}
+          files-folder: ${{ github.workspace }}
+          files-folder-filter: exe
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      - name: Upload signed x64
+        uses: actions/upload-artifact@v7
+        with:
+          name: w64devkit-x64-signed
+          path: w64devkit-x64-*.7z.exe
+
+      - name: Upload signed x86
+        uses: actions/upload-artifact@v7
+        with:
+          name: w64devkit-x86-signed
+          path: w64devkit-x86-*.7z.exe
+
+  release:
+    needs: sign
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download signed x64
+        uses: actions/download-artifact@v7
+        with:
+          name: w64devkit-x64-signed
+
+      - name: Download signed x86
+        uses: actions/download-artifact@v7
+        with:
+          name: w64devkit-x86-signed
+
+      - name: Download source tarball
+        uses: actions/download-artifact@v7
+        with:
+          name: source-tarball
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          DRAFT_FLAG=""
+          if ! [[ "$GITHUB_REF_NAME" == v* ]]; then
+            DRAFT_FLAG="--draft"
+          fi
+          gh release create "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$VERSION" \
+            $DRAFT_FLAG \
+            w64devkit-*.7z.exe \
+            source.tar
