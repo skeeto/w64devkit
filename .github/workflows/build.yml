@@ -43,20 +43,40 @@ jobs:
           cache-from: type=gha,scope=w64devkit-${{ env.ARCH }}
           cache-to: type=gha,scope=w64devkit-${{ env.ARCH }},mode=max
 
+      - name: Build source image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: source
+          tags: w64devkit:source
+          load: true
+          cache-from: type=gha,scope=w64devkit-${{ env.ARCH }}
+
       - name: Extract artifact
         run: |
           docker run --rm w64devkit:${{ env.ARCH }} > w64devkit.exe
+          mv w64devkit.exe ${{ steps.filename.outputs.archive }}.7z.exe
+          ls -lh ${{ steps.filename.outputs.archive }}.7z.exe
 
-      - name: Rename artifact
+      - name: Extract source tarball
         run: |
-          mv w64devkit.exe ${{ steps.filename.outputs.archive }}.exe
-          ls -lh ${{ steps.filename.outputs.archive }}.exe
+          docker run --rm w64devkit:source tar cf - \
+            --sort=name --mtime='1970-01-01' --owner=0 --group=0 --numeric-owner \
+            source/ > source.tar
+          ls -lh source.tar
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ steps.filename.outputs.archive }}.exe
-          path: ${{ steps.filename.outputs.archive }}.exe
+          name: ${{ steps.filename.outputs.archive }}.7z.exe
+          path: ${{ steps.filename.outputs.archive }}.7z.exe
+          archive: false
+
+      - name: Upload source tarball
+        uses: actions/upload-artifact@v7
+        with:
+          name: source.tar
+          path: source.tar
           archive: false
 
       - name: Create Release
@@ -64,7 +84,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           name: ${{ steps.filename.outputs.version }}
-          files: w64devkit-*.exe
+          files: |
+            w64devkit-*.7z.exe
+            source.tar
           draft: true
 
   build-x86:
@@ -102,17 +124,14 @@ jobs:
       - name: Extract artifact
         run: |
           docker run --rm w64devkit:${{ env.ARCH }} > w64devkit.exe
-
-      - name: Rename artifact
-        run: |
-          mv w64devkit.exe ${{ steps.filename.outputs.archive }}.exe
-          ls -lh ${{ steps.filename.outputs.archive }}.exe
+          mv w64devkit.exe ${{ steps.filename.outputs.archive }}.7z.exe
+          ls -lh ${{ steps.filename.outputs.archive }}.7z.exe
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ steps.filename.outputs.archive }}.exe
-          path: ${{ steps.filename.outputs.archive }}.exe
+          name: ${{ steps.filename.outputs.archive }}.7z.exe
+          path: ${{ steps.filename.outputs.archive }}.7z.exe
           archive: false
 
       - name: Create Release
@@ -120,5 +139,5 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           name: ${{ steps.filename.outputs.version }}
-          files: w64devkit-*.exe
+          files: w64devkit-*.7z.exe
           draft: true
