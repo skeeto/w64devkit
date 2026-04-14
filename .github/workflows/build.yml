@@ -130,29 +130,29 @@ jobs:
 
     steps:
       - name: Download x64 executable
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: w64devkit-x64-unsigned
 
       - name: Download x86 executable
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: w64devkit-x86-unsigned
 
       - name: Azure login
-        uses: azure/login@v2
+        uses: azure/login@v3
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           allow-no-subscriptions: true
 
       - name: Sign executables
-        uses: azure/trusted-signing-action@v0.5.0
+        uses: azure/artifact-signing-action@v1
         with:
           azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
           endpoint: ${{ secrets.TRUSTED_SIGNING_ENDPOINT }}
-          trusted-signing-account-name: ${{ secrets.TRUSTED_SIGNING_ACCOUNT }}
+          signing-account-name: ${{ secrets.TRUSTED_SIGNING_ACCOUNT }}
           certificate-profile-name: ${{ secrets.CERTIFICATE_PROFILE }}
           files-folder: ${{ github.workspace }}
           files-folder-filter: exe
@@ -179,17 +179,17 @@ jobs:
 
     steps:
       - name: Download signed x64
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: w64devkit-x64-signed
 
       - name: Download signed x86
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: w64devkit-x86-signed
 
       - name: Download source tarball
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: source-tarball
 
