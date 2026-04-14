@@ -49,10 +49,6 @@
 -        CC=$ARCH-gcc CFLAGS="-O2" LDFLAGS="-s" EXT=.exe \
 +        CC=$ARCH-gcc CFLAGS="-O2" LDFLAGS="-s" EXT=.exe HAVE_THREAD=0 \
   && mkdir -p /out/bin \
-@@ -745,2 +750,3 @@
-         -DCMAKE_RC_COMPILER=$ARCH-windres \
-+        -DCMAKE_CXX_FLAGS="-O2 -D_WIN32_WINNT=0x0601" \
-         -DCMAKE_EXE_LINKER_FLAGS="-s" \
 @@ -765,2 +771,3 @@
          -DCMAKE_EXE_LINKER_FLAGS="-s" \
 +        -DCMAKE_CXX_FLAGS="-O2 -D_WIN32_WINNT=0x0601" \
