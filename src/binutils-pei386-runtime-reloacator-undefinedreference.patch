@@ -1,0 +1,66 @@
+--- a/ld/emultempl/pe.em
++++ b/ld/emultempl/pe.em
+@@ -1248,6 +1248,18 @@ make_runtime_ref (void)
+     }
+ }
+ 
++static bool
++have_plugin_claimed_input (void)
++{
++  lang_input_statement_type *f;
++
++  for (f = (void *) file_chain.head; f != NULL; f = f->next)
++    if (f->flags.claimed)
++      return true;
++
++  return false;
++}
++
+ static bool
+ pr_sym (struct bfd_hash_entry *h, void *inf ATTRIBUTE_UNUSED)
+ {
+@@ -1457,7 +1469,9 @@ gld${EMULATION_NAME}_before_plugin_all_symbols_read (void)
+ {
+ #ifdef DLL_SUPPORT
+   if (link_info.lto_plugin_active
+-      && link_info.pei386_auto_import)
++      && link_info.pei386_auto_import
++      && link_info.pei386_runtime_pseudo_reloc != 0
++      && have_plugin_claimed_input ())
+     make_runtime_ref ();
+ #endif
+ }
+diff --git a/ld/emultempl/pep.em b/ld/emultempl/pep.em
+index 280949b6e51..a72caf97de9 100644
+--- a/ld/emultempl/pep.em
++++ b/ld/emultempl/pep.em
+@@ -1254,6 +1254,18 @@ make_runtime_ref (void)
+     }
+ }
+ 
++static bool
++have_plugin_claimed_input (void)
++{
++  lang_input_statement_type *f;
++
++  for (f = (void *) file_chain.head; f != NULL; f = f->next)
++    if (f->flags.claimed)
++      return true;
++
++  return false;
++}
++
+ static bool
+ pr_sym (struct bfd_hash_entry *h, void *inf ATTRIBUTE_UNUSED)
+ {
+@@ -1464,7 +1476,9 @@ gld${EMULATION_NAME}_before_plugin_all_symbols_read (void)
+ {
+ #ifdef DLL_SUPPORT
+   if (link_info.lto_plugin_active
+-      && link_info.pei386_auto_import) /* -1=warn or 1=enable */
++      && link_info.pei386_auto_import /* -1=warn or 1=enable */
++      && link_info.pei386_runtime_pseudo_reloc != 0
++      && have_plugin_claimed_input ())
+     make_runtime_ref ();
+ #endif
+ }
