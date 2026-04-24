@@ -133,14 +133,17 @@ clean:
 
 .ONESHELL:  # needed for heredocs
 
-# NOTE: produces valid C++ even if Git is unavailable
-w64dk-build-info.cpp:
-	cat >$@ <<EOF
-	int         LLAMA_BUILD_NUMBER = {$$(git rev-list  --count HEAD)};
-	char const *LLAMA_COMMIT       = "$$(git rev-parse --short HEAD)";
-	char const *LLAMA_COMPILER     = "$$($(CC) --version | head -n1)";
-	char const *LLAMA_BUILD_TARGET = "$$($(CC) -dumpmachine)";
-	EOF
+w64dk-build-info.cpp: common/build-info.cpp.in
+	bnum=`git rev-list --count HEAD 2>/dev/null || printf 0`; \
+	commit=`git rev-parse --short HEAD 2>/dev/null || printf unknown`; \
+	compiler=`$(CC) --version 2>/dev/null | head -n1`; \
+	target=`$(CC) -dumpmachine 2>/dev/null || printf unknown`; \
+	sed \
+		-e "s|@LLAMA_BUILD_NUMBER@|$$bnum|" \
+		-e "s|@LLAMA_BUILD_COMMIT@|$$commit|" \
+		-e "s|@BUILD_COMPILER@|$$compiler|" \
+		-e "s|@BUILD_TARGET@|$$target|" \
+		$< > $@
 
 w64dk-build-info.cpp.o: w64dk-build-info.cpp
 
