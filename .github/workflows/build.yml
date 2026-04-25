@@ -71,12 +71,14 @@ jobs:
         with:
           name: w64devkit-x64-unsigned
           path: ${{ steps.filename.outputs.archive }}.7z.exe
+          archive: false
 
       - name: Upload source tarball
         uses: actions/upload-artifact@v7
         with:
           name: source-tarball
           path: source.tar
+          archive: false
 
   build-x86:
     runs-on: ubuntu-latest
@@ -121,6 +123,7 @@ jobs:
         with:
           name: w64devkit-x86-unsigned
           path: ${{ steps.filename.outputs.archive }}.7z.exe
+          archive: false
 
   sign:
     needs: [build-x64, build-x86]
@@ -165,12 +168,14 @@ jobs:
         with:
           name: w64devkit-x64-signed
           path: w64devkit-x64-*.7z.exe
+          archive: false
 
       - name: Upload signed x86
         uses: actions/upload-artifact@v7
         with:
           name: w64devkit-x86-signed
           path: w64devkit-x86-*.7z.exe
+          archive: false
 
   release:
     needs: sign
