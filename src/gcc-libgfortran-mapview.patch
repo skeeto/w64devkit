@@ -1,0 +1,21 @@
+Use MapViewOfFileEx for libgfortran caf_shmem on Windows.
+
+GCC 16 started using MapViewOfFileExNuma here, but mingw-w64 only
+declares that API for newer Windows targets. w64devkit keeps an older
+target, and this code does not need NUMA placement: NUMA_NO_PREFERRED_NODE
+is equivalent to no NUMA preference. MapViewOfFileEx still accepts the
+requested base address and is available on older Windows targets.
+
+--- a/libgfortran/caf/shmem/shared_memory.c
++++ b/libgfortran/caf/shmem/shared_memory.c
+@@ -234,8 +234,8 @@ shared_memory_init (shared_memory_act *mem, size_t size)
+     }
+ #elif defined(WIN32)
+   mem->glbl.base
+-    = (LPTSTR) MapViewOfFileExNuma (mem->shm_fd, FILE_MAP_ALL_ACCESS, 0, 0,
+-				    size, base_ptr, NUMA_NO_PREFERRED_NODE);
++    = (LPTSTR) MapViewOfFileEx (mem->shm_fd, FILE_MAP_ALL_ACCESS, 0, 0,
++				size, base_ptr);
+   if (mem->glbl.base == NULL)
+     {
+       perror ("MapViewOfFile failed");
