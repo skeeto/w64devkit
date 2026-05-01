@@ -260,7 +260,7 @@ RUN cat $PREFIX/src/gcc-*.patch | patch -d/dl/gcc -p1 \
         --disable-libstdcxx-verbose \
         --disable-dependency-tracking \
         --disable-nls \
-        --disable-lto \
+        --enable-lto \
         --disable-multilib \
         CFLAGS_FOR_TARGET="-O2" \
         CXXFLAGS_FOR_TARGET="-O2" \
@@ -369,6 +369,12 @@ RUN /dl/mpc/configure \
  && make -j$(nproc) \
  && make install
 
+COPY --from=dl-zstd /dl/zstd/ /dl/zstd/
+WORKDIR /dl/zstd/lib
+RUN make -j$(nproc) CC=$ARCH-gcc AR=$ARCH-ar CFLAGS="-O2" libzstd.a \
+ && cp libzstd.a /deps/lib/ \
+ && cp zstd.h zstd_errors.h zdict.h /deps/include/
+
 WORKDIR /mingw-headers
 RUN /dl/mingw/mingw-w64-headers/configure \
         --prefix=$PREFIX \
@@ -421,13 +427,14 @@ RUN echo 'BEGIN {print "pecoff"}' \
         --with-gmp=/deps \
         --with-mpc=/deps \
         --with-mpfr=/deps \
+        --with-zstd=/deps \
         --enable-languages=c,c++,fortran \
         --enable-libgomp \
         --enable-threads=posix \
         --enable-version-specific-runtime-libs \
         --disable-libstdcxx-verbose \
         --disable-dependency-tracking \
-        --disable-lto \
+        --enable-lto \
         --disable-multilib \
         --disable-nls \
         --disable-win32-registry \
@@ -655,13 +662,6 @@ RUN cat $PREFIX/src/ctags-*.patch | patch -p1 \
  && cp ctags.exe /out/bin/
 
 FROM cross AS build-zstd
-COPY --from=dl-zstd /dl/ /dl/
-
-WORKDIR /dl/zstd/lib
-RUN make -j$(nproc) CC=$ARCH-gcc AR=$ARCH-ar CFLAGS="-O2" libzstd.a \
- && cp libzstd.a /deps/lib/ \
- && cp zstd.h zstd_errors.h zdict.h /deps/include/
-
 WORKDIR /dl/zstd
 RUN make -j$(nproc) -C programs zstd \
         CC=$ARCH-gcc CFLAGS="-O2" LDFLAGS="-s" EXT=.exe \
