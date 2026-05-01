@@ -22,6 +22,8 @@ ARG BINUTILS_VERSION=2.46.0 \
     GCC_SHA256=50efb4d94c3397aff3b0d61a5abd748b4dd31d9d3f2ab7be05b171d36a510f79 \
     BDWGC_VERSION=8.2.8 \
     BDWGC_SHA256=7649020621cb26325e1fb5c8742590d92fb48ce5c259b502faf7d9fb5dabb160 \
+    LIBATOMIC_OPS_VERSION=7.8.2 \
+    LIBATOMIC_OPS_SHA256=d305207fe207f2b3fb5cb4c019da12b44ce3fcbc593dfd5080d867b1a2419b51 \
     GMP_VERSION=6.3.0 \
     GMP_SHA256=a3c2b80201b89e68616f4ad30bc66aee4927c3ce50e33929ca819d5c43538898 \
     MINGW_VERSION=14.0.0 \
@@ -35,6 +37,7 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
     https://ftp.gnu.org/gnu/binutils/binutils-$BINUTILS_VERSION.tar.xz \
     https://ftp.gnu.org/gnu/gcc/gcc-$GCC_VERSION/gcc-$GCC_VERSION.tar.xz \
     https://github.com/ivmai/bdwgc/releases/download/v$BDWGC_VERSION/gc-$BDWGC_VERSION.tar.gz \
+    https://github.com/ivmai/libatomic_ops/releases/download/v$LIBATOMIC_OPS_VERSION/libatomic_ops-$LIBATOMIC_OPS_VERSION.tar.gz \
     https://ftp.gnu.org/gnu/gmp/gmp-$GMP_VERSION.tar.xz \
     https://ftp.gnu.org/gnu/mpc/mpc-$MPC_VERSION.tar.xz \
     https://ftp.gnu.org/gnu/mpfr/mpfr-$MPFR_VERSION.tar.xz \
@@ -43,6 +46,7 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
       $BINUTILS_SHA256 binutils-$BINUTILS_VERSION.tar.xz \
       $GCC_SHA256 gcc-$GCC_VERSION.tar.xz \
       $BDWGC_SHA256 gc-$BDWGC_VERSION.tar.gz \
+      $LIBATOMIC_OPS_SHA256 libatomic_ops-$LIBATOMIC_OPS_VERSION.tar.gz \
       $GMP_SHA256 gmp-$GMP_VERSION.tar.xz \
       $MPC_SHA256 mpc-$MPC_VERSION.tar.xz \
       $MPFR_SHA256 mpfr-$MPFR_VERSION.tar.xz \
@@ -54,6 +58,8 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
  && tar xJf gcc-$GCC_VERSION.tar.xz -C gcc --strip-components=1 \
  && mkdir bdwgc \
  && tar xzf gc-$BDWGC_VERSION.tar.gz -C bdwgc --strip-components=1 \
+ && mkdir bdwgc/libatomic_ops \
+ && tar xzf libatomic_ops-$LIBATOMIC_OPS_VERSION.tar.gz -C bdwgc/libatomic_ops --strip-components=1 \
  && mkdir gmp \
  && tar xJf gmp-$GMP_VERSION.tar.xz -C gmp --strip-components=1 \
  && mkdir mpc \
@@ -315,6 +321,10 @@ RUN /dl/mingw/mingw-w64-libraries/winpthreads/configure \
         LDFLAGS="-s" \
  && make -j$(nproc) \
  && make install
+
+WORKDIR /x-gcc
+RUN make -j$(nproc) all-target-libgcc \
+ && make install-target-libgcc
 
 WORKDIR /x-bdwgc
 RUN /dl/bdwgc/configure \
