@@ -253,7 +253,7 @@ RUN cat $PREFIX/src/gcc-*.patch | patch -d/dl/gcc -p1 \
         --enable-static \
         --disable-shared \
         --with-pic \
-        --enable-languages=c,c++,fortran \
+        --enable-languages=c,c++,fortran,algol68 \
         --enable-libgomp \
         --enable-threads=posix \
         --enable-tls \
@@ -422,7 +422,7 @@ RUN echo 'BEGIN {print "pecoff"}' \
         --with-gmp=/deps \
         --with-mpc=/deps \
         --with-mpfr=/deps \
-        --enable-languages=c,c++,fortran \
+        --enable-languages=c,c++,fortran,algol68 \
         --enable-libgomp \
         --enable-threads=posix \
         --enable-tls \
