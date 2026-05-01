@@ -1,0 +1,39 @@
+diff --git a/libga68/ga68-posix.c b/libga68/ga68-posix.c
+--- a/libga68/ga68-posix.c
++++ b/libga68/ga68-posix.c
+@@ -28,10 +28,12 @@
+ #include <fcntl.h>  /* For open.  */
+ #include <unistd.h> /* For close and write.  */
+ #include <errno.h>  /* For errno.  */
++#ifndef _WIN32
+ #include <sys/socket.h>
+-#include <sys/stat.h> /* For struct stat */
+ #include <netinet/in.h>
+ #include <netdb.h> /* For gethostbyname.  */
++#endif
++#include <sys/stat.h> /* For struct stat */
+ #include <limits.h> /* For LLONG_MAX */
+ 
+ #define EOF_PSEUDO_CHARACTER -1
+@@ -371,6 +373,13 @@
+ {
+   size_t u8len;
+   char *host = _libga68_u32_to_u8 (str, len, stride, &u8len);
++#ifdef _WIN32
++  /* Windows sockets are not CRT file descriptors, so returning a SOCKET here
++     would break the POSIX prelude's read/write/close users.  */
++  _libga68_errno = ENOSYS;
++  _libga68_free_internal (host);
++  return -1;
++#else
+ 
+   /* Create a stream socket.  */
+   int fd = socket (AF_INET, SOCK_STREAM, 0);
+@@ -408,6 +420,7 @@ _libga68_posixfconnect (uint32_t *str, size_t len, size_t stride,
+   _libga68_free_internal (host);
+  error:
+   return -1;
++#endif
+ }
+ 
+ /* Implementation of the posix prelude `fsize'.  */

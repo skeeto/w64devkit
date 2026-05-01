@@ -18,8 +18,12 @@ COPY src/w64devkit.ico src/alias.c $PREFIX/src/
 FROM base AS dl-cross
 ARG BINUTILS_VERSION=2.46.0 \
     BINUTILS_SHA256=d75a94f4d73e7a4086f7513e67e439e8fcdcbb726ffe63f4661744e6256b2cf2 \
-    GCC_VERSION=15.2.0 \
-    GCC_SHA256=438fd996826b0c82485a29da03a72d71d6e3541a83ec702df4271f6fe025d24e \
+    GCC_VERSION=16.1.0 \
+    GCC_SHA256=50efb4d94c3397aff3b0d61a5abd748b4dd31d9d3f2ab7be05b171d36a510f79 \
+    BDWGC_VERSION=8.2.8 \
+    BDWGC_SHA256=7649020621cb26325e1fb5c8742590d92fb48ce5c259b502faf7d9fb5dabb160 \
+    LIBATOMIC_OPS_VERSION=7.8.2 \
+    LIBATOMIC_OPS_SHA256=d305207fe207f2b3fb5cb4c019da12b44ce3fcbc593dfd5080d867b1a2419b51 \
     GMP_VERSION=6.3.0 \
     GMP_SHA256=a3c2b80201b89e68616f4ad30bc66aee4927c3ce50e33929ca819d5c43538898 \
     MINGW_VERSION=14.0.0 \
@@ -32,6 +36,8 @@ WORKDIR /dl
 RUN curl --insecure --location --remote-name-all --remote-header-name \
     https://ftp.gnu.org/gnu/binutils/binutils-$BINUTILS_VERSION.tar.xz \
     https://ftp.gnu.org/gnu/gcc/gcc-$GCC_VERSION/gcc-$GCC_VERSION.tar.xz \
+    https://github.com/ivmai/bdwgc/releases/download/v$BDWGC_VERSION/gc-$BDWGC_VERSION.tar.gz \
+    https://github.com/ivmai/libatomic_ops/releases/download/v$LIBATOMIC_OPS_VERSION/libatomic_ops-$LIBATOMIC_OPS_VERSION.tar.gz \
     https://ftp.gnu.org/gnu/gmp/gmp-$GMP_VERSION.tar.xz \
     https://ftp.gnu.org/gnu/mpc/mpc-$MPC_VERSION.tar.xz \
     https://ftp.gnu.org/gnu/mpfr/mpfr-$MPFR_VERSION.tar.xz \
@@ -39,6 +45,8 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
  && printf '%s  %s\n' \
       $BINUTILS_SHA256 binutils-$BINUTILS_VERSION.tar.xz \
       $GCC_SHA256 gcc-$GCC_VERSION.tar.xz \
+      $BDWGC_SHA256 gc-$BDWGC_VERSION.tar.gz \
+      $LIBATOMIC_OPS_SHA256 libatomic_ops-$LIBATOMIC_OPS_VERSION.tar.gz \
       $GMP_SHA256 gmp-$GMP_VERSION.tar.xz \
       $MPC_SHA256 mpc-$MPC_VERSION.tar.xz \
       $MPFR_SHA256 mpfr-$MPFR_VERSION.tar.xz \
@@ -48,6 +56,10 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
  && tar xJf binutils-$BINUTILS_VERSION.tar.xz -C binutils --strip-components=1 \
  && mkdir gcc \
  && tar xJf gcc-$GCC_VERSION.tar.xz -C gcc --strip-components=1 \
+ && mkdir bdwgc \
+ && tar xzf gc-$BDWGC_VERSION.tar.gz -C bdwgc --strip-components=1 \
+ && mkdir bdwgc/libatomic_ops \
+ && tar xzf libatomic_ops-$LIBATOMIC_OPS_VERSION.tar.gz -C bdwgc/libatomic_ops --strip-components=1 \
  && mkdir gmp \
  && tar xJf gmp-$GMP_VERSION.tar.xz -C gmp --strip-components=1 \
  && mkdir mpc \
@@ -219,6 +231,7 @@ WORKDIR /x-binutils
 RUN /dl/binutils/configure \
         --prefix=/bootstrap \
         --with-sysroot=/bootstrap \
+        --with-target-bdw-gc=/bootstrap \
         --target=$ARCH \
         --disable-nls \
         --with-static-standard-libraries \
@@ -253,9 +266,10 @@ RUN cat $PREFIX/src/gcc-*.patch | patch -d/dl/gcc -p1 \
         --enable-static \
         --disable-shared \
         --with-pic \
-        --enable-languages=c,c++,fortran \
+        --enable-languages=c,c++,fortran,algol68 \
         --enable-libgomp \
         --enable-threads=posix \
+        --enable-tls \
         --enable-version-specific-runtime-libs \
         --disable-libstdcxx-verbose \
         --disable-dependency-tracking \
@@ -303,6 +317,24 @@ RUN /dl/mingw/mingw-w64-libraries/winpthreads/configure \
         --host=$ARCH \
         --enable-static \
         --disable-shared \
+        CFLAGS="-O2" \
+        LDFLAGS="-s" \
+ && make -j$(nproc) \
+ && make install
+
+WORKDIR /x-gcc
+RUN make -j$(nproc) all-target-libgcc \
+ && make install-target-libgcc
+
+WORKDIR /x-bdwgc
+RUN /dl/bdwgc/configure \
+        --prefix=/bootstrap \
+        --host=$ARCH \
+        --enable-static \
+        --disable-shared \
+        CC=$ARCH-gcc \
+        AR=$ARCH-ar \
+        RANLIB=$ARCH-ranlib \
         CFLAGS="-O2" \
         LDFLAGS="-s" \
  && make -j$(nproc) \
@@ -404,6 +436,20 @@ RUN /dl/mingw/mingw-w64-libraries/winpthreads/configure \
  && make -j$(nproc) \
  && make install
 
+WORKDIR /bdwgc
+RUN /dl/bdwgc/configure \
+        --prefix=$PREFIX \
+        --host=$ARCH \
+        --enable-static \
+        --disable-shared \
+        CC=$ARCH-gcc \
+        AR=$ARCH-ar \
+        RANLIB=$ARCH-ranlib \
+        CFLAGS="-O2" \
+        LDFLAGS="-s" \
+ && make -j$(nproc) \
+ && make install
+
 WORKDIR /gcc
 COPY src/crossgcc-*.patch $PREFIX/src/
 RUN echo 'BEGIN {print "pecoff"}' \
@@ -413,6 +459,7 @@ RUN echo 'BEGIN {print "pecoff"}' \
         --prefix=$PREFIX \
         --with-sysroot=$PREFIX \
         --with-native-system-header-dir=/include \
+        --with-target-bdw-gc=$PREFIX \
         --target=$ARCH \
         --host=$ARCH \
         --enable-static \
@@ -421,9 +468,10 @@ RUN echo 'BEGIN {print "pecoff"}' \
         --with-gmp=/deps \
         --with-mpc=/deps \
         --with-mpfr=/deps \
-        --enable-languages=c,c++,fortran \
+        --enable-languages=c,c++,fortran,algol68 \
         --enable-libgomp \
         --enable-threads=posix \
+        --enable-tls \
         --enable-version-specific-runtime-libs \
         --disable-libstdcxx-verbose \
         --disable-dependency-tracking \
