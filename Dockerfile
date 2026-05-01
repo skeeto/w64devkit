@@ -18,8 +18,8 @@ COPY src/w64devkit.ico src/alias.c $PREFIX/src/
 FROM base AS dl-cross
 ARG BINUTILS_VERSION=2.46.0 \
     BINUTILS_SHA256=d75a94f4d73e7a4086f7513e67e439e8fcdcbb726ffe63f4661744e6256b2cf2 \
-    GCC_VERSION=15.2.0 \
-    GCC_SHA256=438fd996826b0c82485a29da03a72d71d6e3541a83ec702df4271f6fe025d24e \
+    GCC_VERSION=16.1.0 \
+    GCC_SHA256=50efb4d94c3397aff3b0d61a5abd748b4dd31d9d3f2ab7be05b171d36a510f79 \
     GMP_VERSION=6.3.0 \
     GMP_SHA256=a3c2b80201b89e68616f4ad30bc66aee4927c3ce50e33929ca819d5c43538898 \
     MINGW_VERSION=14.0.0 \
@@ -256,6 +256,7 @@ RUN cat $PREFIX/src/gcc-*.patch | patch -d/dl/gcc -p1 \
         --enable-languages=c,c++,fortran \
         --enable-libgomp \
         --enable-threads=posix \
+        --enable-tls \
         --enable-version-specific-runtime-libs \
         --disable-libstdcxx-verbose \
         --disable-dependency-tracking \
@@ -424,6 +425,7 @@ RUN echo 'BEGIN {print "pecoff"}' \
         --enable-languages=c,c++,fortran \
         --enable-libgomp \
         --enable-threads=posix \
+        --enable-tls \
         --enable-version-specific-runtime-libs \
         --disable-libstdcxx-verbose \
         --disable-dependency-tracking \
