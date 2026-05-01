@@ -61,6 +61,17 @@ inc = \
   -Ivendor/cpp-httplib
 lib =
 
+vk_build_dir = vk-shaders
+vk_shaders_gen = $(vk_build_dir)/vulkan-shaders-gen.exe
+vk_shader_gen_src = $(wildcard \
+  ggml/src/ggml-vulkan/vulkan-shaders/*.cpp \
+)
+vk_shader_gen_obj = $(patsubst \
+  ggml/src/ggml-vulkan/vulkan-shaders/%.cpp, \
+  $(vk_build_dir)/%.cpp.gen.o, \
+  $(vk_shader_gen_src) \
+)
+
 dll = \
   $(addsuffix .o,$(wildcard \
       ggml/src/*.c \
@@ -90,15 +101,10 @@ exe = \
 
 ifdef VULKAN_SDK
   GLSLC = $(VULKAN_SDK)/Bin/glslc.exe
-  vk_shaders_gen = vulkan-shaders-gen.exe
-  vk_build_dir = vk-shaders
   vk_shader_header = $(vk_build_dir)/ggml-vulkan-shaders.hpp
   vk_shaders = $(wildcard \
     ggml/src/ggml-vulkan/vulkan-shaders/*.comp \
   )
-  vk_shader_gen_obj = $(addsuffix .gen.o,$(wildcard \
-    ggml/src/ggml-vulkan/vulkan-shaders/*.cpp \
-  ))
   vk_shader_objs = \
     $(patsubst %.comp,$(vk_build_dir)/%.comp.cpp.o,$(notdir $(vk_shaders)))
 
@@ -128,7 +134,7 @@ clean:
 	rm -f $(dll) $(exe) llama.def llama.dll llama.dll.a llama-server.exe \
 	   tools/server/index.html.hpp tools/server/bundle.js.hpp \
 	   tools/server/bundle.css.hpp tools/server/loading.html.hpp \
-	   w64dk-build-info.cpp w64dk-license.c $(vk_shaders_gen)
+	   w64dk-build-info.cpp w64dk-license.c vulkan-shaders-gen.exe
 	rm -rf $(vk_build_dir)
 
 .ONESHELL:  # needed for heredocs
@@ -187,11 +193,13 @@ ifdef VULKAN_SDK
 # variant, so parallelizing it spawns hundreds of glslc processes and fails
 .NOTPARALLEL: $(vk_shader_objs)
 
-%.cpp.gen.o: %.cpp
+$(vk_build_dir):
+	mkdir -p $@
+
+$(vk_build_dir)/%.cpp.gen.o: ggml/src/ggml-vulkan/vulkan-shaders/%.cpp | $(vk_build_dir)
 	$(HOST_CXX) -c -o $@ -std=c++17 -O2 \
 	  -Iggml/src/ggml-vulkan/vulkan-shaders $<
 $(vk_shaders_gen): $(vk_shader_gen_obj)
-	mkdir -p $(vk_build_dir)
 	$(HOST_CXX) -o $@ $(vk_shader_gen_obj)
 
 $(vk_shader_header): $(vk_shaders_gen) $(vk_shaders)
