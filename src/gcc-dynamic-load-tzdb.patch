@@ -1,0 +1,24 @@
+diff --git a/libstdc++-v3/src/c++20/tzdb.cc b/libstdc++-v3/src/c++20/tzdb.cc
+index d79b61ad673..7c223ac0faa 100644
+--- a/libstdc++-v3/src/c++20/tzdb.cc
++++ b/libstdc++-v3/src/c++20/tzdb.cc
+@@ -1775,6 +1775,19 @@ namespace std::chrono
+     string_view
+     detect_windows_zone() noexcept
+     {
++#if defined(_WIN32_WINNT) && _WIN32_WINNT < 0x0600
++      static const HMODULE kernel32 = LoadLibraryW(L"kernel32.dll");
++      using GetDynamicTimeZoneInformation_t =
++        DWORD (WINAPI *) (PDYNAMIC_TIME_ZONE_INFORMATION);
++      static auto *const GetDynamicTimeZoneInformation =
++        reinterpret_cast<GetDynamicTimeZoneInformation_t>(
++          GetProcAddress(kernel32, "GetDynamicTimeZoneInformation"));
++      // MSVC's implementation dynamically loads `icu.dll`. It won't
++      // work until Windows 10 v1903. So we simply "fail as expected".
++      if (!GetDynamicTimeZoneInformation)
++        return {};
++#endif
++
+       DYNAMIC_TIME_ZONE_INFORMATION information{};
+       if (GetDynamicTimeZoneInformation(&information) == TIME_ZONE_ID_INVALID)
+ 	return {};
