@@ -69,14 +69,14 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: w64devkit-x64-unsigned
+          name: ${{ steps.filename.outputs.archive }}.7z.exe
           path: ${{ steps.filename.outputs.archive }}.7z.exe
           archive: false
 
       - name: Upload source tarball
         uses: actions/upload-artifact@v7
         with:
-          name: source-tarball
+          name: source.tar
           path: source.tar
           archive: false
 
@@ -121,95 +121,66 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: w64devkit-x86-unsigned
+          name: ${{ steps.filename.outputs.archive }}.7z.exe
           path: ${{ steps.filename.outputs.archive }}.7z.exe
           archive: false
 
-  sign:
+  release:
     needs: [build-x64, build-x86]
     if: startsWith(github.ref, 'refs/tags/')
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     environment: release
 
     steps:
+      - name: Compute filenames
+        id: names
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          echo "x64=w64devkit-x64-$VERSION.7z.exe" >> "$GITHUB_OUTPUT"
+          echo "x86=w64devkit-x86-$VERSION.7z.exe" >> "$GITHUB_OUTPUT"
+
       - name: Download x64 executable
         uses: actions/download-artifact@v8
         with:
-          name: w64devkit-x64-unsigned
+          name: ${{ steps.names.outputs.x64 }}
 
       - name: Download x86 executable
         uses: actions/download-artifact@v8
         with:
-          name: w64devkit-x86-unsigned
-
-      - name: Azure login
-        uses: azure/login@v3
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          allow-no-subscriptions: true
-
-      - name: Sign executables
-        uses: azure/artifact-signing-action@v1.2.0
-        with:
-          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          endpoint: ${{ secrets.TRUSTED_SIGNING_ENDPOINT }}
-          signing-account-name: ${{ secrets.TRUSTED_SIGNING_ACCOUNT }}
-          certificate-profile-name: ${{ secrets.CERTIFICATE_PROFILE }}
-          files-folder: ${{ github.workspace }}
-          files-folder-filter: exe
-          file-digest: SHA256
-          timestamp-rfc3161: http://timestamp.acs.microsoft.com
-          timestamp-digest: SHA256
-
-      - name: Upload signed x64
-        uses: actions/upload-artifact@v7
-        with:
-          name: w64devkit-x64-signed
-          path: w64devkit-x64-*.7z.exe
-          archive: false
-
-      - name: Upload signed x86
-        uses: actions/upload-artifact@v7
-        with:
-          name: w64devkit-x86-signed
-          path: w64devkit-x86-*.7z.exe
-          archive: false
-
-  release:
-    needs: sign
-    if: startsWith(github.ref, 'refs/tags/')
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Download signed x64
-        uses: actions/download-artifact@v8
-        with:
-          name: w64devkit-x64-signed
-
-      - name: Download signed x86
-        uses: actions/download-artifact@v8
-        with:
-          name: w64devkit-x86-signed
+          name: ${{ steps.names.outputs.x86 }}
 
       - name: Download source tarball
         uses: actions/download-artifact@v8
         with:
-          name: source-tarball
+          name: source.tar
+
+      - name: Sign executables
+        uses: skeeto/aas-sign@v1.0.0
+        with:
+          endpoint:  ${{ secrets.TRUSTED_SIGNING_ENDPOINT }}
+          account:   ${{ secrets.TRUSTED_SIGNING_ACCOUNT }}
+          profile:   ${{ secrets.CERTIFICATE_PROFILE }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          files: |
+            ${{ steps.names.outputs.x64 }}
+            ${{ steps.names.outputs.x86 }}
 
       - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION=${GITHUB_REF_NAME#v}
-          DRAFT_FLAG=""
-          if ! [[ "$GITHUB_REF_NAME" == v* ]]; then
-            DRAFT_FLAG="--draft"
+          # Tags like vX.Y.Z-rcN are pipeline-test runs: publish as a
+          # draft prerelease so they don't trigger release immutability
+          # and can be deleted/retried freely.
+          FLAGS=()
+          if [[ "$VERSION" == *-rc* ]]; then
+            FLAGS+=(--draft --prerelease)
           fi
           gh release create "$GITHUB_REF_NAME" \
             --repo "$GITHUB_REPOSITORY" \
             --title "$VERSION" \
-            $DRAFT_FLAG \
+            "${FLAGS[@]}" \
             w64devkit-*.7z.exe \
             source.tar
