@@ -204,8 +204,8 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
  && tar xJf 7z$Z7_VERSION-src.tar.xz -C 7z
 
 FROM base AS dl-aas-sign
-ARG AAS_SIGN_VERSION=1.0.0 \
-    AAS_SIGN_SHA256=cd12b1de361bcd131cf2670e8316e87ec92f2219c32dbeffb01e27675f955c83
+ARG AAS_SIGN_VERSION=1.1.0 \
+    AAS_SIGN_SHA256=4ba127b0434f6e0f8af639e51a0c961e95b5adeb06391dd6ef02445e0b027c3f
 WORKDIR /dl
 RUN curl --insecure --location --remote-name-all --remote-header-name \
     https://github.com/skeeto/aas-sign/releases/download/v$AAS_SIGN_VERSION/aas-sign-$AAS_SIGN_VERSION.tar.gz \
