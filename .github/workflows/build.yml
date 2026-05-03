@@ -131,46 +131,78 @@ jobs:
     runs-on: ubuntu-latest
     environment: release
 
+    env:
+      AZURE_CLIENT_ID:   ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID:   ${{ secrets.AZURE_TENANT_ID }}
+      AAS_SIGN_ENDPOINT: ${{ secrets.TRUSTED_SIGNING_ENDPOINT }}
+      AAS_SIGN_ACCOUNT:  ${{ secrets.TRUSTED_SIGNING_ACCOUNT }}
+      AAS_SIGN_PROFILE:  ${{ secrets.CERTIFICATE_PROFILE }}
+
     steps:
-      - name: Compute filenames
-        id: names
+      - uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Compute version
+        id: filename
         run: |
           VERSION=${GITHUB_REF_NAME#v}
-          echo "x64=w64devkit-x64-$VERSION.7z.exe" >> "$GITHUB_OUTPUT"
-          echo "x86=w64devkit-x86-$VERSION.7z.exe" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Download x64 executable
-        uses: actions/download-artifact@v8
+      - name: Build signed image (x64)
+        uses: docker/build-push-action@v7
         with:
-          name: ${{ steps.names.outputs.x64 }}
+          context: .
+          target: signed
+          tags: w64devkit:x64-signed
+          load: true
+          cache-from: type=gha,scope=w64devkit-x64
+          cache-to: type=gha,scope=w64devkit-x64,mode=max
 
-      - name: Download x86 executable
-        uses: actions/download-artifact@v8
+      - name: Sign and pack (x64)
+        run: |
+          docker run --rm \
+            -e AZURE_CLIENT_ID -e AZURE_TENANT_ID \
+            -e AAS_SIGN_ENDPOINT -e AAS_SIGN_ACCOUNT -e AAS_SIGN_PROFILE \
+            -e ACTIONS_ID_TOKEN_REQUEST_URL -e ACTIONS_ID_TOKEN_REQUEST_TOKEN \
+            w64devkit:x64-signed \
+            > w64devkit-x64-${{ steps.filename.outputs.version }}.7z.exe
+          ls -lh w64devkit-x64-${{ steps.filename.outputs.version }}.7z.exe
+
+      - name: Apply x86 patch
+        run: patch -p1 -i src/variant-x86.patch
+
+      - name: Build signed image (x86)
+        uses: docker/build-push-action@v7
         with:
-          name: ${{ steps.names.outputs.x86 }}
+          context: .
+          target: signed
+          tags: w64devkit:x86-signed
+          load: true
+          cache-from: type=gha,scope=w64devkit-x86
+          cache-to: type=gha,scope=w64devkit-x86,mode=max
+
+      - name: Sign and pack (x86)
+        run: |
+          docker run --rm \
+            -e AZURE_CLIENT_ID -e AZURE_TENANT_ID \
+            -e AAS_SIGN_ENDPOINT -e AAS_SIGN_ACCOUNT -e AAS_SIGN_PROFILE \
+            -e ACTIONS_ID_TOKEN_REQUEST_URL -e ACTIONS_ID_TOKEN_REQUEST_TOKEN \
+            w64devkit:x86-signed \
+            > w64devkit-x86-${{ steps.filename.outputs.version }}.7z.exe
+          ls -lh w64devkit-x86-${{ steps.filename.outputs.version }}.7z.exe
 
       - name: Download source tarball
         uses: actions/download-artifact@v8
         with:
           name: source.tar
 
-      - name: Sign executables
-        uses: skeeto/aas-sign@v1.0.0
-        with:
-          endpoint:  ${{ secrets.TRUSTED_SIGNING_ENDPOINT }}
-          account:   ${{ secrets.TRUSTED_SIGNING_ACCOUNT }}
-          profile:   ${{ secrets.CERTIFICATE_PROFILE }}
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          files: |
-            ${{ steps.names.outputs.x64 }}
-            ${{ steps.names.outputs.x86 }}
-
       - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          VERSION=${GITHUB_REF_NAME#v}
+          VERSION=${{ steps.filename.outputs.version }}
           # Tags like vX.Y.Z-rcN are pipeline-test runs: publish as a
           # draft prerelease so they don't trigger release immutability
           # and can be deleted/retried freely.
