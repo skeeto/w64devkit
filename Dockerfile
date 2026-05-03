@@ -897,6 +897,12 @@ RUN printf "id ICON \"$PREFIX/src/w64devkit.ico\"" >w64devkit.rc \
 # with 7z, then signs the resulting concatenated SFX. All signing runs
 # at `docker run` time so secrets never enter the build cache.
 FROM final AS signed
+# aas-sign reaches GitHub OIDC and Azure over HTTPS at run time and
+# needs the system trust store. The build stages all pass --insecure
+# to curl, so ca-certificates isn't pulled in by base.
+RUN apt-get update \
+ && apt-get install --yes --no-install-recommends ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
 COPY --from=build-aas-sign /out/usr/local/bin/aas-sign /usr/local/bin/aas-sign
 COPY src/sign-and-pack.sh /
 CMD ["sh", "/sign-and-pack.sh"]
