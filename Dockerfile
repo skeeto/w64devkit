@@ -203,6 +203,16 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
  && mkdir 7z \
  && tar xJf 7z$Z7_VERSION-src.tar.xz -C 7z
 
+FROM base AS dl-aas-sign
+ARG AAS_SIGN_VERSION=1.1.0 \
+    AAS_SIGN_SHA256=4ba127b0434f6e0f8af639e51a0c961e95b5adeb06391dd6ef02445e0b027c3f
+WORKDIR /dl
+RUN curl --insecure --location --remote-name-all --remote-header-name \
+    https://github.com/skeeto/aas-sign/releases/download/v$AAS_SIGN_VERSION/aas-sign-$AAS_SIGN_VERSION.tar.gz \
+ && printf '%s  %s\n' $AAS_SIGN_SHA256 aas-sign-$AAS_SIGN_VERSION.tar.gz | sha256sum -c \
+ && mkdir aas-sign \
+ && tar xzf aas-sign-$AAS_SIGN_VERSION.tar.gz -C aas-sign --strip-components=1
+
 # Build cross-compiler
 
 FROM dl-cross AS cross
@@ -791,6 +801,17 @@ RUN sed -i s/CommCtrl/commctrl/ $(grep -Rl CommCtrl CPP/) \
            CPP/7zip/Bundles/SFXWin/resource.rc \
  && make -f $PREFIX/src/7z.mak -j$(nproc) CROSS=$ARCH-
 
+# aas-sign: native Linux x86_64 binary used at run time inside the
+# `signed` container. Built with the base image's Debian gcc (NOT the
+# cross compiler). mbedtls + nlohmann/json are vendored in the source
+# tarball, so no network or extra apt packages are required.
+FROM base AS build-aas-sign
+COPY --from=dl-aas-sign /dl/aas-sign /dl/aas-sign
+RUN cmake -B /aas-sign-build -S /dl/aas-sign -DCMAKE_BUILD_TYPE=Release \
+ && cmake --build /aas-sign-build -j$(nproc) \
+ && mkdir -p /out/usr/local/bin \
+ && cp /aas-sign-build/aas-sign /out/usr/local/bin/
+
 # Collect source tarballs
 FROM base AS source
 COPY --from=dl-cross /dl/*.* /source/
@@ -870,6 +891,24 @@ RUN printf "id ICON \"$PREFIX/src/w64devkit.ico\"" >w64devkit.rc \
         >>$PREFIX/COPYING.MinGW-w64-runtime.txt . \
  && cat /dl/mingw/mingw-w64-libraries/winpthreads/COPYING \
         >>$PREFIX/COPYING.MinGW-w64-runtime.txt \
- && echo $VERSION >$PREFIX/VERSION.txt \
- && 7z a -mx=9 -mtm=- w64devkit.7z $PREFIX
+ && echo $VERSION >$PREFIX/VERSION.txt
+
+# Release target: signs every PE in the toolchain (~250 files), packs
+# with 7z, then signs the resulting concatenated SFX. All signing runs
+# at `docker run` time so secrets never enter the build cache.
+FROM final AS signed
+# aas-sign reaches GitHub OIDC and Azure over HTTPS at run time and
+# needs the system trust store. The build stages all pass --insecure
+# to curl, so ca-certificates isn't pulled in by base.
+RUN apt-get update \
+ && apt-get install --yes --no-install-recommends ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+COPY --from=build-aas-sign /out/usr/local/bin/aas-sign /usr/local/bin/aas-sign
+COPY src/sign-and-pack.sh /
+CMD ["sh", "/sign-and-pack.sh"]
+
+# Default target: unsigned package, behaviorally identical to the old
+# `final` (which packed and cat'd the SFX).
+FROM final AS pack
+RUN 7z a -mx=9 -mtm=- w64devkit.7z $PREFIX
 CMD ["cat", "/7z/7z.sfx", "w64devkit.7z"]
