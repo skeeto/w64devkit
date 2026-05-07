@@ -146,8 +146,8 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
  && tar xzf zstd-$ZSTD_VERSION.tar.gz -C zstd --strip-components=1
 
 FROM base AS dl-ccache
-ARG CCACHE_VERSION=4.13.4 \
-    CCACHE_SHA256=4a7ef278b39d031b9ec524c0778d24bdb3e761940ed368060b54594f15559537 \
+ARG CCACHE_VERSION=4.13.6 \
+    CCACHE_SHA256=a7de667ca08cf67c3c8af9f213f6aa701a1188a2b3163fb74483858ce5e79fbb \
     XXHASH_VERSION=0.8.3 \
     XXHASH_SHA256=aae608dfe8213dfd05d909a57718ef82f30722c392344583d3f39050c7f29a80
 WORKDIR /dl
