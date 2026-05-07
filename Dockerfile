@@ -507,6 +507,12 @@ RUN ./configure \
  && $ARCH-gcc -nostartfiles -Oz -s -o /out/bin/uuidgen.exe \
         $PREFIX/src/uuidgen.c -lmemory
 
+FROM cross AS build-quilt
+COPY src/quilt.cpp $PREFIX/src/
+RUN mkdir -p /out/bin \
+ && $ARCH-g++ -std=c++20 -O2 -fno-exceptions -s \
+        -o /out/bin/quilt.exe $PREFIX/src/quilt.cpp
+
 # Build PDCurses once and reuse it for both gdb and ccmake.
 FROM cross AS build-pdcurses
 COPY --from=dl-pdcurses /dl/pdcurses /dl/pdcurses
@@ -836,6 +842,7 @@ FROM cross AS final
 ARG VERSION
 
 COPY --from=build-gendef /out/ $PREFIX/
+COPY --from=build-quilt /out/ $PREFIX/
 COPY --from=build-gdb /out/ $PREFIX/
 COPY --from=build-make /out/ $PREFIX/
 COPY --from=build-busybox /out/ $PREFIX/
@@ -880,8 +887,6 @@ RUN printf "id ICON \"$PREFIX/src/w64devkit.ico\"" >w64devkit.rc \
         -Oz -fno-asynchronous-unwind-tables -fno-builtin -Wl,--gc-sections \
         -s -nostdlib -o $PREFIX/bin/recycle.exe $PREFIX/src/recycle.c \
         -lkernel32 -lshell32 -lmemory \
- && $ARCH-g++ -std=c++20 -O2 -fno-exceptions -s -o $PREFIX/bin/quilt.exe \
-        $PREFIX/src/quilt.cpp \
  && $ARCH-gcc -DEXE=pkg-config.exe -DCMD=pkg-config \
         -Oz -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
         -o $PREFIX/bin/$ARCH-pkg-config.exe $PREFIX/src/alias.c -lkernel32 \
