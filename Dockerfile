@@ -103,8 +103,8 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
  && tar xzf make-$MAKE_VERSION.tar.gz -C make --strip-components=1
 
 FROM base AS dl-busybox
-ARG BUSYBOX_VERSION=FRP-5857-g3681e397f \
-    BUSYBOX_SHA256=3a1b3ecc813036d1be42aa71e8c4da9e2c8d9d1d6203d99e48a831b7a6647145
+ARG BUSYBOX_VERSION=FRP-6075-g169694ebd \
+    BUSYBOX_SHA256=44401413c86a839deeec3eba088af244a1594f18ff9fd0622811100e4cc2e7b4
 WORKDIR /dl
 RUN curl --insecure --location --remote-name-all --remote-header-name \
     https://frippery.org/files/busybox/busybox-w32-$BUSYBOX_VERSION.tgz \
@@ -589,6 +589,7 @@ RUN cat $PREFIX/src/busybox-*.patch | patch -p1 \
  && make mingw64u_defconfig \
  && sed -ri 's/^(CONFIG_AR)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_ASCII)=y/\1=n/' .config \
+ && sed -ri 's/^(CONFIG_CRON\w*)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_DPKG\w*)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_FTP\w*)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_LINK)=y/\1=n/' .config \
@@ -600,6 +601,7 @@ RUN cat $PREFIX/src/busybox-*.patch | patch -p1 \
  && sed -ri 's/^(CONFIG_TEST2)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_TSORT)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_UNLINK)=y/\1=n/' .config \
+ && sed -ri 's/^(CONFIG_UUIDGEN)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_VI)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_XXD)=y/\1=n/' .config \
  && make -j$(nproc) CROSS_COMPILE=$ARCH- \
@@ -614,7 +616,7 @@ RUN $ARCH-gcc -Oz -fno-asynchronous-unwind-tables -Wl,--gc-sections -s \
       bzip2 cal cat chattr chmod cksum clear cmp comm cp cpio crc32 cut date \
       dc dd df diff dirname dos2unix du echo ed egrep env expand expr factor \
       false fgrep find fold free fsync getopt grep groups gunzip gzip hd \
-      head hexdump httpd iconv id inotifyd install ipcalc jn kill killall \
+      head hexdump httpd iconv id inotifyd install ipcalc jn join kill killall \
       lash less ln logname ls lsattr lzcat lzma lzop lzopcat md5sum mkdir \
       mktemp mv nc nl nproc od paste patch pgrep pidof pipe_progress pkill \
       printenv printf ps pwd readlink realpath reset rev rm rmdir sed seq sh \
