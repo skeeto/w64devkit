@@ -14,6 +14,7 @@ Included tools:
 * [Vim][vim] : powerful text editor
 * [Universal Ctags][ctags] : source navigation
 * [Ccache][ccache] : compiler cache
+* [NSIS][nsis] : Windows installer compiler (`makensis`)
 
 It is an MSVCRT toolchain with pthreads, C++11 threads, and OpenMP. All
 included runtime components are static. **Docker is not required to use
@@ -244,6 +245,7 @@ binaries.
 [make]: https://www.gnu.org/software/make/
 [names]: https://learn.microsoft.com/en-us/cpp/build/reference/decorated-names
 [ninja]: https://ninja-build.org/
+[nsis]: https://nsis.sourceforge.io/
 [san2]: https://groups.google.com/forum/#!topic/address-sanitizer/q0e5EBVKZT4
 [san]: http://mingw-w64.org/doku.php/contribute#sanitizers_asan_tsan_usan
 [vim]: https://www.vim.org/

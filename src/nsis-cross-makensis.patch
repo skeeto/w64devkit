@@ -1,0 +1,96 @@
+Fix some NSIS bugs and add cross-compile support
+
+NSIS's SCons setup applies cross_env (the mingw cross-compile tool) to
+stub_env, plugin_env, and util_env, but NOT to makensis_env. makensis is
+built natively for the host (Linux) regardless of XGCC_W32_PREFIX. NSIS
+users typically build makensis natively on Windows and cross-compile the
+stubs/plugins/utilities when producing Windows installers from a Linux
+build host.
+
+w64devkit ships a Windows toolchain, so we need a Windows makensis.exe
+specifically. Apply cross_env(makensis_env) so makensis cross-compiles
+too, pin makensis's C++ standard to gnu++14, unconditionally link the
+version library, force the makensis zlib check onto its win32 branch,
+accept a plain libz.a alongside the import-lib variants in ZLIB_W32
+lookup so makensis can static-link zlib like the rest of w64devkit, and
+skip the Source/Tests SConscript.
+
+--- a/SCons/Config/gnu
++++ b/SCons/Config/gnu
+@@ -122,6 +122,8 @@
+ ### makensis environment
+
+ makensis_env = tdefenv.Clone()
++cross_env(makensis_env)
++makensis_env.Append(CXXFLAGS = ['-std=gnu++14'])
+
+ makensis_env.Append(CPPPATH = ['#$BUILD_CONFIG'])
+ 
+--- a/Source/build.cpp
++++ b/Source/build.cpp
+@@ -3744,3 +3744,5 @@
+   size_t io[] = { false, (size_t) path, pathcap }, cb;
+-  TinyGrowBuf inputbuf((IGrowBuf::size_type) (cb = FIELD_OFFSET(PROMPT_FILEPATH_DATA, Path[pathcap])));
++  TinyGrowBuf inputbuf((IGrowBuf::size_type) (cb =
++      FIELD_OFFSET(PROMPT_FILEPATH_DATA, Path)
++      + pathcap * sizeof(((PROMPT_FILEPATH_DATA*)0)->Path[0])));
+   PROMPT_FILEPATH_DATA *p = (PROMPT_FILEPATH_DATA*) inputbuf.get();
+@@ -4189,3 +4191,5 @@
+ {
+-  postbuild_cmd *p = (postbuild_cmd*) (new BYTE[FIELD_OFFSET(postbuild_cmd, cmd[_tcsclen(cmdstr)+!0])]);
++  postbuild_cmd *p = (postbuild_cmd*) (new BYTE[
++      FIELD_OFFSET(postbuild_cmd, cmd)
++      + (_tcsclen(cmdstr)+1) * sizeof(((postbuild_cmd*)0)->cmd[0])]);
+   p->next = NULL, _tcscpy(p->cmd, cmdstr);
+
+--- a/Source/SConscript
++++ b/Source/SConscript
+@@ -65,12 +65,11 @@
+ 
+ ##### Use available libraries
+ 
+-if env['PLATFORM'] == 'win32':
+-	# XXX will cause problems if makensis is cross compiled
+-	# on freebsd, libversion.a exists and gives trouble if linked
+-	libs += ['version']
++# w64devkit cross-compile: makensis is always built for Windows, so
++# always link the version library.
++libs += ['version']
+ 
+ AddAvailableLibs(env, libs)
+-AddZLib(env, env['PLATFORM'], 'install-compiler')
++AddZLib(env, 'win32', 'install-compiler')
+ 
+ ##### Defines
+ 
+--- a/SConstruct
++++ b/SConstruct
+@@ -541,4 +541,4 @@
+ 	))
+ 	# Search for import library of zlib for mingw or VisualC
+-	for importlib in ['libzdll.a', 'libz.dll.a', 'zdll.lib']:
++	for importlib in ['libzdll.a', 'libz.dll.a', 'libz.a', 'zdll.lib']:
+ 		defenv['ZLIB_W32_LIB'] = os.path.dirname(str(
+@@ -929,19 +929,12 @@
+ #######  Tests                                                     ###
+ ######################################################################
+ 
+-# test code
++# w64devkit cross-compile: tests removed. Source/Tests/SConscript
++# expects a host-runtime zlib that we don't supply, and we don't run
++# NSIS's self-tests anyway.
+ 
+ build_dir = '$BUILD_PREFIX/tests'
+ exports = {'env' : test_env.Clone()}
+-
+-defenv.SConscript(
+-	dirs = 'Source/Tests',
+-	duplicate = False,
+-	exports = exports,
+-	variant_dir = build_dir
+-)
+-
+-defenv.Ignore('$BUILD_PREFIX', '$BUILD_PREFIX/tests')
+ 
+ # test scripts
+ 
