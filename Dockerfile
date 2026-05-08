@@ -595,6 +595,8 @@ RUN cat $PREFIX/src/busybox-*.patch | patch -p1 \
  && make mingw64u_defconfig \
  && sed -ri 's/^(CONFIG_AR)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_ASCII)=y/\1=n/' .config \
+ && sed -ri -e 's/^(CONFIG_BASH_IS_ASH)=y/\1=n/' \
+            -e 's/^# (CONFIG_BASH_IS_NONE) is not set/\1=y/' .config \
  && sed -ri 's/^(CONFIG_CRON\w*)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_DPKG\w*)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_FTP\w*)=y/\1=n/' .config \
@@ -618,7 +620,7 @@ RUN cat $PREFIX/src/busybox-*.patch | patch -p1 \
 # Create BusyBox command aliases (like "busybox --install")
 RUN $ARCH-gcc -Oz -fno-asynchronous-unwind-tables -Wl,--gc-sections -s \
       -nostdlib -o alias.exe $PREFIX/src/busybox-alias.c -lkernel32 \
- && printf '%s\n' arch ash awk base32 base64 basename bash bc bunzip2 bzcat \
+ && printf '%s\n' arch ash awk base32 base64 basename bc bunzip2 bzcat \
       bzip2 cal cat chattr chmod cksum clear cmp comm cp cpio crc32 cut date \
       dc dd df diff dirname dos2unix du echo ed egrep env expand expr factor \
       false fgrep find fold free fsync getopt grep groups gunzip gzip hd \
