@@ -833,14 +833,26 @@ RUN sed -i s/CommCtrl/commctrl/ $(grep -Rl CommCtrl CPP/) \
 
 # aas-sign: native Linux x86_64 binary used at run time inside the
 # `signed` container. Built with the base image's Debian gcc (NOT the
-# cross compiler). mbedtls + nlohmann/json are vendored in the source
-# tarball, so no network or extra apt packages are required.
+# cross compiler).
 FROM base AS build-aas-sign
 COPY --from=dl-aas-sign /dl/aas-sign /dl/aas-sign
 RUN cmake -B /aas-sign-build -S /dl/aas-sign -DCMAKE_BUILD_TYPE=Release \
  && cmake --build /aas-sign-build -j$(nproc) \
  && mkdir -p /out/usr/local/bin \
  && cp /aas-sign-build/aas-sign /out/usr/local/bin/
+
+FROM cross AS build-aas-sign-w32
+COPY --from=dl-aas-sign /dl/aas-sign /dl/aas-sign
+RUN cmake -B /aas-sign-build-w32 -S /dl/aas-sign \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_SYSTEM_NAME=Windows \
+        -DCMAKE_C_COMPILER=$ARCH-gcc \
+        -DCMAKE_CXX_COMPILER=$ARCH-g++ \
+        -DCMAKE_RC_COMPILER=$ARCH-windres \
+        -DCMAKE_EXE_LINKER_FLAGS="-s" \
+ && cmake --build /aas-sign-build-w32 -j$(nproc) \
+ && mkdir -p /out$PREFIX/bin \
+ && cp /aas-sign-build-w32/aas-sign.exe /out$PREFIX/bin/
 
 FROM cross AS build-nsis
 COPY --from=dl-nsis /dl/nsis /dl/nsis
@@ -900,6 +912,7 @@ COPY --from=build-dcmake /out/ $PREFIX/
 COPY --from=build-cmake /out$PREFIX/ $PREFIX/
 COPY --from=build-7z /dl/7z/7z.sfx /7z/
 COPY --from=build-nsis /out$PREFIX/ $PREFIX/
+COPY --from=build-aas-sign-w32 /out$PREFIX/ $PREFIX/
 
 COPY src $PREFIX/src
 COPY etc $PREFIX/etc

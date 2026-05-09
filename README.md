@@ -15,6 +15,7 @@ Included tools:
 * [Universal Ctags][ctags] : source navigation
 * [Ccache][ccache] : compiler cache
 * [NSIS][nsis] : Windows installer compiler (`makensis`)
+* [aas-sign][aas-sign] : Authenticode signing via Azure Trusted Signing
 
 It is an MSVCRT toolchain with pthreads, C++11 threads, and OpenMP. All
 included runtime components are static. **Docker is not required to use
@@ -217,6 +218,7 @@ binaries.
 * [LLVM MinGW][llvm-mingw]: similar goals, but with LLVM
 
 
+[aas-sign]: https://github.com/skeeto/aas-sign
 [bb]: https://frippery.org/busybox/
 [break]: https://nullprogram.com/blog/2022/06/26/
 [bs]: https://www.rdegges.com/2016/i-dont-give-a-shit-about-licensing/
