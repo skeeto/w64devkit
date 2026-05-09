@@ -42,7 +42,7 @@
 @@ -605,3 +610,3 @@
  RUN cat $PREFIX/src/busybox-*.patch | patch -p1 \
 - && make mingw64u_defconfig \
-+ && make mingw64_defconfig \
++ && make mingw32w_defconfig \
   && sed -ri 's/^(CONFIG_AR)=y/\1=n/' .config \
 @@ -699,3 +704,3 @@
  RUN make -j$(nproc) -C programs zstd \
