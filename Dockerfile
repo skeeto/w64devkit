@@ -865,10 +865,10 @@ RUN sed -i 's/\r$//' Source/build.cpp \
  && scons -j$(nproc) \
         XGCC_W32_PREFIX=$ARCH- \
         TARGET_ARCH=amd64 \
-        NSIS_CONFIG_CONST_DATA_PATH=no \
         PREFIX=$PREFIX \
         PREFIX_BIN=$PREFIX/share/nsis/bin \
         PREFIX_DATA=$PREFIX/share/nsis \
+        NSIS_CONFIG_CONST_DATA_PATH=no \
         PREFIX_DEST=/out \
         SKIPDOC=all \
         SKIPUTILS="NSIS Menu,Makensisw,VPatch/Source/GenPat,MakeLangId,zip2exe" \
