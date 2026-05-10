@@ -1,0 +1,309 @@
+From 6dc8c3bf5a493f264595d950420fec221271fdd3 Mon Sep 17 00:00:00 2001
+From: Peter Damianov <peter0x44@disroot.org>
+Date: Sun, 10 May 2026 13:06:21 +0100
+Subject: [PATCH] gas: Add -mno-big-obj
+
+Add an inverse PE/COFF big object option so that toolchains which
+enable -mbig-obj by default can explicitly return to the regular COFF
+object format.  Keep the PE/COFF bigobj state and target-format
+selection in obj-coff, while target backends register the option using
+their existing option parsing style.
+
+gas/
+	* config/obj-coff.c (obj_coff_use_big_obj): Define.
+	(obj_coff_target_format): New function.
+	* config/obj-coff.h (obj_coff_use_big_obj): Declare.
+	(obj_coff_target_format): Declare.
+	* config/tc-aarch64.c (coff_aarch64_target_format): Use
+	obj_coff_target_format.
+	(aarch64_opts): Add mbig-obj and mno-big-obj.
+	* config/tc-i386.c (OPTION_MNO_BIG_OBJ): Define.
+	(md_longopts): Add mno-big-obj.
+	(md_parse_option): Handle it.
+	(md_show_usage): Document it.
+	(i386_target_format): Use obj_coff_target_format.
+	* doc/c-aarch64.texi: Document -mno-big-obj.
+	* doc/c-i386.texi: Likewise.
+	* testsuite/gas/pe/pe.exp: Run no-big-obj.
+	* testsuite/gas/pe/no-big-obj.d: New test.
+	* testsuite/gas/pe/no-big-obj.s: New test source.
+---
+ gas/config/obj-coff.c             | 11 +++++++++++
+ gas/config/obj-coff.h             |  3 +++
+ gas/config/tc-aarch64.c           | 28 +++++++---------------------
+ gas/config/tc-i386.c              | 20 +++++++++++---------
+ gas/doc/c-aarch64.texi            |  5 ++++-
+ gas/doc/c-i386.texi               |  7 +++++--
+ gas/testsuite/gas/pe/no-big-obj.d |  6 ++++++
+ gas/testsuite/gas/pe/no-big-obj.s |  6 ++++++
+ gas/testsuite/gas/pe/pe.exp       |  1 +
+ 9 files changed, 54 insertions(+), 33 deletions(-)
+ create mode 100644 gas/testsuite/gas/pe/no-big-obj.d
+ create mode 100644 gas/testsuite/gas/pe/no-big-obj.s
+
+diff --git a/gas/config/obj-coff.c b/gas/config/obj-coff.c
+index 30e3ca2e2c8..ce9a5da3f87 100644
+--- a/gas/config/obj-coff.c
++++ b/gas/config/obj-coff.c
+@@ -52,10 +52,21 @@ static symbolS *def_symbol_in_progress;
+ #ifdef TE_PE
+ /* PE weak alternate symbols begin with this string.  */
+ static const char weak_altprefix[] = ".weak.";
++
++/* Use big object file format.  */
++int obj_coff_use_big_obj = 0;
+ #endif /* TE_PE */
+ 
+ #include "obj-coff-seh.c"
+ 
++#ifdef TE_PE
++const char *
++obj_coff_target_format (const char *regular, const char *bigobj)
++{
++  return obj_coff_use_big_obj ? bigobj : regular;
++}
++#endif
++
+ typedef struct
+   {
+     unsigned long chunk_size;
+diff --git a/gas/config/obj-coff.h b/gas/config/obj-coff.h
+index 0b933f467b2..ee80ba9caec 100644
+--- a/gas/config/obj-coff.h
++++ b/gas/config/obj-coff.h
+@@ -114,6 +114,9 @@
+ #ifdef TE_PE
+ #define obj_set_weak_hook pecoff_obj_set_weak_hook
+ #define obj_clear_weak_hook pecoff_obj_clear_weak_hook
++
++extern int obj_coff_use_big_obj;
++extern const char *obj_coff_target_format (const char *, const char *);
+ #endif
+ 
+ #ifndef OBJ_COFF_MAX_AUXENTRIES
+diff --git a/gas/config/tc-aarch64.c b/gas/config/tc-aarch64.c
+index cd76163488c..bccf861d5ed 100644
+--- a/gas/config/tc-aarch64.c
++++ b/gas/config/tc-aarch64.c
+@@ -10328,11 +10328,6 @@ aarch64_after_parse_args (void)
+ #endif
+ }
+ 
+-#ifdef OBJ_COFF
+-/* Use big object file format.  */
+-static bool use_big_obj = false;
+-#endif
+-
+ #ifdef OBJ_ELF
+ const char *
+ elf64_aarch64_target_format (void)
+@@ -10352,7 +10347,8 @@ aarch64elf_frob_symbol (symbolS * symp, int *puntp)
+ const char *
+ coff_aarch64_target_format (void)
+ {
+-  return use_big_obj ? "pe-bigobj-aarch64-little" : "pe-aarch64-little";
++  return obj_coff_target_format ("pe-aarch64-little",
++				 "pe-bigobj-aarch64-little");
+ }
+ #endif
+ 
+@@ -10726,17 +10722,12 @@ const char md_shortopts[] = "m:";
+ #define OPTION_EL (OPTION_MD_BASE + 1)
+ #endif
+ #endif
+-#define OPTION_MBIG_OBJ (OPTION_MD_BASE + 2)
+-
+ const struct option md_longopts[] = {
+ #ifdef OPTION_EB
+   {"EB", no_argument, NULL, OPTION_EB},
+ #endif
+ #ifdef OPTION_EL
+   {"EL", no_argument, NULL, OPTION_EL},
+-#endif
+-#ifdef OBJ_COFF
+-  {"mbig-obj", no_argument, NULL, OPTION_MBIG_OBJ},
+ #endif
+   {NULL, no_argument, NULL, 0}
+ };
+@@ -10756,6 +10747,11 @@ static struct aarch64_option_table aarch64_opts[] = {
+   {"mbig-endian", N_("assemble for big-endian"), &target_big_endian, 1, NULL},
+   {"mlittle-endian", N_("assemble for little-endian"), &target_big_endian, 0,
+    NULL},
++#ifdef OBJ_COFF
++  {"mbig-obj", N_("generate big object files"), &obj_coff_use_big_obj, 1, NULL},
++  {"mno-big-obj", N_("generate regular object files"),
++   &obj_coff_use_big_obj, 0, NULL},
++#endif
+ #ifdef DEBUG_AARCH64
+   {"mdebug-dump", N_("temporary switch for dumping"), &debug_dump, 1, NULL},
+ #endif /* DEBUG_AARCH64 */
+@@ -11382,12 +11378,6 @@ md_parse_option (int c, const char *arg)
+       break;
+ #endif
+ 
+-#ifdef OBJ_COFF
+-    case OPTION_MBIG_OBJ:
+-      use_big_obj = true;
+-      break;
+-#endif
+-
+     case 'a':
+       /* Listing option.  Just ignore these, we don't support additional
+          ones.  */
+@@ -11461,10 +11451,6 @@ md_show_usage (FILE * fp)
+   -EL                     assemble code for a little-endian cpu\n"));
+ #endif
+ 
+-#ifdef OBJ_COFF
+-  fprintf (fp, _("\
+-  -mbig-obj               generate big object files\n"));
+-#endif
+ }
+ 
+ /* Parse a .cpu directive.  */
+diff --git a/gas/config/tc-i386.c b/gas/config/tc-i386.c
+index edc44a37345..49db1508dde 100644
+--- a/gas/config/tc-i386.c
++++ b/gas/config/tc-i386.c
+@@ -669,11 +669,6 @@ enum x86_elf_abi
+ static enum x86_elf_abi x86_elf_abi = I386_ABI;
+ #endif
+ 
+-#if defined (TE_PE) || defined (TE_PEP)
+-/* Use big object file format.  */
+-static int use_big_obj = 0;
+-#endif
+-
+ #ifdef OBJ_ELF
+ /* 1 if generating code for a shared library.  */
+ static int shared = 0;
+@@ -17249,6 +17244,7 @@ const char md_shortopts[] =
+ #define OPTION_MLFENCE_BEFORE_RET (OPTION_MD_BASE + 33)
+ #define OPTION_MUSE_UNALIGNED_VECTOR_MOVE (OPTION_MD_BASE + 34)
+ #define OPTION_MTLS_CHECK (OPTION_MD_BASE + 35)
++#define OPTION_MNO_BIG_OBJ (OPTION_MD_BASE + 36)
+ 
+ const struct option md_longopts[] =
+ {
+@@ -17282,6 +17278,7 @@ const struct option md_longopts[] =
+   {"mevexwig", required_argument, NULL, OPTION_MEVEXWIG},
+ # if defined (TE_PE) || defined (TE_PEP)
+   {"mbig-obj", no_argument, NULL, OPTION_MBIG_OBJ},
++  {"mno-big-obj", no_argument, NULL, OPTION_MNO_BIG_OBJ},
+ #endif
+   {"momit-lock-prefix", required_argument, NULL, OPTION_MOMIT_LOCK_PREFIX},
+   {"mfence-as-lock-add", required_argument, NULL, OPTION_MFENCE_AS_LOCK_ADD},
+@@ -17675,7 +17672,11 @@ md_parse_option (int c, const char *arg)
+ 
+ # if defined (TE_PE) || defined (TE_PEP)
+     case OPTION_MBIG_OBJ:
+-      use_big_obj = 1;
++      obj_coff_use_big_obj = 1;
++      break;
++
++    case OPTION_MNO_BIG_OBJ:
++      obj_coff_use_big_obj = 0;
+       break;
+ #endif
+ 
+@@ -18090,7 +18091,8 @@ md_show_usage (FILE *stream)
+ #endif
+ #if defined (TE_PE) || defined (TE_PEP)
+   fprintf (stream, _("\
+-  -mbig-obj               generate big object files\n"));
++  -mbig-obj               generate big object files\n\
++  -mno-big-obj            generate regular object files\n"));
+ #endif
+   fprintf (stream, _("\
+   -momit-lock-prefix=[no|yes] (default: no)\n\
+@@ -18202,9 +18204,9 @@ i386_target_format (void)
+       if (flag_code == CODE_64BIT)
+ 	{
+ 	  object_64bit = 1;
+-	  return use_big_obj ? "pe-bigobj-x86-64" : "pe-x86-64";
++	  return obj_coff_target_format ("pe-x86-64", "pe-bigobj-x86-64");
+ 	}
+-      return use_big_obj ? "pe-bigobj-i386" : "pe-i386";
++      return obj_coff_target_format ("pe-i386", "pe-bigobj-i386");
+ #endif
+ #ifdef OBJ_ELF
+     case bfd_target_elf_flavour:
+diff --git a/gas/doc/c-aarch64.texi b/gas/doc/c-aarch64.texi
+index 0620ad8f4d2..cb0d18f6a2a 100644
+--- a/gas/doc/c-aarch64.texi
++++ b/gas/doc/c-aarch64.texi
+@@ -128,9 +128,12 @@ extension options as the @option{-mcpu} option.  Unlike
+ @xref{AArch64 Extensions}.
+ 
+ @cindex @samp{-mbig-obj} option, AArch64
++@cindex @samp{-mno-big-obj} option, AArch64
+ @item -mbig-obj
++@itemx -mno-big-obj
+ On PE/COFF target this option forces the use of big object file
+-format, which allows more than 32768 sections.
++format, which allows more than 32768 sections.  The
++@samp{-mno-big-obj} option disables the use of big object file format.
+ 
+ @cindex @code{-mverbose-error} command-line option, AArch64
+ @item -mverbose-error
+diff --git a/gas/doc/c-i386.texi b/gas/doc/c-i386.texi
+index b25a4fbc70e..7e718a8b1b8 100644
+--- a/gas/doc/c-i386.texi
++++ b/gas/doc/c-i386.texi
+@@ -447,9 +447,13 @@ instructions.
+ 
+ @cindex @samp{-mbig-obj} option, i386
+ @cindex @samp{-mbig-obj} option, x86-64
++@cindex @samp{-mno-big-obj} option, i386
++@cindex @samp{-mno-big-obj} option, x86-64
+ @item -mbig-obj
++@itemx -mno-big-obj
+ On PE/COFF target this option forces the use of big object file
+-format, which allows more than 32768 sections.
++format, which allows more than 32768 sections.  The
++@samp{-mno-big-obj} option disables the use of big object file format.
+ 
+ @cindex @samp{-momit-lock-prefix=} option, i386
+ @cindex @samp{-momit-lock-prefix=} option, x86-64
+@@ -1848,4 +1852,3 @@ is an immediate mode expression and the second operand is a register.
+ This is just a shorthand, so that, multiplying @samp{%eax} by 69, for
+ example, can be done with @samp{imul $69, %eax} rather than @samp{imul
+ $69, %eax, %eax}.
+-
+diff --git a/gas/testsuite/gas/pe/no-big-obj.d b/gas/testsuite/gas/pe/no-big-obj.d
+new file mode 100644
+index 00000000000..06a134a1f8b
+--- /dev/null
++++ b/gas/testsuite/gas/pe/no-big-obj.d
+@@ -0,0 +1,6 @@
++#as: -mbig-obj -mno-big-obj
++#objdump: -f
++#name: PE no big obj
++
++.*: *file format pe-(aarch64-little|i386|x86-64)
++#...
+diff --git a/gas/testsuite/gas/pe/no-big-obj.s b/gas/testsuite/gas/pe/no-big-obj.s
+new file mode 100644
+index 00000000000..4b8b51df360
+--- /dev/null
++++ b/gas/testsuite/gas/pe/no-big-obj.s
+@@ -0,0 +1,6 @@
++	.file "no-big-obj.s"
++
++	.text
++	.globl foo
++foo:
++	.byte 0
+diff --git a/gas/testsuite/gas/pe/pe.exp b/gas/testsuite/gas/pe/pe.exp
+index e25de3cfa9d..79050f3728b 100644
+--- a/gas/testsuite/gas/pe/pe.exp
++++ b/gas/testsuite/gas/pe/pe.exp
+@@ -70,4 +70,5 @@ if {[istarget "aarch64-*-pe*"] || [istarget "aarch64-*-mingw*"]} {
+ 
+ if ([istarget "*-*-mingw*"]) then {
+ 	run_dump_test "big-obj"
++	run_dump_test "no-big-obj"
+ }
+-- 
+2.54.0
+
