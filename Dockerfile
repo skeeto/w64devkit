@@ -616,7 +616,6 @@ RUN cat $PREFIX/src/busybox-*.patch | patch -p1 \
  && sed -ri 's/^(CONFIG_ASCII)=y/\1=n/' .config \
  && sed -ri -e 's/^(CONFIG_BASH_IS_ASH)=y/\1=n/' \
             -e 's/^# (CONFIG_BASH_IS_NONE) is not set/\1=y/' .config \
- && sed -ri 's/^(CONFIG_CRON\w*)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_DPKG\w*)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_FEATURE_FAIL_IF_UTF8_MANIFEST_UNSUPPORTED)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_FTP\w*)=y/\1=n/' .config \
@@ -641,18 +640,18 @@ RUN cat $PREFIX/src/busybox-*.patch | patch -p1 \
 RUN $ARCH-gcc -Oz -fno-asynchronous-unwind-tables -Wl,--gc-sections -s \
       -nostdlib -o alias.exe $PREFIX/src/busybox-alias.c -lkernel32 \
  && printf '%s\n' arch ash awk base32 base64 basename bc bunzip2 bzcat \
-      bzip2 cal cat chattr chmod cksum clear cmp comm cp cpio crc32 cut date \
-      dc dd df diff dirname dos2unix du echo ed egrep env expand expr factor \
-      false fgrep find fold free fsync getopt grep groups gunzip gzip hd \
-      head hexdump httpd iconv id inotifyd install ipcalc jn join kill killall \
-      lash less ln logname ls lsattr lzcat lzma lzop lzopcat md5sum mkdir \
-      mktemp mv nc nl nproc od paste patch pgrep pidof pipe_progress pkill \
-      printenv printf ps pwd readlink realpath reset rev rm rmdir sed seq sh \
-      sha1sum sha256sum sha3sum sha512sum shred shuf sleep sort split \
-      ssl_client stat su sum sync tac tail tar tee test time timeout touch \
-      tr true truncate ts ttysize uname uncompress unexpand uniq unix2dos \
-      unlzma unlzop unxz unzip uptime usleep uudecode uuencode watch \
-      wc wget which whoami whois xargs xz xzcat yes zcat \
+      bzip2 cal cat chattr chmod cksum clear cmp comm cp cpio crc32 crond \
+      crontab cut date dc dd df diff dirname dos2unix du echo ed egrep env \
+      expand expr factor false fgrep find fold free fsync getopt grep groups \
+      gunzip gzip hd head hexdump httpd iconv id inotifyd install ipcalc jn \
+      join kill killall lash less ln logname ls lsattr lzcat lzma lzop \
+      lzopcat md5sum mkdir mktemp mv nc nl nproc od paste patch pgrep pidof \
+      pipe_progress pkill printenv printf ps pwd readlink realpath reset rev \
+      rm rmdir sed seq sh sha1sum sha256sum sha3sum sha512sum shred shuf \
+      sleep sort split ssl_client stat su sum sync tac tail tar tee test \
+      time timeout touch tr true truncate ts ttysize uname uncompress \
+      unexpand uniq unix2dos unlzma unlzop unxz unzip uptime usleep uudecode \
+      uuencode watch wc wget which whoami whois xargs xz xzcat yes zcat \
     | xargs -I{} cp alias.exe /out/bin/{}.exe
 
 FROM cross AS build-vim
