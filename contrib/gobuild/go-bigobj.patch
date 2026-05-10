@@ -1,0 +1,480 @@
+From a3c23cfacd9ab6d02d98a0426af7c52a965e4683 Mon Sep 17 00:00:00 2001
+From: Peter0x44 <peter0x44@disroot.org>
+Date: Fri, 26 Sep 2025 17:59:23 +0100
+Subject: [PATCH] debug/pe: add support for bigobj COFF format
+
+This adds support for parsing bigobj COFF files, which use a different
+header format with a 32-bit section count, and symbols with a 32 bit
+section number.
+
+This fixes linking bigobj COFF with cgo.
+
+Fixes #24341
+---
+ src/debug/pe/file.go   | 176 +++++++++++++++++++++++++++++++++++++----
+ src/debug/pe/pe.go     |  31 ++++++++
+ src/debug/pe/string.go |  13 ++-
+ src/debug/pe/symbol.go | 100 ++++++++++++++++-------
+ 4 files changed, 273 insertions(+), 47 deletions(-)
+
+diff --git a/src/debug/pe/file.go b/src/debug/pe/file.go
+index ed63a11cb6e98c..cbd49f7923bec4 100644
+--- a/src/debug/pe/file.go
++++ b/src/debug/pe/file.go
+@@ -29,7 +29,11 @@ import (
+ 
+ // A File represents an open PE file.
+ type File struct {
+-	FileHeader
++	// FileHeader is populated for regular COFF files
++	FileHeader *FileHeader
++	// BigObjHeader is populated for bigobj COFF files
++	BigObjHeader *BigObjHeader
++
+ 	OptionalHeader any // of type *OptionalHeader32 or *OptionalHeader64
+ 	Sections       []*Section
+ 	Symbols        []*Symbol    // COFF symbols with auxiliary symbol records removed
+@@ -39,6 +43,69 @@ type File struct {
+ 	closer io.Closer
+ }
+ 
++// IsBigObj reports whether the file is a bigobj COFF file.
++func (f *File) IsBigObj() bool {
++	return f.BigObjHeader != nil
++}
++
++// GetMachine returns the machine type from the appropriate header.
++func (f *File) GetMachine() uint16 {
++	if f.BigObjHeader != nil {
++		return f.BigObjHeader.Machine
++	}
++	return f.FileHeader.Machine
++}
++
++// GetNumberOfSections returns the number of sections from the appropriate header.
++func (f *File) GetNumberOfSections() uint32 {
++	if f.BigObjHeader != nil {
++		return f.BigObjHeader.NumberOfSections
++	}
++	return uint32(f.FileHeader.NumberOfSections)
++}
++
++// GetTimeDateStamp returns the timestamp from the appropriate header.
++func (f *File) GetTimeDateStamp() uint32 {
++	if f.BigObjHeader != nil {
++		return f.BigObjHeader.TimeDateStamp
++	}
++	return f.FileHeader.TimeDateStamp
++}
++
++// GetPointerToSymbolTable returns the symbol table pointer from the appropriate header.
++func (f *File) GetPointerToSymbolTable() uint32 {
++	if f.BigObjHeader != nil {
++		return f.BigObjHeader.PointerToSymbolTable
++	}
++	return f.FileHeader.PointerToSymbolTable
++}
++
++// GetNumberOfSymbols returns the number of symbols from the appropriate header.
++func (f *File) GetNumberOfSymbols() uint32 {
++	if f.BigObjHeader != nil {
++		return f.BigObjHeader.NumberOfSymbols
++	}
++	return f.FileHeader.NumberOfSymbols
++}
++
++// GetSizeOfOptionalHeader returns the optional header size from the appropriate header.
++// BigObj files don't have optional headers, so this returns 0 for them.
++func (f *File) GetSizeOfOptionalHeader() uint16 {
++	if f.BigObjHeader != nil {
++		return 0
++	}
++	return f.FileHeader.SizeOfOptionalHeader
++}
++
++// GetCharacteristics returns the characteristics from the appropriate header.
++// BigObj files don't have characteristics, so this returns 0 for them.
++func (f *File) GetCharacteristics() uint16 {
++	if f.BigObjHeader != nil {
++		return 0
++	}
++	return f.FileHeader.Characteristics
++}
++
+ // Open opens the named file using [os.Open] and prepares it for use as a PE binary.
+ func Open(name string) (*File, error) {
+ 	f, err := os.Open(name)
+@@ -68,6 +135,69 @@ func (f *File) Close() error {
+ 
+ // TODO(brainman): add Load function, as a replacement for NewFile, that does not call removeAuxSymbols (for performance)
+ 
++// isBigObjFormat detects if the reader contains a bigobj COFF file by checking
++// the signature and GUID. The reader position should be at the start of the COFF header.
++func isBigObjFormat(r io.ReadSeeker) (bool, error) {
++	currentPos, err := r.Seek(0, io.SeekCurrent)
++	if err != nil {
++		return false, err
++	}
++	defer r.Seek(currentPos, io.SeekStart)
++
++	// Read the first part of what could be a BigObjHeader
++	var sig struct {
++		Sig1          uint16
++		Sig2          uint16
++		Version       uint16
++		Machine       uint16
++		TimeDateStamp uint32
++		ClassID       [16]uint8
++	}
++
++	err = binary.Read(r, binary.LittleEndian, &sig)
++	if err != nil {
++		return false, err
++	}
++
++	if sig.Sig1 != BigObjSig1 || sig.Sig2 != BigObjSig2 {
++		return false, nil
++	}
++
++	if sig.ClassID != BigObjClassID {
++		return false, nil
++	}
++
++	return true, nil
++}
++
++// readCOFFHeader reads the appropriate COFF header type ("regular" or bigobj).
++// The unused header type will be nil
++func readCOFFHeader(sr *io.SectionReader, base int64) (*FileHeader, *BigObjHeader, error) {
++	_, err := sr.Seek(base, io.SeekStart)
++	if err != nil {
++		return nil, nil, err
++	}
++
++	isBigObj, err := isBigObjFormat(sr)
++	if err != nil {
++		return nil, nil, err
++	}
++
++	if isBigObj {
++		bigObjHeader := new(BigObjHeader)
++		if err := binary.Read(sr, binary.LittleEndian, bigObjHeader); err != nil {
++			return nil, nil, err
++		}
++		return nil, bigObjHeader, nil
++	} else {
++		fileHeader := new(FileHeader)
++		if err := binary.Read(sr, binary.LittleEndian, fileHeader); err != nil {
++			return nil, nil, err
++		}
++		return fileHeader, nil, nil
++	}
++}
++
+ // NewFile creates a new [File] for accessing a PE binary in an underlying reader.
+ func NewFile(r io.ReaderAt) (*File, error) {
+ 	f := new(File)
+@@ -89,11 +219,24 @@ func NewFile(r io.ReaderAt) (*File, error) {
+ 	} else {
+ 		base = int64(0)
+ 	}
+-	sr.Seek(base, io.SeekStart)
+-	if err := binary.Read(sr, binary.LittleEndian, &f.FileHeader); err != nil {
++	// Read appropriate header type - unused header will be nil
++	fileHeader, bigObjHeader, err := readCOFFHeader(sr, base)
++	if err != nil {
+ 		return nil, err
+ 	}
+-	switch f.FileHeader.Machine {
++	f.FileHeader = fileHeader
++	f.BigObjHeader = bigObjHeader
++
++	// Calculate header size based on actual type
++	var headerSize int
++	if f.BigObjHeader != nil {
++		headerSize = binary.Size(*f.BigObjHeader)
++	} else {
++		headerSize = binary.Size(*f.FileHeader)
++	}
++
++	// Validate machine type
++	switch f.GetMachine() {
+ 	case IMAGE_FILE_MACHINE_AMD64,
+ 		IMAGE_FILE_MACHINE_ARM64,
+ 		IMAGE_FILE_MACHINE_ARMNT,
+@@ -104,19 +247,17 @@ func NewFile(r io.ReaderAt) (*File, error) {
+ 		IMAGE_FILE_MACHINE_UNKNOWN:
+ 		// ok
+ 	default:
+-		return nil, fmt.Errorf("unrecognized PE machine: %#x", f.FileHeader.Machine)
++		return nil, fmt.Errorf("unrecognized PE machine: %#x", f.GetMachine())
+ 	}
+ 
+-	var err error
+-
+ 	// Read string table.
+-	f.StringTable, err = readStringTable(&f.FileHeader, sr)
++	f.StringTable, err = readStringTableFromFile(f, sr)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+ 
+ 	// Read symbol table.
+-	f.COFFSymbols, err = readCOFFSymbols(&f.FileHeader, sr)
++	f.COFFSymbols, err = readCOFFSymbols(f, sr)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+@@ -126,20 +267,23 @@ func NewFile(r io.ReaderAt) (*File, error) {
+ 	}
+ 
+ 	// Seek past file header.
+-	_, err = sr.Seek(base+int64(binary.Size(f.FileHeader)), io.SeekStart)
++	_, err = sr.Seek(base+int64(headerSize), io.SeekStart)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+ 
+-	// Read optional header.
+-	f.OptionalHeader, err = readOptionalHeader(sr, f.FileHeader.SizeOfOptionalHeader)
+-	if err != nil {
+-		return nil, err
++	// Read optional header (only for regular COFF files).
++	if !f.IsBigObj() {
++		f.OptionalHeader, err = readOptionalHeader(sr, f.GetSizeOfOptionalHeader())
++		if err != nil {
++			return nil, err
++		}
+ 	}
+ 
+ 	// Process sections.
+-	f.Sections = make([]*Section, f.FileHeader.NumberOfSections)
+-	for i := 0; i < int(f.FileHeader.NumberOfSections); i++ {
++	numSections := f.GetNumberOfSections()
++	f.Sections = make([]*Section, numSections)
++	for i := uint32(0); i < numSections; i++ {
+ 		sh := new(SectionHeader32)
+ 		if err := binary.Read(sr, binary.LittleEndian, sh); err != nil {
+ 			return nil, err
+diff --git a/src/debug/pe/pe.go b/src/debug/pe/pe.go
+index 51001bd2b3b6be..987685febea4b0 100644
+--- a/src/debug/pe/pe.go
++++ b/src/debug/pe/pe.go
+@@ -14,6 +14,37 @@ type FileHeader struct {
+ 	Characteristics      uint16
+ }
+ 
++// BigObjHeader represents the ANON_OBJECT_HEADER_BIGOBJ structure
++// used in bigobj COFF format. This format allows for more than 65535 sections.
++type BigObjHeader struct {
++	Sig1                 uint16 // Must be 0x0
++	Sig2                 uint16 // Must be 0xFFFF
++	Version              uint16 // Currently 2
++	Machine              uint16
++	TimeDateStamp        uint32
++	ClassID              [16]uint8 // GUID that identifies this as bigobj format
++	SizeOfData           uint32
++	Flags                uint32
++	MetaDataSize         uint32
++	MetaDataOffset       uint32
++	NumberOfSections     uint32 // 32-bit field (vs 16-bit in regular COFF)
++	PointerToSymbolTable uint32
++	NumberOfSymbols      uint32
++}
++
++// BigObj signature constants
++const (
++	BigObjSig1    = 0x0
++	BigObjSig2    = 0xFFFF
++	BigObjVersion = 2
++)
++
++// The GUID that identifies a file as bigobj format
++var BigObjClassID = [16]uint8{
++	0xC7, 0xA1, 0xBA, 0xD1, 0xEE, 0xBA, 0xA9, 0x4B,
++	0xAF, 0x20, 0xFA, 0xF6, 0x6A, 0xA4, 0xDC, 0xB8,
++}
++
+ type DataDirectory struct {
+ 	VirtualAddress uint32
+ 	Size           uint32
+diff --git a/src/debug/pe/string.go b/src/debug/pe/string.go
+index 6cd08aed7152e7..bcdf40e663144f 100644
+--- a/src/debug/pe/string.go
++++ b/src/debug/pe/string.go
+@@ -25,12 +25,19 @@ func cstring(b []byte) string {
+ // StringTable is a COFF string table.
+ type StringTable []byte
+ 
+-func readStringTable(fh *FileHeader, r io.ReadSeeker) (StringTable, error) {
++// readStringTableFromFile reads string table using the File struct
++func readStringTableFromFile(f *File, r io.ReadSeeker) (StringTable, error) {
+ 	// COFF string table is located right after COFF symbol table.
+-	if fh.PointerToSymbolTable <= 0 {
++	if f.GetPointerToSymbolTable() <= 0 {
+ 		return nil, nil
+ 	}
+-	offset := fh.PointerToSymbolTable + COFFSymbolSize*fh.NumberOfSymbols
++
++	var symbolSize uint32 = COFFSymbolSize
++	if f.IsBigObj() {
++		symbolSize = BigObjSymbolSize
++	}
++
++	offset := f.GetPointerToSymbolTable() + symbolSize*f.GetNumberOfSymbols()
+ 	_, err := r.Seek(int64(offset), io.SeekStart)
+ 	if err != nil {
+ 		return nil, fmt.Errorf("fail to seek to string table: %v", err)
+diff --git a/src/debug/pe/symbol.go b/src/debug/pe/symbol.go
+index 80acebe9f1f40b..614a6556662c54 100644
+--- a/src/debug/pe/symbol.go
++++ b/src/debug/pe/symbol.go
+@@ -14,23 +14,66 @@ import (
+ )
+ 
+ const COFFSymbolSize = 18
++const BigObjSymbolSize = 20
+ 
+ // COFFSymbol represents single COFF symbol table record.
++// NOTE: This is actually the format of a bigobj COFF symbol.
++// The only difference between a bigobj symbol and regular symbol
++// is that the SectionNumber is 32-bits.
+ type COFFSymbol struct {
+ 	Name               [8]uint8
+ 	Value              uint32
+-	SectionNumber      int16
++	SectionNumber      int32 // bigobj format (this field is 32 bits, rather than 16)
+ 	Type               uint16
+ 	StorageClass       uint8
+ 	NumberOfAuxSymbols uint8
+ }
+ 
++// rawCOFFSymbol represents a COFF symbol as stored in a regular COFF file
++type rawCOFFSymbol struct {
++	Name               [8]uint8
++	Value              uint32
++	SectionNumber      int16 // 16-bit in regular COFF
++	Type               uint16
++	StorageClass       uint8
++	NumberOfAuxSymbols uint8
++}
++
++// readBigObjSymbol reads a single symbol from bigobj COFF format (20 bytes)
++func readBigObjSymbol(r io.ReadSeeker) (COFFSymbol, error) {
++	var sym COFFSymbol
++	err := binary.Read(r, binary.LittleEndian, &sym)
++	return sym, err
++}
++
++// readRegularSymbol reads a single symbol from regular COFF format (18 bytes) and converts to COFFSymbol
++func readRegularSymbol(r io.ReadSeeker) (COFFSymbol, error) {
++	var rawSym rawCOFFSymbol
++	err := binary.Read(r, binary.LittleEndian, &rawSym)
++	if err != nil {
++		return COFFSymbol{}, err
++	}
++
++	sym := COFFSymbol{
++		Name:               rawSym.Name,
++		Value:              rawSym.Value,
++		SectionNumber:      int32(rawSym.SectionNumber), // Extend to 32 bits
++		Type:               rawSym.Type,
++		StorageClass:       rawSym.StorageClass,
++		NumberOfAuxSymbols: rawSym.NumberOfAuxSymbols,
++	}
++	return sym, nil
++}
++
+ // readCOFFSymbols reads in the symbol table for a PE file, returning
+-// a slice of COFFSymbol objects. The PE format includes both primary
+-// symbols (whose fields are described by COFFSymbol above) and
+-// auxiliary symbols; all symbols are 18 bytes in size. The auxiliary
+-// symbols for a given primary symbol are placed following it in the
+-// array, e.g.
++// a slice of COFFSymbol objects containing both primary and auxiliary symbols.
++// In a regular COFF file, each symbol is 18 bytes, with a 16-bit SectionNumber field.
++// In a bigobj COFF file, each symbol is 20 bytes, with a 32-bit SectionNumber field.
++//
++// The COFF symbol table contains both primary symbols and auxiliary symbols.
++// Auxiliary symbols immediately follow their associated primary symbol in both
++// the binary data and the returned slice.
++// In the binary format, symbols are arranged like this:
+ //
+ //	...
+ //	k+0:  regular sym k
+@@ -48,44 +91,45 @@ type COFFSymbol struct {
+ //
+ // At the moment this package only provides APIs for looking at
+ // aux symbols of format 5 (associated with section definition symbols).
+-func readCOFFSymbols(fh *FileHeader, r io.ReadSeeker) ([]COFFSymbol, error) {
+-	if fh.PointerToSymbolTable == 0 {
++func readCOFFSymbols(f *File, r io.ReadSeeker) ([]COFFSymbol, error) {
++	if f.GetPointerToSymbolTable() == 0 {
+ 		return nil, nil
+ 	}
+-	if fh.NumberOfSymbols <= 0 {
++	if f.GetNumberOfSymbols() <= 0 {
+ 		return nil, nil
+ 	}
+-	_, err := r.Seek(int64(fh.PointerToSymbolTable), io.SeekStart)
++	_, err := r.Seek(int64(f.GetPointerToSymbolTable()), io.SeekStart)
+ 	if err != nil {
+ 		return nil, fmt.Errorf("fail to seek to symbol table: %v", err)
+ 	}
+-	c := saferio.SliceCap[COFFSymbol](uint64(fh.NumberOfSymbols))
++	c := saferio.SliceCap[COFFSymbol](uint64(f.GetNumberOfSymbols()))
+ 	if c < 0 {
+ 		return nil, errors.New("too many symbols; file may be corrupt")
+ 	}
+ 	syms := make([]COFFSymbol, 0, c)
+ 	naux := 0
+-	for k := uint32(0); k < fh.NumberOfSymbols; k++ {
++
++	isBigObj := f.IsBigObj()
++
++	for k := uint32(0); k < f.GetNumberOfSymbols(); k++ {
+ 		var sym COFFSymbol
++
++		if isBigObj {
++			sym, err = readBigObjSymbol(r)
++		} else {
++			sym, err = readRegularSymbol(r)
++		}
++		if err != nil {
++			return nil, fmt.Errorf("fail to read symbol table: %v", err)
++		}
++
+ 		if naux == 0 {
+-			// Read a primary symbol.
+-			err = binary.Read(r, binary.LittleEndian, &sym)
+-			if err != nil {
+-				return nil, fmt.Errorf("fail to read symbol table: %v", err)
+-			}
+-			// Record how many auxiliary symbols it has.
++			// This is a primary symbol
++			// Record how many auxilliary symbols it has
+ 			naux = int(sym.NumberOfAuxSymbols)
+ 		} else {
+-			// Read an aux symbol. At the moment we assume all
+-			// aux symbols are format 5 (obviously this doesn't always
+-			// hold; more cases will be needed below if more aux formats
+-			// are supported in the future).
++			// This is an auxilliary symbol
+ 			naux--
+-			aux := (*COFFSymbolAuxFormat5)(unsafe.Pointer(&sym))
+-			err = binary.Read(r, binary.LittleEndian, aux)
+-			if err != nil {
+-				return nil, fmt.Errorf("fail to read symbol table: %v", err)
+-			}
+ 		}
+ 		syms = append(syms, sym)
+ 	}
+@@ -151,7 +195,7 @@ func removeAuxSymbols(allsyms []COFFSymbol, st StringTable) ([]*Symbol, error) {
+ type Symbol struct {
+ 	Name          string
+ 	Value         uint32
+-	SectionNumber int16
++	SectionNumber int32
+ 	Type          uint16
+ 	StorageClass  uint8
+ }
