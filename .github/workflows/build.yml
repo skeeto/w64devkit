@@ -32,8 +32,9 @@ jobs:
         id: filename
         run: |
           GIT_VERSION="$(git describe --tags --always)"
-          echo "version=${GIT_VERSION:1}" >> $GITHUB_OUTPUT
-          echo "archive=w64devkit-$ARCH-${GIT_VERSION:1}" >> $GITHUB_OUTPUT
+          VERSION="${GIT_VERSION#v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "archive=w64devkit-$ARCH-$VERSION" >> $GITHUB_OUTPUT
 
       - name: Build image
         uses: docker/build-push-action@v7
@@ -45,6 +46,7 @@ jobs:
           cache-to: type=gha,scope=w64devkit-${{ env.ARCH }},mode=max
 
       - name: Build source image
+        if: startsWith(github.ref, 'refs/tags/')
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -60,6 +62,7 @@ jobs:
           ls -lh ${{ steps.filename.outputs.archive }}.7z.exe
 
       - name: Extract source tarball
+        if: startsWith(github.ref, 'refs/tags/')
         run: |
           docker run --rm w64devkit:source tar cf - \
             --sort=name --mtime='1970-01-01' --owner=0 --group=0 --numeric-owner \
@@ -74,6 +77,7 @@ jobs:
           archive: false
 
       - name: Upload source tarball
+        if: startsWith(github.ref, 'refs/tags/')
         uses: actions/upload-artifact@v7
         with:
           name: source.tar
@@ -100,8 +104,9 @@ jobs:
         id: filename
         run: |
           GIT_VERSION="$(git describe --tags --always)"
-          echo "version=${GIT_VERSION:1}" >> $GITHUB_OUTPUT
-          echo "archive=w64devkit-$ARCH-${GIT_VERSION:1}" >> $GITHUB_OUTPUT
+          VERSION="${GIT_VERSION#v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "archive=w64devkit-$ARCH-$VERSION" >> $GITHUB_OUTPUT
 
       - name: Build image
         uses: docker/build-push-action@v7
