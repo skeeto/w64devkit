@@ -257,7 +257,7 @@ RUN printf '#include <crtdefs.h>\n#if __has_include_next(<stddef.h>)\n#include_n
  && /dl/mingw/mingw-w64-headers/configure \
         --prefix=/bootstrap \
         --host=$ARCH \
-        --with-default-msvcrt=msvcrt-os \
+        --with-default-msvcrt=ucrt \
  && make -j$(nproc) \
  && make install
 
@@ -309,7 +309,7 @@ RUN /dl/mingw/mingw-w64-crt/configure \
         --prefix=/bootstrap \
         --with-sysroot=/bootstrap \
         --host=$ARCH \
-        --with-default-msvcrt=msvcrt-os \
+        --with-default-msvcrt=ucrt \
         --disable-dependency-tracking \
         --disable-lib32 \
         --enable-lib64 \
@@ -404,7 +404,7 @@ RUN /dl/mingw/mingw-w64-headers/configure \
         --prefix=$PREFIX \
         --host=$ARCH \
         --enable-idl \
-        --with-default-msvcrt=msvcrt-os \
+        --with-default-msvcrt=ucrt \
  && make -j$(nproc) \
  && make install
 
@@ -413,7 +413,7 @@ RUN /dl/mingw/mingw-w64-crt/configure \
         --prefix=$PREFIX \
         --with-sysroot=$PREFIX \
         --host=$ARCH \
-        --with-default-msvcrt=msvcrt-os \
+        --with-default-msvcrt=ucrt \
         --disable-dependency-tracking \
         --disable-lib32 \
         --enable-lib64 \

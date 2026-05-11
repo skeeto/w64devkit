@@ -6,7 +6,7 @@
 +ARG ARCH=i686-w64-mingw32
  ENV ARCH=$ARCH
 @@ -260,2 +260,3 @@
-         --with-default-msvcrt=msvcrt-os \
+         --with-default-msvcrt=ucrt \
 +        --with-default-win32-winnt=0x0501 \
   && make -j$(nproc) \
 @@ -272,2 +273,3 @@
@@ -21,7 +21,7 @@
 +        --disable-lib64 \
          CFLAGS="-O2" \
 @@ -399,2 +401,3 @@
-         --with-default-msvcrt=msvcrt-os \
+         --with-default-msvcrt=ucrt \
 +        --with-default-win32-winnt=0x0501 \
   && make -j$(nproc) \
 @@ -409,4 +412,4 @@
