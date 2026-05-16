@@ -1,18 +1,19 @@
 #!/bin/sh
-# Build Go from source on Windows using w64devkit.
+# Build Go from source on Windows using w64devkit, or on Linux.
 # Bootstraps from Go 1.4 through intermediate versions up to the latest.
 #
 # Usage: ./bootstrap-go-toolchain.sh [INSTALL_DIR]
 #   INSTALL_DIR  Where to install the final Go toolchain (default: ./go)
 #
-# Prerequisites: w64devkit in PATH (provides gcc, wget, tar, patch, sh)
+# Prerequisites:
+#   gcc, wget, tar, patch, sha256sum
 #
 # The final version is patched with go-bigobj.patch located next to
 # this script before building.
 # Tarballs are verified against the SHA-256 values embedded below.
 #
 # Bootstrap chain (per https://go.dev/doc/install/source):
-#   Go 1.4  -> built with C compiler (gcc from w64devkit)
+#   Go 1.4  -> built with C compiler
 #   Go 1.17 -> built with Go 1.4
 #   Go 1.20 -> built with Go 1.17
 #   Go 1.22 -> built with Go 1.20
@@ -23,8 +24,23 @@
 
 set -e
 
-# The Windows bootstrap breaks if GOBIN is present in the environment.
+# The bootstrap breaks on some platforms if GOBIN is present in the environment.
 unset GOBIN
+
+HOST_OS="$(uname -s)"
+
+case "$HOST_OS" in
+    Linux*)
+        MAKE_COMMAND=./make.bash
+        ;;
+    MINGW*|MSYS*|CYGWIN*|Windows_NT)
+        MAKE_COMMAND="cmd /c make.bat"
+        ;;
+    *)
+        printf 'Unsupported host OS: %s\n' "$HOST_OS" >&2
+        exit 1
+        ;;
+esac
 
 # --- Version configuration (update as needed) ---
 BOOTSTRAP_VERSIONS="1.17.13 1.20.14 1.22.12 1.24.6"
@@ -88,6 +104,7 @@ download() {
 }
 
 echo "Go bootstrap build"
+echo "  Build host:  $HOST_OS"
 echo "  Install to: $INSTALL"
 echo ""
 
@@ -111,7 +128,7 @@ rm -rf "$BUILD/go1.4"
 mkdir -p "$BUILD/go1.4"
 tar xf "$DOWNLOADS/go1.4-branch.tar.gz" -C "$BUILD/go1.4" --strip-components=1
 cd "$BUILD/go1.4/src"
-CGO_ENABLED=0 cmd /c make.bat
+CGO_ENABLED=0 $MAKE_COMMAND
 
 PREV="$BUILD/go1.4"
 
@@ -123,7 +140,7 @@ for v in $BOOTSTRAP_VERSIONS; do
     mkdir -p "$BUILD/go${v}"
     tar xf "$DOWNLOADS/go${v}.src.tar.gz" -C "$BUILD/go${v}" --strip-components=1
     cd "$BUILD/go${v}/src"
-    CGO_ENABLED=0 GOROOT_BOOTSTRAP="$PREV" cmd /c make.bat
+    CGO_ENABLED=0 GOROOT_BOOTSTRAP="$PREV" $MAKE_COMMAND
     PREV="$BUILD/go${v}"
 done
 
@@ -138,7 +155,7 @@ printf "Applying %s\n" "$(basename "$PATCH_FILE")"
 (cd "$BUILD/go${FINAL_VERSION}" && patch -p1 < "$PATCH_FILE")
 
 cd "$BUILD/go${FINAL_VERSION}/src"
-CGO_ENABLED=1 GOROOT_BOOTSTRAP="$PREV" cmd /c make.bat
+CGO_ENABLED=1 GOROOT_BOOTSTRAP="$PREV" $MAKE_COMMAND
 
 # Install
 echo ""
