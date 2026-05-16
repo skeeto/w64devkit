@@ -46,7 +46,7 @@ def = \
   -DGGML_COMMIT='"$(ggml_commit)"' \
   -DGGML_USE_CPU \
   -DGGML_VERSION='"$(ggml_version)"' \
-  -DLLAMA_BUILD_WEBUI \
+  -DLLAMA_BUILD_UI \
   -DLLAMA_USE_HTTPLIB
 inc = \
   -I. \
@@ -57,9 +57,15 @@ inc = \
   -Iinclude \
   -Isrc \
   -Itools/mtmd \
+  -Itools/ui \
   -Ivendor \
   -Ivendor/cpp-httplib
 lib =
+
+ui_dist = build/tools/ui/dist
+ui_stamp = $(ui_dist)/.llama.mak.stamp
+ui_assets = index.html bundle.js bundle.css loading.html
+ui_url = https://huggingface.co/buckets/ggml-org/llama-ui/resolve/latest
 
 vk_build_dir = vk-shaders
 vk_shaders_gen = $(vk_build_dir)/vulkan-shaders-gen.exe
@@ -89,6 +95,7 @@ exe = \
   tools/mtmd/mtmd-helper.cpp.o \
   tools/mtmd/mtmd-image.cpp.o \
   tools/mtmd/mtmd.cpp.o \
+  tools/ui/ui.cpp.o \
   w64dk-build-info.cpp.o \
   w64dk-license.c.o \
   $(addsuffix .o,$(wildcard \
@@ -132,12 +139,10 @@ llama.dll.a: llama.def
 
 clean:
 	rm -f $(dll) $(exe) llama.def llama.dll llama.dll.a llama-server.exe \
-	   tools/server/index.html.hpp tools/server/bundle.js.hpp \
-	   tools/server/bundle.css.hpp tools/server/loading.html.hpp \
+	   tools/ui/index.html.hpp tools/ui/bundle.js.hpp \
+	   tools/ui/bundle.css.hpp tools/ui/loading.html.hpp \
 	   w64dk-build-info.cpp w64dk-license.c vulkan-shaders-gen.exe
-	rm -rf $(vk_build_dir)
-
-.ONESHELL:  # needed for heredocs
+	rm -rf $(vk_build_dir) $(ui_dist)
 
 w64dk-build-info.cpp: common/build-info.cpp.in
 	bnum=`git rev-list --count HEAD 2>/dev/null || printf 0`; \
@@ -155,32 +160,55 @@ w64dk-build-info.cpp.o: w64dk-build-info.cpp
 
 licenses = LICENSE $(wildcard licenses/LICENSE-*)
 w64dk-license.c: $(licenses)
-	cat >$@ <<-EOF
-	const char *LICENSES[] = {
-	$$(for f in $(licenses); do
-	    printf '    "%s", (char[]){\n' "$${f##*-}"
-	    printf '        #embed "%s"\n' "$$f"
-	    printf '        , 0\n'
-	    printf '    },\n'
-	done)
-	    0
-	};
-	EOF
+	{ \
+	  printf 'const char *LICENSES[] = {\n'; \
+	  for f in $(licenses); do \
+	    printf '    "%s", (char[]){\n' "$${f##*-}"; \
+	    printf '        #embed "%s"\n' "$$f"; \
+	    printf '        , 0\n'; \
+	    printf '    },\n'; \
+	  done; \
+	  printf '    0\n};\n'; \
+	} >$@
 
-tools/server/index.html.hpp: tools/server/public/index.html
-	cd tools/server/public/ && xxd -i index.html >../index.html.hpp
-tools/server/bundle.js.hpp: tools/server/public/bundle.js
-	cd tools/server/public/ && xxd -i bundle.js >../bundle.js.hpp
-tools/server/bundle.css.hpp: tools/server/public/bundle.css
-	cd tools/server/public/ && xxd -i bundle.css >../bundle.css.hpp
-tools/server/loading.html.hpp: tools/server/public/loading.html
-	cd tools/server/public/ && xxd -i loading.html >../loading.html.hpp
-tools/server/server-http.cpp.o: \
-  tools/server/server.cpp \
-  tools/server/index.html.hpp \
-  tools/server/bundle.js.hpp \
-  tools/server/bundle.css.hpp \
-  tools/server/loading.html.hpp
+$(ui_stamp): tools/ui/package.json tools/ui/package-lock.json
+	mkdir -p $(ui_dist)
+	if test -f $(ui_dist)/index.html \
+	     && test -f $(ui_dist)/bundle.js \
+	     && test -f $(ui_dist)/bundle.css \
+	     && test -f $(ui_dist)/loading.html; then \
+	    :; \
+	  elif command -v npm >/dev/null 2>&1 \
+	       && npm --version >/dev/null 2>&1 \
+	       && (cd tools/ui && npm install && npm run build); then \
+	    :; \
+	  elif command -v wget >/dev/null 2>&1; then \
+	    ok=1; \
+	    for asset in $(ui_assets); do \
+	      wget -O $(ui_dist)/$$asset.tmp "$(ui_url)/$$asset?download=true" \
+	        && mv $(ui_dist)/$$asset.tmp $(ui_dist)/$$asset \
+	        || { ok=0; rm -f $(ui_dist)/$$asset.tmp; break; }; \
+	    done; \
+	  fi
+	test -f $(ui_dist)/index.html
+	test -f $(ui_dist)/bundle.js
+	test -f $(ui_dist)/bundle.css
+	test -f $(ui_dist)/loading.html
+	touch $@
+
+tools/ui/index.html.hpp: $(ui_stamp)
+	cd $(ui_dist) && xxd -i index.html >../../../../tools/ui/index.html.hpp
+tools/ui/bundle.js.hpp: $(ui_stamp)
+	cd $(ui_dist) && xxd -i bundle.js >../../../../tools/ui/bundle.js.hpp
+tools/ui/bundle.css.hpp: $(ui_stamp)
+	cd $(ui_dist) && xxd -i bundle.css >../../../../tools/ui/bundle.css.hpp
+tools/ui/loading.html.hpp: $(ui_stamp)
+	cd $(ui_dist) && xxd -i loading.html >../../../../tools/ui/loading.html.hpp
+tools/ui/ui.cpp.o: \
+  tools/ui/index.html.hpp \
+  tools/ui/bundle.js.hpp \
+  tools/ui/bundle.css.hpp \
+  tools/ui/loading.html.hpp
 
 llama.def: $(dll)
 	printf 'LIBRARY llama\nEXPORTS\n' >$@
