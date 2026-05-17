@@ -664,7 +664,7 @@ RUN cat $PREFIX/src/vim-*.patch | patch -p1 \
  && ARCH= make -C src -j$(nproc) -f Make_ming.mak CC="$ARCH-gcc -std=gnu17" \
         OPTIMIZE=SPEED STATIC_STDCPLUS=yes HAS_GCC_EH=no \
         UNDER_CYGWIN=yes CROSS=yes CROSS_COMPILE=$ARCH- \
-        FEATURES=HUGE VIMDLL=yes NETBEANS=no WINVER=0x0501 \
+        FEATURES=HUGE VIMDLL=yes NETBEANS=no XPM=no WINVER=0x0501 \
  && $ARCH-strip src/vimrun.exe \
  && rm -rf runtime/tutor/tutor.* \
  && mkdir -p /out/bin /out/share \
