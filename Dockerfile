@@ -891,6 +891,7 @@ COPY --from=dl-ninja /dl/*.* /source/
 COPY --from=dl-cmake /dl/*.* /source/
 COPY --from=dl-dcmake /dl/*.* /source/
 COPY --from=dl-7z /dl/*.* /source/
+COPY --from=dl-aas-sign /dl/*.* /source/
 COPY --from=dl-nsis /dl/*.* /source/
 
 # Pack up a release
