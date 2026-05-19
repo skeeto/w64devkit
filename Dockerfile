@@ -422,6 +422,12 @@ RUN /dl/mingw/mingw-w64-crt/configure \
  && make -j$(nproc) \
  && make install
 
+COPY src/threads.c $PREFIX/src/
+COPY src/threads.h $PREFIX/include/
+RUN $ARCH-gcc -c -Oz -I$PREFIX/include/ \
+        -ffunction-sections -Wa,--no-pad-sections $PREFIX/src/threads.c \
+ && $ARCH-ar r $PREFIX/lib/libmingwex.a threads.o
+
 WORKDIR /winpthreads
 RUN /dl/mingw/mingw-w64-libraries/winpthreads/configure \
         --prefix=$PREFIX \
