@@ -201,6 +201,12 @@ libraries have paths containing spaces.
   to examine GCC-incompatible binaries, potentially to make some use of
   them anyway.
 
+* [`make2compdb`][make2compdb]: generates a `compile_commands.json` JSON
+  Compilation Database from `make` build system output. Use `-Bwn` and
+  pipe the the output of `make` into this program:
+
+      $ make -Bwn | make2compdb >compile_commands.json
+
 * `recycle`: sends files and folders straight to the recycle bin. Faster
   than `rm -rf` and reversible. Composes well with Storage Sense automatic
   delection of old Recycle Bin items.
@@ -271,6 +277,7 @@ binaries.
 [lic2]: https://sourceforge.net/p/mingw-w64/mingw-w64/ci/master/tree/mingw-w64-libraries/winpthreads/COPYING
 [llvm-mingw]: https://github.com/mstorsjo/llvm-mingw
 [make]: https://www.gnu.org/software/make/
+[make2compdb]: https://github.com/skeeto/w64devkit/issues/251
 [names]: https://learn.microsoft.com/en-us/cpp/build/reference/decorated-names
 [ninja]: https://ninja-build.org/
 [nsis]: https://nsis.sourceforge.io/
