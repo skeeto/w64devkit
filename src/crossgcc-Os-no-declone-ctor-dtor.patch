@@ -1,0 +1,26 @@
+Drop -fdeclone-ctor-dtor from -Os
+
+GCC -Os codegen emits a call-site reference for a std::basic_string ctor
+that no callee under any configuration emits. Reproduction:
+
+    #include <string>
+    #include <vector>
+    struct S { std::string a; };
+    void f(std::vector<S>& v, S&& s) { v.push_back(std::move(s)); }
+    int main() {}
+
+Then in GCC 16 (standard build, any host):
+
+    $ gcc -Os example.cc
+
+Error: undefined reference to std::__cxx11::basic_string<…>::basic_string(…)
+
+--- a/gcc/c-family/c-opts.cc
++++ b/gcc/c-family/c-opts.cc
+@@ -1098,5 +1098,5 @@
+   /* Declone C++ 'structors if -Os.  */
+   if (flag_declone_ctor_dtor == -1)
+-    flag_declone_ctor_dtor = optimize_size;
++    flag_declone_ctor_dtor = 0;
+ 
+   if (flag_abi_compat_version == 1)
