@@ -373,7 +373,9 @@ RUN case "$ARCH" in \
         --includedir=include \
         --libdir=lib \
  && meson compile -C /x-mcfgthread/build \
- && meson install -C /x-mcfgthread/build
+ && meson install -C /x-mcfgthread/build \
+ && rm -f /bootstrap/bin/libmcfgthread*.dll \
+          /bootstrap/lib/libmcfgthread*.dll.a
 
 WORKDIR /x-gcc
 RUN make -j$(nproc) \
@@ -519,7 +521,9 @@ RUN case "$ARCH" in \
         --includedir=include \
         --libdir=lib \
  && meson compile -C /mcfgthread/build \
- && meson install -C /mcfgthread/build
+ && meson install -C /mcfgthread/build \
+ && rm -f $PREFIX/bin/libmcfgthread*.dll \
+          $PREFIX/lib/libmcfgthread*.dll.a
 
 WORKDIR /gcc
 COPY src/crossgcc-*.patch $PREFIX/src/
