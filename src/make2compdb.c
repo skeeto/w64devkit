@@ -483,26 +483,15 @@ static Str str_duplicate(Arena *perm, Str to_copy)
 
 static Str str_concat(Arena *perm, Str head, Str tail)
 {
-    if (head.ptr == NULL && memory_is_in_arena(*perm, (byte *)tail.ptr)) {
-        // This is an optimisation if you're trying to concat to an empty slice.
-        //
-        //      Str a = {0};
-        //      Str b = return_some_str(arena);
-        //      a = str_concat(a, b); //< no str_duplicate
-        //
-        head = tail;
-    }
-    else {
-        byte *head_position = (head.len > 0) ? (byte *)(head.ptr + head.len) : NULL;
+    byte *head_position = (head.len > 0) ? (byte *)(head.ptr + head.len) : NULL;
 
-        if (head_position != perm->cursor) {
-            // If `head` is not at the end of the arena, we need copy it to make the concat operation possible.
-            head = str_duplicate(perm, head);
-        }
-
-        assert((byte *)(head.ptr + head.len) == perm->cursor);
-        head.len += str_duplicate(perm, tail).len;
+    if (head_position != perm->cursor) {
+        // If `head` is not at the end of the arena, we need copy it to make the concat operation possible.
+        head = str_duplicate(perm, head);
     }
+
+    assert((byte *)(head.ptr + head.len) == perm->cursor);
+    head.len += str_duplicate(perm, tail).len;
     return head;
 }
 
@@ -3226,9 +3215,10 @@ static Str os_cwd_read(Arena *perm)
 {
     isize count = GetCurrentDirectoryW(0, NULL);
     Str16 dir16 = ALLOC_SLICE(perm, count, dir16);
+    count       = GetCurrentDirectoryW(to_i32(dir16.len), dir16.ptr);
 
-    count = GetCurrentDirectoryW(to_i32(dir16.len), dir16.ptr);
-    assert(count == (dir16.len - 1));
+    dir16.len -= 1; // We don't care about the '\0'.
+    assert(count == dir16.len);
     return utf8_from_utf16(perm, dir16);
 }
 
