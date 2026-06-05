@@ -173,12 +173,6 @@ typedef struct {
     byte *end;
 } Arena;
 
-static b32 memory_is_in_arena(Arena a, byte *mem)
-{
-    if (!mem) return 0;
-    return a.start <= mem && mem <= a.end;
-}
-
 static Arena arena_init(isize capacity, byte memory[static capacity])
 {
     Arena a  = {0};
