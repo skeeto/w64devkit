@@ -1,0 +1,35 @@
+diff --git a/gcc/algol68/a68-imports.cc b/gcc/algol68/a68-imports.cc
+--- a/gcc/algol68/a68-imports.cc
++++ b/gcc/algol68/a68-imports.cc
+@@ -1290,6 +1290,7 @@ a68_decode_moifs (const char *data, size_t size, const char **errstr)
+ {
+   MOIF_T *moif_list = NO_MOIF;
+   size_t pos = 0;
++  bool decoded_moif = false;
+ 
+   uint8_t magic1, magic2;
+   uint16_t version;
+@@ -1297,6 +1298,15 @@ a68_decode_moifs (const char *data, size_t size, const char **errstr)
+ 
+   while (pos < size)
+     {
++      if (decoded_moif)
++	{
++	  /* Object sections may carry NUL alignment padding after each module.  */
++	  while (pos < size && data[pos] == '\0')
++	    pos++;
++	  if (pos == size)
++	    break;
++	}
++
+       MOIF_T *moif = a68_moif_new (NULL /* name */);
+       NEXT (moif) = moif_list;
+       moif_list = moif;
+@@ -1335,6 +1345,7 @@ a68_decode_moifs (const char *data, size_t size, const char **errstr)
+ 	 This installs the resulting tags in MOIF.  */
+       if (!a68_decode_extracts (moif, encoded_modes, data, size, pos, &pos, errstr))
+ 	goto decode_error;
++      decoded_moif = true;
+ 
+       /* We don't need the encoded modes anymore.  */
+       for (auto entry : encoded_modes)
