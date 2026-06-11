@@ -6,8 +6,8 @@ ARG PREFIX
 ENV PREFIX=$PREFIX
 
 RUN apt-get update && apt-get install --yes --no-install-recommends \
-  build-essential cmake curl libgmp-dev libmpc-dev libmpfr-dev m4 p7zip-full \
-  python3 scons
+       build-essential cmake curl libgmp-dev libmpc-dev libmpfr-dev m4 meson \
+       ninja-build p7zip-full python3 scons
 
 COPY src/w64devkit.ico src/alias.c $PREFIX/src/
 
@@ -23,6 +23,8 @@ ARG BINUTILS_VERSION=2.46.1 \
     GCC_SHA256=50efb4d94c3397aff3b0d61a5abd748b4dd31d9d3f2ab7be05b171d36a510f79 \
     GMP_VERSION=6.3.0 \
     GMP_SHA256=a3c2b80201b89e68616f4ad30bc66aee4927c3ce50e33929ca819d5c43538898 \
+       MCFGTHREAD_VERSION=2.3-ga.2 \
+       MCFGTHREAD_SHA256=dc83df1382787580e23eb2f9c37fdc5b789abde7a3f298931ad798221418ecde \
     MINGW_VERSION=14.0.0 \
     MINGW_SHA256=6eaf921d9eb987d3820b364ea9775bc19b965ec81490b6fdd716526c28e1995c \
     MPC_VERSION=1.4.1 \
@@ -37,10 +39,14 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
     https://ftp.gnu.org/gnu/mpc/mpc-$MPC_VERSION.tar.xz \
     https://ftp.gnu.org/gnu/mpfr/mpfr-$MPFR_VERSION.tar.xz \
     https://downloads.sourceforge.net/project/mingw-w64/mingw-w64/mingw-w64-release/mingw-w64-v$MINGW_VERSION.tar.bz2 \
+ && curl --insecure --location \
+         --output mcfgthread-$MCFGTHREAD_VERSION.tar.gz \
+         https://github.com/lhmouse/mcfgthread/archive/refs/tags/v$MCFGTHREAD_VERSION.tar.gz \
  && printf '%s  %s\n' \
       $BINUTILS_SHA256 binutils-$BINUTILS_VERSION.tar.xz \
       $GCC_SHA256 gcc-$GCC_VERSION.tar.xz \
       $GMP_SHA256 gmp-$GMP_VERSION.tar.xz \
+         $MCFGTHREAD_SHA256 mcfgthread-$MCFGTHREAD_VERSION.tar.gz \
       $MPC_SHA256 mpc-$MPC_VERSION.tar.xz \
       $MPFR_SHA256 mpfr-$MPFR_VERSION.tar.xz \
       $MINGW_SHA256 mingw-w64-v$MINGW_VERSION.tar.bz2 \
@@ -55,6 +61,9 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
  && tar xJf mpc-$MPC_VERSION.tar.xz -C mpc --strip-components=1 \
  && mkdir mpfr \
  && tar xJf mpfr-$MPFR_VERSION.tar.xz -C mpfr --strip-components=1 \
+ && mkdir mcfgthread \
+ && tar xzf mcfgthread-$MCFGTHREAD_VERSION.tar.gz -C mcfgthread \
+        --strip-components=1 \
  && mkdir mingw \
  && tar xjf mingw-w64-v$MINGW_VERSION.tar.bz2 -C mingw --strip-components=1
 
@@ -276,7 +285,7 @@ RUN cat $PREFIX/src/gcc-*.patch | patch -d/dl/gcc -p1 \
         --with-pic \
         --enable-languages=c,c++,fortran \
         --enable-libgomp \
-        --enable-threads=posix \
+       --enable-threads=mcf \
         --enable-tls \
         --enable-version-specific-runtime-libs \
         --disable-libstdcxx-verbose \
@@ -329,6 +338,44 @@ RUN /dl/mingw/mingw-w64-libraries/winpthreads/configure \
         LDFLAGS="-s" \
  && make -j$(nproc) \
  && make install
+
+WORKDIR /x-mcfgthread
+RUN case "$ARCH" in \
+        i686-*) cpu_family=x86; cpu=i686 ;; \
+        x86_64-*) cpu_family=x86_64; cpu=x86_64 ;; \
+        *) printf 'Unsupported ARCH for mcfgthread: %s\n' "$ARCH" >&2; exit 1 ;; \
+    esac \
+ && printf '%s\n' \
+        '[binaries]' \
+        "c = '$ARCH-gcc'" \
+        "cpp = '$ARCH-g++'" \
+        "ar = '$ARCH-ar'" \
+        "objcopy = '$ARCH-objcopy'" \
+        "strip = '$ARCH-strip'" \
+        "windres = '$ARCH-windres'" \
+        "dlltool = '$ARCH-dlltool'" \
+        '' \
+        '[host_machine]' \
+        "system = 'windows'" \
+        "cpu_family = '$cpu_family'" \
+        "cpu = '$cpu'" \
+        "endian = 'little'" \
+        '' \
+        '[properties]' \
+        'skip_sanity_check = true' \
+      >/tmp/mcfgthread-cross.txt \
+ && meson setup /x-mcfgthread/build /dl/mcfgthread \
+        --buildtype=release \
+        --cross-file /tmp/mcfgthread-cross.txt \
+        --default-library=static \
+        --prefix=/bootstrap \
+        --bindir=bin \
+        --includedir=include \
+        --libdir=lib \
+ && meson compile -C /x-mcfgthread/build \
+ && meson install -C /x-mcfgthread/build \
+ && rm -f /bootstrap/bin/libmcfgthread*.dll \
+          /bootstrap/lib/libmcfgthread*.dll.a
 
 WORKDIR /x-gcc
 RUN make -j$(nproc) \
@@ -430,15 +477,53 @@ RUN $ARCH-gcc -c -Oz -I$PREFIX/include/ \
 
 WORKDIR /winpthreads
 RUN /dl/mingw/mingw-w64-libraries/winpthreads/configure \
-        --prefix=$PREFIX \
-        --with-sysroot=$PREFIX \
-        --host=$ARCH \
-        --enable-static \
-        --disable-shared \
-        CFLAGS="-O2" \
-        LDFLAGS="-s" \
+       --prefix=$PREFIX \
+       --with-sysroot=$PREFIX \
+       --host=$ARCH \
+       --enable-static \
+       --disable-shared \
+       CFLAGS="-O2" \
+       LDFLAGS="-s" \
  && make -j$(nproc) \
  && make install
+
+WORKDIR /mcfgthread
+RUN case "$ARCH" in \
+        i686-*) cpu_family=x86; cpu=i686 ;; \
+        x86_64-*) cpu_family=x86_64; cpu=x86_64 ;; \
+        *) printf 'Unsupported ARCH for mcfgthread: %s\n' "$ARCH" >&2; exit 1 ;; \
+    esac \
+ && printf '%s\n' \
+        '[binaries]' \
+        "c = '$ARCH-gcc'" \
+        "cpp = '$ARCH-g++'" \
+        "ar = '$ARCH-ar'" \
+        "objcopy = '$ARCH-objcopy'" \
+        "strip = '$ARCH-strip'" \
+        "windres = '$ARCH-windres'" \
+        "dlltool = '$ARCH-dlltool'" \
+        '' \
+        '[host_machine]' \
+        "system = 'windows'" \
+        "cpu_family = '$cpu_family'" \
+        "cpu = '$cpu'" \
+        "endian = 'little'" \
+        '' \
+        '[properties]' \
+        'skip_sanity_check = true' \
+      >/tmp/mcfgthread-cross.txt \
+ && meson setup /mcfgthread/build /dl/mcfgthread \
+        --buildtype=release \
+        --cross-file /tmp/mcfgthread-cross.txt \
+        --default-library=static \
+        --prefix=$PREFIX \
+        --bindir=bin \
+        --includedir=include \
+        --libdir=lib \
+ && meson compile -C /mcfgthread/build \
+ && meson install -C /mcfgthread/build \
+ && rm -f $PREFIX/bin/libmcfgthread*.dll \
+          $PREFIX/lib/libmcfgthread*.dll.a
 
 WORKDIR /gcc
 COPY src/crossgcc-*.patch $PREFIX/src/
@@ -459,7 +544,7 @@ RUN echo 'BEGIN {print "pecoff"}' \
         --with-mpfr=/deps \
         --enable-languages=c,c++,fortran \
         --enable-libgomp \
-        --enable-threads=posix \
+       --enable-threads=mcf \
         --enable-tls \
         --enable-version-specific-runtime-libs \
         --disable-libstdcxx-verbose \
@@ -477,6 +562,8 @@ RUN echo 'BEGIN {print "pecoff"}' \
         LDFLAGS="-s" \
  && make -j$(nproc) \
  && make install \
+ && rm -f $PREFIX/bin/libmcfgthread*.dll \
+          $PREFIX/lib/libmcfgthread*.dll.a \
  && rm -f $PREFIX/bin/ld.bfd.exe \
  && $ARCH-gcc -DEXE=g++.exe -DCMD=c++ \
         -Oz -fno-asynchronous-unwind-tables \
@@ -964,8 +1051,22 @@ RUN printf "id ICON \"$PREFIX/src/w64devkit.ico\"" >w64devkit.rc \
  && cp /dl/mingw/COPYING.MinGW-w64-runtime/COPYING.MinGW-w64-runtime.txt \
         $PREFIX/ \
  && printf "\n===========\nwinpthreads\n===========\n\n" \
-        >>$PREFIX/COPYING.MinGW-w64-runtime.txt . \
+        >>$PREFIX/COPYING.MinGW-w64-runtime.txt \
  && cat /dl/mingw/mingw-w64-libraries/winpthreads/COPYING \
+        >>$PREFIX/COPYING.MinGW-w64-runtime.txt \
+ && printf "\n===========\nMCF Gthread\n===========\n\n" \
+        >>$PREFIX/COPYING.MinGW-w64-runtime.txt . \
+ && printf "\n----- LGPL-3.0 -----\n\n" \
+        >>$PREFIX/COPYING.MinGW-w64-runtime.txt \
+ && cat /dl/mcfgthread/licenses/lgpl-3.0.txt \
+        >>$PREFIX/COPYING.MinGW-w64-runtime.txt \
+ && printf "\n\n----- GPL-3.0 -----\n\n" \
+        >>$PREFIX/COPYING.MinGW-w64-runtime.txt \
+ && cat /dl/mcfgthread/licenses/gpl-3.0.txt \
+        >>$PREFIX/COPYING.MinGW-w64-runtime.txt \
+ && printf "\n\n----- GCC Runtime Library Exception 3.1 -----\n\n" \
+        >>$PREFIX/COPYING.MinGW-w64-runtime.txt \
+ && cat /dl/mcfgthread/licenses/gcc-exception-3.1.txt \
         >>$PREFIX/COPYING.MinGW-w64-runtime.txt \
  && echo $VERSION >$PREFIX/VERSION.txt
 
