@@ -257,7 +257,7 @@ RUN printf '#include <crtdefs.h>\n#if __has_include_next(<stddef.h>)\n#include_n
  && /dl/mingw/mingw-w64-headers/configure \
         --prefix=/bootstrap \
         --host=$ARCH \
-        --with-default-msvcrt=msvcrt-os \
+        --with-default-msvcrt=ucrt \
  && make -j$(nproc) \
  && make install
 
@@ -309,7 +309,7 @@ RUN /dl/mingw/mingw-w64-crt/configure \
         --prefix=/bootstrap \
         --with-sysroot=/bootstrap \
         --host=$ARCH \
-        --with-default-msvcrt=msvcrt-os \
+        --with-default-msvcrt=ucrt \
         --disable-dependency-tracking \
         --disable-lib32 \
         --enable-lib64 \
@@ -404,7 +404,7 @@ RUN /dl/mingw/mingw-w64-headers/configure \
         --prefix=$PREFIX \
         --host=$ARCH \
         --enable-idl \
-        --with-default-msvcrt=msvcrt-os \
+        --with-default-msvcrt=ucrt \
  && make -j$(nproc) \
  && make install
 
@@ -413,7 +413,7 @@ RUN /dl/mingw/mingw-w64-crt/configure \
         --prefix=$PREFIX \
         --with-sysroot=$PREFIX \
         --host=$ARCH \
-        --with-default-msvcrt=msvcrt-os \
+        --with-default-msvcrt=ucrt \
         --disable-dependency-tracking \
         --disable-lib32 \
         --enable-lib64 \
@@ -670,7 +670,7 @@ RUN cat $PREFIX/src/vim-*.patch | patch -p1 \
  && ARCH= make -C src -j$(nproc) -f Make_ming.mak CC="$ARCH-gcc -std=gnu17" \
         OPTIMIZE=SPEED STATIC_STDCPLUS=yes HAS_GCC_EH=no \
         UNDER_CYGWIN=yes CROSS=yes CROSS_COMPILE=$ARCH- \
-        FEATURES=HUGE VIMDLL=yes NETBEANS=no WINVER=0x0501 \
+        FEATURES=HUGE VIMDLL=yes NETBEANS=no XPM=no WINVER=0x0501 \
  && $ARCH-strip src/vimrun.exe \
  && rm -rf runtime/tutor/tutor.* \
  && mkdir -p /out/bin /out/share \

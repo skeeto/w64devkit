@@ -1,60 +1,94 @@
+diff --git a/Dockerfile b/Dockerfile
+index 687dcb956..7d55956cf 100644
 --- a/Dockerfile
 +++ b/Dockerfile
-@@ -229,3 +229,3 @@
+@@ -227,7 +227,7 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
+ # Build cross-compiler
+ 
  FROM dl-cross AS cross
 -ARG ARCH=x86_64-w64-mingw32
 +ARG ARCH=i686-w64-mingw32
  ENV ARCH=$ARCH
-@@ -260,2 +260,3 @@
-         --with-default-msvcrt=msvcrt-os \
-+        --with-default-win32-winnt=0x0501 \
-  && make -j$(nproc) \
-@@ -272,2 +273,3 @@
+ 
+ WORKDIR /dl/binutils
+@@ -240,6 +240,7 @@ WORKDIR /x-binutils
+ RUN /dl/binutils/configure \
+         --prefix=/bootstrap \
          --with-sysroot=/bootstrap \
 +        --with-arch=pentium4 \
          --target=$ARCH \
-@@ -313,4 +315,4 @@
+         --disable-nls \
+         --with-static-standard-libraries \
+@@ -311,8 +312,8 @@ RUN /dl/mingw/mingw-w64-crt/configure \
+         --host=$ARCH \
+         --with-default-msvcrt=ucrt \
          --disable-dependency-tracking \
 -        --disable-lib32 \
 -        --enable-lib64 \
 +        --enable-lib32 \
 +        --disable-lib64 \
          CFLAGS="-O2" \
-@@ -399,2 +401,3 @@
-         --with-default-msvcrt=msvcrt-os \
-+        --with-default-win32-winnt=0x0501 \
+         LDFLAGS="-s" \
   && make -j$(nproc) \
-@@ -409,4 +412,4 @@
+@@ -415,8 +416,8 @@ RUN /dl/mingw/mingw-w64-crt/configure \
+         --host=$ARCH \
+         --with-default-msvcrt=ucrt \
          --disable-dependency-tracking \
 -        --disable-lib32 \
 -        --enable-lib64 \
 +        --enable-lib32 \
 +        --disable-lib64 \
          CFLAGS="-O2" \
-@@ -437,2 +440,3 @@
+         LDFLAGS="-s" \
+  && make -j$(nproc) \
+@@ -443,6 +444,7 @@ RUN echo 'BEGIN {print "pecoff"}' \
+         --prefix=$PREFIX \
+         --with-sysroot=$PREFIX \
          --with-native-system-header-dir=/include \
 +        --with-arch=pentium4 \
          --target=$ARCH \
-@@ -456,2 +460,3 @@
+         --host=$ARCH \
+         --enable-static \
+@@ -462,6 +464,7 @@ RUN echo 'BEGIN {print "pecoff"}' \
+         --disable-multilib \
+         --disable-nls \
          --disable-win32-registry \
 +        --disable-win32-utf8-manifest \
          --enable-mingw-wildcard \
-@@ -605,3 +610,3 @@
+         CFLAGS_FOR_TARGET="-O2" \
+         CXXFLAGS_FOR_TARGET="-O2" \
+@@ -611,7 +614,7 @@ COPY --from=dl-busybox /dl/ /dl/
+ WORKDIR /dl/busybox
+ COPY src/busybox-* $PREFIX/src/
  RUN cat $PREFIX/src/busybox-*.patch | patch -p1 \
 - && make mingw64u_defconfig \
 + && make mingw32w_defconfig \
   && sed -ri 's/^(CONFIG_AR)=y/\1=n/' .config \
-@@ -699,3 +704,3 @@
+  && sed -ri 's/^(CONFIG_ASCII)=y/\1=n/' .config \
+  && sed -ri -e 's/^(CONFIG_BASH_IS_ASH)=y/\1=n/' \
+@@ -706,7 +709,7 @@ RUN make -j$(nproc) CC=$ARCH-gcc AR=$ARCH-ar CFLAGS="-O2" libzstd.a \
+ 
+ WORKDIR /dl/zstd
  RUN make -j$(nproc) -C programs zstd \
 -        CC=$ARCH-gcc CFLAGS="-O2" LDFLAGS="-s" EXT=.exe \
 +        CC=$ARCH-gcc CFLAGS="-O2" LDFLAGS="-s" EXT=.exe HAVE_THREAD=0 \
   && mkdir -p /out/bin \
-@@ -798,2 +803,3 @@
+  && cp programs/zstd.exe /out/bin/ \
+  && $ARCH-gcc -DEXE=zstd.exe -DCMD=unzstd \
+@@ -805,6 +808,7 @@ RUN cat $PREFIX/src/cmake-*.patch | patch -d/dl/cmake -p1 \
+         -DCMAKE_CXX_COMPILER=$ARCH-g++ \
+         -DCMAKE_RC_COMPILER=$ARCH-windres \
          -DCMAKE_EXE_LINKER_FLAGS="-s" \
 +        -DCMAKE_CXX_FLAGS="-O2 -D_WIN32_WINNT=0x0601" \
          -DCMAKE_INSTALL_PREFIX=$PREFIX \
-@@ -840,3 +846,3 @@
+         -DBUILD_CursesDialog=ON \
+         -DCURSES_LIBRARY=/deps/lib/libcurses.a \
+@@ -864,7 +868,7 @@ RUN sed -i 's/\r$//' Source/build.cpp \
+  && cat $PREFIX/src/nsis-*.patch | patch -p1 \
+  && scons -j$(nproc) \
          XGCC_W32_PREFIX=$ARCH- \
 -        TARGET_ARCH=amd64 \
 +        TARGET_ARCH=x86 \
          PREFIX=$PREFIX \
+         PREFIX_BIN=$PREFIX/share/nsis/bin \
+         PREFIX_DATA=$PREFIX/share/nsis \
