@@ -1,0 +1,12 @@
+diff --git a/gcc/algol68/Make-lang.in b/gcc/algol68/Make-lang.in
+--- a/gcc/algol68/Make-lang.in
++++ b/gcc/algol68/Make-lang.in
+@@ -219,7 +219,7 @@ algol68.srcextra:
+ 
+ algol68.all.cross: ga68$(exeext)
+-algol68.start.encap: ga68$(exeect)
++algol68.start.encap: ga68$(exeext)
+ algol68.rest.encap:
+ algol68.info: doc/ga68.info doc/ga68-internals.info doc/ga68-coding-guidelines.info
+ algol68.dvi: doc/ga68.dvi doc/ga68-internals.dvi doc/ga68-coding-guidelines.dvi
+ algol68.pdf: doc/ga68.pdf doc/ga68-internals.pdf doc/ga68-coding-guidelines.pdf

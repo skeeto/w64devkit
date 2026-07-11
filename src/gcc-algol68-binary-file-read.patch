@@ -1,0 +1,33 @@
+diff --git a/gcc/algol68/a68-lang.cc b/gcc/algol68/a68-lang.cc
+--- a/gcc/algol68/a68-lang.cc
++++ b/gcc/algol68/a68-lang.cc
+@@ -538,7 +538,7 @@ a68_handle_option (size_t scode, const char *arg, HOST_WIDE_INT value,
+     case OPT_fmodules_map_file:
+     case OPT_fmodules_map_file_:
+       {
+-	FILE *file = fopen (arg, "r");
++	FILE *file = fopen (arg, "rb");
+ 	if (file == NULL)
+ 	  fatal_error (UNKNOWN_LOCATION,
+ 		       "cannot open modules map file %<%s%>", arg);
+diff --git a/gcc/algol68/a68-parser-scanner.cc b/gcc/algol68/a68-parser-scanner.cc
+--- a/gcc/algol68/a68-parser-scanner.cc
++++ b/gcc/algol68/a68-parser-scanner.cc
+@@ -334,7 +334,7 @@ read_source_file (const char *filename)
+   bool ret = true;
+ 
+   /* First open the given file.  */
+-  if (!(FILE_SOURCE_FD (&A68_JOB) = fopen (filename, "r")))
++  if (!(FILE_SOURCE_FD (&A68_JOB) = fopen (filename, "rb")))
+     fatal_error (UNKNOWN_LOCATION, "could not open source file %s",
+ 		 filename);
+   FILE_SOURCE_NAME (&A68_JOB) = ggc_strdup (filename);
+@@ -1076,7 +1076,7 @@ process_pragmats (LINE_T *top)
+ 	      t = NO_LINE;
+ 
+ 	      /* Access the file.  */
+-	      fp = fopen (fn, "r");
++	      fp = fopen (fn, "rb");
+ 	      SCAN_ERROR (fp == NULL, start_l, start_c,
+ 			  "error opening included file");
+ 	      ssize = a68_file_size (fileno (fp));
