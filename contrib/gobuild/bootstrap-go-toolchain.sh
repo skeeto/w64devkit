@@ -44,7 +44,7 @@ esac
 
 # --- Version configuration (update as needed) ---
 BOOTSTRAP_VERSIONS="1.17.13 1.20.14 1.22.12 1.24.6"
-FINAL_VERSION=1.26.3
+FINAL_VERSION=1.26.4
 
 # --- Paths ---
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

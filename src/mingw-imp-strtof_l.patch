@@ -1,0 +1,30 @@
+crt: add missing __MINGW_IMP_SYMBOL for _strtof_l and _wcstof_l
+
+These functions are static emulations present in every libmsvcr*.a,
+but the headers declare them dllimport (_CRTIMP), so callers reference
+__imp__strtof_l and __imp__wcstof_l, which nothing defines, and the
+link fails. Define fake import pointers alongside the definitions, as
+already done for other statically-emulated functions such as
+__acrt_iob_func and _initialize_onexit_table.
+
+The _strtof_l half was merged upstream after v14.0.0 as 373c7dd0
+("crt: Add missing __MINGW_IMP_SYMBOL for _strtof_l()"). The
+_wcstof_l half is the same fix for the wide variant, which remains
+broken upstream.
+
+--- a/mingw-w64-crt/stdio/_strtof_l.c
++++ b/mingw-w64-crt/stdio/_strtof_l.c
+@@ -26,3 +26,5 @@
+   }
+   return ret;
+ }
++
++float (*__MINGW_IMP_SYMBOL(_strtof_l))(const char *, char **, _locale_t) = _strtof_l;
+--- a/mingw-w64-crt/stdio/_wcstof_l.c
++++ b/mingw-w64-crt/stdio/_wcstof_l.c
+@@ -26,3 +26,5 @@
+   }
+   return ret;
+ }
++
++float (*__MINGW_IMP_SYMBOL(_wcstof_l))(const wchar_t *, wchar_t **, _locale_t) = _wcstof_l;

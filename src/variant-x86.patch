@@ -49,11 +49,12 @@
 -        CC=$ARCH-gcc CFLAGS="-O2" LDFLAGS="-s" EXT=.exe \
 +        CC=$ARCH-gcc CFLAGS="-O2" LDFLAGS="-s" EXT=.exe HAVE_THREAD=0 \
   && mkdir -p /out/bin \
-@@ -798,2 +803,3 @@
+@@ -798,2 +803,4 @@
          -DCMAKE_EXE_LINKER_FLAGS="-s" \
++        -DCMAKE_C_FLAGS="-O2 -D_WIN32_WINNT=0x0601" \
 +        -DCMAKE_CXX_FLAGS="-O2 -D_WIN32_WINNT=0x0601" \
          -DCMAKE_INSTALL_PREFIX=$PREFIX \
-@@ -840,3 +846,3 @@
+@@ -840,3 +847,3 @@
          XGCC_W32_PREFIX=$ARCH- \
 -        TARGET_ARCH=amd64 \
 +        TARGET_ARCH=x86 \

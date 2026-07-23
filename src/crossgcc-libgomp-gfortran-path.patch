@@ -1,0 +1,31 @@
+libgomp: accept target gfortran found on PATH
+--- a/libgomp/configure.ac
++++ b/libgomp/configure.ac
+@@ -163,11 +163,11 @@
+ case `echo $GFORTRAN` in
+   -* | no* )
+     FC=no ;;
+   *)
+     set dummy $GFORTRAN; ac_word=$2
+-    if test -x "$ac_word"; then
++    if test -x "$ac_word" || command -v "$ac_word" >/dev/null 2>&1; then
+       FC="$GFORTRAN"
+     else
+       FC=no
+     fi ;;
+ esac
+--- a/libgomp/configure
++++ b/libgomp/configure
+@@ -12271,11 +12271,11 @@
+ case `echo $GFORTRAN` in
+   -* | no* )
+     FC=no ;;
+   *)
+     set dummy $GFORTRAN; ac_word=$2
+-    if test -x "$ac_word"; then
++    if test -x "$ac_word" || command -v "$ac_word" >/dev/null 2>&1; then
+       FC="$GFORTRAN"
+     else
+       FC=no
+     fi ;;
+ esac

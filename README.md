@@ -110,6 +110,16 @@ then the hint is zeroed: "no data." Eliminating this random data makes
 binaries more compressible and *theoretically* faster loading. See also:
 `peports`.
 
+## C11 threading runtime
+
+The toolchain includes the C standard header `threads.h`, and the runtime
+contains a fast, lean standard threads implementation. It is independent
+of pthreads and involves no extra linker flags. It supports only Vista and
+later, does not implement recursive or timed locks, and just like MSVC,
+`thrd_current` returns a dummy handle only useful with `thrd_equal`. Using
+this handle to join or detach will trap. Also like MSVC, `mtx_t` and
+`cnd_t` support zero-initialization and their destructors are no-ops.
+
 ## Recommended downloadable, offline documentation
 
 With a few exceptions, such as Vim's built-in documentation (`:help`),
@@ -199,6 +209,9 @@ ported to Mingw-w64][san] ([also][san2]), but Undefined Behavior Sanitizer
 (UBSan) works perfectly under GDB. With both `-fsanitize=undefined` and
 `-fsanitize-trap`, GDB will [break precisely][break] on undefined
 behavior, and it does not require linking with libsanitizer.
+
+GCC is built without libiconv, required by options `-finput-charset` and
+`-fexec-charset`.
 
 ## Licenses
 
