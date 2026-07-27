@@ -43,7 +43,7 @@ jobs:
           tags: w64devkit:${{ env.ARCH }}
           load: true
           cache-from: type=gha,scope=w64devkit-${{ env.ARCH }}
-          cache-to: type=gha,scope=w64devkit-${{ env.ARCH }},mode=max
+          cache-to: type=gha,scope=w64devkit-${{ env.ARCH }},mode=max,ignore-error=true
 
       - name: Build source image
         if: startsWith(github.ref, 'refs/tags/')
@@ -115,7 +115,7 @@ jobs:
           tags: w64devkit:${{ env.ARCH }}
           load: true
           cache-from: type=gha,scope=w64devkit-${{ env.ARCH }}
-          cache-to: type=gha,scope=w64devkit-${{ env.ARCH }},mode=max
+          cache-to: type=gha,scope=w64devkit-${{ env.ARCH }},mode=max,ignore-error=true
 
       - name: Extract artifact
         run: |
@@ -163,7 +163,7 @@ jobs:
           tags: w64devkit:x64-signed
           load: true
           cache-from: type=gha,scope=w64devkit-x64
-          cache-to: type=gha,scope=w64devkit-x64,mode=max
+          cache-to: type=gha,scope=w64devkit-x64,mode=max,ignore-error=true
 
       - name: Sign and pack (x64)
         run: |
@@ -186,7 +186,7 @@ jobs:
           tags: w64devkit:x86-signed
           load: true
           cache-from: type=gha,scope=w64devkit-x86
-          cache-to: type=gha,scope=w64devkit-x86,mode=max
+          cache-to: type=gha,scope=w64devkit-x86,mode=max,ignore-error=true
 
       - name: Sign and pack (x86)
         run: |
