@@ -1,4 +1,4 @@
-ARG VERSION=2.8.0 \
+ARG VERSION=2.9.0 \
     PREFIX=/w64devkit
 
 FROM debian:trixie-slim AS base
