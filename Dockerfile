@@ -17,8 +17,8 @@ COPY src/w64devkit.ico src/alias.c $PREFIX/src/
 # Source directories are normalized (no version in the directory name).
 
 FROM base AS dl-cross
-ARG BINUTILS_VERSION=2.46.1 \
-    BINUTILS_SHA256=e127a709cba24c76de8936cb7083dd768f28cd37eb010492e2f19b71eb1294e4 \
+ARG BINUTILS_VERSION=2.47 \
+    BINUTILS_SHA256=154ab23b60070e8f27013c22977f1129425d67d1e8acd6e13010e617811e4cff \
     GCC_VERSION=16.1.0 \
     GCC_SHA256=50efb4d94c3397aff3b0d61a5abd748b4dd31d9d3f2ab7be05b171d36a510f79 \
     GMP_VERSION=6.3.0 \
