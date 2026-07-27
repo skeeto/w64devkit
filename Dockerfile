@@ -444,9 +444,7 @@ RUN /dl/mingw/mingw-w64-libraries/winpthreads/configure \
 
 WORKDIR /gcc
 COPY src/crossgcc-*.patch $PREFIX/src/
-RUN echo 'BEGIN {print "pecoff"}' \
-         >/dl/gcc/libbacktrace/filetype.awk \
- && cat $PREFIX/src/crossgcc-*.patch | patch -d/dl/gcc -p1 \
+RUN cat $PREFIX/src/crossgcc-*.patch | patch -d/dl/gcc -p1 \
  && /dl/gcc/configure \
         --prefix=$PREFIX \
         --with-sysroot=$PREFIX \
