@@ -1,0 +1,99 @@
+Improve Binutils compatability with MSVC link.exe
+
+Microsoft's link.exe assumes that import libraries carry null terminator
+entries and does not add a terminating null entry when building import
+tables. When link.exe inputs only Binutils-created import libraries, it
+quietly produces corrupt PE images. This patch makes Bintuils add these
+null import entries to satisfy link.exe.
+
+--- a/binutils/dlltool.c
++++ b/binutils/dlltool.c
+@@ -2896,6 +2896,22 @@
+ 
+   temp_file_to_remove[TEMP_TAIL_FILE] = TMP_TAIL_S;
+ 
++  /* An import library must supply the null import descriptor that
++     terminates the import directory table.  GNU ld emits a terminator
++     itself via its linker script, but MSVC link.exe lays out only what
++     import libraries provide, normally the .idata$3 contribution of
++     the __NULL_IMPORT_DESCRIPTOR archive member.  Without these zeros
++     link.exe leaves the descriptor table unterminated, running into
++     whatever .idata$4 data follows.  Extra copies from multiple import
++     libraries are harmless: all .idata$3 input sections sort after all
++     descriptors in .idata$2, so the first terminates the table.  */
++  fprintf (f, "\t.section\t.idata$3\n");
++  fprintf (f, "\t%s\t0\n", ASM_LONG);
++  fprintf (f, "\t%s\t0\n", ASM_LONG);
++  fprintf (f, "\t%s\t0\n", ASM_LONG);
++  fprintf (f, "\t%s\t0\n", ASM_LONG);
++  fprintf (f, "\t%s\t0\n", ASM_LONG);
++
+   if (!no_idata4)
+     {
+       fprintf (f, "\t.section\t.idata$4\n");
+--- a/ld/pe-dll.c
++++ b/ld/pe-dll.c
+@@ -2221,8 +2221,14 @@
+   return abfd;
+ }
+ 
+-/*	.section	.idata$4
++/*	.section	.idata$3
+ 	.long		0
++	.long		0
++	.long		0
++	.long		0
++	.long		0
++	.section	.idata$4
++	.long		0
+ 	[.long		0] for PE+
+ 	.section	.idata$5
+ 	.long		0
+@@ -2235,8 +2241,8 @@
+ static bfd *
+ make_tail (bfd *parent)
+ {
+-  asection *id4, *id5, *id7;
+-  unsigned char *d4, *d5, *d7;
++  asection *id3, *id4, *id5, *id7;
++  unsigned char *d3, *d4, *d5, *d7;
+   int len;
+   char *oname;
+   bfd *abfd;
+@@ -2253,12 +2259,27 @@
+   bfd_set_arch_mach (abfd, pe_details->bfd_arch, 0);
+ 
+   symptr = 0;
+-  symtab = xmalloc (5 * sizeof (asymbol *));
++  symtab = xmalloc (6 * sizeof (asymbol *));
++  id3 = quick_section (abfd, ".idata$3", SEC_HAS_CONTENTS, 2);
+   id4 = quick_section (abfd, ".idata$4", SEC_HAS_CONTENTS, 2);
+   id5 = quick_section (abfd, ".idata$5", SEC_HAS_CONTENTS, 2);
+   id7 = quick_section (abfd, ".idata$7", SEC_HAS_CONTENTS, 2);
+   quick_symbol (abfd, U (""), dll_symname, "_iname", id7, BSF_GLOBAL, 0);
+ 
++  /* An import library must supply the null import descriptor that
++     terminates the import directory table.  GNU ld emits a terminator
++     itself via its linker script, but MSVC link.exe lays out only what
++     import libraries provide, normally the .idata$3 contribution of
++     the __NULL_IMPORT_DESCRIPTOR archive member.  Without these zeros
++     link.exe leaves the descriptor table unterminated, running into
++     whatever .idata$4 data follows.  Extra copies from multiple import
++     libraries are harmless: all .idata$3 input sections sort after all
++     descriptors in .idata$2, so the first terminates the table.  */
++  bfd_set_section_size (id3, 20);
++  d3 = xmalloc (20);
++  id3->contents = d3;
++  memset (d3, 0, 20);
++
+   bfd_set_section_size (id4, PE_IDATA4_SIZE);
+   d4 = xmalloc (PE_IDATA4_SIZE);
+   id4->contents = d4;
+@@ -2283,6 +2304,7 @@
+ 
+   bfd_set_symtab (abfd, symtab, symptr);
+ 
++  bfd_set_section_contents (abfd, id3, d3, 0, 20);
+   bfd_set_section_contents (abfd, id4, d4, 0, PE_IDATA4_SIZE);
+   bfd_set_section_contents (abfd, id5, d5, 0, PE_IDATA5_SIZE);
+   bfd_set_section_contents (abfd, id7, d7, 0, len);
