@@ -1706,7 +1706,7 @@ static b32 is_gcc_consumer_flag(Str token)
             SL("-bundle_loader"),
             SL("--param"),
             SL("-arch"),
-            SL("-wrapper"), SL("-wrapper"),
+            SL("-wrapper"),
             // clang-format on
         };
         for (isize i = 0; i < count_of(flags); ++i) {
