@@ -470,6 +470,7 @@ static u8 str_set(Str *s, isize index, u8 value)
 
 static Str str_duplicate(Arena *perm, Str to_copy)
 {
+    if (!perm) return (Str){0};
     Str dest = ALLOC_SLICE(perm, to_copy.len, dest);
     memory_copy((byte *)dest.ptr, (byte *)to_copy.ptr, to_copy.len);
     return dest;
@@ -838,6 +839,7 @@ static Str dirstack_peek(DirectoryStack ds, Arena *perm)
     return directory_copy;
 }
 
+// `perm` is optional
 static Str dirstack_pop(DirectoryStack *ds, Arena *perm)
 {
     Str directory = strlist_pop_back(&ds->stack);
@@ -2136,7 +2138,6 @@ static int make2compdb(Arena *perm, OsWriterInterface *w, StrList cli_args, Str 
             // NOTE: On directory parsing.
             // Because of the `-w` flag, `make` will print information everytime it enters directory.
             // Something like "make: Entering directory 'C:/dev/'"
-
             Str dir = directory_from_make_dir_line(&input);
             if (dir.len > 0) {
                 dirstack_push(&dir_stack, dir);
@@ -2149,13 +2150,9 @@ static int make2compdb(Arena *perm, OsWriterInterface *w, StrList cli_args, Str 
             // NOTE: On directory parsing.
             // Because of the `-w` flag, `make` will print information everytime it leaves a directory.
             // Something like "make: Leaving directory 'C:/dev/'"
-
             Str dir = directory_from_make_dir_line(&input);
             if (dir.len > 0) {
-                Arena scratch = *perm;
-
-                Str cwd = dirstack_pop(&dir_stack, &scratch);
-                (void)cwd;
+                dirstack_pop(&dir_stack, NULL);
             }
             break;
         }
@@ -2166,8 +2163,8 @@ static int make2compdb(Arena *perm, OsWriterInterface *w, StrList cli_args, Str 
             // The difference between logical line and compiler invocation:
             //
             //                     logical line
-            //     |<----------------------------------------->|  |<---------- ...
-            //      mkdir -p build && ccache gcc main.c -o main \n echo 'done' ...
+            //     |<----------------------------------------->|  |<----------   ...
+            //      mkdir -p build && ccache gcc main.c -o main \n echo 'done'   ...
             //                              |<---------------->|
             //                               compiler invocation
             //
