@@ -2064,7 +2064,8 @@ static void json_write_footer(OsWriterInterface *w, isize command_count)
 
 // :: make2compdb
 // Main program function.
-static int make2compdb(Arena *perm, OsWriterInterface *w, StrList cli_args, Str make_stdout, Str initial_working_directory)
+static int make2compdb(Arena *perm, OsWriterInterface *os_stdout, OsWriterInterface *os_stderr, StrList cli_args, Str make_stdout,
+                       Str initial_working_directory)
 {
     Str const help_message = SL("make2compdb - Create a compile_commands.json from a Make output\n"
                                 "Usage: make2compdb [option]\n"
@@ -2072,9 +2073,10 @@ static int make2compdb(Arena *perm, OsWriterInterface *w, StrList cli_args, Str 
                                 "Options:\n"
                                 "       --version:  Display the version number.\n"
                                 "   -h, --help:     Display this help page.\n"
-                                "   -v, --verbose:  Display debug information to help with problem diagnosis.\n"
+                                "   -v, --verbose:  Display debug information on stderr to help with problem diagnosis.\n"
                                 "\n"
                                 "Examples:\n"
+                                "   $ make -Bwn | make2compdb.exe\n"
                                 "   $ make -Bwn | make2compdb.exe > compile_commands.json\n"
                                 "   $ echo \"gcc -o main main.c\" | make2compdb.exe > compile_commands.json\n");
 
@@ -2085,37 +2087,37 @@ static int make2compdb(Arena *perm, OsWriterInterface *w, StrList cli_args, Str 
             program_name = cli_args.front->str;
         }
         else if (str_equal(arg->str, SL("-h")) || str_equal(arg->str, SL("--help"))) {
-            println_str(w, help_message);
+            println_str(os_stdout, help_message);
             return 0;
         }
         else if (str_equal(arg->str, SL("--version"))) {
-            println_str(w, SL("Version: " VERSION "\n"));
+            println_str(os_stdout, SL("Version: " VERSION "\n"));
             return 0;
         }
         else if (str_equal(arg->str, SL("-v")) || str_equal(arg->str, SL("--verbose"))) {
             verbose = 1;
         }
         else {
-            print_str(w, SL("Unknown CLI arg: '"));
-            print_str(w, arg->str);
-            println_str(w, SL("'\n"));
+            print_str(os_stdout, SL("Unknown CLI arg: '"));
+            print_str(os_stdout, arg->str);
+            println_str(os_stdout, SL("'\n"));
             return -1;
         }
     }
     (void)program_name; //< Not used currently
 
     if (verbose) {
-        w->tab = 0;
-        println_str(w, SL("make2compdb"));
-        println_str(w, SL("Version: " VERSION));
-        println_str(w, SL("Verbose mode: true"));
-        print_str(w, SL("Directory: "));
-        println_str_escaped_string(w, initial_working_directory);
-        print_str(w, SL("CLI args: "));
-        println_strlist(w, cli_args);
-        print_str(w, SL("Input len: "));
-        println_number(w, make_stdout.len);
-        println_str(w, SL("====\n"));
+        os_stderr->tab = 0;
+        println_str(os_stderr, SL("make2compdb"));
+        println_str(os_stderr, SL("Version: " VERSION));
+        println_str(os_stderr, SL("Verbose mode: true"));
+        print_str(os_stderr, SL("Directory: "));
+        println_str_escaped_string(os_stderr, initial_working_directory);
+        print_str(os_stderr, SL("CLI args: "));
+        println_strlist(os_stderr, cli_args);
+        print_str(os_stderr, SL("Input len: "));
+        println_number(os_stderr, make_stdout.len);
+        println_str(os_stderr, SL("====\n"));
     }
 
     DirectoryStack dir_stack = {0};
@@ -2131,8 +2133,7 @@ static int make2compdb(Arena *perm, OsWriterInterface *w, StrList cli_args, Str 
     dirstack_push(&dir_stack, initial_working_directory);
 
     // In verbose mode, we don't print json.
-    OsWriterInterface *json_console = verbose ? NULL : w;
-    json_write_header(json_console);
+    json_write_header(os_stdout);
 
     Str   input         = make_stdout;
     isize command_count = 0;
@@ -2143,7 +2144,7 @@ static int make2compdb(Arena *perm, OsWriterInterface *w, StrList cli_args, Str 
         ParsingMode mode = identify_parsing_mode(naive_line);
         switch (mode) {
         case PARSING_MODE_MAKE_ENTER_DIR: {
-            if (verbose) println_str(w, SL("Parsing mode: ENTER DIR"));
+            if (verbose) println_str(os_stderr, SL("Parsing mode: ENTER DIR"));
 
             // NOTE: On directory parsing.
             // Because of the `-w` flag, `make` will print information everytime it enters directory.
@@ -2155,7 +2156,7 @@ static int make2compdb(Arena *perm, OsWriterInterface *w, StrList cli_args, Str 
             break;
         }
         case PARSING_MODE_MAKE_LEAVE_DIR: {
-            if (verbose) println_str(w, SL("Parsing mode: LEAVE DIR"));
+            if (verbose) println_str(os_stderr, SL("Parsing mode: LEAVE DIR"));
 
             // NOTE: On directory parsing.
             // Because of the `-w` flag, `make` will print information everytime it leaves a directory.
@@ -2167,7 +2168,7 @@ static int make2compdb(Arena *perm, OsWriterInterface *w, StrList cli_args, Str 
             break;
         }
         case PARSING_MODE_SHELL: {
-            if (verbose) println_str(w, SL("Parsing mode: SHELL"));
+            if (verbose) println_str(os_stderr, SL("Parsing mode: SHELL"));
 
             // NOTE: On shell parsing.
             // The difference between logical line and compiler invocation:
@@ -2187,24 +2188,24 @@ static int make2compdb(Arena *perm, OsWriterInterface *w, StrList cli_args, Str 
             Arena   scratch = *perm;
             StrList line    = shell_tokenize_logical_line(&scratch, &input);
             while (!strlist_is_empty(line)) {
-                Arena              scratch2     = scratch;
-                CompilerInvocation invocation   = compiler_invocation_from_shell_line(&scratch2, &line, w, verbose);
-                CompilerCommand    compiler_cmd = compiler_command_from_invocation(&scratch2, invocation, w, verbose);
-                CommandObjects     command_objs = command_objects_from_command(&scratch2, dir_stack, compiler_cmd, w, verbose);
+                Arena              sc2          = scratch;
+                CompilerInvocation invocation   = compiler_invocation_from_shell_line(&sc2, &line, os_stderr, verbose);
+                CompilerCommand    compiler_cmd = compiler_command_from_invocation(&sc2, invocation, os_stderr, verbose);
+                CommandObjects     cmd_objs     = command_objects_from_command(&sc2, dir_stack, compiler_cmd, os_stderr, verbose);
 
-                if (command_objs.len > 0) {
-                    json_write_command_objects(json_console, command_objs, command_count);
-                    command_count += command_objs.len;
+                if (cmd_objs.len > 0) {
+                    json_write_command_objects(os_stdout, cmd_objs, command_count);
+                    command_count += cmd_objs.len;
 
                     if (verbose) {
-                        println_str(w, SL("Produced command objects:"));
-                        w->tab += 1;
-                        println_command_objects(w, command_objs);
-                        w->tab -= 1;
+                        println_str(os_stderr, SL("Produced command objects:"));
+                        os_stderr->tab += 1;
+                        println_command_objects(os_stderr, cmd_objs);
+                        os_stderr->tab -= 1;
                     }
                 }
                 else {
-                    if (verbose) println_str(w, SL("No command object produced."));
+                    if (verbose) println_str(os_stderr, SL("No command object produced."));
                 }
             }
             break;
@@ -2217,23 +2218,23 @@ static int make2compdb(Arena *perm, OsWriterInterface *w, StrList cli_args, Str 
 
         if (verbose) {
             static isize s_prev_command_count = 0;
-            print_str(w, SL("-> +"));
-            print_number(w, command_count - s_prev_command_count);
-            print_str(w, SL(" command objects (total = "));
-            print_number(w, command_count);
-            println_str(w, SL(")\n\n---\n"));
+            print_str(os_stderr, SL("-> +"));
+            print_number(os_stderr, command_count - s_prev_command_count);
+            print_str(os_stderr, SL(" command objects (total = "));
+            print_number(os_stderr, command_count);
+            println_str(os_stderr, SL(")\n\n---\n"));
             s_prev_command_count = command_count;
         }
     } // END: while (input.len > 0)
 
-    json_write_footer(json_console, command_count);
+    json_write_footer(os_stdout, command_count);
 
     if (verbose) {
-        w->tab = 0;
-        print_u8(w, '\n');
-        print_str(w, SL("Total command objects: "));
-        println_number(w, command_count);
-        println_str(w, SL("make2compdb is done."));
+        os_stderr->tab = 0;
+        print_u8(os_stderr, '\n');
+        print_str(os_stderr, SL("Total command objects: "));
+        println_number(os_stderr, command_count);
+        println_str(os_stderr, SL("make2compdb is done."));
     }
     return 0;
 }
@@ -2925,8 +2926,9 @@ int main(void)
     strlist_push_back(&cli_args, &arena, SL("--verbose"));
 #endif
 
-    OsWriterInterface writer = {.ctx = NULL, .flush = null_console_flush};
-    Str               cwd    = SL("/dev");
+    OsWriterInterface writer_stdout = {.ctx = NULL, .flush = null_console_flush};
+    OsWriterInterface writer_stderr = {.ctx = NULL, .flush = null_console_flush};
+    Str               cwd           = SL("/dev");
 
     u8 *buf = __AFL_FUZZ_TESTCASE_BUF; //< must be declare after __AFL_INIT and before the __AFL_LOOP
 
@@ -2942,7 +2944,7 @@ int main(void)
             Arena scratch = arena;
 
             Str fuzzed_make_stdout = {.ptr = src, .len = len};
-            make2compdb(&scratch, &writer, cli_args, fuzzed_make_stdout, cwd);
+            make2compdb(&scratch, &writer_stdout, &writer_stderr, cli_args, fuzzed_make_stdout, cwd);
         }
 
         free(src);
@@ -3352,7 +3354,7 @@ void mainCRTStartup(void)
 
     StrList cli_args  = os_args_read(arena);
     Str     cwd       = os_cwd_read(arena);
-    i32     exit_code = make2compdb(arena, writer_stdout, cli_args, make_stdout, cwd);
+    i32     exit_code = make2compdb(arena, writer_stdout, writer_stderr, cli_args, make_stdout, cwd);
 
     print_flush(writer_stdout);
     print_flush(writer_stderr);
@@ -3471,15 +3473,20 @@ int main(int argc, char **argv)
         make_stdout = os_stdin_read(arena, &std_in);
     }
 
-    OsWriterInterface *writer_interface = ALLOC(arena, 1, *writer_interface);
-    writer_interface->ctx               = &std_out;
-    writer_interface->flush             = os_stream_write_wrapper;
+    OsWriterInterface *writer_stdout = ALLOC(arena, 1, *writer_stdout);
+    writer_stdout->ctx               = &std_out;
+    writer_stdout->flush             = os_stream_write_wrapper;
+
+    OsWriterInterface *writer_stderr = ALLOC(arena, 1, *writer_stderr);
+    writer_stderr->ctx               = &std_err;
+    writer_stderr->flush             = os_stream_write_wrapper;
 
     StrList cli_args = strlist_from_cstrs(arena, argc, argv);
     Str     cwd      = os_cwd_read(arena);
 
-    i32 exit_code = make2compdb(arena, writer_interface, cli_args, make_stdout, cwd);
-    print_flush(writer_interface);
+    i32 exit_code = make2compdb(arena, writer_stdout, writer_stderr, cli_args, make_stdout, cwd);
+    print_flush(writer_stdout);
+    print_flush(writer_stderr);
     _exit(exit_code);
     unreachable();
 }
