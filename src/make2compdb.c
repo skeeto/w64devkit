@@ -3200,13 +3200,12 @@ enum {
 };
 
 typedef struct {
-    OsStream std_out;
-    OsStream std_err;
+    OsStream stream;
     struct {
         c16   mem[1 << 11];
         isize len;
     } buf;
-} WinOsWriter;
+} WinBufferedStream;
 
 static inline int32_t to_i32(isize x)
 {
@@ -3225,24 +3224,24 @@ static Str os_cwd_read(Arena *perm)
     return utf8_from_utf16(perm, dir16);
 }
 
-static void os_writer_flush(WinOsWriter *w)
+static void os_stream_flush(WinBufferedStream *bs)
 {
-    if (!w->std_out.is_console) return;
+    if (!bs->stream.is_console) return;
 
-    c16 *buf     = w->buf.mem;
-    i32  buf_len = to_i32(w->buf.len);
+    c16 *buf     = bs->buf.mem;
+    i32  buf_len = to_i32(bs->buf.len);
 
-    if (buf_len <= 0 || w->std_out.err) {
+    if (buf_len <= 0 || bs->stream.err) {
         return;
     }
 
-    w->std_out.err = !WriteConsoleW(w->std_out.handle, buf, buf_len, NULL, 0);
-    w->buf.len     = 0;
+    bs->stream.err = !WriteConsoleW(bs->stream.handle, buf, buf_len, NULL, 0);
+    bs->buf.len    = 0;
 }
 
-static void os_writer_write(WinOsWriter *w, Str in)
+static void os_stream_write(WinBufferedStream *w, Str in)
 {
-    if (w->std_out.is_console) {
+    if (w->stream.is_console) {
         // In console mode, we need to convert our utf8 into the windows native utf16
         c16 mem[2] = {0};
         while (in.len > 0) {
@@ -3251,7 +3250,7 @@ static void os_writer_write(WinOsWriter *w, Str in)
 
             isize available = count_of(w->buf.mem) - w->buf.len;
             if (encoded.len > available) {
-                os_writer_flush(w);
+                os_stream_flush(w);
             }
 
             assert(count_of(w->buf.mem) > encoded.len);
@@ -3262,15 +3261,15 @@ static void os_writer_write(WinOsWriter *w, Str in)
     }
     else {
         // In file or pipe mode, we can write directly.
-        i32 dummy      = 0;
-        w->std_out.err = !WriteFile(w->std_out.handle, in.ptr, to_i32(in.len), &dummy, 0);
+        i32 dummy     = 0;
+        w->stream.err = !WriteFile(w->stream.handle, in.ptr, to_i32(in.len), &dummy, 0);
     }
 }
 
-static void os_writer_write_wrapper(void *ctx, isize len, u8 *ptr)
+static void os_stream_write_wrapper(void *ctx, isize len, u8 *ptr)
 {
-    WinOsWriter *w = ctx;
-    os_writer_write(w, (Str){.len = len, .ptr = ptr});
+    WinBufferedStream *w = ctx;
+    os_stream_write(w, (Str){.len = len, .ptr = ptr});
 }
 
 static Str os_stdin_read(Arena *perm, OsStream *std_in)
@@ -3339,19 +3338,26 @@ void mainCRTStartup(void)
         make_stdout = os_stdin_read(arena, &std_in);
     }
 
-    OsWriterInterface *writer_interface = ALLOC(arena, 1, *writer_interface);
-    WinOsWriter       *writer           = ALLOC(arena, 1, *writer);
-    writer->std_out                     = std_out;
-    writer->std_err                     = std_err;
-    writer_interface->ctx               = writer;
-    writer_interface->flush             = os_writer_write_wrapper;
+    WinBufferedStream *win_bufstream_stdout = ALLOC(arena, 1, *win_bufstream_stdout);
+    win_bufstream_stdout->stream            = std_out;
+    OsWriterInterface *writer_stdout        = ALLOC(arena, 1, *writer_stdout);
+    writer_stdout->ctx                      = win_bufstream_stdout;
+    writer_stdout->flush                    = os_stream_write_wrapper;
+
+    WinBufferedStream *win_bufstream_stderr = ALLOC(arena, 1, *win_bufstream_stderr);
+    win_bufstream_stderr->stream            = std_err;
+    OsWriterInterface *writer_stderr        = ALLOC(arena, 1, *writer_stderr);
+    writer_stderr->ctx                      = win_bufstream_stderr;
+    writer_stderr->flush                    = os_stream_write_wrapper;
 
     StrList cli_args  = os_args_read(arena);
     Str     cwd       = os_cwd_read(arena);
-    i32     exit_code = make2compdb(arena, writer_interface, cli_args, make_stdout, cwd);
+    i32     exit_code = make2compdb(arena, writer_stdout, cli_args, make_stdout, cwd);
 
-    print_flush(writer_interface);
-    os_writer_flush(writer);
+    print_flush(writer_stdout);
+    print_flush(writer_stderr);
+    os_stream_flush(win_bufstream_stdout);
+    os_stream_flush(win_bufstream_stderr);
     ExitProcess(exit_code);
     unreachable();
 }
@@ -3405,7 +3411,7 @@ static Str os_cwd_read(Arena *perm)
     return cwd;
 }
 
-static void os_console_write(OsStream *std_out, Str in)
+static void os_stream_write(OsStream *std_out, Str in)
 {
     assert(std_out);
     if (in.len > 0 && !std_out->err) {
@@ -3413,10 +3419,10 @@ static void os_console_write(OsStream *std_out, Str in)
     }
 }
 
-static void os_console_write_wrapper(void *ctx, isize len, u8 *ptr)
+static void os_stream_write_wrapper(void *ctx, isize len, u8 *ptr)
 {
     OsStream *std_out = ctx;
-    os_console_write(std_out, (Str){.len = len, .ptr = ptr});
+    os_stream_write(std_out, (Str){.len = len, .ptr = ptr});
 }
 
 static Str os_stdin_read(Arena *perm, OsStream *std_in)
@@ -3467,7 +3473,7 @@ int main(int argc, char **argv)
 
     OsWriterInterface *writer_interface = ALLOC(arena, 1, *writer_interface);
     writer_interface->ctx               = &std_out;
-    writer_interface->flush             = os_console_write_wrapper;
+    writer_interface->flush             = os_stream_write_wrapper;
 
     StrList cli_args = strlist_from_cstrs(arena, argc, argv);
     Str     cwd      = os_cwd_read(arena);
