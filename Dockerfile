@@ -175,8 +175,8 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
  && tar xzf ninja-$NINJA_VERSION.tar.gz -C ninja --strip-components=1
 
 FROM base AS dl-cmake
-ARG CMAKE_VERSION=4.4.0 \
-    CMAKE_SHA256=65757f442fdd242e27f1728fc26dc0cba4164f7a0791a5c788631c00080369bc
+ARG CMAKE_VERSION=4.4.1 \
+    CMAKE_SHA256=95d4721f3625fb0d9d6ca480dd59a46c84b4c157f7fadd2e9b179ef9c871174d
 WORKDIR /dl
 RUN curl --insecure --location --remote-name-all --remote-header-name \
     https://github.com/Kitware/CMake/releases/download/v$CMAKE_VERSION/cmake-$CMAKE_VERSION.tar.gz \
