@@ -1549,6 +1549,31 @@ static Compiler compiler_parse(Str input)
             compiler.string = input;
             return compiler;
         }
+        else if (str_equal(segment.head, SL("icx")) || (str_equal(segment.head, SL("icpx")))) {
+            compiler.kind   = COMPILER_IS_GCC_COMPATIBLE; // Intel oneAPI compiler
+            compiler.string = input;
+            return compiler;
+        }
+        else if (str_equal(segment.head, SL("nvc")) || (str_equal(segment.head, SL("nvc++")))) {
+            compiler.kind   = COMPILER_IS_GCC_COMPATIBLE; //  NVIDIA HPC compiler
+            compiler.string = input;
+            return compiler;
+        }
+        else if (str_equal(segment.head, SL("tcc"))) {
+            compiler.kind   = COMPILER_IS_GCC_COMPATIBLE; //  TinyCC compiler
+            compiler.string = input;
+            return compiler;
+        }
+        else if (str_equal(segment.head, SL("emcc"))) {
+            compiler.kind   = COMPILER_IS_GCC_COMPATIBLE; //  Emscripten compiler
+            compiler.string = input;
+            return compiler;
+        }
+        else if (str_equal(segment.head, SL("armclang"))) {
+            compiler.kind   = COMPILER_IS_GCC_COMPATIBLE; // TI ARM Compiler
+            compiler.string = input;
+            return compiler;
+        }
     }
 
     return compiler;
@@ -2532,9 +2557,30 @@ static void test_compiler_parse(Arena a)
     run_test_compiler_parser(SL("C:/clang/gcc"),                                                       SL("gcc"), COMPILER_IS_GCC_COMPATIBLE);
 
     // zig cc
-    run_test_compiler_parser(SL("zig"),                                                                SL("zig"), COMPILER_IS_GCC_COMPATIBLE);
-    run_test_compiler_parser(SL("zig.exe"),                                                            SL("zig"), COMPILER_IS_GCC_COMPATIBLE);
-    run_test_compiler_parser(SL("C:/Users/gberthiaume/scoop/apps/zig/0.16.0/zig.exe"),                 SL("zig"), COMPILER_IS_GCC_COMPATIBLE);
+    run_test_compiler_parser(SL("zig"),                                                SL("zig"), COMPILER_IS_GCC_COMPATIBLE);
+    run_test_compiler_parser(SL("zig.exe"),                                            SL("zig"), COMPILER_IS_GCC_COMPATIBLE);
+    run_test_compiler_parser(SL("C:/Users/gberthiaume/scoop/apps/zig/0.16.0/zig.exe"), SL("zig"), COMPILER_IS_GCC_COMPATIBLE);
+
+    // Intel oneAPI C compiler (icx -O2 -Wall -c main.c -o main.o)
+    run_test_compiler_parser(SL("icx"), SL("icx"), COMPILER_IS_GCC_COMPATIBLE);
+
+    // Intel oneAPI C++ compiler (icpx -std=c++17 -O2 -Wall -c main.cpp -o main.o)
+    run_test_compiler_parser(SL("icpx"), SL("icpx"), COMPILER_IS_GCC_COMPATIBLE);
+
+    // NVIDIA HPC C compiler (nvc -O2 -c main.c -o main.o)
+    run_test_compiler_parser(SL("nvc"), SL("nvc"), COMPILER_IS_GCC_COMPATIBLE);
+
+    // NVIDIA HPC C++ compiler (nvc++ -std=c++17 -O2 -c main.cpp -o main.o)
+    run_test_compiler_parser(SL("nvc"), SL("nvc"), COMPILER_IS_GCC_COMPATIBLE);
+
+    // TinyCC (tcc -Wall -c main.c -o main.o)
+    run_test_compiler_parser(SL("tcc"), SL("tcc"), COMPILER_IS_GCC_COMPATIBLE);
+
+    // Emscripten (emcc -O2 main.c -o main.js)
+    run_test_compiler_parser(SL("emcc"), SL("emcc"), COMPILER_IS_GCC_COMPATIBLE);
+
+    // ARM Compiler (armclang --target=arm-arm-none-eabi -mcpu=cortex-m4 -O2 -c main.c -o main.o)
+    run_test_compiler_parser(SL("armclang"), SL("armclang"), COMPILER_IS_GCC_COMPATIBLE);
 
     // clang-format on
 }
