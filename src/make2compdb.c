@@ -1477,29 +1477,17 @@ static StrList shell_tokenize_logical_line(Arena *perm, Str *shell_input)
 // want to be able to parse it's cli flags.
 typedef enum {
     COMPILER_IS_UNKNOWN = 0,
-    COMPILER_IS_GCC,
-    COMPILER_IS_CLANG,
-    COMPILER_IS_ZIG_CC,
+    COMPILER_IS_GCC_COMPATIBLE,
     COMPILER_IS_CL, //< MSVC
     COMPILER_COUNT,
 } CompilerKind;
 
-static CompilerKind compiler_get_platform_default(void)
-{
-    // TODO: I'm not sure what's the best strategy here
-    // We don't know, so we take a guess based on the OS.
-#if defined(_WIN32) || defined(_WIN64)
-    return COMPILER_IS_GCC;
-#elif defined(__APPLE__) && defined(__MACH__)
-    return COMPILER_IS_CLANG;
-#elif defined(__linux__)
-    return COMPILER_IS_GCC;
-#else
-    return COMPILER_IS_GCC;
-#endif
-}
+typedef struct {
+    CompilerKind kind;
+    Str          string;
+} Compiler;
 
-static CompilerKind compiler_parse(Str input)
+static Compiler compiler_parse(Str input)
 {
     // NOTE: On parsing and identifying compilers.
     //
@@ -1530,57 +1518,48 @@ static CompilerKind compiler_parse(Str input)
     // If there's a path, only keep the executable
     input = str_reverse_cut_any(input, SL("\\/")).tail;
 
-    Str_Pair segment = {.tail = input};
+    Str_Pair segment  = {.tail = input};
+    Compiler compiler = {.kind = COMPILER_IS_UNKNOWN};
     while (segment.tail.len > 0) {
         segment = str_cut(segment.tail, SL("-"));
 
         if (str_equal(segment.head, SL("clang"))) {
-            return COMPILER_IS_CLANG;
+            compiler.kind   = COMPILER_IS_GCC_COMPATIBLE;
+            compiler.string = input;
+            return compiler;
         }
         else if (str_equal(segment.head, SL("gcc")) || str_equal(segment.head, SL("g++"))) {
-            return COMPILER_IS_GCC;
+            compiler.kind   = COMPILER_IS_GCC_COMPATIBLE;
+            compiler.string = input;
+            return compiler;
         }
         else if (str_equal(segment.head, SL("cc")) || (str_equal(segment.head, SL("c++")))) {
-            return compiler_get_platform_default();
+            // We take a guess that the compiler is gcc compatible.
+            compiler.kind   = COMPILER_IS_GCC_COMPATIBLE;
+            compiler.string = input;
+            return compiler;
         }
         else if (str_equal(segment.head, SL("zig"))) {
-            return COMPILER_IS_ZIG_CC;
+            compiler.kind   = COMPILER_IS_GCC_COMPATIBLE; // zig is clang under the hood.
+            compiler.string = input;
+            return compiler;
         }
         else if (str_equal(segment.head, SL("cl"))) {
-            return COMPILER_IS_CL;
+            compiler.kind   = COMPILER_IS_CL;
+            compiler.string = input;
+            return compiler;
         }
     }
 
-    return COMPILER_IS_UNKNOWN;
-}
-
-static void print_compiler(OsWriterInterface *w, CompilerKind compiler)
-{
-    Str compiler_str = {0};
-    switch (compiler) {
-    default: // FALLTHROUGH
-    case COMPILER_IS_UNKNOWN: compiler_str = SL("unknown"); break;
-    case COMPILER_IS_GCC:     compiler_str = SL("gcc"); break;
-    case COMPILER_IS_CLANG:   compiler_str = SL("clang"); break;
-    case COMPILER_IS_ZIG_CC:  compiler_str = SL("zig cc"); break;
-    case COMPILER_IS_CL:      compiler_str = SL("cl.exe"); break;
-    }
-    static_assert(COMPILER_COUNT == 5, "This switch needs to be exhaustive");
-    print_str(w, compiler_str);
-}
-
-static void println_compiler(OsWriterInterface *w, CompilerKind compiler)
-{
-    print_compiler(w, compiler);
-    print_u8(w, '\n');
+    return compiler;
 }
 
 // :: CompilerInvocation
 // Represent a compiler invocation like `gcc -o main.exe main.c`
 // e.g. "gcc main.c -o main"
 typedef struct {
-    CompilerKind compiler;
-    StrList      tokens;
+    Compiler compiler;
+    StrList  tokens;
 } CompilerInvocation;
 
 static CompilerInvocation compiler_invocation_from_shell_line(Arena *perm, StrList *line_tokens, OsWriterInterface *w,
@@ -1591,8 +1570,8 @@ static CompilerInvocation compiler_invocation_from_shell_line(Arena *perm, StrLi
         BUILD_INVOCATION,
     } state = SEARCH_COMPILER;
 
-    CompilerKind compiler = COMPILER_IS_UNKNOWN;
-    StrList      tokens   = {0};
+    Compiler compiler = {0};
+    StrList  tokens   = {0};
 
     if (verbose) {
         println_str(w, SL("Tokenized shell line:"));
@@ -1607,7 +1586,7 @@ static CompilerInvocation compiler_invocation_from_shell_line(Arena *perm, StrLi
         switch (state) {
         case SEARCH_COMPILER: {
             compiler = compiler_parse(token);
-            if (COMPILER_IS_UNKNOWN != compiler) {
+            if (COMPILER_IS_UNKNOWN != compiler.kind) {
                 Str unescaped_token = str_unescape(perm, token);
                 strlist_push_back(&tokens, perm, unescaped_token);
                 state = BUILD_INVOCATION;
@@ -1648,7 +1627,7 @@ end_of_invocation:
 static void print_compiler_invocation(OsWriterInterface *w, CompilerInvocation invo)
 {
     print_str(w, SL("Compiler: "));
-    println_compiler(w, invo.compiler);
+    print_str(w, invo.compiler.string);
     print_str(w, SL("Tokens: "));
     print_strlist(w, invo.tokens);
 }
@@ -1817,13 +1796,11 @@ static CompilerCommand compiler_command_from_invocation(Arena *perm, CompilerInv
         w->tab -= 1;
     }
 
-    switch (invocation.compiler) {
+    switch (invocation.compiler.kind) {
     case COMPILER_IS_UNKNOWN: {
         break;
     }
-    case COMPILER_IS_GCC:   // FALLTHROUGH
-    case COMPILER_IS_CLANG: // FALLTHROUGH
-    case COMPILER_IS_ZIG_CC: {
+    case COMPILER_IS_GCC_COMPATIBLE: {
         compiler_command = compiler_command_from_gcc_invocation(perm, invocation.tokens);
         break;
     }
@@ -1835,7 +1812,6 @@ static CompilerCommand compiler_command_from_invocation(Arena *perm, CompilerInv
         assert(0);
     }
     }
-
     return compiler_command;
 }
 
@@ -2522,33 +2498,45 @@ static void test_parse_directory(Arena a)
                        SL("/home/test"), SL("/home/test"));
 }
 
+static void run_test_compiler_parser(Str input, Str expected_compiler_str, CompilerKind expected_compiler_kind)
+{
+    Compiler compiler = compiler_parse(input);
+    CHECK(expected_compiler_kind == compiler.kind);
+    CHECK(str_equal(expected_compiler_str, compiler.string));
+}
+
 static void test_compiler_parse(Arena a)
 {
     (void)a;
 
-    // gcc
-    CHECK(COMPILER_IS_GCC == compiler_parse(SL("gcc")));
-    CHECK(COMPILER_IS_GCC == compiler_parse(SL("gcc.exe")));
-    CHECK(COMPILER_IS_GCC == compiler_parse(SL("gcc-12")));
-    CHECK(COMPILER_IS_GCC == compiler_parse(SL("gcc-12.1")));
-    CHECK(COMPILER_IS_GCC == compiler_parse(SL("arm-none-eabi-gcc")));
-    CHECK(COMPILER_IS_GCC == compiler_parse(SL("x86_64-pc-linux-gnu-gcc-15.2.1")));
-    CHECK(COMPILER_IS_GCC == compiler_parse(SL("C:/Users/gberthiaume/scoop/apps/w64devkit/current/bin/gcc")));
-    CHECK(COMPILER_IS_GCC == compiler_parse(SL("'C:/my folder/gcc'")));
-    CHECK(COMPILER_IS_GCC == compiler_parse(SL("\"C:/my folder/gcc\"")));
-    CHECK(COMPILER_IS_GCC == compiler_parse(SL("C:\\Users\\gberthiaume\\scoop\\apps\\w64devkit\\current\\bin\\gcc")));
-    CHECK(COMPILER_IS_GCC == compiler_parse(SL("C:/clang/gcc")));
-
-    // zig cc
-    CHECK(COMPILER_IS_ZIG_CC == compiler_parse(SL("zig")));
-    CHECK(COMPILER_IS_ZIG_CC == compiler_parse(SL("zig.exe")));
-    CHECK(COMPILER_IS_ZIG_CC == compiler_parse(SL("C:/Users/gberthiaume/scoop/apps/zig/0.16.0/zig.exe")));
+    // clang-format off
 
     // not a compiler
-    CHECK(COMPILER_IS_UNKNOWN == compiler_parse(SL("ccache")));
-    CHECK(COMPILER_IS_UNKNOWN == compiler_parse(SL("distcc")));
-    CHECK(COMPILER_IS_UNKNOWN == compiler_parse(SL("C:/gcc/myprogram")));
-    CHECK(COMPILER_IS_UNKNOWN == compiler_parse(SL("CC=gcc make")));
+    run_test_compiler_parser(SL("ccache"),           SL(""), COMPILER_IS_UNKNOWN);
+    run_test_compiler_parser(SL("distcc"),           SL(""), COMPILER_IS_UNKNOWN);
+    run_test_compiler_parser(SL("C:/gcc/myprogram"), SL(""), COMPILER_IS_UNKNOWN);
+    run_test_compiler_parser(SL("CC=gcc make"),      SL(""), COMPILER_IS_UNKNOWN);
+    
+    // gcc
+    run_test_compiler_parser(SL("gcc"),                                                                SL("gcc"), COMPILER_IS_GCC_COMPATIBLE);
+    run_test_compiler_parser(SL("gcc.exe"),                                                            SL("gcc"), COMPILER_IS_GCC_COMPATIBLE);
+    run_test_compiler_parser(SL("gcc.EXE"),                                                            SL("gcc"), COMPILER_IS_GCC_COMPATIBLE);
+    run_test_compiler_parser(SL("gcc-12"),                                                             SL("gcc-12"), COMPILER_IS_GCC_COMPATIBLE);
+    run_test_compiler_parser(SL("gcc-12.1"),                                                           SL("gcc-12.1"), COMPILER_IS_GCC_COMPATIBLE);
+    run_test_compiler_parser(SL("arm-none-eabi-gcc"),                                                  SL("arm-none-eabi-gcc"), COMPILER_IS_GCC_COMPATIBLE);
+    run_test_compiler_parser(SL("x86_64-pc-linux-gnu-gcc-15.2.1"),                                     SL("x86_64-pc-linux-gnu-gcc-15.2.1"), COMPILER_IS_GCC_COMPATIBLE);
+    run_test_compiler_parser(SL("C:/Users/gberthiaume/scoop/apps/w64devkit/current/bin/gcc"),          SL("gcc"), COMPILER_IS_GCC_COMPATIBLE);
+    run_test_compiler_parser(SL("'C:/my folder/gcc'"),                                                 SL("gcc"), COMPILER_IS_GCC_COMPATIBLE);
+    run_test_compiler_parser(SL("\"C:/my folder/gcc\""),                                               SL("gcc"), COMPILER_IS_GCC_COMPATIBLE);
+    run_test_compiler_parser(SL("C:\\Users\\gberthiaume\\scoop\\apps\\w64devkit\\current\\bin\\gcc"),  SL("gcc"), COMPILER_IS_GCC_COMPATIBLE);
+    run_test_compiler_parser(SL("C:/clang/gcc"),                                                       SL("gcc"), COMPILER_IS_GCC_COMPATIBLE);
+
+    // zig cc
+    run_test_compiler_parser(SL("zig"),                                                                SL("zig"), COMPILER_IS_GCC_COMPATIBLE);
+    run_test_compiler_parser(SL("zig.exe"),                                                            SL("zig"), COMPILER_IS_GCC_COMPATIBLE);
+    run_test_compiler_parser(SL("C:/Users/gberthiaume/scoop/apps/zig/0.16.0/zig.exe"),                 SL("zig"), COMPILER_IS_GCC_COMPATIBLE);
+
+    // clang-format on
 }
 
 static void run_invo_test(Arena scratch, Str input, CompilerKind expected_compiler, StrList expected_tokens)
@@ -2556,7 +2544,7 @@ static void run_invo_test(Arena scratch, Str input, CompilerKind expected_compil
     StrList            line = shell_tokenize_logical_line(&scratch, &input);
     CompilerInvocation invo = compiler_invocation_from_shell_line(&scratch, &line, NULL, 0);
 
-    CHECK(invo.compiler == expected_compiler);
+    CHECK(invo.compiler.kind == expected_compiler);
     if (expected_compiler == COMPILER_IS_UNKNOWN) {
         CHECK(strlist_is_empty(invo.tokens));
     }
@@ -2570,47 +2558,47 @@ static void test_extract_compiler_invocation(Arena a)
     // clang-format off
 
     // generic
-    run_invo_test(a, SL("gcc main.c"), COMPILER_IS_GCC, SLIST(&a, "gcc", "main.c"));
-    run_invo_test(a, SL("ccache gcc main.c"), COMPILER_IS_GCC, SLIST(&a, "gcc", "main.c"));
-    run_invo_test(a, SL("distcc ccache gcc main.c"), COMPILER_IS_GCC, SLIST(&a, "gcc", "main.c"));
+    run_invo_test(a, SL("gcc main.c"), COMPILER_IS_GCC_COMPATIBLE, SLIST(&a, "gcc", "main.c"));
+    run_invo_test(a, SL("ccache gcc main.c"), COMPILER_IS_GCC_COMPATIBLE, SLIST(&a, "gcc", "main.c"));
+    run_invo_test(a, SL("distcc ccache gcc main.c"), COMPILER_IS_GCC_COMPATIBLE, SLIST(&a, "gcc", "main.c"));
 
     // list
-    run_invo_test(a, SL("make && gcc main.c"), COMPILER_IS_GCC, SLIST(&a, "gcc", "main.c"));
-    run_invo_test(a, SL("make || gcc main.c"), COMPILER_IS_GCC, SLIST(&a, "gcc", "main.c"));
-    run_invo_test(a, SL("mkdir build; gcc main.c -o build/main"), COMPILER_IS_GCC, SLIST(&a, "gcc", "main.c", "-o", "build/main"));
-    run_invo_test(a, SL("gcc main.c && echo done"), COMPILER_IS_GCC, SLIST(&a, "gcc", "main.c"));
-    run_invo_test(a, SL("mkdir build && gcc main.c -o build/main && strip build/main"), COMPILER_IS_GCC, SLIST(&a, "gcc", "main.c", "-o", "build/main"));
+    run_invo_test(a, SL("make && gcc main.c"), COMPILER_IS_GCC_COMPATIBLE, SLIST(&a, "gcc", "main.c"));
+    run_invo_test(a, SL("make || gcc main.c"), COMPILER_IS_GCC_COMPATIBLE, SLIST(&a, "gcc", "main.c"));
+    run_invo_test(a, SL("mkdir build; gcc main.c -o build/main"), COMPILER_IS_GCC_COMPATIBLE, SLIST(&a, "gcc", "main.c", "-o", "build/main"));
+    run_invo_test(a, SL("gcc main.c && echo done"), COMPILER_IS_GCC_COMPATIBLE, SLIST(&a, "gcc", "main.c"));
+    run_invo_test(a, SL("mkdir build && gcc main.c -o build/main && strip build/main"), COMPILER_IS_GCC_COMPATIBLE, SLIST(&a, "gcc", "main.c", "-o", "build/main"));
     run_invo_test(a, SL("mkdir build && echo done"), COMPILER_IS_UNKNOWN, (StrList){0});
-    run_invo_test(a, SL("make & gcc main.c"), COMPILER_IS_GCC, SLIST(&a, "gcc", "main.c"));
+    run_invo_test(a, SL("make & gcc main.c"), COMPILER_IS_GCC_COMPATIBLE, SLIST(&a, "gcc", "main.c"));
 
     // pipes
-    run_invo_test(a, SL("gcc main.c | tee log.txt"), COMPILER_IS_GCC, SLIST(&a, "gcc", "main.c"));
-    run_invo_test(a, SL("gcc main.c |& tee log.txt"), COMPILER_IS_GCC, SLIST(&a, "gcc", "main.c"));
-    run_invo_test(a, SL("echo main.c | xargs gcc"), COMPILER_IS_GCC, SLIST(&a, "gcc"));
+    run_invo_test(a, SL("gcc main.c | tee log.txt"), COMPILER_IS_GCC_COMPATIBLE, SLIST(&a, "gcc", "main.c"));
+    run_invo_test(a, SL("gcc main.c |& tee log.txt"), COMPILER_IS_GCC_COMPATIBLE, SLIST(&a, "gcc", "main.c"));
+    run_invo_test(a, SL("echo main.c | xargs gcc"), COMPILER_IS_GCC_COMPATIBLE, SLIST(&a, "gcc"));
 
     // redirect
-    run_invo_test(a, SL("gcc main.c > log.txt"), COMPILER_IS_GCC, SLIST(&a, "gcc", "main.c"));
-    run_invo_test(a, SL("gcc main.c >> log.txt"), COMPILER_IS_GCC, SLIST(&a, "gcc", "main.c"));
-    run_invo_test(a, SL("gcc main.c 2> err.txt"), COMPILER_IS_GCC, SLIST(&a, "gcc", "main.c"));
-    run_invo_test(a, SL("gcc main.c &> log.txt"), COMPILER_IS_GCC, SLIST(&a, "gcc", "main.c"));
-    run_invo_test(a, SL("gcc main.c &>> log.txt"), COMPILER_IS_GCC, SLIST(&a, "gcc", "main.c"));
-    run_invo_test(a, SL("gcc main.c >| log.txt"), COMPILER_IS_GCC, SLIST(&a, "gcc", "main.c"));
-    run_invo_test(a, SL("gcc main.c 2>&1"), COMPILER_IS_GCC, SLIST(&a, "gcc", "main.c"));
-    run_invo_test(a, SL("gcc main.c 2>&-"), COMPILER_IS_GCC, SLIST(&a, "gcc", "main.c"));
-    run_invo_test(a, SL("gcc main.c <<< inline"), COMPILER_IS_GCC, SLIST(&a, "gcc", "main.c"));
-    run_invo_test(a, SL("gcc < input.txt main.c"), COMPILER_IS_GCC, SLIST(&a, "gcc", "main.c"));
-    run_invo_test(a, SL("gcc main.c > log.txt -o app"), COMPILER_IS_GCC, SLIST(&a, "gcc", "main.c", "-o", "app"));
-    run_invo_test(a, SL("gcc main.c -o 1>&2 2>/dev/null app"), COMPILER_IS_GCC, SLIST(&a, "gcc", "main.c", "-o", "app"));
+    run_invo_test(a, SL("gcc main.c > log.txt"), COMPILER_IS_GCC_COMPATIBLE, SLIST(&a, "gcc", "main.c"));
+    run_invo_test(a, SL("gcc main.c >> log.txt"), COMPILER_IS_GCC_COMPATIBLE, SLIST(&a, "gcc", "main.c"));
+    run_invo_test(a, SL("gcc main.c 2> err.txt"), COMPILER_IS_GCC_COMPATIBLE, SLIST(&a, "gcc", "main.c"));
+    run_invo_test(a, SL("gcc main.c &> log.txt"), COMPILER_IS_GCC_COMPATIBLE, SLIST(&a, "gcc", "main.c"));
+    run_invo_test(a, SL("gcc main.c &>> log.txt"), COMPILER_IS_GCC_COMPATIBLE, SLIST(&a, "gcc", "main.c"));
+    run_invo_test(a, SL("gcc main.c >| log.txt"), COMPILER_IS_GCC_COMPATIBLE, SLIST(&a, "gcc", "main.c"));
+    run_invo_test(a, SL("gcc main.c 2>&1"), COMPILER_IS_GCC_COMPATIBLE, SLIST(&a, "gcc", "main.c"));
+    run_invo_test(a, SL("gcc main.c 2>&-"), COMPILER_IS_GCC_COMPATIBLE, SLIST(&a, "gcc", "main.c"));
+    run_invo_test(a, SL("gcc main.c <<< inline"), COMPILER_IS_GCC_COMPATIBLE, SLIST(&a, "gcc", "main.c"));
+    run_invo_test(a, SL("gcc < input.txt main.c"), COMPILER_IS_GCC_COMPATIBLE, SLIST(&a, "gcc", "main.c"));
+    run_invo_test(a, SL("gcc main.c > log.txt -o app"), COMPILER_IS_GCC_COMPATIBLE, SLIST(&a, "gcc", "main.c", "-o", "app"));
+    run_invo_test(a, SL("gcc main.c -o 1>&2 2>/dev/null app"), COMPILER_IS_GCC_COMPATIBLE, SLIST(&a, "gcc", "main.c", "-o", "app"));
 
     // subshell expansion and substitution
-    run_invo_test(a, SL("gcc `echo main.c`"), COMPILER_IS_GCC, SLIST(&a, "gcc"));
-    run_invo_test(a, SL("gcc $(find . -name '*.c')"), COMPILER_IS_GCC, SLIST(&a, "gcc"));
-    run_invo_test(a, SL("gcc main.c $(extra_flags) -o app"), COMPILER_IS_GCC, SLIST(&a, "gcc", "main.c", "-o", "app"));
-    run_invo_test(a, SL("gcc $CFLAGS main.c"), COMPILER_IS_GCC, SLIST(&a, "gcc", "main.c"));
-    run_invo_test(a, SL("gcc ${CFLAGS} main.c"), COMPILER_IS_GCC, SLIST(&a, "gcc", "main.c"));
-    run_invo_test(a, SL("gcc main.c -o $(basename main.c .c)"), COMPILER_IS_GCC, SLIST(&a, "gcc", "main.c", "-o"));
-    run_invo_test(a, SL("gcc `echo main.c` -o app"), COMPILER_IS_GCC, SLIST(&a, "gcc", "-o", "app"));
-    run_invo_test(a, SL("mkdir build && gcc `echo \"test\"` main.c -o build/main.exe > log.txt"), COMPILER_IS_GCC, SLIST(&a, "gcc", "main.c", "-o", "build/main.exe"));
+    run_invo_test(a, SL("gcc `echo main.c`"), COMPILER_IS_GCC_COMPATIBLE, SLIST(&a, "gcc"));
+    run_invo_test(a, SL("gcc $(find . -name '*.c')"), COMPILER_IS_GCC_COMPATIBLE, SLIST(&a, "gcc"));
+    run_invo_test(a, SL("gcc main.c $(extra_flags) -o app"), COMPILER_IS_GCC_COMPATIBLE, SLIST(&a, "gcc", "main.c", "-o", "app"));
+    run_invo_test(a, SL("gcc $CFLAGS main.c"), COMPILER_IS_GCC_COMPATIBLE, SLIST(&a, "gcc", "main.c"));
+    run_invo_test(a, SL("gcc ${CFLAGS} main.c"), COMPILER_IS_GCC_COMPATIBLE, SLIST(&a, "gcc", "main.c"));
+    run_invo_test(a, SL("gcc main.c -o $(basename main.c .c)"), COMPILER_IS_GCC_COMPATIBLE, SLIST(&a, "gcc", "main.c", "-o"));
+    run_invo_test(a, SL("gcc `echo main.c` -o app"), COMPILER_IS_GCC_COMPATIBLE, SLIST(&a, "gcc", "-o", "app"));
+    run_invo_test(a, SL("mkdir build && gcc `echo \"test\"` main.c -o build/main.exe > log.txt"), COMPILER_IS_GCC_COMPATIBLE, SLIST(&a, "gcc", "main.c", "-o", "build/main.exe"));
 
     // clang-format on
 }
