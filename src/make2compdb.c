@@ -1,6 +1,6 @@
 // make2compdb
 // Generates a Clang's JSON Compilation Database files (`compiler_commands.json`) from make build systems.
-// This json file can be usefull for multiple tools including the clangd LSP.
+// This json file can be usefull for multiple tools including the [clangd](https://clangd.llvm.org/) LSP.
 //
 // USAGE
 //
@@ -65,7 +65,7 @@
 //      For more information, please refer to <https://unlicense.org>
 //      spdx: The Unlicense
 //
-//      Author: g-berthiaume, 2026
+//      Author: Gabriel Berthiaume, 2026
 //
 #include <stddef.h>
 #include <stdint.h>
@@ -74,7 +74,7 @@
     #error "This code expects to be compiled by a C23 toolchain"
 #endif
 
-#define VERSION "2026-06-04"
+#define VERSION "2026-07-29" // ISO-8601 date format
 
 typedef uint8_t        u8;
 typedef uint16_t       u16;
