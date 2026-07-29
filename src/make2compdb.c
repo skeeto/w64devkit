@@ -32,9 +32,11 @@
 //      Windows: $ cc -std=c23 -nostartfiles -O2 -s -o make2compdb.exe make2compdb.c -lmemory
 //        Linux: $ cc -std=c23 -O2 -o make2compdb make2compdb.c
 //
+//
 // BUILD TESTS
 //
 //         Both: $ cc -std=c23 -O2 -DTEST -o test make2compdb.c
+//
 //
 // BUILD FUZZ
 //
@@ -50,15 +52,19 @@
 //      way to parse them for all languages. Therefore, make2compdb expect you to
 //      run `make` using the `C.UTF-8` locale or equivalents.
 //
+//
 // REFERENCE
 //
 //      JSON Compilation Database Format Specification
 //      https://clang.llvm.org/docs/JSONCompilationDatabase.html
 //
+//
 // LICENCE
 //
 //      This is free and unencumbered software released into the public domain.
 //      For more information, please refer to <https://unlicense.org>
+//      spdx: The Unlicense
+//
 //      Author: g-berthiaume, 2026
 //
 #include <stddef.h>
@@ -183,7 +189,9 @@ static Arena arena_init(isize capacity, byte memory[static capacity])
 }
 
 // Modified from Christopher Wellons pck-config.c [1]
+//
 // [1] https://github.com/skeeto/w64devkit/blob/master/src/pkg-config.c
+//     Licence: The Unlicense
 static byte *arena_alloc(Arena *a, isize count, isize size, isize align)
 {
     assert(NULL != a);
@@ -613,7 +621,9 @@ static Str_Pair str_reverse_cut_any(Str s, Str char_list)
 }
 
 // Taken from Christopher Wellons pck-config.c [1]
+//
 // [1] https://github.com/skeeto/w64devkit/blob/master/src/pkg-config.c
+//     Licence: Unlicense
 static u32 str_hash(Str s)
 {
     u32 h = 0x811c9dc5;
@@ -2967,7 +2977,9 @@ static Str16 str16_drop_head(Str16 s, isize offset_from_the_start)
 // :: Unicode
 // Unicode operations
 // Modified from Christopher Wellons pck-config.c [1]
+//
 // [1] https://github.com/skeeto/w64devkit/blob/master/src/pkg-config.c
+//     Licence: Unlicense
 enum : u32 {
     // U+FFFD (�) is used to replace an unknown, unrecognised, or unrepresentable character.
     REPLACEMENT_CHARACTER = 0xfffd,
