@@ -1,0 +1,56 @@
+Windmc reads its input as raw bytes and picks the encoding solely from the
+command line: -a/-C for a code page, -u for UTF-16, defaulting to code page
+1252. It never examines a byte order mark. Windows text editors and the
+Microsoft mc.exe toolchain routinely emit .mc files with one, and every
+such file is rejected:
+
+* A UTF-8 BOM, EF BB BF, decodes under code page 1252 as U+00EF U+00BB
+  U+00BF. All three are >= 0x40, so the lexer glues them into an
+  identifier token and the parse dies with "syntax error" on line 1, with
+  no hint that the encoding is at fault.
+
+* A UTF-16LE BOM, FF FE, is U+FEFF, likewise >= 0x40 and likewise a stray
+  identifier, so even the correct "windmc -u" fails the same way. Without
+  -u the file is decoded as code page 1252 mojibake instead.
+
+Detect and consume both marks. A byte order mark identifies the encoding
+authoritatively, so let it override the switches rather than the other way
+around, which is also how mc.exe behaves. UTF-16BE is not handled: it
+would require byte swapping the whole input, and it does not occur in
+practice.
+
+--- a/binutils/windmc.c
++++ b/binutils/windmc.c
+@@ -1109,3 +1109,3 @@
+     rc_uint_type ul;
+-    char *buff;
++    char *buff, *cont;
+     bfd_size_type flen;
+@@ -1124,5 +1124,21 @@
+     fclose (fp);
++    /* A byte order mark identifies the encoding authoritatively, so
++       consume it and let it override the command line switches.  */
++    cont = buff;
++    if (flen >= 3 && ! memcmp (cont, "\357\273\277", 3))
++      {
++	cont += 3;
++	flen -= 3;
++	mcset_text_in_is_unicode = 0;
++	mcset_codepage_in = CP_UTF8;
++      }
++    else if (flen >= 2 && ! memcmp (cont, "\377\376", 2))
++      {
++	cont += 2;
++	flen -= 2;
++	mcset_text_in_is_unicode = 1;
++      }
+     if (mcset_text_in_is_unicode != 1)
+       {
+-	unicode_from_codepage (&ul, &u, buff, mcset_codepage_in);
++	unicode_from_codepage (&ul, &u, cont, mcset_codepage_in);
+ 	if (! u)
+@@ -1135,3 +1151,3 @@
+ 	  fatal (_("input file does not seems to be UFT16.\n"));
+-	mc_set_content ((unichar *) buff);
++	mc_set_content ((unichar *) cont);
+       }
