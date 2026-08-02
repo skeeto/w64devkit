@@ -37,10 +37,15 @@ generated parser is patched alongside its source since bison is not run
 during the build; both edits preserve the line count so the #line
 directives in mcparse.c stay accurate.
 
---- a/binutils/mcparse.c
-+++ b/binutils/mcparse.c
-@@ -1606,6 +1606,6 @@
- 	    (yyval.ival) = 0;
+Keep mcparse.y ahead of mcparse.c below. patch writes the files in the
+order they appear, so this leaves the generated parser newer than the
+grammar. The other way round make thinks mcparse.c is stale and tries to
+regenerate it, and the build then needs bison.
+
+--- a/binutils/mcparse.y
++++ b/binutils/mcparse.y
+@@ -213,6 +213,6 @@
+ 	    $$ = 0;
 -	    mc_sefa_val = (mcset_custom_bit ? 1 : 0) << 29;
 +	    /* Severity and facility carry over from the last message.  */
 +	    mc_sefa_val &= (0x3UL << 30) | (0xfffUL << 16);
@@ -49,10 +54,10 @@ directives in mcparse.c stay accurate.
 -	    mc_cur_severity = NULL;
 -	    mc_cur_facility = NULL;
  	  }
---- a/binutils/mcparse.y
-+++ b/binutils/mcparse.y
-@@ -213,6 +213,6 @@
- 	    $$ = 0;
+--- a/binutils/mcparse.c
++++ b/binutils/mcparse.c
+@@ -1606,6 +1606,6 @@
+ 	    (yyval.ival) = 0;
 -	    mc_sefa_val = (mcset_custom_bit ? 1 : 0) << 29;
 +	    /* Severity and facility carry over from the last message.  */
 +	    mc_sefa_val &= (0x3UL << 30) | (0xfffUL << 16);
