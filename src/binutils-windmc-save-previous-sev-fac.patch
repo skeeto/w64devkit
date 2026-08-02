@@ -1,0 +1,35 @@
+When WINDMC starts reading new message, it sets current severity
+and facility value to NULL so every message without severity
+and facility being set by developer have following fields set to 0
+by WINDMC.
+
+MSVC's MC does save previous value of severity and facility so
+developer can set them at first message of given type and
+omit Severity and Facility fields from subsequent declarations.
+
+--- a/binutils/mcparse.c
++++ b/binutils/mcparse.c
+@@ -1606,8 +1606,8 @@
+ 	    (yyval.ival) = 0;
+ 	    mc_sefa_val = (mcset_custom_bit ? 1 : 0) << 29;
+ 	    mc_last_symbol = NULL;
+-	    mc_cur_severity = NULL;
+-	    mc_cur_facility = NULL;
++	    /*mc_cur_severity = NULL;*/
++	    /*mc_cur_facility = NULL;*/
+ 	  }
+ #line 1613 "mcparse.c"
+     break;
+--- a/binutils/mcparse.y
++++ b/binutils/mcparse.y
+@@ -213,8 +213,8 @@
+ 	    $$ = 0;
+ 	    mc_sefa_val = (mcset_custom_bit ? 1 : 0) << 29;
+ 	    mc_last_symbol = NULL;
+-	    mc_cur_severity = NULL;
+-	    mc_cur_facility = NULL;
++	    /*mc_cur_severity = NULL;*/
++	    /*mc_cur_facility = NULL;*/
+ 	  }
+ 	| sefasy_def severity
+ 	  {
