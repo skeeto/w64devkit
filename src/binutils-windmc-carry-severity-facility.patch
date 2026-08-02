@@ -1,0 +1,63 @@
+Windmc clears the severity and facility fields at the start of every
+message, so a message that omits Severity or Facility gets zero in those
+bits. Microsoft's message compiler instead carries the last value
+forward, which is what its documentation specifies for both fields:
+
+    If no value is specified, the value used is the value last
+    specified for a message definition.
+
+So this .mc fragment, which sets the fields once and then relies on them
+for the rest of the facility:
+
+    MessageId=0x1
+    Severity=Error
+    Facility=Installer
+    SymbolicName=PIW_E_PROGRAM_INCOMPATIBLE
+    ...
+    MessageId=0x2
+    SymbolicName=PIW_E_FAILED_TO_INSTALL
+    ...
+
+compiles to 0xc7010001 then 0x00000002 under windmc, where mc.exe gives
+0xc7010001 then 0xc7010002. Every message after the first is silently
+assigned a meaningless status code.
+
+The values live in mc_sefa_val, so preserve its severity and facility
+bits across messages instead of zeroing them. The custom bit is still
+reapplied from the switch on each message, and messages that do specify
+Severity or Facility overwrite the relevant bits as before, so files that
+name both fields on every message are unaffected.
+
+Two adjacent divergences from mc.exe are deliberately left alone here:
+the built-in Application facility is 0xfff rather than mc.exe's 0, and
+the MessageId=+N counter is global rather than per facility.
+
+This is Sourceware bug 13971, reported in 2012 and still open. The
+generated parser is patched alongside its source since bison is not run
+during the build; both edits preserve the line count so the #line
+directives in mcparse.c stay accurate.
+
+--- a/binutils/mcparse.c
++++ b/binutils/mcparse.c
+@@ -1606,6 +1606,6 @@
+ 	    (yyval.ival) = 0;
+-	    mc_sefa_val = (mcset_custom_bit ? 1 : 0) << 29;
++	    /* Severity and facility carry over from the last message.  */
++	    mc_sefa_val &= (0x3UL << 30) | (0xfffUL << 16);
++	    mc_sefa_val |= (mcset_custom_bit ? 1 : 0) << 29;
+ 	    mc_last_symbol = NULL;
+-	    mc_cur_severity = NULL;
+-	    mc_cur_facility = NULL;
+ 	  }
+--- a/binutils/mcparse.y
++++ b/binutils/mcparse.y
+@@ -213,6 +213,6 @@
+ 	    $$ = 0;
+-	    mc_sefa_val = (mcset_custom_bit ? 1 : 0) << 29;
++	    /* Severity and facility carry over from the last message.  */
++	    mc_sefa_val &= (0x3UL << 30) | (0xfffUL << 16);
++	    mc_sefa_val |= (mcset_custom_bit ? 1 : 0) << 29;
+ 	    mc_last_symbol = NULL;
+-	    mc_cur_severity = NULL;
+-	    mc_cur_facility = NULL;
+ 	  }
