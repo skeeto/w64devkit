@@ -1,0 +1,160 @@
+Windmc numbers messages with a single global counter, so "MessageId=+1"
+and a bare "MessageId=" continue from whatever message came last. MS
+mc.exe keeps a separate counter per facility: the relative form counts
+within the message's own facility, and returning to an earlier facility
+resumes that facility's numbering.
+
+    MessageId=0x10        mc.exe            windmc
+    Facility=Aa    ->     0xc0110010        0xc0110010
+    MessageId=+1   ->     0xc0110011        0xc0110011
+    MessageId=+1
+    Facility=Bb    ->     0xc0220001        0xc0220012
+    MessageId=+1   ->     0xc0220002        0xc0220013
+    MessageId=+1
+    Facility=Aa    ->     0xc0110012        0xc0110015
+
+Severity has no effect on the counter; only the facility selects it.
+
+The id cannot be resolved where it is parsed, because MessageId precedes
+the Facility field that selects its counter. So record whether the id was
+relative and resolve it in the message rule, which runs after the fields
+have been parsed and mc_sefa_val holds the final facility. mc_last_id is
+replaced by a table indexed by the 12 bit facility field.
+
+Note this changes the constants generated for any .mc file that uses a
+relative MessageId across a change of Facility, including files that were
+never affected by the severity and facility defaulting bug, and message
+ids are visible outside the build: they reach event logs, documentation,
+and other programs that test for particular status codes. Such a file is
+already generating different ids than mc.exe would, so this aligns it,
+but the renumbering is silent and worth a release note.
+
+Files that give every message an explicit MessageId, or that never change
+facility, are unaffected.
+
+Keep mcparse.y ahead of mcparse.c below. patch writes the files in the
+order they appear, so this leaves the generated parser newer than the
+grammar. The other way round make thinks mcparse.c is stale and tries to
+regenerate it, and the build then needs bison.
+
+--- a/binutils/mcparse.y
++++ b/binutils/mcparse.y
+@@ -31,7 +31,11 @@
+ #include "windmc.h"
+ #include "safe-ctype.h"
+ 
+-static rc_uint_type mc_last_id = 0;
++/* Whether the pending MessageId is relative.  Messages are numbered per
++   facility, and a message's facility is not known until the fields that
++   follow MessageId have been parsed, so the id is resolved later.  */
++static int mc_pending_rel = 0;
++static rc_uint_type mc_facility_id[0x1000];
+ static rc_uint_type mc_sefa_val = 0;
+ static unichar *mc_last_symbol = NULL;
+ static const mc_keyword *mc_cur_severity = NULL;
+@@ -175,14 +179,17 @@
+ message:
+ 	  id sefasy_def
+ 	  {
++	    rc_uint_type fac = (mc_sefa_val >> 16) & 0xfffUL;
++	    rc_uint_type id = mc_pending_rel ? mc_facility_id[fac] + $1 : $1;
++
++	    mc_facility_id[fac] = id;
+ 	    cur_node = mc_add_node ();
+ 	    cur_node->symbol = mc_last_symbol;
+ 	    cur_node->facility = mc_cur_facility;
+ 	    cur_node->severity = mc_cur_severity;
+-	    cur_node->id = ($1 & 0xffffUL);
+-	    cur_node->vid = ($1 & 0xffffUL) | mc_sefa_val;
++	    cur_node->id = (id & 0xffffUL);
++	    cur_node->vid = (id & 0xffffUL) | mc_sefa_val;
+ 	    cur_node->id_typecast = mcset_msg_id_typedef;
+-	    mc_last_id = $1;
+ 	  }
+ 	  lang_entities
+ ;
+@@ -194,15 +201,18 @@
+ 
+ vid:	  /* empty */
+ 	  {
+-	    $$ = ++mc_last_id;
++	    $$ = 1;
++	    mc_pending_rel = 1;
+ 	  }
+ 	| MCNUMBER
+ 	  {
+ 	    $$ = $1;
++	    mc_pending_rel = 0;
+ 	  }
+ 	| '+' MCNUMBER
+ 	  {
+-	    $$ = mc_last_id + $2;
++	    $$ = $2;
++	    mc_pending_rel = 1;
+ 	  }
+ 	| '+' error { mc_fatal ("missing number after MessageId '+'"); }
+ ;
+--- a/binutils/mcparse.c
++++ b/binutils/mcparse.c
+@@ -101,7 +101,11 @@
+ #include "windmc.h"
+ #include "safe-ctype.h"
+ 
+-static rc_uint_type mc_last_id = 0;
++/* Whether the pending MessageId is relative.  Messages are numbered per
++   facility, and a message's facility is not known until the fields that
++   follow MessageId have been parsed, so the id is resolved later.  */
++static int mc_pending_rel = 0;
++static rc_uint_type mc_facility_id[0x1000];
+ static rc_uint_type mc_sefa_val = 0;
+ static unichar *mc_last_symbol = NULL;
+ static const mc_keyword *mc_cur_severity = NULL;
+@@ -1540,14 +1544,17 @@
+   case 48: /* $@1: %empty  */
+ #line 177 "mcparse.y"
+           {
++	    rc_uint_type fac = (mc_sefa_val >> 16) & 0xfffUL;
++	    rc_uint_type id = mc_pending_rel ? mc_facility_id[fac] + (yyvsp[-1].ival) : (yyvsp[-1].ival);
++
++	    mc_facility_id[fac] = id;
+ 	    cur_node = mc_add_node ();
+ 	    cur_node->symbol = mc_last_symbol;
+ 	    cur_node->facility = mc_cur_facility;
+ 	    cur_node->severity = mc_cur_severity;
+-	    cur_node->id = ((yyvsp[-1].ival) & 0xffffUL);
+-	    cur_node->vid = ((yyvsp[-1].ival) & 0xffffUL) | mc_sefa_val;
++	    cur_node->id = (id & 0xffffUL);
++	    cur_node->vid = (id & 0xffffUL) | mc_sefa_val;
+ 	    cur_node->id_typecast = mcset_msg_id_typedef;
+-	    mc_last_id = (yyvsp[-1].ival);
+ 	  }
+ #line 1553 "mcparse.c"
+     break;
+@@ -1573,7 +1580,8 @@
+   case 53: /* vid: %empty  */
+ #line 196 "mcparse.y"
+           {
+-	    (yyval.ival) = ++mc_last_id;
++	    (yyval.ival) = 1;
++	    mc_pending_rel = 1;
+ 	  }
+ #line 1579 "mcparse.c"
+     break;
+@@ -1582,6 +1590,7 @@
+ #line 200 "mcparse.y"
+           {
+ 	    (yyval.ival) = (yyvsp[0].ival);
++	    mc_pending_rel = 0;
+ 	  }
+ #line 1587 "mcparse.c"
+     break;
+@@ -1589,7 +1598,8 @@
+   case 55: /* vid: '+' MCNUMBER  */
+ #line 204 "mcparse.y"
+           {
+-	    (yyval.ival) = mc_last_id + (yyvsp[0].ival);
++	    (yyval.ival) = (yyvsp[0].ival);
++	    mc_pending_rel = 1;
+ 	  }
+ #line 1595 "mcparse.c"
+     break;
