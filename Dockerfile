@@ -959,6 +959,10 @@ RUN printf "id ICON \"$PREFIX/src/w64devkit.ico\"" >w64devkit.rc \
  && $ARCH-gcc -DEXE=../share/nsis/bin/makensis.exe -DCMD=makensis \
         -Oz -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
         -o $PREFIX/bin/makensis.exe $PREFIX/src/alias.c -lkernel32 \
+ && $ARCH-gcc \
+        -Oz -fno-asynchronous-unwind-tables -fno-builtin -Wl,--gc-sections \
+        -s -nostdlib -o $PREFIX/bin/make2compdb.exe $PREFIX/src/make2compdb.c \
+        -lkernel32 -lshell32 -lmemory \
  && sed -i s/'\<ARCH\>'/$ARCH/g $PREFIX/etc/profile \
  && mkdir -p $PREFIX/lib/pkgconfig \
  && cp /dl/mingw/COPYING.MinGW-w64-runtime/COPYING.MinGW-w64-runtime.txt \
