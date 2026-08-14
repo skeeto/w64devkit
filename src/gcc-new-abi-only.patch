@@ -5,7 +5,7 @@ gcc4-compatible COW std::string. For a from-scratch toolchain the
 useful single-ABI configuration is the reverse: only the modern SSO
 string. The library supports either direction: c++config.h neutralizes
 the per-file ABI pins in single-ABI builds, and the Makefiles already
-exclude the cow-*, cxx11-*, and shim facet objects. Three fixups
+exclude the cow-*, cxx11-*, and shim facet objects. Four fixups
 beyond the configure default:
 
 ios_base::failure derives from exception in the old ABI but from
@@ -21,6 +21,12 @@ time_put, ctype, codecvt, __pad) with !_GLIBCXX_USE_CXX11_ABI so the
 dual ABI instantiates them exactly once, in the old-ABI object. A
 new-ABI-only build must instantiate them in its only compile.
 
+The Transactional Memory TS clones in cow-stdexcept.cc are written
+against COW string internals (_Rep, public _M_dataplus), so they can
+only be compiled when std::basic_string is the COW string. This is
+invisible on x86_64, where _GLIBCXX_USE_WEAK_REF is false, but breaks
+the i686 build.
+
 --- a/libstdc++-v3/configure
 +++ b/libstdc++-v3/configure
 @@ -51668,7 +51668,7 @@
@@ -32,6 +38,17 @@ new-ABI-only build must instantiate them in its only compile.
    fi
  
  
+--- a/libstdc++-v3/src/c++11/cow-stdexcept.cc
++++ b/libstdc++-v3/src/c++11/cow-stdexcept.cc
+@@ -198,7 +198,7 @@
+ // are not defined by us.  Without such support, the exceptions will not be
+ // declared transaction-safe, so we just don't provide transactional clones
+ // in this case.
+-#if _GLIBCXX_USE_WEAK_REF
++#if _GLIBCXX_USE_WEAK_REF && ! _GLIBCXX_USE_CXX11_ABI
+ #ifdef _GLIBCXX_USE_C99_STDINT
+ 
+ #include <stdint.h>
 --- a/libstdc++-v3/src/c++11/ios_errcat.cc
 +++ b/libstdc++-v3/src/c++11/ios_errcat.cc
 @@ -28,6 +28,14 @@
