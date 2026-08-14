@@ -1,0 +1,228 @@
+Keep the new std::string ABI when the dual ABI is disabled
+
+--disable-libstdcxx-dual-abi hardwires the surviving ABI to the old
+gcc4-compatible COW std::string. For a from-scratch toolchain the
+useful single-ABI configuration is the reverse: only the modern SSO
+string. The library supports either direction: c++config.h neutralizes
+the per-file ABI pins in single-ABI builds, and the Makefiles already
+exclude the cow-*, cxx11-*, and shim facet objects. Three fixups
+beyond the configure default:
+
+ios_base::failure derives from exception in the old ABI but from
+system_error in the new one. Its new-ABI members normally come from
+src/c++11/cxx11-ios_failure.cc, built only for the dual ABI, and they
+cannot live in src/c++98/ios_failure.cc, compiled as C++98, where
+<ios> declares the new failure against a layout-compatible stand-in
+for system_error. Define them in the C++11 translation unit
+src/c++11/ios_errcat.cc instead.
+
+locale-inst.cc guards ABI-agnostic instantiations (facet ids, num_get,
+time_put, ctype, codecvt, __pad) with !_GLIBCXX_USE_CXX11_ABI so the
+dual ABI instantiates them exactly once, in the old-ABI object. A
+new-ABI-only build must instantiate them in its only compile.
+
+--- a/libstdc++-v3/configure
++++ b/libstdc++-v3/configure
+@@ -51668,7 +51668,7 @@
+   if test x"$enable_libstdcxx_dual_abi" != xyes; then
+     { $as_echo "$as_me:${as_lineno-$LINENO}: dual ABI is disabled" >&5
+ $as_echo "$as_me: dual ABI is disabled" >&6;}
+-    default_libstdcxx_abi="gcc4-compatible"
++    default_libstdcxx_abi="new"
+   fi
+ 
+ 
+--- a/libstdc++-v3/src/c++11/ios_errcat.cc
++++ b/libstdc++-v3/src/c++11/ios_errcat.cc
+@@ -28,6 +28,14 @@
+ 
+ #define _GLIBCXX_USE_CXX11_ABI 1
+ #include <ios>
++#include <bits/functexcept.h>
++
++#ifdef _GLIBCXX_USE_NLS
++# include <libintl.h>
++# define _(msgid)   gettext (msgid)
++#else
++# define _(msgid)   (msgid)
++#endif
+ 
+ #if __has_cpp_attribute(clang::require_constant_initialization)
+ #  define __constinit [[clang::require_constant_initialization]]
+@@ -80,5 +88,39 @@
+   iostream_category() noexcept
+   { return io_category_instance.cat; }
+ 
++#if _GLIBCXX_USE_CXX11_ABI && ! _GLIBCXX_USE_DUAL_ABI
++  // In a single-ABI build with the new string ABI, these definitions
++  // cannot live in src/c++98/ios_failure.cc, which is compiled as C++98,
++  // nor in src/c++11/cxx11-ios_failure.cc, which is built only for the
++  // dual ABI. Class ios_base::failure derives from system_error.
++  ios_base::failure::failure(const string& __str)
++  : system_error(io_errc::stream, __str) { }
++
++  ios_base::failure::failure(const string& __str, const error_code& __ec)
++  : system_error(__ec, __str) { }
++
++  ios_base::failure::failure(const char* __str, const error_code& __ec)
++  : system_error(__ec, __str) { }
++
++  ios_base::failure::~failure()
++  { }
++
++  const char*
++  ios_base::failure::what() const throw()
++  { return runtime_error::what(); }
++
++  void
++  __throw_ios_failure(const char* __s __attribute__((unused)))
++  { _GLIBCXX_THROW_OR_ABORT(ios::failure(_(__s))); }
++
++  void
++  __throw_ios_failure(const char* __s __attribute__((unused)),
++		      int __err __attribute__((unused)))
++  {
++    _GLIBCXX_THROW_OR_ABORT(ios::failure(_(__s),
++	  __err ? error_code(__err, generic_category()) : io_errc::stream));
++  }
++#endif
++
+ _GLIBCXX_END_NAMESPACE_VERSION
+ } // namespace
+--- a/libstdc++-v3/src/c++11/locale-inst-numeric.h
++++ b/libstdc++-v3/src/c++11/locale-inst-numeric.h
+@@ -30,7 +30,7 @@
+ 
+ namespace std _GLIBCXX_VISIBILITY(default)
+ {
+-#if ! _GLIBCXX_USE_CXX11_ABI
++#if ! _GLIBCXX_USE_CXX11_ABI || ! _GLIBCXX_USE_DUAL_ABI
+ // use_facet and has_facet instantiations
+ INSTANTIATE_FACET_ACCESSORS(num_get<C>);
+ INSTANTIATE_FACET_ACCESSORS(num_put<C>);
+@@ -38,7 +38,7 @@
+ 
+ _GLIBCXX_BEGIN_NAMESPACE_LDBL
+ 
+-#if ! _GLIBCXX_USE_CXX11_ABI
++#if ! _GLIBCXX_USE_CXX11_ABI || ! _GLIBCXX_USE_DUAL_ABI
+   template class num_get<C, istreambuf_iterator<C> >;
+   template class num_put<C, ostreambuf_iterator<C> >;
+ #endif
+@@ -88,7 +88,7 @@
+ 		   unsigned long long&) const;
+ #endif
+ 
+-#if ! _GLIBCXX_USE_CXX11_ABI
++#if ! _GLIBCXX_USE_CXX11_ABI || ! _GLIBCXX_USE_DUAL_ABI
+   // num_put member function templates
+   template
+     ostreambuf_iterator<C>
+--- a/libstdc++-v3/src/c++11/locale-inst.cc
++++ b/libstdc++-v3/src/c++11/locale-inst.cc
+@@ -52,7 +52,7 @@
+ _GLIBCXX_BEGIN_NAMESPACE_VERSION
+ 
+   // moneypunct, money_get, and money_put
+-#if ! _GLIBCXX_USE_CXX11_ABI
++#if ! _GLIBCXX_USE_CXX11_ABI || ! _GLIBCXX_USE_DUAL_ABI
+   template struct __moneypunct_cache<C, false>;
+   template struct __moneypunct_cache<C, true>;
+ #endif
+@@ -64,7 +64,7 @@
+ _GLIBCXX_END_NAMESPACE_CXX11
+ 
+   // numpunct, numpunct_byname, num_get, and num_put
+-#if ! _GLIBCXX_USE_CXX11_ABI
++#if ! _GLIBCXX_USE_CXX11_ABI || ! _GLIBCXX_USE_DUAL_ABI
+   template struct __numpunct_cache<C>;
+ #endif
+ _GLIBCXX_BEGIN_NAMESPACE_CXX11
+@@ -73,7 +73,7 @@
+ _GLIBCXX_END_NAMESPACE_CXX11
+ 
+   // time_get and time_put
+-#if ! _GLIBCXX_USE_CXX11_ABI
++#if ! _GLIBCXX_USE_CXX11_ABI || ! _GLIBCXX_USE_DUAL_ABI
+   template class __timepunct<C>;
+   template struct __timepunct_cache<C>;
+   template class time_put<C, ostreambuf_iterator<C> >;
+@@ -97,13 +97,13 @@
+   ctype_byname<C>::ctype_byname(const string& __s, size_t __refs)
+   : ctype_byname(__s.c_str(), __refs) { }
+ 
+-#if ! _GLIBCXX_USE_CXX11_ABI
++#if ! _GLIBCXX_USE_CXX11_ABI || ! _GLIBCXX_USE_DUAL_ABI
+   inline template class __ctype_abstract_base<C>;
+   template class ctype_byname<C>;
+ #endif
+ 
+   // codecvt
+-#if ! _GLIBCXX_USE_CXX11_ABI
++#if ! _GLIBCXX_USE_CXX11_ABI || ! _GLIBCXX_USE_DUAL_ABI
+   inline template class __codecvt_abstract_base<C, char, mbstate_t>;
+   template class codecvt_byname<C, char, mbstate_t>;
+ #else
+@@ -118,7 +118,7 @@
+ _GLIBCXX_END_NAMESPACE_CXX11
+ 
+ // use_facet and has_facet instantiations
+-#if ! _GLIBCXX_USE_CXX11_ABI
++#if ! _GLIBCXX_USE_CXX11_ABI || ! _GLIBCXX_USE_DUAL_ABI
+ INSTANTIATE_FACET_ACCESSORS(ctype<C>);
+ INSTANTIATE_FACET_ACCESSORS(codecvt<C, char, mbstate_t>);
+ #endif
+@@ -127,14 +127,14 @@
+ INSTANTIATE_FACET_ACCESSORS(moneypunct<C, false>);
+ // No explicit instantiation of has_facet<moneypunct<C, true>> for some reason.
+ INSTANTIATE_USE_FACET      (moneypunct<C, true>);
+-#if ! _GLIBCXX_USE_CXX11_ABI
++#if ! _GLIBCXX_USE_CXX11_ABI || ! _GLIBCXX_USE_DUAL_ABI
+ INSTANTIATE_FACET_ACCESSORS(__timepunct<C>);
+ INSTANTIATE_FACET_ACCESSORS(time_put<C>);
+ #endif
+ INSTANTIATE_FACET_ACCESSORS(time_get<C>);
+ INSTANTIATE_FACET_ACCESSORS(messages<C>);
+ 
+-#if ! _GLIBCXX_USE_CXX11_ABI
++#if ! _GLIBCXX_USE_CXX11_ABI || ! _GLIBCXX_USE_DUAL_ABI
+   // locale functions.
+   template
+     C*
+--- a/libstdc++-v3/src/c++98/ios_failure.cc
++++ b/libstdc++-v3/src/c++98/ios_failure.cc
+@@ -45,6 +45,10 @@
+ {
+ _GLIBCXX_BEGIN_NAMESPACE_VERSION
+ 
++#if ! _GLIBCXX_USE_CXX11_ABI
++// For a single-ABI build with the new string ABI, ios::failure derives
++// from system_error and its members are defined in a C++11 translation
++// unit, src/c++11/ios_errcat.cc.
+   ios_base::failure::failure(const string& __str) throw()
+   : _M_msg(__str) { }
+ 
+@@ -54,6 +58,7 @@
+   const char*
+   ios_base::failure::what() const throw()
+   { return _M_msg.c_str(); }
++#endif
+ 
+ #if _GLIBCXX_USE_DUAL_ABI
+   // When the dual ABI is enabled __throw_ios_failure() is defined in
+@@ -84,6 +89,7 @@
+ 
+ #else // ! _GLIBCXX_USE_DUAL_ABI
+ 
++#if ! _GLIBCXX_USE_CXX11_ABI
+   void
+   __throw_ios_failure(const char* __s __attribute__((unused)))
+   { _GLIBCXX_THROW_OR_ABORT(ios::failure(_(__s))); }
+@@ -91,6 +97,7 @@
+   void
+   __throw_ios_failure(const char* str, int)
+   { __throw_ios_failure(str); }
++#endif
+ 
+ #endif // _GLIBCXX_USE_DUAL_ABI
+ 

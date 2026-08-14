@@ -462,6 +462,7 @@ RUN cat $PREFIX/src/crossgcc-*.patch | patch -d/dl/gcc -p1 \
         --enable-threads=posix \
         --enable-tls \
         --enable-version-specific-runtime-libs \
+        --disable-libstdcxx-dual-abi \
         --disable-libstdcxx-verbose \
         --disable-dependency-tracking \
         --disable-lto \
