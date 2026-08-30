@@ -1,0 +1,26 @@
+--- a/shell/ash.c
++++ b/shell/ash.c
+@@ -16606,3 +16606,3 @@ procargs(char **xargv)
+  */
+-static void
++static int
+ read_profile(const char *name)
+@@ -16611,5 +16611,6 @@ read_profile(const char *name)
+ 	if (setinputfile(name, INPUT_PUSH_FILE | INPUT_NOFILE_OK) < 0)
+-		return;
++		return -1;
+ 	cmdloop(0);
+ 	popfile();
++	return 0;
+ }
+@@ -16758,4 +16759,8 @@ int ash_main(int argc UNUSED_PARAM, char **argv)
+ 		hp = lookupvar("HOME");
+-		if (hp)
+-			read_profile("$HOME/.profile");
++		if (hp) {
++			/* Like bash's ~/.bash_profile: an ash-specific login
++			 * script taking precedence over the shared one. */
++			if (read_profile("$HOME/.ash_profile") < 0)
++				read_profile("$HOME/.profile");
++		}
+ 	}
