@@ -3,3 +3,4 @@ exclude-sysroot.patch
 windmc-bom.patch
 windmc-carry-severity-facility.patch
 windmc-per-facility-ids.patch
+pe-lto-no-relocator-ref-for-relocatable.patch
