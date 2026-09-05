@@ -6,3 +6,4 @@ relocatable.patch
 static-complit-flex-array.patch
 new-abi-only.patch
 lto-plugin-only-with-flto.patch
+libstdcxx-no-lto-punned-types.patch
