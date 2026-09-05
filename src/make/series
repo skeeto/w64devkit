@@ -1,2 +1,3 @@
 force-slow.patch
 shell-space.patch
+self-locate-shell.patch
