@@ -537,6 +537,7 @@ RUN (cd /dl/gcc \
         --enable-threads=posix \
         --enable-tls \
         --enable-version-specific-runtime-libs \
+        --disable-libstdcxx-dual-abi \
         --disable-libstdcxx-verbose \
         --disable-dependency-tracking \
         --disable-nls \
