@@ -1,0 +1,106 @@
+lto-wrapper: Look for make beside the driver when it is not on PATH
+
+Parallel LTRANS (-flto=N, -flto=auto, or a detected jobserver) hands
+the partitions to make through a generated Makefile, and lto-wrapper
+finds make only through $MAKE or PATH. When the toolchain is invoked by
+path without its directory on PATH, which the self-locating driver
+otherwise supports, that search fails and lto-wrapper silently falls
+back to serial compilation, with a warning suggesting -flto=auto that
+the user may already be passing.
+
+After $MAKE and PATH, also try make in the driver's own directory,
+known from COLLECT_GCC, and run that one.
+
+--- a/gcc/lto-wrapper.cc
++++ b/gcc/lto-wrapper.cc
+@@ -1387,26 +1387,63 @@
+ 	  url.get ());
+ }
+ 
+-/* Test that a make command is present and working, return true if so.  */
++#ifndef HOST_EXECUTABLE_SUFFIX
++#define HOST_EXECUTABLE_SUFFIX ""
++#endif
+ 
++/* The make program to run for parallel LTRANS when $MAKE is unset.  */
++
++static const char *make_program = "make";
++
++/* Return true if MAKE runs and reports a version.  */
++
+ static bool
+-make_exists (void)
++make_works (const char *make)
+ {
+-  const char *make = "make";
+-  char **make_argv = buildargv (getenv ("MAKE"));
+-  if (make_argv)
+-    make = make_argv[0];
+   const char *make_args[] = {make, "--version", NULL};
+-
+   int exit_status = 0;
+   int err = 0;
+   const char *errmsg
+-    = pex_one (PEX_SEARCH, make_args[0], const_cast<char **> (make_args),
++    = pex_one (PEX_SEARCH, make, const_cast<char **> (make_args),
+ 	       "make", NULL, NULL, &exit_status, &err);
+-  freeargv (make_argv);
+   return errmsg == NULL && exit_status == 0 && err == 0;
+ }
+ 
++/* Test that a make command is present and working, return true if so.
++   Honor $MAKE, then search PATH, then look beside the driver
++   COLLECT_GCC, so that a toolchain invoked by path works without its
++   directory on PATH.  */
++
++static bool
++make_exists (const char *collect_gcc)
++{
++  char **make_argv = buildargv (getenv ("MAKE"));
++  if (make_argv)
++    {
++      bool ok = make_works (make_argv[0]);
++      freeargv (make_argv);
++      return ok;
++    }
++
++  if (make_works (make_program))
++    return true;
++
++  size_t dirlen = lbasename (collect_gcc) - collect_gcc;
++  if (dirlen)
++    {
++      char *dir = xstrndup (collect_gcc, dirlen);
++      char *make = concat (dir, "make" HOST_EXECUTABLE_SUFFIX, NULL);
++      free (dir);
++      if (make_works (make))
++	{
++	  make_program = make;
++	  return true;
++	}
++      free (make);
++    }
++  return false;
++}
++
+ /* Execute gcc. ARGC is the number of arguments. ARGV contains the arguments. */
+ 
+ static void
+@@ -1710,7 +1747,7 @@
+     }
+ 
+   /* We need make working for a parallel execution.  */
+-  if (parallel && !make_exists ())
++  if (parallel && !make_exists (collect_gcc))
+     parallel = 0;
+ 
+   if (!dumppfx)
+@@ -2192,7 +2229,7 @@
+ 		obstack_ptr_grow (&argv_obstack, make_argv[argc]);
+ 	    }
+ 	  else
+-	    obstack_ptr_grow (&argv_obstack, "make");
++	    obstack_ptr_grow (&argv_obstack, make_program);
+ 
+ 	  obstack_ptr_grow (&argv_obstack, "-f");
+ 	  obstack_ptr_grow (&argv_obstack, makefile);
