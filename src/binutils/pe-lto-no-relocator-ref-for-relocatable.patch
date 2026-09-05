@@ -1,0 +1,48 @@
+Since Binutils 2.41 (PR30343, commit defb881754d), whenever the LTO
+plugin is loaded the PE linker unconditionally creates an undefined
+reference to _pei386_runtime_relocator before the plugin's "all symbols
+read" phase. Because it cannot yet know whether LTO output will need
+runtime pseudo-relocations, it makes the reference anyway, marking the
+symbol as referenced from a regular object so that an LTO-compiled
+definition survives. In a final link this is harmless: the reference
+resolves to pseudo-reloc.o in libmingw32.a, which the CRT startup drags
+in regardless.
+
+In a relocatable link (-r) the reference has no definition to resolve
+against and leaks into the output as a stray undefined symbol. Since GCC
+passes the plugin to the linker for every link when built with LTO, this
+affects even links with no LTO objects at all:
+
+    $ cc -r -s -u ___chkstk_ms -o chkstk.o -lgcc
+    $ nm chkstk.o
+    0000000000000000 T ___chkstk_ms
+                     U _pei386_runtime_relocator
+
+An object linked with -r is never a final image, so no pseudo-relocation
+will run from it. If it is later used in a final link, that link makes
+its own reference. The early reference also buys nothing for LTO in a
+relocatable link: the linker's plugin interface already reports every
+symbol as visible from outside for relocatable output, so none resolve
+as IR-only and GCC keeps them all. So skip the early reference for
+relocatable output.
+
+--- a/ld/emultempl/pe.em
++++ b/ld/emultempl/pe.em
+@@ -1457,6 +1457,7 @@
+ {
+ #ifdef DLL_SUPPORT
+   if (link_info.lto_plugin_active
++      && !bfd_link_relocatable (&link_info)
+       && link_info.pei386_auto_import)
+     make_runtime_ref ();
+ #endif
+--- a/ld/emultempl/pep.em
++++ b/ld/emultempl/pep.em
+@@ -1465,6 +1465,7 @@
+ {
+ #ifdef DLL_SUPPORT
+   if (link_info.lto_plugin_active
++      && !bfd_link_relocatable (&link_info)
+       && link_info.pei386_auto_import) /* -1=warn or 1=enable */
+     make_runtime_ref ();
+ #endif
