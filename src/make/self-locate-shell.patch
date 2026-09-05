@@ -1,0 +1,47 @@
+Look for the shell beside make before searching PATH
+
+On Windows, make finds its shell by searching PATH for sh.exe and falls
+back to cmd.exe, whose quoting rules break ordinary recipes. When make
+is invoked by path without w64devkit's bin/ on PATH, as GCC's
+lto-wrapper now does for parallel LTO, the search fails even though
+sh.exe sits right next to make.exe. Check make's own directory first,
+so that make works on its own like the rest of the toolchain.
+
+--- a/src/main.c
++++ b/src/main.c
+@@ -1056,8 +1056,34 @@
+       char *p;
+       struct variable *v = lookup_variable (STRING_SIZE_TUPLE ("PATH"));
+ 
++      /* Prefer a shell beside make itself, so that make works when
++         invoked by path without its directory on PATH.  */
++      {
++        PATH_VAR (exe_path);
++        DWORD n = GetModuleFileNameA (NULL, exe_path, GET_PATH_MAX);
++        if (token == NULL && n > 0 && n < GET_PATH_MAX)
++          {
++            char *base = exe_path + n;
++            while (base > exe_path && !ISDIRSEP (base[-1]))
++              base--;
++            if (base > exe_path
++                && strlen (search_token) < GET_PATH_MAX - (base - exe_path))
++              {
++                strcpy (base, search_token);
++                if (_access (exe_path, 0) == 0)
++                  {
++                    default_shell = xstrdup (w32ify (exe_path, 0));
++                    sh_found = 1;
++                    DB (DB_VERBOSE,
++                        (_("find_and_set_shell() setting default_shell = %s\n"),
++                         default_shell));
++                  }
++              }
++          }
++      }
++
+       /* Search Path for shell */
+-      if (v && v->value)
++      if (!sh_found && v && v->value)
+         {
+           char *ep;
+ 
