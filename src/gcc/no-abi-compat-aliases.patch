@@ -1,0 +1,57 @@
+Never emit mangling compatibility aliases
+
+When a function's mangled name changed in some ABI version, GCC also
+emits its old name as a weak alias so that objects compiled by older
+compilers can still link. By default it does so for changes since ABI
+18 (GCC 13), and -Wabi=N quietly implies -fabi-compat-version=N, which
+libstdc++ uses (-Wabi=19) and so gets a different set of aliases than
+user code. That asymmetry breaks LTO on PE: the aliases share a COMDAT
+group with their target, ld cannot reconcile a group that has two
+members in one IR object and one in another, and any C++20 constrained
+function explicitly instantiated in libstdc++ and implicitly in an
+-flto user object fails with a multiple definition error.
+
+This toolchain is static and self-contained, so there are no older
+objects to stay compatible with. Emit no compatibility aliases unless
+-fabi-compat-version is given explicitly, and leave -Wabi= as a pure
+diagnostic. Applied before both compilers are built, since the
+bootstrap cross compiler is what compiles libstdc++.
+
+--- a/gcc/c-family/c-opts.cc
++++ b/gcc/c-family/c-opts.cc
+@@ -1110,8 +1110,6 @@
+   const int latest_abi_version = 21;
+   /* Possibly different for non-default ABI fixes within a release.  */
+   const int default_abi_version = latest_abi_version;
+-  /* Generate compatibility aliases for ABI v18 (GCC 13) by default.  */
+-  const int abi_compat_default = 18;
+ 
+   if (flag_abi_version > latest_abi_version)
+     warning (0, "%<-fabi-version=%d%> is not supported, using =%d",
+@@ -1126,18 +1124,17 @@
+   clamp (flag_abi_compat_version);
+ #undef clamp
+ 
+-  /* Default -Wabi= or -fabi-compat-version= from each other.  */
++  /* Default -Wabi= from -fabi-compat-version=.  Unless the latter is
++     given explicitly, never emit mangling compatibility aliases: they
++     only serve linking against objects from older compilers, and
++     -Wabi= is a diagnostic, not a request for them.  */
+   if (warn_abi_version == -1 && flag_abi_compat_version != -1)
+     warn_abi_version = flag_abi_compat_version;
+-  else if (flag_abi_compat_version == -1 && warn_abi_version != -1)
+-    flag_abi_compat_version = warn_abi_version;
+-  else if (warn_abi_version == -1 && flag_abi_compat_version == -1)
++  else if (flag_abi_compat_version == -1)
+     {
+-      warn_abi_version = 0;
+-      if (flag_abi_version == default_abi_version)
+-	flag_abi_compat_version = abi_compat_default;
+-      else
+-	flag_abi_compat_version = latest_abi_version;
++      if (warn_abi_version == -1)
++	warn_abi_version = 0;
++      flag_abi_compat_version = flag_abi_version;
+     }
+ 
+   /* Allow warnings vs ABI versions beyond what we currently support.  */

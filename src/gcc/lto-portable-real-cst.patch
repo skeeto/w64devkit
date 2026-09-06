@@ -1,0 +1,97 @@
+Stream REAL_CST significands in a host-independent layout
+
+LTO bytecode packs a REAL_VALUE_TYPE's significand as SIGSZ words of
+HOST_BITS_PER_LONG bits, which is the host's own layout: three 64-bit
+words on the Linux build host, five 32-bit words on Windows. The
+runtime libraries' bytecode is produced by the Linux-hosted cross
+compiler and consumed by the Windows-hosted compiler, so every
+floating-point constant in it arrived garbled: FLT_MAX read as zero,
+libgfortran printed every real as Infinity, and std::from_chars
+returned 0 for any floating input. Integers are unaffected because
+they stream as HOST_WIDE_INT, which is 64 bits on both hosts.
+
+Stream the significand's top 128 bits as four 32-bit words instead,
+most significant first, which covers every target format (binary128
+needs 113), and the 16-byte decimal128 encoding in memory order for
+decimal values. Both hosts have at least 128 significand bits.
+
+This changes the bytecode format relative to upstream, so objects
+compiled by another GCC 16.2 build would misread constants here; the
+toolchain is self-contained and the version check never covered host
+differences anyway. Applied before both compilers are built.
+
+--- a/gcc/data-streamer.cc
++++ b/gcc/data-streamer.cc
+@@ -122,6 +122,35 @@
+     }
+ }
+ 
++/* The significand of a REAL_VALUE_TYPE is an array of SIGSZ words of
++   HOST_BITS_PER_LONG bits, so its layout depends on the host.  Stream
++   it in a host-independent form instead, so that bytecode produced by
++   a cross compiler on a host with a 64-bit long can be consumed by the
++   same compiler hosted on Windows, where long is 32 bits.
++
++   A binary significand is aligned at the top of the array, and any
++   value in a target format occupies at most its top 128 bits, so stream
++   those as four 32-bit words, most significant first.  A decimal value
++   keeps its decimal128 encoding in the first 16 bytes of the array,
++   which are streamed in memory order.  Chunks never straddle a word
++   since HOST_BITS_PER_LONG is a multiple of 32.  */
++
++#define SIG_STREAM_BITS 128
++
++static inline unsigned int
++sig_get32 (const REAL_VALUE_TYPE *r, unsigned bit)
++{
++  return (unsigned int) (r->sig[bit / HOST_BITS_PER_LONG]
++			 >> (bit % HOST_BITS_PER_LONG));
++}
++
++static inline void
++sig_set32 (REAL_VALUE_TYPE *r, unsigned bit, unsigned int v)
++{
++  r->sig[bit / HOST_BITS_PER_LONG]
++    |= (unsigned long) v << (bit % HOST_BITS_PER_LONG);
++}
++
+ /* Pack REAL_VALUE_TYPE R into BP.  */
+ 
+ void
+@@ -133,8 +162,16 @@
+   bp_pack_value (bp, r->signalling, 1);
+   bp_pack_value (bp, r->canonical, 1);
+   bp_pack_value (bp, r->uexp, EXP_BITS);
+-  for (unsigned i = 0; i < SIGSZ; i++)
+-    bp_pack_value (bp, r->sig[i], HOST_BITS_PER_LONG);
++  if (r->decimal)
++    {
++      unsigned int w[SIG_STREAM_BITS / 32];
++      memcpy (w, r->sig, sizeof w);
++      for (unsigned i = 0; i < SIG_STREAM_BITS / 32; i++)
++	bp_pack_value (bp, w[i], 32);
++    }
++  else
++    for (unsigned i = 0; i < SIG_STREAM_BITS / 32; i++)
++      bp_pack_value (bp, sig_get32 (r, SIGNIFICAND_BITS - 32 * (i + 1)), 32);
+ }
+ 
+ /* Unpack REAL_VALUE_TYPE R from BP.  */
+@@ -151,6 +188,15 @@
+   r->signalling = (unsigned) bp_unpack_value (bp, 1);
+   r->canonical = (unsigned) bp_unpack_value (bp, 1);
+   r->uexp = (unsigned) bp_unpack_value (bp, EXP_BITS);
+-  for (unsigned i = 0; i < SIGSZ; i++)
+-    r->sig[i] = (unsigned long) bp_unpack_value (bp, HOST_BITS_PER_LONG);
++  if (r->decimal)
++    {
++      unsigned int w[SIG_STREAM_BITS / 32];
++      for (unsigned i = 0; i < SIG_STREAM_BITS / 32; i++)
++	w[i] = (unsigned int) bp_unpack_value (bp, 32);
++      memcpy (r->sig, w, sizeof w);
++    }
++  else
++    for (unsigned i = 0; i < SIG_STREAM_BITS / 32; i++)
++      sig_set32 (r, SIGNIFICAND_BITS - 32 * (i + 1),
++		 (unsigned int) bp_unpack_value (bp, 32));
+ }
