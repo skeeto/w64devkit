@@ -5,3 +5,4 @@ windmc-carry-severity-facility.patch
 windmc-per-facility-ids.patch
 pe-lto-no-relocator-ref-for-relocatable.patch
 coff-comdat-key-leading-char.patch
+pe-lto-no-export-library-symbols.patch
