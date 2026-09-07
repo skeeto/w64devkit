@@ -3009,16 +3009,16 @@ int main(void)
         int len = __AFL_FUZZ_TESTCASE_LEN;
 
         u8 *src = NULL;
-        src     = realloc(src, len);
+        if (len > 0) {
+            src = realloc(src, len);
         assert(src);
         memcpy(src, buf, len);
+        }
 
-        {
             Arena scratch = arena;
 
             Str fuzzed_make_stdout = {.ptr = src, .len = len};
             make2compdb(&scratch, &writer_stdout, &writer_stderr, cli_args, fuzzed_make_stdout, cwd);
-        }
 
         free(src);
         src = NULL;
