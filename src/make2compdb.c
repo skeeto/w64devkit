@@ -605,6 +605,31 @@ static Str str_unescape(Arena *perm, Str s)
     return unescape;
 }
 
+// Return true for "1.0" or "1"
+static b32 str_is_numeric_version(Str s)
+{
+    if (s.len == 0) return false;
+
+    b32 expecting_digit = 1;
+
+    for (isize i = 0; i < s.len; i++) {
+        u8 c = s.ptr[i];
+
+        if (is_numeric(c)) {
+            expecting_digit = 0;
+        }
+        else if (c == '.') {
+            if (expecting_digit) return 0;
+
+            expecting_digit = 1;
+        }
+        else {
+            return 0;
+        }
+    }
+    return !expecting_digit;
+}
+
 static b32 str_is_source_file(Str maybe_source)
 {
     static Str extensions[] = {
@@ -1610,15 +1635,28 @@ static Compiler compiler_parse(Str input)
     while (segment.tail.len > 0) {
         segment = str_cut(segment.tail, SL("-"));
 
-        if (str_equal(segment.head, SL("clang")) || str_equal(segment.head, SL("clang++"))) {
-            compiler.kind   = COMPILER_IS_GCC_COMPATIBLE;
+        if (str_equal(segment.head, SL("clang-cl"))) {
+            compiler.kind   = COMPILER_IS_CL;
             compiler.string = input;
             return compiler;
         }
+        else if (str_equal(segment.head, SL("clang")) || str_equal(segment.head, SL("clang++"))) {
+            // We want to make sure to not consider `clang-format` as a compiler.
+            segment = str_cut(segment.tail, SL("-"));
+            if (segment.head.len == 0 || str_is_numeric_version(segment.head)) {
+                compiler.kind   = COMPILER_IS_GCC_COMPATIBLE;
+                compiler.string = input;
+                return compiler;
+            }
+        }
         else if (str_equal(segment.head, SL("gcc")) || str_equal(segment.head, SL("g++"))) {
-            compiler.kind   = COMPILER_IS_GCC_COMPATIBLE;
-            compiler.string = input;
-            return compiler;
+            // We want to make sure to not consider `gcc-ar` as a compiler.
+            segment = str_cut(segment.tail, SL("-"));
+            if (segment.head.len == 0 || str_is_numeric_version(segment.head)) {
+                compiler.kind   = COMPILER_IS_GCC_COMPATIBLE;
+                compiler.string = input;
+                return compiler;
+            }
         }
         else if (str_equal(segment.head, SL("cc")) || (str_equal(segment.head, SL("c++")))) {
             // We take a guess that the compiler is gcc compatible.
@@ -2757,10 +2795,21 @@ static void test_compiler_parse(Arena a)
     run_test_compiler_parser(SL("\"C:/my folder/gcc\""),                                               SL("gcc"), COMPILER_IS_GCC_COMPATIBLE);
     run_test_compiler_parser(SL("C:\\Users\\gberthiaume\\scoop\\apps\\w64devkit\\current\\bin\\gcc"),  SL("gcc"), COMPILER_IS_GCC_COMPATIBLE);
     run_test_compiler_parser(SL("C:/clang/gcc"),                                                       SL("gcc"), COMPILER_IS_GCC_COMPATIBLE);
+    run_test_compiler_parser(SL("gcc-16"),                                                             SL("gcc-16"), COMPILER_IS_GCC_COMPATIBLE); 
+    run_test_compiler_parser(SL("gcc-16.0"),                                                           SL("gcc-16.0"), COMPILER_IS_GCC_COMPATIBLE); 
+    
+    // Fake gcc
+    run_test_compiler_parser(SL("gcc-ar"),                                                             SL(""), COMPILER_IS_UNKNOWN); 
 
     // clang
-    run_test_compiler_parser(SL("clang"), SL("clang"), COMPILER_IS_GCC_COMPATIBLE);
-    run_test_compiler_parser(SL("clang++"), SL("clang++"), COMPILER_IS_GCC_COMPATIBLE);
+    run_test_compiler_parser(SL("clang"),        SL("clang"),      COMPILER_IS_GCC_COMPATIBLE);
+    run_test_compiler_parser(SL("clang++"),      SL("clang++"),    COMPILER_IS_GCC_COMPATIBLE);
+    run_test_compiler_parser(SL("clang-12"),     SL("clang-12"),   COMPILER_IS_GCC_COMPATIBLE);
+    run_test_compiler_parser(SL("clang-12.8"),   SL("clang-12.8"), COMPILER_IS_GCC_COMPATIBLE);
+    
+    // Fake clang
+    run_test_compiler_parser(SL("clang-tidy"),   SL(""),           COMPILER_IS_UNKNOWN); 
+    run_test_compiler_parser(SL("clang-format"), SL(""),           COMPILER_IS_UNKNOWN); 
 
     // zig cc (zig cc main.c -o main.exe)
     run_test_compiler_parser(SL("zig"),                                                SL("zig"), COMPILER_IS_GCC_COMPATIBLE);
