@@ -2063,82 +2063,15 @@ static void json_write_footer(OsWriterInterface *w, isize command_count)
     w->tab = 0;
 }
 
-// :: make2compdb
-// Main program function.
-static int make2compdb(Arena *perm, OsWriterInterface *os_stdout, OsWriterInterface *os_stderr, StrList cli_args, Str make_stdout,
-                       Str initial_working_directory)
+static void make_compile_commands_json(Arena *perm, OsWriterInterface *os_stdout, OsWriterInterface *os_stderr, Str input,
+                                       DirectoryStack dir_stack, b32 verbose)
 {
-    Str const help_message = SL("make2compdb - Create a compile_commands.json from a Make output\n"
-                                "Usage: make2compdb [option]\n"
-                                "\n"
-                                "Options:\n"
-                                "       --version:  Display the version number.\n"
-                                "   -h, --help:     Display this help page.\n"
-                                "   -v, --verbose:  Display debug information on stderr to help with problem diagnosis.\n"
-                                "\n"
-                                "Examples:\n"
-                                "   $ make -Bwn | make2compdb.exe\n"
-                                "   $ make -Bwn | make2compdb.exe > compile_commands.json\n"
-                                "   $ echo \"gcc -o main main.c\" | make2compdb.exe > compile_commands.json\n");
-
-    Str program_name = {0};
-    b32 verbose      = 0;
-    for (StrListNode *arg = cli_args.front; arg != NULL; arg = arg->next) {
-        if (arg == cli_args.front) {
-            program_name = cli_args.front->str;
-        }
-        else if (str_equal(arg->str, SL("-h")) || str_equal(arg->str, SL("--help"))) {
-            println_str(os_stdout, help_message);
-            return 0;
-        }
-        else if (str_equal(arg->str, SL("--version"))) {
-            println_str(os_stdout, SL("Version: " VERSION "\n"));
-            return 0;
-        }
-        else if (str_equal(arg->str, SL("-v")) || str_equal(arg->str, SL("--verbose"))) {
-            verbose = 1;
-        }
-        else {
-            print_str(os_stderr, SL("Unknown CLI arg: '"));
-            print_str(os_stderr, arg->str);
-            println_str(os_stderr, SL("'\n"));
-            return 1; //< Let's exit early with an error.
-        }
-    }
-    (void)program_name; //< Not used currently
-
-    if (verbose) {
-        os_stderr->tab = 0;
-        println_str(os_stderr, SL("make2compdb"));
-        println_str(os_stderr, SL("Version: " VERSION));
-        println_str(os_stderr, SL("Verbose mode: true"));
-        print_str(os_stderr, SL("Directory: "));
-        println_str_escaped_string(os_stderr, initial_working_directory);
-        print_str(os_stderr, SL("CLI args: "));
-        println_strlist(os_stderr, cli_args);
-        print_str(os_stderr, SL("Input len: "));
-        println_number(os_stderr, make_stdout.len);
-        println_str(os_stderr, SL("====\n"));
-    }
-
-    DirectoryStack dir_stack = {0};
-    {
-        // DirectoryStack has its own arena because its internal directory
-        // needs to persist for all the program lifetime.
-        isize dir_arena_cap = 1 << 14;
-        byte *mem           = ALLOC(perm, dir_arena_cap, byte);
-        dir_stack.arena     = arena_init(dir_arena_cap, mem);
-    }
-
-    // The first directory in our stack is the CWD.
-    dirstack_push(&dir_stack, initial_working_directory);
-
-    // In verbose mode, we don't print json.
     json_write_header(os_stdout);
 
-    Str   input         = make_stdout;
-    isize command_count = 0;
+    isize command_count_total = 0;
     while (input.len > 0) {
+        isize command_count = 0;
+
         // This naive line splitting strategy is good enough for identifying the parsing mode.
         Str naive_line = str_cut(input, SL("\n")).head;
 
@@ -2195,7 +2128,7 @@ static int make2compdb(Arena *perm, OsWriterInterface *os_stdout, OsWriterInterf
                 CommandObjects     cmd_objs     = command_objects_from_command(&sc2, dir_stack, compiler_cmd, os_stderr, verbose);
 
                 if (cmd_objs.len > 0) {
-                    json_write_command_objects(os_stdout, cmd_objs, command_count);
+                    json_write_command_objects(os_stdout, cmd_objs, command_count_total);
                     command_count += cmd_objs.len;
 
                     if (verbose) {
@@ -2218,25 +2151,104 @@ static int make2compdb(Arena *perm, OsWriterInterface *os_stdout, OsWriterInterf
         } // END: switch(mode)
 
         if (verbose) {
-            static isize s_prev_command_count = 0;
             print_str(os_stderr, SL("-> +"));
-            print_number(os_stderr, command_count - s_prev_command_count);
+            print_number(os_stderr, command_count_total - command_count);
             print_str(os_stderr, SL(" command objects (total = "));
-            print_number(os_stderr, command_count);
+            print_number(os_stderr, command_count_total);
             println_str(os_stderr, SL(")\n\n---\n"));
-            s_prev_command_count = command_count;
         }
+
+        command_count_total += command_count;
+
     } // END: while (input.len > 0)
 
-    json_write_footer(os_stdout, command_count);
+    json_write_footer(os_stdout, command_count_total);
 
     if (verbose) {
         os_stderr->tab = 0;
         print_u8(os_stderr, '\n');
         print_str(os_stderr, SL("Total command objects: "));
-        println_number(os_stderr, command_count);
+        println_number(os_stderr, command_count_total);
         println_str(os_stderr, SL("make2compdb is done."));
     }
+}
+
+// :: make2compdb
+// Main program function.
+static int make2compdb(Arena *perm, OsWriterInterface *os_stdout, OsWriterInterface *os_stderr, StrList cli_args, Str make_stdout,
+                       Str initial_working_directory)
+{
+    Str const help_message = SL("make2compdb - Create a compile_commands.json from a Make output\n"
+                                "Usage: make2compdb [option]\n"
+                                "\n"
+                                "Options:\n"
+                                "       --version:  Display the version number.\n"
+                                "   -h, --help:     Display this help page.\n"
+                                "   -v, --verbose:  Display debug information on stderr to help with problem diagnosis.\n"
+                                "\n"
+                                "Examples:\n"
+                                "   $ make -Bwn | make2compdb.exe\n"
+                                "   $ make -Bwn | make2compdb.exe > compile_commands.json\n"
+                                "   $ echo \"gcc -o main main.c\" | make2compdb.exe > compile_commands.json\n");
+
+    // Store argv[0]
+    Str program_name = {0};
+
+    // When in "verbose mode" (set to 1) we print to stderr debug information to help user
+    // diagnose potential parsing problem.
+    b32 in_verbose_mode = 0;
+
+    for (StrListNode *arg = cli_args.front; arg != NULL; arg = arg->next) {
+        if (arg == cli_args.front) {
+            program_name = cli_args.front->str;
+        }
+        else if (str_equal(arg->str, SL("-h")) || str_equal(arg->str, SL("--help"))) {
+            println_str(os_stdout, help_message);
+            return 0;
+        }
+        else if (str_equal(arg->str, SL("--version"))) {
+            println_str(os_stdout, SL("Version: " VERSION "\n"));
+            return 0;
+        }
+        else if (str_equal(arg->str, SL("-v")) || str_equal(arg->str, SL("--verbose"))) {
+            in_verbose_mode = 1;
+        }
+        else {
+            print_str(os_stderr, SL("Unknown CLI arg: '"));
+            print_str(os_stderr, arg->str);
+            println_str(os_stderr, SL("'\n"));
+            return 1; //< Let's exit early with an error.
+        }
+    }
+
+    if (in_verbose_mode) {
+        os_stderr->tab = 0;
+        println_str(os_stderr, program_name);
+        println_str(os_stderr, SL("Version: " VERSION));
+        println_str(os_stderr, SL("Verbose mode: true"));
+        print_str(os_stderr, SL("Directory: "));
+        println_str_escaped_string(os_stderr, initial_working_directory);
+        print_str(os_stderr, SL("CLI args: "));
+        println_strlist(os_stderr, cli_args);
+        print_str(os_stderr, SL("Input len: "));
+        println_number(os_stderr, make_stdout.len);
+        println_str(os_stderr, SL("====\n"));
+    }
+
+    DirectoryStack dir_stack = {0};
+    {
+        // DirectoryStack has its own arena because its internal directory
+        // needs to persist for all the program lifetime.
+        isize dir_arena_cap = 1 << 14;
+        byte *mem           = ALLOC(perm, dir_arena_cap, byte);
+        dir_stack.arena     = arena_init(dir_arena_cap, mem);
+    }
+
+    // The first directory in our stack is the CWD.
+    dirstack_push(&dir_stack, initial_working_directory);
+
+    Str input = make_stdout;
+    make_compile_commands_json(perm, os_stdout, os_stderr, input, dir_stack, in_verbose_mode);
     return 0;
 }
 
