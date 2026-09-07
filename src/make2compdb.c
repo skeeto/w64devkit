@@ -1089,6 +1089,9 @@ static ParsingMode identify_parsing_mode(Str make_stdout)
     // 2. make: Leaving directory 'C:/dev/gb/make2compdb/impl_c'
     //
     // If we didn't find those element, we assume this is a shell command.
+    //
+    // Note that we cannot find for "make" because the name of the program
+    // is subjet to change.
     Str_Pair cut = {0};
     cut          = str_cut(make_stdout, SL(" "));
     Str first    = cut.head;
@@ -1097,9 +1100,7 @@ static ParsingMode identify_parsing_mode(Str make_stdout)
     cut          = str_cut(cut.tail, SL(" "));
     Str third    = cut.head;
 
-    (void)first; //< We cannot rely on "make" as this program name changes.
-
-    if (str_equal(third, SL("directory"))) {
+    if (str_ends_with(first, SL(":")) && str_equal(third, SL("directory"))) {
         if (str_equal(second, SL("Entering"))) {
             return PARSING_MODE_MAKE_ENTER_DIR;
         }
