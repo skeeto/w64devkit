@@ -311,7 +311,7 @@ static Str str_drop_tail(Str s, isize offset_from_the_end)
     if (s.len <= 0) return s;
     assert(s.ptr);
 
-    offset_from_the_end = clamp_isize(offset_from_the_end, 0, s.len - 1);
+    offset_from_the_end = clamp_isize(offset_from_the_end, 0, s.len);
     return (Str){
         .ptr = s.ptr,
         .len = s.len - offset_from_the_end,
