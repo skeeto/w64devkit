@@ -1,11 +1,11 @@
 // make2compdb
-// Generates a Clang's JSON Compilation Database files (`compiler_commands.json`) from make build systems.
+// Generates a Clang's JSON Compilation Database files (`compile_commands.json`) from make build systems.
 // This json file can be usefull for multiple tools including the [clangd](https://clangd.llvm.org/) LSP.
 //
 // USAGE
 //
-//      $ make -Bwn | make2compdb.exe > compiler_commands.json
-//      $ cat compiler_commands.json
+//      $ make -Bwn | make2compdb.exe > compile_commands.json
+//      $ cat compile_commands.json
 //      [
 //        {
 //          "directory": "C:\\my_project",
@@ -1109,7 +1109,7 @@ static Str directory_from_make_dir_line(Str *make_stdout)
         Str delim = str_take_head(input, 1);
 
         // For some reason, certain version of make use different string delimiters.
-        // Even stranger, sometimes the delimeter U8_pairs don't match!
+        // Even stranger, sometimes the delimeter pairs don't match!
         Str valid_delims = SL("\'\"`");
 
         if (str_contains_any(delim, valid_delims)) {
@@ -3088,10 +3088,10 @@ static u32 codepoint_take_from_utf16(Str16 *in)
 
     u32 cp = 0;
     if (in->ptr[0] >= 0xdc00 && in->ptr[0] <= 0xdfff) {
-        goto reject; // unU8_paired low surrogate
+        goto reject; // unpaired low surrogate
     }
     else if (in->ptr[0] >= 0xd800 && in->ptr[0] <= 0xdbff) {
-        // Surrogate U8_pair !
+        // Surrogate pair !
         if (in->len < 2) {
             goto reject; // missing low surrogate
         }
