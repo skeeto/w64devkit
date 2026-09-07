@@ -74,7 +74,7 @@
     #error "This code expects to be compiled by a C23 toolchain"
 #endif
 
-#define VERSION "2026-07-29" // ISO-8601 date format
+#define VERSION "2026-09-07" // ISO-8601 date format
 
 typedef uint8_t        u8;
 typedef uint16_t       u16;
@@ -1570,7 +1570,7 @@ token_done:
     return str_trim_if(token, is_whitespace);
 }
 
-static StrList shell_tokenize_logical_line(Arena *perm, Str *shell_input)
+static StrList shell_tokenize_one_logical_line(Arena *perm, Str *shell_input)
 {
     StrList tokens = {0};
 
@@ -1986,7 +1986,7 @@ static void println_compiler_command(OsWriterInterface *w, CompilerCommand cmd)
 // :: CommandObject
 // A compilation database is a JSON file, which consists of an array of “command objects”, where each command object
 // specifies one way a translation unit is compiled in the project.
-typedef struct {
+typedef struct CommandObject {
     //  The working directory of the compilation. All paths specified in the command or file fields must be either
     //  absolute or relative to this directory.
     Str directory;
@@ -1998,18 +1998,56 @@ typedef struct {
     Str output;
     // Is this a command object?
     b32 ok;
+
+    // Intrusive linked list
+    struct CommandObject *next;
 } CommandObject;
 
-// Slice of command objects
+// A simple linked list of CommandObject
 typedef struct {
-    isize          len;
-    CommandObject *ptr;
-} CommandObjects;
+    CommandObject *first;
+    CommandObject *last;
+    isize          count;
+} CommandObjectList;
 
-static CommandObjects command_objects_from_command(Arena *perm, DirectoryStack dir_stack, CompilerCommand compiler_command,
-                                                   OsWriterInterface *w, b32 verbose)
+static void command_objects_push_back(CommandObjectList *list, CommandObject *new)
 {
-    CommandObjects command_objects = {0};
+    assert(list);
+
+    if (list->first == NULL) // is empty
+    {
+        assert(list->last == NULL);
+        list->first = new;
+        list->last  = new;
+    }
+    else {
+        assert(list->last->next == NULL);
+        list->last->next = new;
+        list->last       = new;
+    }
+    list->count += 1;
+}
+
+static void command_objects_extend(CommandObjectList *list, CommandObjectList new_list)
+{
+    assert(list);
+    if (list->first == NULL) // is empty
+    {
+        assert(list->last == NULL);
+        *list = new_list;
+    }
+    else {
+        assert(list->last->next == NULL);
+        list->last->next  = new_list.first;
+        list->last        = new_list.last;
+        list->count      += new_list.count;
+    }
+}
+
+static CommandObjectList command_objects_from_command(Arena *perm, DirectoryStack dir_stack, CompilerCommand compiler_command,
+                                                      OsWriterInterface *w, b32 verbose)
+{
+    CommandObjectList command_objects = {0};
 
     if (verbose) {
         println_str(w, SL("Parsed compiler command:"));
@@ -2032,8 +2070,6 @@ static CommandObjects command_objects_from_command(Arena *perm, DirectoryStack d
     //      2. gcc -o main main.c
     //
     assert(compiler_command.source_files.count > 0);
-    command_objects.len = compiler_command.source_files.count;
-    command_objects.ptr = ALLOC(perm, command_objects.len, *command_objects.ptr);
 
     // The top of the stack is the Current Working Directory
     Str cwd = dirstack_peek(dir_stack, perm);
@@ -2042,19 +2078,18 @@ static CommandObjects command_objects_from_command(Arena *perm, DirectoryStack d
     for (StrListNode *node = compiler_command.source_files.front; node != NULL; node = node->next) {
         Str source_file = node->str;
 
-        CommandObject cmd = {0};
-        cmd.file          = source_file;
-        cmd.directory     = cwd;
-        cmd.output        = compiler_command.output_file;
-        cmd.ok            = compiler_command.ok;
-        cmd.arguments     = strlist_copy(compiler_command.arguments, perm);
-        assert(i < command_objects.len);
+        CommandObject *cmd = ALLOC(perm, 1, *cmd);
+        cmd->file          = source_file;
+        cmd->directory     = cwd;
+        cmd->output        = compiler_command.output_file;
+        cmd->ok            = compiler_command.ok;
+        cmd->arguments     = strlist_copy(compiler_command.arguments, perm);
 
-        command_objects.ptr[i] = cmd;
+        command_objects_push_back(&command_objects, cmd);
         i++;
     }
 
-    assert(command_objects.len == i);
+    assert(command_objects.count == i);
     return command_objects;
 }
 
@@ -2078,10 +2113,10 @@ static void println_command_object(OsWriterInterface *w, CommandObject obj)
     print_u8(w, '\n');
 }
 
-static void println_command_objects(OsWriterInterface *w, CommandObjects objs)
+static void println_command_objects(OsWriterInterface *w, CommandObjectList commands)
 {
-    for (isize i = 0; i < objs.len; ++i) {
-        println_command_object(w, objs.ptr[i]);
+    for (CommandObject *cmd = commands.first; cmd != NULL; cmd = cmd->next) {
+        println_command_object(w, *cmd);
         print_u8(w, '\n');
     }
 }
@@ -2166,10 +2201,10 @@ static void json_write_command_object(OsWriterInterface *w, CommandObject comman
     print_str(w, SL("}"));
 }
 
-static void json_write_command_objects(OsWriterInterface *w, CommandObjects commands, isize command_count)
+static void json_write_command_objects(OsWriterInterface *w, CommandObjectList commands, isize command_count)
 {
-    for (isize i = 0; i < commands.len; ++i) {
-        json_write_command_object(w, commands.ptr[i], command_count);
+    for (CommandObject *cmd = commands.first; cmd != NULL; cmd = cmd->next) {
+        json_write_command_object(w, *cmd, command_count);
         command_count++;
     }
 }
@@ -2186,6 +2221,43 @@ static void json_write_footer(OsWriterInterface *w, isize command_count)
     Str footer  = SL("]");
     println_str(w, footer);
     w->tab = 0;
+}
+
+static CommandObjectList shell_parse_one_logical_line(Arena *perm, Str *input, DirectoryStack dir_stack,
+                                                      OsWriterInterface *os_stderr, b32 verbose)
+{
+    // NOTE: On shell parsing.
+    // The difference between logical line and compiler invocation:
+    //
+    //                     logical line
+    //     |<----------------------------------------->|  |<----------   ...
+    //      mkdir -p build && ccache gcc main.c -o main \n echo 'done'   ...
+    //                              |<---------------->|
+    //                               compiler invocation
+    //
+    // A "compiler command" is a parsed version of a compiler invocation.
+    // A "command object" is what we want to ouput in our json (compiler command + directory).
+    // Note that a "command objet" can only have 1 source file. Therefore a "compiler command"
+    // with multiple file (e.g `gcc main.c lib.c`) will create multiple "command object".
+    //
+    CommandObjectList command_objects = {0};
+
+    StrList line = shell_tokenize_one_logical_line(perm, input);
+    while (!strlist_is_empty(line)) {
+        Arena              save_point   = *perm;
+        CompilerInvocation invocation   = compiler_invocation_from_shell_line(perm, &line, os_stderr, verbose);
+        CompilerCommand    compiler_cmd = compiler_command_from_invocation(perm, invocation, os_stderr, verbose);
+        CommandObjectList  commands     = command_objects_from_command(perm, dir_stack, compiler_cmd, os_stderr, verbose);
+
+        if (commands.count <= 0) {
+            *perm = save_point; // Reclaim memory
+        }
+        else {
+            command_objects_extend(&command_objects, commands);
+        }
+    }
+
+    return command_objects;
 }
 
 static void make_compile_commands_json(Arena *perm, OsWriterInterface *os_stdout, OsWriterInterface *os_stderr, Str input,
@@ -2229,43 +2301,25 @@ static void make_compile_commands_json(Arena *perm, OsWriterInterface *os_stdout
         case PARSING_MODE_SHELL: {
             if (verbose) println_str(os_stderr, SL("Parsing mode: SHELL"));
 
-            // NOTE: On shell parsing.
-            // The difference between logical line and compiler invocation:
-            //
-            //                     logical line
-            //     |<----------------------------------------->|  |<----------   ...
-            //      mkdir -p build && ccache gcc main.c -o main \n echo 'done'   ...
-            //                              |<---------------->|
-            //                               compiler invocation
-            //
-            // A "compiler command" is a parsed version of a compiler invocation.
-            // A "command object" is what we want to ouput in our json (compiler command + directory).
-            // Note that a "command objet" can only have 1 source file. Therefore a "compiler command"
-            // with multiple file (e.g `gcc main.c lib.c`) will create multiple "command object".
-            //
+            Arena scratch = *perm;
 
-            Arena   scratch = *perm;
-            StrList line    = shell_tokenize_logical_line(&scratch, &input);
-            while (!strlist_is_empty(line)) {
-                Arena              sc2          = scratch;
-                CompilerInvocation invocation   = compiler_invocation_from_shell_line(&sc2, &line, os_stderr, verbose);
-                CompilerCommand    compiler_cmd = compiler_command_from_invocation(&sc2, invocation, os_stderr, verbose);
-                CommandObjects     cmd_objs     = command_objects_from_command(&sc2, dir_stack, compiler_cmd, os_stderr, verbose);
+            // NOTE: On shell parsing
+            // We parse one "logical line" at the time.
+            // See `shell_parse_one_logical_line` for more information
+            CommandObjectList command_objects = shell_parse_one_logical_line(&scratch, &input, dir_stack, os_stderr, verbose);
 
-                if (cmd_objs.len > 0) {
-                    json_write_command_objects(os_stdout, cmd_objs, command_count_total);
-                    command_count += cmd_objs.len;
-
-                    if (verbose) {
-                        println_str(os_stderr, SL("Produced command objects:"));
-                        os_stderr->tab += 1;
-                        println_command_objects(os_stderr, cmd_objs);
-                        os_stderr->tab -= 1;
-                    }
+            if (command_objects.count > 0) {
+                json_write_command_objects(os_stdout, command_objects, command_count_total);
+                command_count += command_objects.count;
+                if (verbose) {
+                    println_str(os_stderr, SL("Produced command objects:"));
+                    os_stderr->tab += 1;
+                    println_command_objects(os_stderr, command_objects);
+                    os_stderr->tab -= 1;
                 }
-                else {
-                    if (verbose) println_str(os_stderr, SL("No command object produced."));
-                }
+            }
+            else {
+                if (verbose) println_str(os_stderr, SL("No command object produced."));
             }
             break;
         }
@@ -2444,12 +2498,16 @@ static b32 strlist_equal(StrList a, StrList b)
         return 0;
     }
     else {
+        StrListNode *node_a = a.front;
+        StrListNode *node_b = b.front;
         for (isize i = 0; i < a.count; ++i) {
-            Str astr = strlist_pop_front(&a);
-            Str bstr = strlist_pop_front(&b);
+            Str astr = node_a->str;
+            Str bstr = node_b->str;
             if (!str_equal(astr, bstr)) {
                 return 0;
             }
+            node_a = node_a->next;
+            node_b = node_b->next;
         }
         return 1;
     }
@@ -2560,10 +2618,10 @@ static void test_shell_unescaping(Arena a)
 
 static void run_test_shell_tokenizer(Arena scratch, Str input, StrList expected_tokens)
 {
-    StrList line = shell_tokenize_logical_line(&scratch, &input);
+    StrList line = shell_tokenize_one_logical_line(&scratch, &input);
     CHECK(strlist_equal(line, expected_tokens));
 
-    line = shell_tokenize_logical_line(&scratch, &input);
+    line = shell_tokenize_one_logical_line(&scratch, &input);
     CHECK(strlist_is_empty(line));
 }
 
@@ -2671,16 +2729,16 @@ static void test_shell_tokenizer(Arena a)
                              "zig cc -c -o strlib.o strlib.c    \n" //< intentional whitespace
                              "zig cc -o app main.o strlib.o\t\n");  //< intentional tab
 
-        line = shell_tokenize_logical_line(&scratch, &input);
+        line = shell_tokenize_one_logical_line(&scratch, &input);
         CHECK(strlist_equal(line, SLIST(&scratch, "zig", "cc", "-c", "-o", "main.o", "main.c")));
 
-        line = shell_tokenize_logical_line(&scratch, &input);
+        line = shell_tokenize_one_logical_line(&scratch, &input);
         CHECK(strlist_equal(line, SLIST(&scratch, "zig", "cc", "-c", "-o", "strlib.o", "strlib.c")));
 
-        line = shell_tokenize_logical_line(&scratch, &input);
+        line = shell_tokenize_one_logical_line(&scratch, &input);
         CHECK(strlist_equal(line, SLIST(&scratch, "zig", "cc", "-o", "app", "main.o", "strlib.o")));
 
-        line = shell_tokenize_logical_line(&scratch, &input);
+        line = shell_tokenize_one_logical_line(&scratch, &input);
         CHECK(strlist_is_empty(line));
     }
 
@@ -2692,16 +2750,16 @@ static void test_shell_tokenizer(Arena a)
                              "zig cc -c -o strlib.o strlib.c\r\n"
                              "zig cc -o app main.o strlib.o\r\n");
 
-        line = shell_tokenize_logical_line(&scratch, &input);
+        line = shell_tokenize_one_logical_line(&scratch, &input);
         CHECK(strlist_equal(line, SLIST(&scratch, "zig", "cc", "-c", "-o", "main.o", "main.c")));
 
-        line = shell_tokenize_logical_line(&scratch, &input);
+        line = shell_tokenize_one_logical_line(&scratch, &input);
         CHECK(strlist_equal(line, SLIST(&scratch, "zig", "cc", "-c", "-o", "strlib.o", "strlib.c")));
 
-        line = shell_tokenize_logical_line(&scratch, &input);
+        line = shell_tokenize_one_logical_line(&scratch, &input);
         CHECK(strlist_equal(line, SLIST(&scratch, "zig", "cc", "-o", "app", "main.o", "strlib.o")));
 
-        line = shell_tokenize_logical_line(&scratch, &input);
+        line = shell_tokenize_one_logical_line(&scratch, &input);
         CHECK(strlist_is_empty(line));
     }
 }
@@ -2842,7 +2900,7 @@ static void test_compiler_parse(Arena a)
 
 static void run_invo_test(Arena scratch, Str input, CompilerKind expected_compiler, StrList expected_tokens)
 {
-    StrList            line = shell_tokenize_logical_line(&scratch, &input);
+    StrList            line = shell_tokenize_one_logical_line(&scratch, &input);
     CompilerInvocation invo = compiler_invocation_from_shell_line(&scratch, &line, NULL, 0);
 
     CHECK(invo.compiler.kind == expected_compiler);
@@ -2904,248 +2962,414 @@ static void test_extract_compiler_invocation(Arena a)
     // clang-format on
 }
 
-static void run_test_gcc_invocation(Arena scratch, StrList input_tokens, CompilerCommand expected_cmd)
+static void run_test_shell_parse_line(Arena scratch, Str line, CommandObjectList expected_list)
 {
-    CompilerCommand cmd = compiler_command_from_gcc_invocation(&scratch, input_tokens);
+    DirectoryStack    dir_stack    = {0};
+    CommandObjectList results_list = shell_parse_one_logical_line(&scratch, &line, dir_stack, NULL, 0);
+    CHECK(results_list.count == expected_list.count);
 
-    CHECK(cmd.ok == expected_cmd.ok);
-    CHECK(strlist_equal(cmd.source_files, expected_cmd.source_files));
-    CHECK(str_equal(cmd.output_file, expected_cmd.output_file));
-    CHECK(strlist_equal(cmd.arguments, expected_cmd.arguments));
+    CommandObject *result   = results_list.first;
+    CommandObject *expected = expected_list.first;
+    for (isize i = 0; i < results_list.count; i++) {
+        CHECK(result->ok == expected->ok);
+        CHECK(strlist_equal(result->arguments, expected->arguments));
+        CHECK(str_equal(result->file, expected->file));
+        CHECK(str_equal(result->output, expected->output));
+
+        result   = result->next;
+        expected = expected->next;
+    }
 }
 
-static void test_compiler_command_from_gcc_invocation(Arena a)
+void test_shell_parsing(Arena a)
 {
-    StrList args;
-
     // Simple test
-    args = SLIST(&a, "gcc", "-o", "main", "main.c");
-    run_test_gcc_invocation(a, args,
-                            (CompilerCommand){
-                                .ok           = 1,
-                                .source_files = SLIST(&a, "main.c"),
-                                .output_file  = SL("main"),
-                                .arguments    = strlist_copy(args, &a),
-                            });
+    {
+        Str line = SL("gcc -o main main.c");
+
+        CommandObjectList expected_list = {0};
+        CommandObject     co1           = {
+            .ok        = 1,
+            .file      = SL("main.c"),
+            .output    = SL("main"),
+            .arguments = SLIST(&a, "gcc", "-o", "main", "main.c"),
+        };
+        command_objects_push_back(&expected_list, &co1);
+        run_test_shell_parse_line(a, line, expected_list);
+    }
 
     // With "-omain" (output file attached to flag)
-    args = SLIST(&a, "gcc", "-omain", "main.c");
-    run_test_gcc_invocation(a, args,
-                            (CompilerCommand){
-                                .ok           = 1,
-                                .source_files = SLIST(&a, "main.c"),
-                                .output_file  = SL("main"),
-                                .arguments    = strlist_copy(args, &a),
-                            });
+    {
+        Str line = SL("gcc -omain main.c");
+
+        CommandObjectList expected_list = {0};
+        CommandObject     co1           = {
+            .ok        = 1,
+            .file      = SL("main.c"),
+            .output    = SL("main"),
+            .arguments = SLIST(&a, "gcc", "-omain", "main.c"),
+        };
+        command_objects_push_back(&expected_list, &co1);
+        run_test_shell_parse_line(a, line, expected_list);
+    }
 
     // Long -o version
-    args = SLIST(&a, "gcc", "--output", "main", "main.c");
-    run_test_gcc_invocation(a, args,
-                            (CompilerCommand){
-                                .ok           = 1,
-                                .source_files = SLIST(&a, "main.c"),
-                                .output_file  = SL("main"),
-                                .arguments    = strlist_copy(args, &a),
-                            });
+    {
+        Str line = SL("gcc --output main main.c");
+
+        CommandObjectList expected_list = {0};
+        CommandObject     co1           = {
+            .ok        = 1,
+            .file      = SL("main.c"),
+            .output    = SL("main"),
+            .arguments = SLIST(&a, "gcc", "--output", "main", "main.c"),
+        };
+        command_objects_push_back(&expected_list, &co1);
+        run_test_shell_parse_line(a, line, expected_list);
+    }
 
     // Long -o version nospace
-    args = SLIST(&a, "gcc", "--output=main", "main.c");
-    run_test_gcc_invocation(a, args,
-                            (CompilerCommand){
-                                .ok           = 1,
-                                .source_files = SLIST(&a, "main.c"),
-                                .output_file  = SL("main"),
-                                .arguments    = strlist_copy(args, &a),
-                            });
+    {
+        Str line = SL("gcc --output=main main.c");
+
+        CommandObjectList expected_list = {0};
+        CommandObject     co1           = {
+            .ok        = 1,
+            .file      = SL("main.c"),
+            .output    = SL("main"),
+            .arguments = SLIST(&a, "gcc", "--output=main", "main.c"),
+        };
+        command_objects_push_back(&expected_list, &co1);
+        run_test_shell_parse_line(a, line, expected_list);
+    }
 
     // No output specified
-    args = SLIST(&a, "gcc", "main.c");
-    run_test_gcc_invocation(a, args,
-                            (CompilerCommand){
-                                .ok           = 1,
-                                .source_files = SLIST(&a, "main.c"),
-                                .output_file  = SL(""),
-                                .arguments    = strlist_copy(args, &a),
-                            });
+    {
+        Str line = SL("gcc main.c");
+
+        CommandObjectList expected_list = {0};
+        CommandObject     co1           = {
+            .ok        = 1,
+            .file      = SL("main.c"),
+            .output    = SL(""),
+            .arguments = SLIST(&a, "gcc", "main.c"),
+        };
+        command_objects_push_back(&expected_list, &co1);
+        run_test_shell_parse_line(a, line, expected_list);
+    }
 
     // More flags
-    args = SLIST(&a, "gcc", "-std=c23", "-O0", "-g3", "-Wall", "-Wextra", "-Wpedantic", "main.c", "-o", "main");
-    run_test_gcc_invocation(a, args,
-                            (CompilerCommand){
-                                .ok           = 1,
-                                .source_files = SLIST(&a, "main.c"),
-                                .output_file  = SL("main"),
-                                .arguments    = strlist_copy(args, &a),
-                            });
+    {
+        Str line = SL("gcc -std=c23 -O0 -g3 -Wall -Wextra -Wpedantic main.c -o main");
+
+        CommandObjectList expected_list = {0};
+        CommandObject     co1           = {
+            .ok        = 1,
+            .file      = SL("main.c"),
+            .output    = SL("main"),
+            .arguments = SLIST(&a, "gcc", "-std=c23", "-O0", "-g3", "-Wall", "-Wextra", "-Wpedantic", "main.c", "-o", "main"),
+        };
+        command_objects_push_back(&expected_list, &co1);
+        run_test_shell_parse_line(a, line, expected_list);
+    }
 
     // With include dir (separate token) — "mydir" consumed by -I, excluded from arguments
-    args = SLIST(&a, "gcc", "-I", "mydir", "-o", "main", "main.c");
-    run_test_gcc_invocation(a, args,
-                            (CompilerCommand){
-                                .ok           = 1,
-                                .source_files = SLIST(&a, "main.c"),
-                                .output_file  = SL("main"),
-                                .arguments    = strlist_copy(args, &a),
-                            });
+    {
+        Str line = SL("gcc -I mydir -o main main.c");
+
+        CommandObjectList expected_list = {0};
+        CommandObject     co1           = {
+            .ok        = 1,
+            .file      = SL("main.c"),
+            .output    = SL("main"),
+            .arguments = SLIST(&a, "gcc", "-I", "mydir", "-o", "main", "main.c"),
+        };
+        command_objects_push_back(&expected_list, &co1);
+        run_test_shell_parse_line(a, line, expected_list);
+    }
 
     // With include dir attached to flag
-    args = SLIST(&a, "gcc", "-Imydir", "-o", "main", "main.c");
-    run_test_gcc_invocation(a, args,
-                            (CompilerCommand){
-                                .ok           = 1,
-                                .source_files = SLIST(&a, "main.c"),
-                                .output_file  = SL("main"),
-                                .arguments    = strlist_copy(args, &a),
-                            });
+    {
+        Str line = SL("gcc -Imydir -o main main.c");
+
+        CommandObjectList expected_list = {0};
+        CommandObject     co1           = {
+            .ok        = 1,
+            .file      = SL("main.c"),
+            .output    = SL("main"),
+            .arguments = SLIST(&a, "gcc", "-Imydir", "-o", "main", "main.c"),
+        };
+        command_objects_push_back(&expected_list, &co1);
+        run_test_shell_parse_line(a, line, expected_list);
+    }
 
     // With include path containing spaces and quotes
     // https://github.com/fcying/compiledb-go/issues/11
-    args = SLIST(&a, "gcc", " -I'D:\\path to scoop\\scoop\\apps\\gcc\\current\\include'", "-o", "main", "main.c");
-    run_test_gcc_invocation(a, args,
-                            (CompilerCommand){
-                                .ok           = 1,
-                                .source_files = SLIST(&a, "main.c"),
-                                .output_file  = SL("main"),
-                                .arguments    = strlist_copy(args, &a),
-                            });
+    // NOTE: unlike the unit test, this goes through the shell line parser, so the
+    // quoting must be valid *shell* quoting rather than a pre-split raw token.
+    {
+        Str line = SL("gcc -I'D:\\path to scoop\\scoop\\apps\\gcc\\current\\include' -o main main.c");
+
+        CommandObjectList expected_list = {0};
+        CommandObject     co1           = {
+            .ok        = 1,
+            .file      = SL("main.c"),
+            .output    = SL("main"),
+            .arguments = SLIST(&a, "gcc", "-ID:\\path to scoop\\scoop\\apps\\gcc\\current\\include", "-o", "main", "main.c"),
+        };
+        command_objects_push_back(&expected_list, &co1);
+        run_test_shell_parse_line(a, line, expected_list);
+    }
 
     // Include dir that looks like a C file - must not be treated as source
-    args = SLIST(&a, "gcc", "-I", "test.c", "-o", "main", "main.c");
-    run_test_gcc_invocation(a, args,
-                            (CompilerCommand){
-                                .ok           = 1,
-                                .source_files = SLIST(&a, "main.c"),
-                                .output_file  = SL("main"),
-                                .arguments    = strlist_copy(args, &a),
-                            });
+    {
+        Str line = SL("gcc -I test.c -o main main.c");
+
+        CommandObjectList expected_list = {0};
+        CommandObject     co1           = {
+            .ok        = 1,
+            .file      = SL("main.c"),
+            .output    = SL("main"),
+            .arguments = SLIST(&a, "gcc", "-I", "test.c", "-o", "main", "main.c"),
+        };
+        command_objects_push_back(&expected_list, &co1);
+        run_test_shell_parse_line(a, line, expected_list);
+    }
 
     // Preprocessor define that looks like a C file - must not be treated as source
-    args = SLIST(&a, "gcc", "-D", "test.c", "-o", "main", "main.c");
-    run_test_gcc_invocation(a, args,
-                            (CompilerCommand){
-                                .ok           = 1,
-                                .source_files = SLIST(&a, "main.c"),
-                                .output_file  = SL("main"),
-                                .arguments    = strlist_copy(args, &a),
-                            });
+    {
+        Str line = SL("gcc -D test.c -o main main.c");
+
+        CommandObjectList expected_list = {0};
+        CommandObject     co1           = {
+            .ok        = 1,
+            .file      = SL("main.c"),
+            .output    = SL("main"),
+            .arguments = SLIST(&a, "gcc", "-D", "test.c", "-o", "main", "main.c"),
+        };
+        command_objects_push_back(&expected_list, &co1);
+        run_test_shell_parse_line(a, line, expected_list);
+    }
 
     // Macro with quotes in value
     // https://github.com/nickdiego/compiledb/issues/131
-    args = SLIST(&a, "cc", "-MMD", "-MP", "-O2", "-march=native", "-iquote", "./include", "-U_FORTIFY_SOURCE",
-                 "-DPROG_NAME=\"waffle\"", "-c", "src/cursor_events.c", "-o", ".build/release/cursor_events.o");
-    run_test_gcc_invocation(a, args,
-                            (CompilerCommand){
-                                .ok           = 1,
-                                .source_files = SLIST(&a, "src/cursor_events.c"),
-                                .output_file  = SL(".build/release/cursor_events.o"),
-                                .arguments    = strlist_copy(args, &a),
-                            });
+    {
+        Str line = SL("cc -MMD -MP -O2 -march=native -iquote ./include -U_FORTIFY_SOURCE -DPROG_NAME=\\\"waffle\\\" -c "
+                      "src/cursor_events.c -o .build/release/cursor_events.o");
+
+        CommandObjectList expected_list = {0};
+        CommandObject     co1           = {
+            .ok        = 1,
+            .file      = SL("src/cursor_events.c"),
+            .output    = SL(".build/release/cursor_events.o"),
+            .arguments = SLIST(&a, "cc", "-MMD", "-MP", "-O2", "-march=native", "-iquote", "./include", "-U_FORTIFY_SOURCE",
+                               "-DPROG_NAME=\"waffle\"", "-c", "src/cursor_events.c", "-o", ".build/release/cursor_events.o"),
+        };
+        command_objects_push_back(&expected_list, &co1);
+        run_test_shell_parse_line(a, line, expected_list);
+    }
 
     // Multiple C source files — source files excluded from arguments
-    args = SLIST(&a, "gcc", "-o", "app", "main.c", "mathlib.c", "strlib.c");
-    run_test_gcc_invocation(a, args,
-                            (CompilerCommand){
-                                .ok           = 1,
-                                .source_files = SLIST(&a, "main.c", "mathlib.c", "strlib.c"),
-                                .output_file  = SL("app"),
-                                .arguments    = strlist_copy(args, &a),
-                            });
+    // NOTE: multiple sources expand into multiple CommandObject entries in the
+    // resulting CommandObjectList, one per source file, all sharing the same
+    // arguments/output.
+    {
+        Str line = SL("gcc -o app main.c mathlib.c strlib.c");
+
+        CommandObjectList expected_list = {0};
+        StrList           arguments     = SLIST(&a, "gcc", "-o", "app", "main.c", "mathlib.c", "strlib.c");
+        CommandObject     co1           = {
+            .ok        = 1,
+            .file      = SL("main.c"),
+            .output    = SL("app"),
+            .arguments = arguments,
+        };
+        CommandObject co2 = {
+            .ok        = 1,
+            .file      = SL("mathlib.c"),
+            .output    = SL("app"),
+            .arguments = arguments,
+        };
+        CommandObject co3 = {
+            .ok        = 1,
+            .file      = SL("strlib.c"),
+            .output    = SL("app"),
+            .arguments = arguments,
+        };
+        command_objects_push_back(&expected_list, &co1);
+        command_objects_push_back(&expected_list, &co2);
+        command_objects_push_back(&expected_list, &co3);
+        run_test_shell_parse_line(a, line, expected_list);
+    }
 
     // Embedded use case: ARM cross-compiler with assembly source
     // (Taken from STM32 cubemx generated makefile)
-    args = SLIST(&a, "arm-none-eabi-gcc", "-x", "assembler-with-cpp", "-c", "-mcpu=cortex-m4", "-mthumb", "-mfpu=fpv4-sp-d16",
-                 "-mfloat-abi=hard", "-DUSE_HAL_DRIVER", "-DSTM32G431xx", "-ICore/Inc", "-IDrivers/STM32G4xx_HAL_Driver/Inc",
-                 "-IDrivers/STM32G4xx_HAL_Driver/Inc/Legacy", "-IDrivers/CMSIS/Device/ST/STM32G4xx/Include",
-                 "-IDrivers/CMSIS/Include", "-Og", "-Wall", "-fdata-sections", "-ffunction-sections", "-g", "-gdwarf-2", "-MMD",
-                 "-MP", "-MFbuild/startup_stm32g431xx.d", "startup_stm32g431xx.s", "-o", "build/startup_stm32g431xx.o");
-    run_test_gcc_invocation(a, args,
-                            (CompilerCommand){
-                                .ok           = 1,
-                                .source_files = SLIST(&a, "startup_stm32g431xx.s"),
-                                .output_file  = SL("build/startup_stm32g431xx.o"),
-                                .arguments    = strlist_copy(args, &a),
-                            });
+    {
+        Str line = SL("arm-none-eabi-gcc -x assembler-with-cpp -c -mcpu=cortex-m4 -mthumb -mfpu=fpv4-sp-d16 -mfloat-abi=hard "
+                      "-DUSE_HAL_DRIVER -DSTM32G431xx -ICore/Inc -IDrivers/STM32G4xx_HAL_Driver/Inc "
+                      "-IDrivers/STM32G4xx_HAL_Driver/Inc/Legacy -IDrivers/CMSIS/Device/ST/STM32G4xx/Include "
+                      "-IDrivers/CMSIS/Include -Og -Wall -fdata-sections -ffunction-sections -g -gdwarf-2 -MMD -MP "
+                      "-MFbuild/startup_stm32g431xx.d startup_stm32g431xx.s -o build/startup_stm32g431xx.o");
+
+        CommandObjectList expected_list = {0};
+        CommandObject     co1           = {
+            .ok        = 1,
+            .file      = SL("startup_stm32g431xx.s"),
+            .output    = SL("build/startup_stm32g431xx.o"),
+            .arguments = SLIST(&a, "arm-none-eabi-gcc", "-x", "assembler-with-cpp", "-c", "-mcpu=cortex-m4", "-mthumb",
+                               "-mfpu=fpv4-sp-d16", "-mfloat-abi=hard", "-DUSE_HAL_DRIVER", "-DSTM32G431xx", "-ICore/Inc",
+                               "-IDrivers/STM32G4xx_HAL_Driver/Inc", "-IDrivers/STM32G4xx_HAL_Driver/Inc/Legacy",
+                               "-IDrivers/CMSIS/Device/ST/STM32G4xx/Include", "-IDrivers/CMSIS/Include", "-Og", "-Wall",
+                               "-fdata-sections", "-ffunction-sections", "-g", "-gdwarf-2", "-MMD", "-MP",
+                               "-MFbuild/startup_stm32g431xx.d", "startup_stm32g431xx.s", "-o", "build/startup_stm32g431xx.o"),
+        };
+        command_objects_push_back(&expected_list, &co1);
+        run_test_shell_parse_line(a, line, expected_list);
+    }
 
     // -x language (short form, space separated)
     // https://github.com/nickdiego/compiledb/issues/140
-    args = SLIST(&a, "gcc", "-x", "c", "-c", "stb_image.h");
-    run_test_gcc_invocation(a, args,
-                            (CompilerCommand){
-                                .ok           = 1,
-                                .source_files = SLIST(&a, "stb_image.h"),
-                                .output_file  = SL(""),
-                                .arguments    = strlist_copy(args, &a),
-                            });
+    {
+        Str line = SL("gcc -x c -c stb_image.h");
+
+        CommandObjectList expected_list = {0};
+        CommandObject     co1           = {
+            .ok        = 1,
+            .file      = SL("stb_image.h"),
+            .output    = SL(""),
+            .arguments = SLIST(&a, "gcc", "-x", "c", "-c", "stb_image.h"),
+        };
+        command_objects_push_back(&expected_list, &co1);
+        run_test_shell_parse_line(a, line, expected_list);
+    }
 
     // --language=c (long form, attached)
-    args = SLIST(&a, "gcc", "--language=c", "-c", "stb_image.h");
-    run_test_gcc_invocation(a, args,
-                            (CompilerCommand){
-                                .ok           = 1,
-                                .source_files = SLIST(&a, "stb_image.h"),
-                                .output_file  = SL(""),
-                                .arguments    = strlist_copy(args, &a),
-                            });
+    {
+        Str line = SL("gcc --language=c -c stb_image.h");
+
+        CommandObjectList expected_list = {0};
+        CommandObject     co1           = {
+            .ok        = 1,
+            .file      = SL("stb_image.h"),
+            .output    = SL(""),
+            .arguments = SLIST(&a, "gcc", "--language=c", "-c", "stb_image.h"),
+        };
+        command_objects_push_back(&expected_list, &co1);
+        run_test_shell_parse_line(a, line, expected_list);
+    }
 
     // --language c (long form, space separated)
-    args = SLIST(&a, "gcc", "--language", "c", "-c", "stb_image.h");
-    run_test_gcc_invocation(a, args,
-                            (CompilerCommand){
-                                .ok           = 1,
-                                .source_files = SLIST(&a, "stb_image.h"),
-                                .output_file  = SL(""),
-                                .arguments    = strlist_copy(args, &a),
-                            });
+    {
+        Str line = SL("gcc --language c -c stb_image.h");
+
+        CommandObjectList expected_list = {0};
+        CommandObject     co1           = {
+            .ok        = 1,
+            .file      = SL("stb_image.h"),
+            .output    = SL(""),
+            .arguments = SLIST(&a, "gcc", "--language", "c", "-c", "stb_image.h"),
+        };
+        command_objects_push_back(&expected_list, &co1);
+        run_test_shell_parse_line(a, line, expected_list);
+    }
 
     // C++ - single-header C++ library
-    args = SLIST(&a, "gcc", "-x", "c++", "-c", "mylib.hpp");
-    run_test_gcc_invocation(a, args,
-                            (CompilerCommand){
-                                .ok           = 1,
-                                .source_files = SLIST(&a, "mylib.hpp"),
-                                .output_file  = SL(""),
-                                .arguments    = strlist_copy(args, &a),
-                            });
+    {
+        Str line = SL("gcc -x c++ -c mylib.hpp");
+
+        CommandObjectList expected_list = {0};
+        CommandObject     co1           = {
+            .ok        = 1,
+            .file      = SL("mylib.hpp"),
+            .output    = SL(""),
+            .arguments = SLIST(&a, "gcc", "-x", "c++", "-c", "mylib.hpp"),
+        };
+        command_objects_push_back(&expected_list, &co1);
+        run_test_shell_parse_line(a, line, expected_list);
+    }
 
     // assembler - plain assembly, no preprocessing
-    args = SLIST(&a, "gcc", "-x", "assembler", "-c", "startup.s", "-o", "startup.o");
-    run_test_gcc_invocation(a, args,
-                            (CompilerCommand){
-                                .ok           = 1,
-                                .source_files = SLIST(&a, "startup.s"),
-                                .output_file  = SL("startup.o"),
-                                .arguments    = strlist_copy(args, &a),
-                            });
+    {
+        Str line = SL("gcc -x assembler -c startup.s -o startup.o");
+
+        CommandObjectList expected_list = {0};
+        CommandObject     co1           = {
+            .ok        = 1,
+            .file      = SL("startup.s"),
+            .output    = SL("startup.o"),
+            .arguments = SLIST(&a, "gcc", "-x", "assembler", "-c", "startup.s", "-o", "startup.o"),
+        };
+        command_objects_push_back(&expected_list, &co1);
+        run_test_shell_parse_line(a, line, expected_list);
+    }
 
     // assembler-with-cpp - assembly with C preprocessing (hyphens in value)
-    args = SLIST(&a, "gcc", "-x", "assembler-with-cpp", "-c", "startup.S", "-o", "startup.o");
-    run_test_gcc_invocation(a, args,
-                            (CompilerCommand){
-                                .ok           = 1,
-                                .source_files = SLIST(&a, "startup.S"),
-                                .output_file  = SL("startup.o"),
-                                .arguments    = strlist_copy(args, &a),
-                            });
+    {
+        Str line = SL("gcc -x assembler-with-cpp -c startup.S -o startup.o");
+
+        CommandObjectList expected_list = {0};
+        CommandObject     co1           = {
+            .ok        = 1,
+            .file      = SL("startup.S"),
+            .output    = SL("startup.o"),
+            .arguments = SLIST(&a, "gcc", "-x", "assembler-with-cpp", "-c", "startup.S", "-o", "startup.o"),
+        };
+        command_objects_push_back(&expected_list, &co1);
+        run_test_shell_parse_line(a, line, expected_list);
+    }
 
     // -x none reset: main.c still recognized as source by extension after reset
-    args = SLIST(&a, "gcc", "-x", "c", "header.h", "-x", "none", "main.c");
-    run_test_gcc_invocation(a, args,
-                            (CompilerCommand){
-                                .ok           = 1,
-                                .source_files = SLIST(&a, "header.h", "main.c"),
-                                .output_file  = SL(""),
-                                .arguments    = strlist_copy(args, &a),
-                            });
+    // NOTE: two sources here (header.h, main.c) → two CommandObject entries.
+    {
+        Str line = SL("gcc -x c header.h -x none main.c");
+
+        CommandObjectList expected_list = {0};
+        StrList           arguments     = SLIST(&a, "gcc", "-x", "c", "header.h", "-x", "none", "main.c");
+        CommandObject     co1           = {
+            .ok        = 1,
+            .file      = SL("header.h"),
+            .output    = SL(""),
+            .arguments = arguments,
+        };
+        CommandObject co2 = {
+            .ok        = 1,
+            .file      = SL("main.c"),
+            .output    = SL(""),
+            .arguments = arguments,
+        };
+        command_objects_push_back(&expected_list, &co1);
+        command_objects_push_back(&expected_list, &co2);
+        run_test_shell_parse_line(a, line, expected_list);
+    }
 
     // Reset restores extension-based detection - other.h is NOT a source after reset
-    args = SLIST(&a, "gcc", "-x", "c", "header.h", "-x", "none", "other.h");
-    run_test_gcc_invocation(a, args,
-                            (CompilerCommand){
-                                .ok           = 1,
-                                .source_files = SLIST(&a, "header.h"),
-                                .output_file  = SL(""),
-                                .arguments    = strlist_copy(args, &a),
-                            });
+    {
+        Str line = SL("gcc -x c header.h -x none other.h");
+
+        CommandObjectList expected_list = {0};
+        CommandObject     co1           = {
+            .ok        = 1,
+            .file      = SL("header.h"),
+            .output    = SL(""),
+            .arguments = SLIST(&a, "gcc", "-x", "c", "header.h", "-x", "none", "other.h"),
+        };
+        command_objects_push_back(&expected_list, &co1);
+        run_test_shell_parse_line(a, line, expected_list);
+    }
+
+    // Compiler wrapper
+    // https://github.com/nickdiego/compiledb/issues/2
+    {
+        Str line = SL(
+            "/bin/sh ../libtool  --tag=CXX   --mode=compile /usr/bin/ccache g++ -std=c++11 -DHAVE_CONFIG_H -I. -I../src/config  "
+            "-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=2 -I./obj -I./secp256k1/include -DBUILD_BITCOIN_INTERNAL -DHAVE_BUILD_INFO "
+            "-D__STDC_FORMAT_MACROS -Wstack-protector -fstack-protector-all  -fPIE -g -O2 -Wall -Wextra -Wformat -Wvla "
+            "-Wformat-security -Wno-unused-parameter -Wno-implicit-fallthrough -MT crypto/libbitcoinconsensus_la-hmac_sha256.lo "
+            "-MD -MP -MF crypto/.deps/libbitcoinconsensus_la-hmac_sha256.Tpo -c -o crypto/libbitcoinconsensus_la-hmac_sha256.lo "
+            "`test -f 'crypto/hmac_sha256.cpp' || echo './'`crypto/hmac_sha256.cpp");
+        // TODO:
+        (void)line;
+    }
 }
 
 int main(void)
@@ -3162,7 +3386,7 @@ int main(void)
         test_compiler_parse(arena);
         test_extract_compiler_invocation(arena);
         test_parse_directory(arena);
-        test_compiler_command_from_gcc_invocation(arena);
+        test_shell_parsing(arena);
     }
     puts("All tests passed!");
 
