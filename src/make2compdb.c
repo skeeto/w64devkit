@@ -2099,10 +2099,10 @@ static int make2compdb(Arena *perm, OsWriterInterface *os_stdout, OsWriterInterf
             verbose = 1;
         }
         else {
-            print_str(os_stdout, SL("Unknown CLI arg: '"));
-            print_str(os_stdout, arg->str);
-            println_str(os_stdout, SL("'\n"));
-            return -1;
+            print_str(os_stderr, SL("Unknown CLI arg: '"));
+            print_str(os_stderr, arg->str);
+            println_str(os_stderr, SL("'\n"));
+            return 1; //< Let's exit early with an error.
         }
     }
     (void)program_name; //< Not used currently
