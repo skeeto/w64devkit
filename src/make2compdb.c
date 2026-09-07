@@ -3310,8 +3310,10 @@ static void os_stream_flush(WinBufferedStream *bs)
         return;
     }
 
-    bs->stream.err = !WriteConsoleW(bs->stream.handle, buf, buf_len, NULL, 0);
-    bs->buf.len    = 0;
+    i32 written     = 0;
+    bs->stream.err  = !WriteConsoleW(bs->stream.handle, buf, buf_len, &written, 0);
+    bs->stream.err |= written != buf_len;
+    bs->buf.len     = 0;
 }
 
 static void os_stream_write(WinBufferedStream *w, Str in)
