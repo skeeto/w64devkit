@@ -86,7 +86,7 @@ typedef int32_t        i32;
 typedef int64_t        i64;
 typedef ptrdiff_t      isize;
 typedef size_t         usize;
-typedef unsigned short c16;
+typedef unsigned short c16; //< what windows call wchar_t
 typedef char           byte;
 typedef ptrdiff_t      iptr;
 typedef uintptr_t      uptr;
@@ -1523,7 +1523,7 @@ static Compiler compiler_parse(Str input)
     while (segment.tail.len > 0) {
         segment = str_cut(segment.tail, SL("-"));
 
-        if (str_equal(segment.head, SL("clang"))) {
+        if (str_equal(segment.head, SL("clang")) || str_equal(segment.head, SL("clang++"))) {
             compiler.kind   = COMPILER_IS_GCC_COMPATIBLE;
             compiler.string = input;
             return compiler;
@@ -2556,7 +2556,11 @@ static void test_compiler_parse(Arena a)
     run_test_compiler_parser(SL("C:\\Users\\gberthiaume\\scoop\\apps\\w64devkit\\current\\bin\\gcc"),  SL("gcc"), COMPILER_IS_GCC_COMPATIBLE);
     run_test_compiler_parser(SL("C:/clang/gcc"),                                                       SL("gcc"), COMPILER_IS_GCC_COMPATIBLE);
 
-    // zig cc
+    // clang
+    run_test_compiler_parser(SL("clang"), SL("clang"), COMPILER_IS_GCC_COMPATIBLE);
+    run_test_compiler_parser(SL("clang++"), SL("clang++"), COMPILER_IS_GCC_COMPATIBLE);
+
+    // zig cc (zig cc main.c -o main.exe)
     run_test_compiler_parser(SL("zig"),                                                SL("zig"), COMPILER_IS_GCC_COMPATIBLE);
     run_test_compiler_parser(SL("zig.exe"),                                            SL("zig"), COMPILER_IS_GCC_COMPATIBLE);
     run_test_compiler_parser(SL("C:/Users/gberthiaume/scoop/apps/zig/0.16.0/zig.exe"), SL("zig"), COMPILER_IS_GCC_COMPATIBLE);
@@ -2571,7 +2575,7 @@ static void test_compiler_parse(Arena a)
     run_test_compiler_parser(SL("nvc"), SL("nvc"), COMPILER_IS_GCC_COMPATIBLE);
 
     // NVIDIA HPC C++ compiler (nvc++ -std=c++17 -O2 -c main.cpp -o main.o)
-    run_test_compiler_parser(SL("nvc"), SL("nvc"), COMPILER_IS_GCC_COMPATIBLE);
+    run_test_compiler_parser(SL("nvc++"), SL("nvc++"), COMPILER_IS_GCC_COMPATIBLE);
 
     // TinyCC (tcc -Wall -c main.c -o main.o)
     run_test_compiler_parser(SL("tcc"), SL("tcc"), COMPILER_IS_GCC_COMPATIBLE);
