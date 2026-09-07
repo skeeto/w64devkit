@@ -509,32 +509,96 @@ static Str str_unescape(Arena *perm, Str s)
     isize index    = 0;
     Str   unescape = ALLOC_SLICE(perm, s.len, unescape);
 
+    enum {
+        UNQUOTED,
+        IN_DOUBLE_QUOTE,
+        IN_SINGLE_QUOTE,
+    } state = UNQUOTED;
+
     while (s.len > 0) {
         u8 c = str_pop(&s);
-        switch (c) {
-        case '\'': break; //< Unquote
-        case '\"': break; //< Unquote
-        case '\\': {
-            u8 p = str_pop(&s);
-            switch (p) {
-            case '"':  str_set(&unescape, index++, '"'); break;
-            case '\\': str_set(&unescape, index++, '\\'); break;
-            case '/':  str_set(&unescape, index++, '/'); break;
-            case 'b':  str_set(&unescape, index++, '\b'); break;
-            case 'f':  str_set(&unescape, index++, '\f'); break;
-            case 'n':  str_set(&unescape, index++, '\n'); break;
-            case 'r':  str_set(&unescape, index++, '\r'); break;
-            case 't':  str_set(&unescape, index++, '\t'); break;
-            case ' ':  str_set(&unescape, index++, ' '); break;
+        switch (state) {
+        default: assert(0);
+
+        case UNQUOTED: {
+            switch (c) {
+            case '"': {
+                state = IN_DOUBLE_QUOTE;
+                break;
+            }
+            case '\'': {
+                state = IN_SINGLE_QUOTE;
+                break;
+            }
+            case '\\': {
+                if (s.len == 0) break; //< delete trailing
+
+                u8 next = str_peek(s);
+                if (next == '\n') {
+                    str_pop(&s); //< line continuation: Consume <eol>
+                }
+                else {
+                    str_pop(&s); //< Consume `next`
+                    str_set(&unescape, index++, next);
+                }
+                break;
+            }
+            default: {
+                str_set(&unescape, index++, c);
+                break;
+            }
             }
             break;
         }
-        default: {
-            str_set(&unescape, index++, c);
+
+        case IN_DOUBLE_QUOTE: {
+            switch (c) {
+            case '"': {
+                state = UNQUOTED;
+                break;
+            }
+            case '\\': {
+                if (s.len == 0) break; //< delete trailing
+
+                u8 next = str_peek(s);
+
+                // [In double quotes] the <backslash> shall retain its special meaning as
+                // an escape character (see Escape Character (Backslash)) only when followed
+                // by one of the following characters when considered special:
+                // $   `   "   \   <newline>
+                //
+                // Source: Shell Command Language, 2.2.3 Double-Quotes, IEEE Std 1003.1-2017
+                if (next == '\n') {
+                    str_pop(&s); //< line continuation: Consume <eol>
+                }
+                else if (next == '$' || next == '`' || next == '"' || next == '\\') {
+                    str_pop(&s); //< Consume `next`
+                    str_set(&unescape, index++, next);
+                }
+                else {
+                    str_set(&unescape, index++, c); //< literal backslash, next char handled next iteration
+                }
+                break;
+            }
+            default: {
+                str_set(&unescape, index++, c);
+                break;
+            }
+            }
             break;
         }
+
+        case IN_SINGLE_QUOTE: {
+            if (c == '\'') {
+                state = UNQUOTED;
+            }
+            else {
+                str_set(&unescape, index++, c);
+            }
+            break;
         }
-    }
+        } // switch (state)
+    } // while (s.len > 0)
 
     unescape = str_take_head(unescape, index);
     arena_reset_to(perm, (byte *)unescape.ptr + unescape.len); // reclaim unused memory
@@ -1329,7 +1393,7 @@ static Str shell_tokenize_next(Str *shell_input, b32 *eol)
 
         switch (make_u16(mode, c)) {
         case make_u16(IN_QUOTE, '\''):             mode = NORMAL; break;
-        case make_u16(IN_DOUBLE_QUOTE, '\"'):      mode = NORMAL; break;
+        case make_u16(IN_DOUBLE_QUOTE, '"'):       mode = NORMAL; break;
         case make_u16(IN_BACKTICK, '`'):           mode = NORMAL; break;
         case make_u16(IN_BRACES, '}'):             mode = NORMAL; break;
         case make_u16(IN_PARENTHESES, ')'):        mode = NORMAL; break;
@@ -1341,7 +1405,7 @@ static Str shell_tokenize_next(Str *shell_input, b32 *eol)
 
             switch (c) {
             case '\'': mode = IN_QUOTE; break;
-            case '\"': mode = IN_DOUBLE_QUOTE; break;
+            case '"':  mode = IN_DOUBLE_QUOTE; break;
             case '`':  mode = IN_BACKTICK; break;
             case '{':  mode = IN_BRACES; break;
             case '(':  {
@@ -2353,6 +2417,109 @@ static b32 strlist_equal(StrList a, StrList b)
     }
 }
 
+void run_test_unescape(Arena *perm, Str input, Str expected)
+{
+    Arena scratch = *perm;
+
+    Str result = str_unescape(&scratch, input);
+    CHECK(str_equal(result, expected));
+}
+
+static void test_shell_unescaping(Arena a)
+{
+    // Empty
+    {
+        run_test_unescape(&a, SL(""), SL(""));
+        run_test_unescape(&a, SL("''"), SL(""));
+        run_test_unescape(&a, SL("\"\""), SL(""));
+
+        // Adjacent empty fragments.
+        run_test_unescape(&a, SL("''\"\""), SL(""));
+    }
+
+    // Unquoted
+    {
+        // A backslash quotes any character except newline.
+        run_test_unescape(&a, SL("hello\\ world"), SL("hello world"));
+        run_test_unescape(&a, SL("a\\tb"), SL("atb"));
+        run_test_unescape(&a, SL("a\\\\b"), SL("a\\b"));
+
+        // Quotes can themselves be escaped.
+        run_test_unescape(&a, SL("\\'"), SL("'"));
+        run_test_unescape(&a, SL("\\\""), SL("\""));
+
+        // Line continuation removes both characters.
+        run_test_unescape(&a, SL("foo\\\nbar"), SL("foobar"));
+        run_test_unescape(&a, SL("\\\nfoo"), SL("foo"));
+        run_test_unescape(&a, SL("foo\\\n"), SL("foo"));
+
+        // No whitespace is inserted.
+        run_test_unescape(&a, SL("foo \\\nbar"), SL("foo bar"));
+    }
+
+    // Single quotes
+    {
+        // Basic quote removal.
+        run_test_unescape(&a, SL("'hello world'"), SL("hello world"));
+
+        // Everything is literal inside single quotes.
+        run_test_unescape(&a, SL("'a\\tb'"), SL("a\\tb"));
+        run_test_unescape(&a, SL("'$HOME'"), SL("$HOME"));
+        run_test_unescape(&a, SL("'\"'"), SL("\""));
+
+        // Newlines and backslash-newline are literal.
+        run_test_unescape(&a, SL("'foo\nbar'"), SL("foo\nbar"));
+        run_test_unescape(&a, SL("'foo\\\nbar'"), SL("foo\\\nbar"));
+    }
+
+    // Double quotes
+    {
+        // Basic quote removal.
+        run_test_unescape(&a, SL("\"hello world\""), SL("hello world"));
+
+        // Backslash is special only before $, `, ", \, and newline.
+        run_test_unescape(&a, SL("\"\\$\""), SL("$"));
+        run_test_unescape(&a, SL("\"\\`\""), SL("`"));
+        run_test_unescape(&a, SL("\"\\\"\""), SL("\""));
+        run_test_unescape(&a, SL("\"\\\\\""), SL("\\"));
+
+        // Backslash-newline is a line continuation.
+        run_test_unescape(&a, SL("\"foo\\\nbar\""), SL("foobar"));
+
+        // Backslash remains literal before other characters.
+        run_test_unescape(&a, SL("\"\\a\""), SL("\\a"));
+        run_test_unescape(&a, SL("\"\\ \"\""), SL("\\ "));
+        run_test_unescape(&a, SL("\"\\'\""), SL("\\'"));
+
+        // Single quotes have no special meaning inside double quotes.
+        run_test_unescape(&a, SL("\"'\""), SL("'"));
+    }
+
+    // Adjacent fragments are concatenated.
+    {
+        run_test_unescape(&a, SL("foo'bar'baz"), SL("foobarbaz"));
+        run_test_unescape(&a, SL("foo\"bar\"baz"), SL("foobarbaz"));
+        run_test_unescape(&a, SL("'foo'\"bar\"'baz'"), SL("foobarbaz"));
+
+        // Empty fragments disappear.
+        run_test_unescape(&a, SL("a''b"), SL("ab"));
+        run_test_unescape(&a, SL("a\"\"b"), SL("ab"));
+    }
+
+    // Quote-state transitions.
+    {
+        run_test_unescape(&a, SL("a'b'\"c\"d"), SL("abcd"));
+
+        // Escaped quotes do not change the quote state.
+        run_test_unescape(&a, SL("\\'foo'"), SL("'foo"));
+        run_test_unescape(&a, SL("\\\"foo\""), SL("\"foo"));
+
+        // Escaping can occur between quoted fragments.
+        run_test_unescape(&a, SL("'foo'\\ 'bar'"), SL("foo bar"));
+        run_test_unescape(&a, SL("\"foo\"'bar'"), SL("foobar"));
+    }
+}
+
 static void run_test_shell_tokenizer(Arena scratch, Str input, StrList expected_tokens)
 {
     StrList line = shell_tokenize_logical_line(&scratch, &input);
@@ -2941,6 +3108,7 @@ int main(void)
 
     puts("Running unit tests...");
     {
+        test_shell_unescaping(arena);
         test_shell_tokenizer(arena);
         test_compiler_parse(arena);
         test_extract_compiler_invocation(arena);
@@ -3011,14 +3179,14 @@ int main(void)
         u8 *src = NULL;
         if (len > 0) {
             src = realloc(src, len);
-        assert(src);
-        memcpy(src, buf, len);
+            assert(src);
+            memcpy(src, buf, len);
         }
 
-            Arena scratch = arena;
+        Arena scratch = arena;
 
-            Str fuzzed_make_stdout = {.ptr = src, .len = len};
-            make2compdb(&scratch, &writer_stdout, &writer_stderr, cli_args, fuzzed_make_stdout, cwd);
+        Str fuzzed_make_stdout = {.ptr = src, .len = len};
+        make2compdb(&scratch, &writer_stdout, &writer_stderr, cli_args, fuzzed_make_stdout, cwd);
 
         free(src);
         src = NULL;
