@@ -165,6 +165,11 @@ static inline b32 is_numeric(u8 c)
     }
 }
 
+static inline b32 is_control_character(u8 c)
+{
+    return c <= 0x1F; //< In UTF-8, control-characters range between U+0000 and U+001F
+}
+
 // :: Arena
 // An `Arena` is a memory allocator that allocates objects linearly.
 //
@@ -939,6 +944,12 @@ static void print_u8(OsWriterInterface *w, u8 c)
     }
 }
 
+static void print_u8_as_hex(OsWriterInterface *w, u8 c)
+{
+    print_u8(w, (u8)u8"0123456789ABCDEF"[(c >> 4) & 0xF]);
+    print_u8(w, (u8)u8"0123456789ABCDEF"[c & 0xF]);
+}
+
 static void print_str(OsWriterInterface *w, Str s)
 {
     assert(w);
@@ -964,8 +975,8 @@ static void println_str(OsWriterInterface *w, Str s)
     print_u8(w, '\n');
 }
 
-// Will escape special characters.
-static void print_str_escaped_string(OsWriterInterface *w, Str s)
+// Will escape special characters according to the JSON specification.
+static void print_str_json_escaped_string(OsWriterInterface *w, Str s)
 {
     assert(w);
 
@@ -973,16 +984,27 @@ static void print_str_escaped_string(OsWriterInterface *w, Str s)
     while (s.len > 0) {
         u8 c = str_pop(&s);
         switch (c) {
+        // Json supports the following escape characters:
         case '\"': print_str(w, SL("\\\"")); break;
         case '\n': print_str(w, SL("\\n")); break;
         case '\r': print_str(w, SL("\\r")); break;
         case '\t': print_str(w, SL("\\t")); break;
-        case '\v': print_str(w, SL("\\v")); break;
         case '\b': print_str(w, SL("\\b")); break;
         case '\f': print_str(w, SL("\\f")); break;
-        case '\a': print_str(w, SL("\\a")); break;
         case '\\': print_str(w, SL("\\\\")); break;
-        default:   print_u8(w, c); break;
+        default:   {
+            if (is_control_character(c)) {
+                // Not supported control character should be escaped like this "\u00xx".
+                // Where `xx` is the character numeric value in hexadecimal format.
+                print_str(w, SL("\\u00"));
+                print_u8_as_hex(w, c);
+            }
+            else {
+                // normal character
+                print_u8(w, c);
+            }
+            break;
+        }
         }
     }
     print_u8(w, '\"');
@@ -990,7 +1012,7 @@ static void print_str_escaped_string(OsWriterInterface *w, Str s)
 
 static void println_str_escaped_string(OsWriterInterface *w, Str s)
 {
-    print_str_escaped_string(w, s);
+    print_str_json_escaped_string(w, s);
     print_u8(w, '\n');
 }
 
@@ -1041,7 +1063,7 @@ static void print_strlist(OsWriterInterface *w, StrList sl)
         if (node != sl.front) {
             print_str(w, SL(", "));
         }
-        print_str_escaped_string(w, node->str);
+        print_str_json_escaped_string(w, node->str);
     }
     print_str(w, SL("]"));
 }
@@ -2003,18 +2025,18 @@ static void json_write_command_object(OsWriterInterface *w, CommandObject comman
 
     // "directory": "C:/dev/gb/make2compdb/input/simple with space",
     print_str(w, SL("\"directory\": "));
-    print_str_escaped_string(w, command.directory);
+    print_str_json_escaped_string(w, command.directory);
     println_str(w, SL(","));
 
     // "file": "main.c",
     print_str(w, SL("\"file\": "));
-    print_str_escaped_string(w, command.file);
+    print_str_json_escaped_string(w, command.file);
     println_str(w, SL(","));
 
     if (command.output.len > 0) { //< Ouput is sometime not specified
         // "output": "main.o"
         print_str(w, SL("\"output\": "));
-        print_str_escaped_string(w, command.output);
+        print_str_json_escaped_string(w, command.output);
         println_str(w, SL(","));
     }
 
@@ -2025,7 +2047,7 @@ static void json_write_command_object(OsWriterInterface *w, CommandObject comman
     println_str(w, SL("\"arguments\": ["));
     w->tab += 1;
     for (StrListNode *arg = command.arguments.front; arg != NULL; arg = arg->next) {
-        print_str_escaped_string(w, arg->str);
+        print_str_json_escaped_string(w, arg->str);
 
         b32 const is_last = (arg->next == NULL);
         if (!is_last) {
