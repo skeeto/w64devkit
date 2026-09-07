@@ -1652,7 +1652,7 @@ end_of_invocation:
 static void print_compiler_invocation(OsWriterInterface *w, CompilerInvocation invo)
 {
     print_str(w, SL("Compiler: "));
-    print_str(w, invo.compiler.string);
+    println_str(w, invo.compiler.string);
     print_str(w, SL("Tokens: "));
     print_strlist(w, invo.tokens);
 }
