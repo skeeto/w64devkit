@@ -1410,11 +1410,11 @@ static Str shell_tokenize_next(Str *shell_input, b32 *eol)
         IN_QUOTE,              // '...'
         IN_DOUBLE_QUOTE,       // "..."
         IN_BACKTICK,           // `...`
-        IN_BRACES,             // {...} or ${...}
+        IN_BRACE,              // {...} or ${...}
         IN_PARENTHESES,        // (...) or $(...)
-        IN_DOUBLE_PARENTHESES, // ((...))
-        IN_BRACKETS,           // [...]
-        IN_DOUBLE_BRACKETS,    // [[...]]
+        IN_DOUBLE_PARENTHESES, // ((...)) or $((...))
+        IN_BRACKET,            // [...]
+        IN_DOUBLE_BRACKET,     // [[...]]
     } mode = NORMAL;
 
     Scanner sc    = {.input = *shell_input};
@@ -1426,19 +1426,29 @@ static Str shell_tokenize_next(Str *shell_input, b32 *eol)
         case make_u16(IN_QUOTE, '\''):             mode = NORMAL; break;
         case make_u16(IN_DOUBLE_QUOTE, '"'):       mode = NORMAL; break;
         case make_u16(IN_BACKTICK, '`'):           mode = NORMAL; break;
-        case make_u16(IN_BRACES, '}'):             mode = NORMAL; break;
+        case make_u16(IN_BRACE, '}'):              mode = NORMAL; break;
         case make_u16(IN_PARENTHESES, ')'):        mode = NORMAL; break;
-        case make_u16(IN_DOUBLE_PARENTHESES, ')'): mode = IN_PARENTHESES; break;
-        case make_u16(IN_BRACKETS, ']'):           mode = NORMAL; break;
-        case make_u16(IN_DOUBLE_BRACKETS, ']'):    mode = IN_BRACKETS; break;
-        default:                                   {
+        case make_u16(IN_BRACKET, ']'):            mode = NORMAL; break;
+        case make_u16(IN_DOUBLE_PARENTHESES, ')'): {
+            if (scanner_match_u8(&sc, ')')) {
+                mode = NORMAL;
+            }
+            break;
+        }
+        case make_u16(IN_DOUBLE_BRACKET, ']'): {
+            if (scanner_match_u8(&sc, ']')) {
+                mode = NORMAL;
+            }
+            break;
+        }
+        default: {
             if (mode != NORMAL) break;
 
             switch (c) {
             case '\'': mode = IN_QUOTE; break;
             case '"':  mode = IN_DOUBLE_QUOTE; break;
             case '`':  mode = IN_BACKTICK; break;
-            case '{':  mode = IN_BRACES; break;
+            case '{':  mode = IN_BRACE; break;
             case '(':  {
                 if (scanner_match_u8(&sc, '(')) {
                     mode = IN_DOUBLE_PARENTHESES;
@@ -1450,10 +1460,10 @@ static Str shell_tokenize_next(Str *shell_input, b32 *eol)
             }
             case '[': {
                 if (scanner_match_u8(&sc, '[')) {
-                    mode = IN_DOUBLE_BRACKETS;
+                    mode = IN_DOUBLE_BRACKET;
                 }
                 else {
-                    mode = IN_BRACKETS;
+                    mode = IN_BRACKET;
                 }
                 break;
             }
