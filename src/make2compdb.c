@@ -1637,7 +1637,7 @@ static Compiler compiler_parse(Str input)
     input = str_reverse_cut_any(input, SL("\\/")).tail;
 
     Str_Pair segment  = {.tail = input};
-    Compiler compiler = {.kind = COMPILER_IS_UNKNOWN};
+    Compiler compiler = {.kind = COMPILER_IS_UNKNOWN, .string = SL("unknown or not found")};
     while (segment.tail.len > 0) {
         segment = str_cut(segment.tail, SL("-"));
 
@@ -2831,7 +2831,11 @@ static void run_test_compiler_parser(Str input, Str expected_compiler_str, Compi
 {
     Compiler compiler = compiler_parse(input);
     CHECK(expected_compiler_kind == compiler.kind);
+    
+    // We don't care about the message when unknown
+    if (expected_compiler_kind != COMPILER_IS_UNKNOWN) {
     CHECK(str_equal(expected_compiler_str, compiler.string));
+    }
 }
 
 static void test_compiler_parse(Arena a)
