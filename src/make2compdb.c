@@ -1739,9 +1739,17 @@ static CompilerInvocation compiler_invocation_from_shell_line(Arena *perm, StrLi
     while (!strlist_is_empty(*line_tokens)) {
         Str token = strlist_pop_front(line_tokens);
 
+        if (shell_token_is_shell_substitution(token)) {
+            continue; //< Currrently we ignore subshell expression
+        }
+        else if (shell_token_is_shell_expansion(token)) {
+            continue; //< Currrently we ignore shell expansion
+        }
+
         switch (state) {
         case SEARCH_COMPILER: {
             compiler = compiler_parse(token);
+
             if (COMPILER_IS_UNKNOWN != compiler.kind) {
                 Str unescaped_token = str_unescape(perm, token);
                 strlist_push_back(&tokens, perm, unescaped_token);
@@ -1756,12 +1764,6 @@ static CompilerInvocation compiler_invocation_from_shell_line(Arena *perm, StrLi
             else if (shell_token_is_redirect_operator(token)) {
                 // Delete the redirect file
                 strlist_pop_front(line_tokens);
-            }
-            else if (shell_token_is_shell_substitution(token)) {
-                continue; // Currrently we ignore subshell expression
-            }
-            else if (shell_token_is_shell_expansion(token)) {
-                continue; // Currrently we ignore shell expansion
             }
             else {
                 Str unescaped_token = str_unescape(perm, token);
