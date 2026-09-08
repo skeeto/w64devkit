@@ -1147,14 +1147,20 @@ static void print_strlist(OsWriterInterface *w, StrList sl)
 {
     assert(w);
 
-    print_str(w, SL("["));
+    if (sl.count == 0) {
+        print_str(w, SL("[] (list empty)"));
+    }
+    else {
+        println_str(w, SL("["));
+        w->tab += 1;
+
     for (StrListNode *node = sl.front; node != NULL; node = node->next) {
-        if (node != sl.front) {
-            print_str(w, SL(", "));
-        }
+            if (node != sl.front) println_str(w, SL(","));
         print_str_json_escaped_string(w, node->str);
     }
-    print_str(w, SL("]"));
+        w->tab -= 1;
+        print_str(w, SL("\n]"));
+    }
 }
 
 static void println_strlist(OsWriterInterface *w, StrList sl)
