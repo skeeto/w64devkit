@@ -622,6 +622,55 @@ static u32 str_hash(Str s)
     return h;
 }
 
+static b32 str_is_windows_absolute_path(Str s)
+{
+    // We try to detect a windows path by search for a pattern that looks like "C:/".
+    // This is pretty fragile, but we do what we can.
+    // Technically, I think windows can have non single letter drive name, but this seems unlikely.
+    //
+    if ((s.len >= 3)) {
+        return (is_ascii_alpha(s.ptr[0]) && (s.ptr[1] == ':') && (s.ptr[2] == '/' || s.ptr[2] == '\\'));
+    }
+    else {
+        return 0;
+    }
+}
+
+static Str str_normalize_windows_path(Str path)
+{
+    isize new_len            = 0;
+    b32   last_was_backslash = 0;
+    for (isize reader_idx = 0; reader_idx < path.len; reader_idx++) {
+        u8 c = path.ptr[reader_idx];
+        if (c == '\\') {
+            if (last_was_backslash) {
+                // Skip writing second backslash
+                last_was_backslash = 0;
+            }
+            else {
+                path.ptr[new_len++] = '/';
+                last_was_backslash  = 1;
+            }
+        }
+        else {
+            path.ptr[new_len++] = c;
+            last_was_backslash  = 0;
+        }
+    }
+    path.len = new_len;
+    return path;
+}
+
+static Str str_normalize_if_path(Str path)
+{
+    // We need to normalize windows paths, because otherwise they
+    // conflict with posix unescaping logic.
+    if (str_is_windows_absolute_path(path)) {
+        path = str_normalize_windows_path(path);
+    }
+    return path;
+}
+
 // :: StrBuf
 // A string buffer/builder
 typedef struct {
@@ -1187,6 +1236,60 @@ static Str g_shell_control_operators[] = {
 static Str g_shell_redirects_operators[] = {
     STATIC_SL("&>>"), STATIC_SL("&>|"), STATIC_SL("&>"), STATIC_SL(">|"), STATIC_SL("<<<"), STATIC_SL("<<-"), STATIC_SL(">>"),
     STATIC_SL("<<"),  STATIC_SL(">&"),  STATIC_SL("<&"), STATIC_SL("<>"), STATIC_SL(">"),   STATIC_SL("<"),
+};
+
+// GCC "consumer flags", i.e. a flag that is followed by an argument that must be consumed.
+// NOTE: flag with identical start must be ordered bigger first.
+static Str g_gcc_consumer_flags[] = {
+    STATIC_SL("-I"),
+    STATIC_SL("--include-directory"),
+    STATIC_SL("-o"),
+    STATIC_SL("--output="), //< Must be before "--output"
+    STATIC_SL("--output"),
+    STATIC_SL("-x"),
+    STATIC_SL("--language="), //< Must be before "--language"
+    STATIC_SL("--language"),
+    STATIC_SL("-D"),
+    STATIC_SL("--define-macro"),
+    STATIC_SL("-U"),
+    STATIC_SL("--undefine-macro"),
+    STATIC_SL("-l"),
+    STATIC_SL("--library"),
+    STATIC_SL("-e"),
+    STATIC_SL("--entry"),
+    STATIC_SL("-u"),
+    STATIC_SL("--undefined"),
+    STATIC_SL("-T"),
+    STATIC_SL("--script"),
+    STATIC_SL("-L"),
+    STATIC_SL("--library-directory"),
+    STATIC_SL("-z"),
+    STATIC_SL("-MF"),
+    STATIC_SL("-MT"),
+    STATIC_SL("-MQ"),
+    STATIC_SL("-A"),
+    STATIC_SL("-G"),
+    STATIC_SL("-dumpbase-ext"), //< Must be before "--dumpbase"
+    STATIC_SL("-dumpbase"),
+    STATIC_SL("-dumpdir"),
+    STATIC_SL("-aux-info"),
+    STATIC_SL("-include"),
+    STATIC_SL("-imacros"),
+    STATIC_SL("-iwithprefixbefore"), //< Must be before "--iwithprefix"
+    STATIC_SL("-iwithprefix"),
+    STATIC_SL("-iprefix"),
+    STATIC_SL("-iquote"),
+    STATIC_SL("-isystem"),
+    STATIC_SL("-idirafter"),
+    STATIC_SL("-isysroot"),
+    STATIC_SL("-imultilib"),
+    STATIC_SL("-Xpreprocessor"),
+    STATIC_SL("-Xassembler"),
+    STATIC_SL("-Xlinker"),
+    STATIC_SL("-bundle_loader"),
+    STATIC_SL("--param"),
+    STATIC_SL("-arch"),
+    STATIC_SL("-wrapper"),
 };
 
 // :: Scanner
@@ -1823,44 +1926,6 @@ typedef struct {
     StrList  tokens;
 } CompilerInvocation;
 
-// TODO: move
-static b32 str_is_windows_absolute_path(Str s)
-{
-    // This is not perfect, but we try to detect a pattern that looks like "C:/".
-    // Technically, I think windows can have non single letter drive name, but this seems unlikely.
-    if ((s.len >= 3) && is_ascii_alpha(s.ptr[0]) && (s.ptr[1] == ':') && (s.ptr[2] == '/' || s.ptr[2] == '\\')) {
-        return 1;
-    }
-
-    // Otherwise we try to find a Universal Naming Convention (UNC) windows path
-    return str_starts_with(s, SL("\\\\"));
-}
-
-static Str str_normalize_path(Str path)
-{
-    isize new_len            = 0;
-    b32   last_was_backslash = 0;
-    for (isize reader_idx = 0; reader_idx < path.len; reader_idx++) {
-        u8 c = path.ptr[reader_idx];
-        if (c == '\\') {
-            if (last_was_backslash) {
-                // Skip writing second backslash
-                last_was_backslash = 0;
-            }
-            else {
-                path.ptr[new_len++] = '/';
-                last_was_backslash  = 1;
-            }
-        }
-        else {
-            path.ptr[new_len++] = c;
-            last_was_backslash  = 0;
-        }
-    }
-    path.len = new_len;
-    return path;
-}
-
 static CompilerInvocation compiler_invocation_from_shell_line(Arena *perm, StrList *line_tokens, OsWriterInterface *w,
                                                               b32 verbose)
 {
@@ -1896,14 +1961,7 @@ static CompilerInvocation compiler_invocation_from_shell_line(Arena *perm, StrLi
 
             b32 compiler_is_known = (COMPILER_IS_UNKNOWN != compiler.kind);
             if (compiler_is_known) {
-                // We need to normalize windows paths, because otherwise they
-                // conflict with posix unescaping logic.
-                if (str_is_windows_absolute_path(token)) {
-                    token = str_normalize_path(token);
-                }
-
-                Str unescaped_token = shell_str_unescape(perm, token);
-                strlist_push_back(&tokens, perm, unescaped_token);
+                strlist_push_back(&tokens, perm, token);
                 state = BUILD_INVOCATION;
             }
             break;
@@ -1963,67 +2021,99 @@ typedef struct {
 // e.g. "-D" will consume the next token as a preprocessor definition.
 static b32 is_gcc_consumer_flag(Str token)
 {
-    if (token.len < 1) return 0;
-
-    static StrHashTable flags_lookup = {0};
-    if (flags_lookup.count == 0) {
-        // clang-format off
-        Str flags[] = {
-            // Notice that "-x" and "-o" are not part of those flags because we want to handle them specially.
-            SL("-I"), SL("--include-directory"),
-            SL("-D"), SL("--define-macro"),
-            SL("-U"), SL("--undefine-macro"),
-            SL("-l"), SL("--library"),
-            SL("-e"), SL("--entry"),
-            SL("-u"), SL("--undefined"),
-            SL("-T"), SL("--script"),
-            SL("-L"), SL("--library-directory"),
-            SL("-z"),
-            SL("-MF"),
-            SL("-MT"),
-            SL("-MQ"),
-            SL("-A"),
-            SL("-G"),
-            SL("-dumpbase"),
-            SL("-dumpbase-ext"),
-            SL("-dumpdir"),
-            SL("-aux-info"),
-            SL("-include"),
-            SL("-imacros"),
-            SL("-iprefix"),
-            SL("-iwithprefix"),
-            SL("-iwithprefixbefore"),
-            SL("-iquote"),
-            SL("-isystem"),
-            SL("-idirafter"),
-            SL("-isysroot"),
-            SL("-imultilib"),
-            SL("-Xpreprocessor"),
-            SL("-Xassembler"),
-            SL("-Xlinker"),
-            SL("-bundle_loader"),
-            SL("--param"),
-            SL("-arch"),
-            SL("-wrapper"),
-            // clang-format on
-        };
-        for (isize i = 0; i < count_of(flags); ++i) {
-            strht_insert(&flags_lookup, flags[i]);
+    static StrHashTable s_flags_lookup = {0};
+    if (s_flags_lookup.count == 0) {
+        // Build lookup table
+        for (isize i = 0; i < count_of(g_gcc_consumer_flags); ++i) {
+            strht_insert(&s_flags_lookup, g_gcc_consumer_flags[i]);
         }
     }
 
-    u8 c = str_peek(token);
-    if (c != '-') return 0; // A flag always start with '-'
-
-    b32 flag_found = strht_lookup(&flags_lookup, token);
+    b32 flag_found = strht_lookup(&s_flags_lookup, token);
     return flag_found;
+}
+
+// :: GccFlag
+// Try parsing gcc flag
+typedef enum {
+    GCC_FLAG_IS_UNKNOWN,
+    GCC_FLAG_IS_OUTPUT,              //< e.g. "-o"
+    GCC_FLAG_IS_LANGUAGE,            //< e.g. "-x"
+    GCC_FLAG_IS_KNOWN_CONSUMER_FLAG, //< e.g. "-I"
+} GccFlagKind;
+
+typedef struct {
+    GccFlagKind kind;
+    Str         symbol;                 //< e.g. SL("-I")
+    b32         next_token_is_argument; //< True if "-I /mydir", false if "-I/mydir"
+    Str         argument;               //< Empty if `next_token_is_argument` is true.
+} GccFlag;
+
+static GccFlag gcc_identify_flag(Str token)
+{
+    GccFlag flag = {.kind = GCC_FLAG_IS_UNKNOWN};
+
+    u8 c = str_peek(token);
+    if (c != '-') return flag; // A flag always start with '-'
+
+    if (is_gcc_consumer_flag(token)) {
+        if (str_equal(token, SL("-o")) || str_equal(token, SL("--output"))) {
+            flag.kind = GCC_FLAG_IS_OUTPUT;
+        }
+        else if (str_equal(token, SL("-x")) || str_equal(token, SL("--language"))) {
+            flag.kind = GCC_FLAG_IS_LANGUAGE;
+        }
+        else {
+            flag.kind = GCC_FLAG_IS_KNOWN_CONSUMER_FLAG;
+        }
+
+        flag.symbol                 = token;
+        flag.next_token_is_argument = 1;
+    }
+    else {
+        // The `token` still could be a consumer flag, but without space.
+        // e.g. "-IC:/dir"
+        for (isize i = 0; i < count_of(g_gcc_consumer_flags); ++i) {
+            Str consumer_flag = g_gcc_consumer_flags[i];
+            if (str_starts_with(token, consumer_flag)) {
+                if (str_equal(consumer_flag, SL("-o")) || str_equal(consumer_flag, SL("--output")) ||
+                    str_equal(consumer_flag, SL("--output="))) {
+                    flag.kind = GCC_FLAG_IS_OUTPUT;
+                }
+                else if (str_equal(consumer_flag, SL("-x")) || str_equal(consumer_flag, SL("--language")) ||
+                         str_equal(consumer_flag, SL("--language="))) {
+                    flag.kind = GCC_FLAG_IS_LANGUAGE;
+                }
+                else {
+                    flag.kind = GCC_FLAG_IS_KNOWN_CONSUMER_FLAG;
+                }
+
+                Str argument = str_drop_head(token, consumer_flag.len);
+
+                flag.next_token_is_argument = 0;
+                flag.argument               = argument;
+                flag.symbol                 = token;
+                break;
+            }
+        }
+    }
+
+    return flag;
 }
 
 static CompilerCommand compiler_command_from_gcc_invocation(Arena *perm, StrList tokens)
 {
     assert(perm);
 
-    StrList args = strlist_copy(tokens, perm);
+    StrList args = {0};
+
+    // The first token is always the compiler
+    {
+        Str compiler_token = strlist_pop_front(&tokens);
+        compiler_token     = str_normalize_if_path(compiler_token);
+        compiler_token     = shell_str_unescape(perm, compiler_token);
+        strlist_push_back(&args, perm, compiler_token);
+    }
 
     StrList source_files = {0};
     Str     output_file  = SL("");
@@ -2032,57 +2122,49 @@ static CompilerCommand compiler_command_from_gcc_invocation(Arena *perm, StrList
     while (!strlist_is_empty(tokens)) {
         Str token = strlist_pop_front(&tokens);
 
-        if (str_equal(SL("-o"), token) || str_equal(SL("--output"), token)) {
-            // -o file
-            // --output file
-            output_file = strlist_pop_front(&tokens);
-        }
-        else if (str_starts_with(token, SL("--output="))) {
-            // --output=file
-            Str file    = str_drop_head(token, SL("--output=").len);
-            output_file = file;
-        }
-        else if (token.len > 2 && (str_starts_with(token, SL("-o")))) {
-            // "-omyprogram.exe"
-            Str file    = str_drop_head(token, SL("-o").len);
-            output_file = file;
-        }
-        else if (str_equal(token, SL("-x")) || str_equal(token, SL("--language"))) {
-            // -x language
-            // --language language
-            token = strlist_pop_front(&tokens);
-            if (str_equal(token, SL("none"))) {
-                ignore_file_extension = 0;
-            }
-            else {
-                ignore_file_extension = 1;
-            }
-        }
-        else if (str_starts_with(token, SL("--language="))) {
-            // --language=language
-            Str lang = str_drop_head(token, SL("--language=").len);
-            if (str_equal(lang, SL("none"))) {
-                ignore_file_extension = 0;
-            }
-            else {
-                ignore_file_extension = 1;
+        if (str_starts_with(token, SL("-"))) {
+            GccFlag flag = gcc_identify_flag(token);
+            if (flag.kind != GCC_FLAG_IS_UNKNOWN) {
+                Str arg = {0};
+                if (flag.next_token_is_argument) {
+                    strlist_push_back(&args, perm, token); // Add the flag
+                    token = strlist_pop_front(&tokens);
+                    arg   = token;
+                }
+                else {
+                    arg = flag.argument;
+                }
+                // Arguments might be a path
+                arg = str_normalize_if_path(arg);
+
+                if (flag.kind == GCC_FLAG_IS_OUTPUT) {
+                    output_file = arg;
+                }
+                else if (flag.kind == GCC_FLAG_IS_LANGUAGE) {
+                    if (str_equal(arg, SL("none"))) {
+                        ignore_file_extension = 0;
+                    }
+                    else {
+                        ignore_file_extension = 1;
+                    }
+                }
             }
         }
-        else if (is_gcc_consumer_flag(token)) {
-            // A "consumer flag" would be the "-D" in: {"-D" "MY_PREPROCESSOR"}
-            strlist_pop_front(&tokens); // Consume
-        }
-        else if (!str_starts_with(token, SL("-"))) {
-            // Either this is a flag we don't care about or this is our target file
+        else { // Not a flag
             if (str_is_source_file(token)) {
+                token = str_normalize_if_path(token);
+                token = shell_str_unescape(perm, token);
                 strlist_push_back(&source_files, perm, token);
             }
-            else if (ignore_file_extension) {
-                // Because the language flag has been raised, we can't use the file extension to know
-                // if the file is a target. So the best we can do is assume it is.
+            else if (ignore_file_extension) { // TODO: fix language
+                token = str_normalize_if_path(token);
+                token = shell_str_unescape(perm, token);
                 strlist_push_back(&source_files, perm, token);
             }
         }
+
+        token = shell_str_unescape(perm, token);
+        strlist_push_back(&args, perm, token);
     }
 
     CompilerCommand commands = {0};
@@ -2641,6 +2723,17 @@ static Str str_from_cstr(char *cstr)
     return s;
 }
 
+static Str str_copy(Arena *perm, Str s)
+{
+    if (s.len <= 0 || !s.ptr) return (Str){0};
+
+    Str new = ALLOC_SLICE(perm, s.len, new);
+    for (isize i = 0; i < s.len; i++) {
+        new.ptr[i] = s.ptr[i];
+    }
+    return new;
+}
+
 static StrList strlist_from_cstrs(Arena *a, isize count, char *cstrs[static count])
 {
     StrList sl = {0};
@@ -3134,6 +3227,9 @@ static void test_extract_compiler_invocation(Arena a)
 
 static void run_test_shell_parse_line(Arena scratch, Str line, CommandObjectList expected_list)
 {
+    // We copy the line to mimic loading the string from a file.
+    line = str_copy(&scratch, line);
+
     DirectoryStack    dir_stack    = {0};
     CommandObjectList results_list = shell_parse_one_logical_line(&scratch, &line, dir_stack, NULL, 0);
     CHECK(results_list.count == expected_list.count);
@@ -3568,8 +3664,21 @@ void test_shell_parsing(Arena a)
                                                       .ok        = 1,
                                                       .file      = SL("shader.cpp"),
                                                       .output    = SL("shader.o"),
-                                                      .arguments = SLIST(&a, "g++", "-IC:\\VulkanSDK\\1.3.216.0/include", "-c",
+                                                      .arguments = SLIST(&a, "g++", "-IC:/VulkanSDK/1.3.216.0/include", "-c",
                                                                          "shader.cpp", "-o", "shader.o"),
+                                                  });
+        run_test_shell_parse_line(a, line, expected_list);
+    }
+
+    // String escaping understand the quoting context
+    // https://github.com/skeeto/w64devkit/pull/392#issuecomment-5288846960
+    {
+        Str               line          = SL("gcc -c -Ds=\"It's fine\n\" x.c");
+        CommandObjectList expected_list = {0};
+        command_objects_push_back(&expected_list, &(CommandObject){
+                                                      .ok        = 1,
+                                                      .file      = SL("x.c"),
+                                                      .arguments = SLIST(&a, "gcc", "-c", "-Ds=It's fine\n", "x.c"),
                                                   });
         run_test_shell_parse_line(a, line, expected_list);
     }
