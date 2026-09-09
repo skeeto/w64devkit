@@ -257,6 +257,16 @@ static b32 str_equal(Str a, Str b)
     }
 }
 
+static b32 str_equal_any(Str a, isize count, Str needles[static count])
+{
+    for (isize i = 0; i < count; i++) {
+        if (str_equal(a, needles[i])) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static b32 str_starts_with(Str s, Str start)
 {
     if (!s.ptr) {
@@ -524,7 +534,7 @@ static b32 str_is_numeric_version(Str s)
     return !expecting_digit;
 }
 
-static b32 str_is_source_file(Str maybe_source)
+static b32 str_is_source_file(Str file)
 {
     static Str extensions[] = {
         // C
@@ -542,12 +552,40 @@ static b32 str_is_source_file(Str maybe_source)
     };
 
     // Unquote
-    maybe_source = str_trim_postfix(maybe_source, SL("\""));
-    maybe_source = str_trim_postfix(maybe_source, SL("\'"));
-    maybe_source = str_trim_postfix(maybe_source, SL("`"));
+    file = str_trim_postfix(file, SL("\""));
+    file = str_trim_postfix(file, SL("\'"));
 
     for (isize i = 0; i < count_of(extensions); i++) {
-        if (str_ends_with(maybe_source, extensions[i])) {
+        if (str_ends_with(file, extensions[i])) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static b32 str_is_header_file(Str file)
+{
+    static Str extensions[] = {
+        // C
+        STATIC_SL(".c"),
+        // C++
+        STATIC_SL(".cc"),
+        STATIC_SL(".cpp"),
+        STATIC_SL(".cxx"),
+        STATIC_SL(".c++"),
+        STATIC_SL(".C"),
+        STATIC_SL(".cppm"),
+        // Assembly
+        STATIC_SL(".s"),
+        STATIC_SL(".S"),
+    };
+
+    // Unquote
+    file = str_trim_postfix(file, SL("\""));
+    file = str_trim_postfix(file, SL("\'"));
+
+    for (isize i = 0; i < count_of(extensions); i++) {
+        if (str_ends_with(file, extensions[i])) {
             return 1;
         }
     }
@@ -2036,10 +2074,11 @@ static b32 is_gcc_consumer_flag(Str token)
 // :: GccFlag
 // Try parsing gcc flag
 typedef enum {
-    GCC_FLAG_IS_UNKNOWN,
-    GCC_FLAG_IS_OUTPUT,              //< e.g. "-o"
-    GCC_FLAG_IS_LANGUAGE,            //< e.g. "-x"
-    GCC_FLAG_IS_KNOWN_CONSUMER_FLAG, //< e.g. "-I"
+    GCC_FLAG_IS_NOT_A_FLAG,        //< e.g. "main.c"
+    GCC_FLAG_IS_OUTPUT,            //< e.g. "-o"
+    GCC_FLAG_IS_LANGUAGE,          //< e.g. "-x"
+    GCC_FLAG_IS_CONSUMER_FLAG,     //< e.g. "-I"
+    GCC_FLAG_IS_NOT_CONSUMER_FLAG, //< e.g. "-O3"
 } GccFlagKind;
 
 typedef struct {
@@ -2051,11 +2090,13 @@ typedef struct {
 
 static GccFlag gcc_identify_flag(Str token)
 {
-    GccFlag flag = {.kind = GCC_FLAG_IS_UNKNOWN};
-
     u8 c = str_peek(token);
-    if (c != '-') return flag; // A flag always start with '-'
+    if (c != '-') {
+        // A flag always start with '-'
+        return (GccFlag){.kind = GCC_FLAG_IS_NOT_A_FLAG};
+    }
 
+    GccFlag flag = {.kind = GCC_FLAG_IS_NOT_CONSUMER_FLAG};
     if (is_gcc_consumer_flag(token)) {
         if (str_equal(token, SL("-o")) || str_equal(token, SL("--output"))) {
             flag.kind = GCC_FLAG_IS_OUTPUT;
@@ -2064,7 +2105,7 @@ static GccFlag gcc_identify_flag(Str token)
             flag.kind = GCC_FLAG_IS_LANGUAGE;
         }
         else {
-            flag.kind = GCC_FLAG_IS_KNOWN_CONSUMER_FLAG;
+            flag.kind = GCC_FLAG_IS_CONSUMER_FLAG;
         }
 
         flag.symbol                 = token;
@@ -2085,7 +2126,7 @@ static GccFlag gcc_identify_flag(Str token)
                     flag.kind = GCC_FLAG_IS_LANGUAGE;
                 }
                 else {
-                    flag.kind = GCC_FLAG_IS_KNOWN_CONSUMER_FLAG;
+                    flag.kind = GCC_FLAG_IS_CONSUMER_FLAG;
                 }
 
                 Str argument = str_drop_head(token, consumer_flag.len);
@@ -2099,6 +2140,72 @@ static GccFlag gcc_identify_flag(Str token)
     }
 
     return flag;
+}
+
+typedef enum {
+    GCC_LANGUAGE_NONE, //< None implies that we need to check the file name
+    GCC_LANGUAGE_C,
+    GCC_LANGUAGE_C_HEADER,
+    GCC_LANGUAGE_CPP,
+    GCC_LANGUAGE_CPP_HEADER,
+    GCC_LANGUAGE_ASM,
+    GCC_LANGUAGE_UNSUPPORTED,
+} GccLanguage;
+
+GccLanguage gcc_identify_language_from_x_flag(Str x_flag)
+{
+    // Source: https://gcc.gnu.org/onlinedocs/gcc/Overall-Options.html
+    static Str s_c_language[] = {
+        SL("c"),
+    };
+
+    static Str s_c_header_language[] = {
+        SL("c-header"),
+    };
+
+    static Str s_cpp_language[] = {
+        SL("cpp-output"),
+        SL("c++"),
+        SL("c++-cpp-output"),
+        SL("c++-system-module"),
+    };
+
+    static Str s_cpp_header_language[] = {
+        SL("c++-header"),
+        SL("c++-system-header"),
+        SL("c++-user-header"),
+    };
+
+    static Str s_assembly_language[] = {
+        SL("assembler"),
+        SL("assembler-with-cpp"),
+    };
+
+    static Str s_none_language[] = {
+        SL("none"),
+    };
+
+    if (str_equal_any(x_flag, count_of(s_c_language), s_c_language)) {
+        return GCC_LANGUAGE_C;
+    }
+    else if (str_equal_any(x_flag, count_of(s_c_header_language), s_c_header_language)) {
+        return GCC_LANGUAGE_C_HEADER;
+    }
+    else if (str_equal_any(x_flag, count_of(s_cpp_language), s_cpp_language)) {
+        return GCC_LANGUAGE_CPP;
+    }
+    else if (str_equal_any(x_flag, count_of(s_cpp_header_language), s_cpp_header_language)) {
+        return GCC_LANGUAGE_CPP_HEADER;
+    }
+    else if (str_equal_any(x_flag, count_of(s_assembly_language), s_assembly_language)) {
+        return GCC_LANGUAGE_ASM;
+    }
+    else if (str_equal_any(x_flag, count_of(s_none_language), s_none_language)) {
+        return GCC_LANGUAGE_NONE;
+    }
+    else {
+        return GCC_LANGUAGE_UNSUPPORTED;
+    }
 }
 
 static CompilerCommand compiler_command_from_gcc_invocation(Arena *perm, StrList tokens)
@@ -2118,48 +2225,50 @@ static CompilerCommand compiler_command_from_gcc_invocation(Arena *perm, StrList
     StrList source_files = {0};
     Str     output_file  = SL("");
 
-    b32 ignore_file_extension = 0;
+    GccLanguage current_language = GCC_LANGUAGE_NONE;
     while (!strlist_is_empty(tokens)) {
         Str token = strlist_pop_front(&tokens);
 
-        if (str_starts_with(token, SL("-"))) {
-            GccFlag flag = gcc_identify_flag(token);
-            if (flag.kind != GCC_FLAG_IS_UNKNOWN) {
-                Str arg = {0};
-                if (flag.next_token_is_argument) {
-                    strlist_push_back(&args, perm, token); // Add the flag
-                    token = strlist_pop_front(&tokens);
-                    arg   = token;
+        GccFlag flag = gcc_identify_flag(token);
+        if (flag.kind == GCC_FLAG_IS_NOT_A_FLAG) {
+            if (current_language == GCC_LANGUAGE_NONE) {
+                // If there's no specified language we identify source file using file extensions.
+                if (str_is_source_file(token)) {
+                    token = str_normalize_if_path(token);
+                    token = shell_str_unescape(perm, token);
+                    strlist_push_back(&source_files, perm, token);
                 }
-                else {
-                    arg = flag.argument;
-                }
-                // Arguments might be a path
-                arg = str_normalize_if_path(arg);
-
-                if (flag.kind == GCC_FLAG_IS_OUTPUT) {
-                    output_file = arg;
-                }
-                else if (flag.kind == GCC_FLAG_IS_LANGUAGE) {
-                    if (str_equal(arg, SL("none"))) {
-                        ignore_file_extension = 0;
-                    }
-                    else {
-                        ignore_file_extension = 1;
-                    }
-                }
+            }
+            else if ((current_language == GCC_LANGUAGE_C || current_language == GCC_LANGUAGE_CPP ||
+                      current_language == GCC_LANGUAGE_ASM)) {
+                // If there the language specified is a "source" language (not a "c-header" for example)
+                // we treat it as a source.
+                token = str_normalize_if_path(token);
+                token = shell_str_unescape(perm, token);
+                strlist_push_back(&source_files, perm, token);
             }
         }
-        else { // Not a flag
-            if (str_is_source_file(token)) {
-                token = str_normalize_if_path(token);
-                token = shell_str_unescape(perm, token);
-                strlist_push_back(&source_files, perm, token);
+        else if (flag.kind == GCC_FLAG_IS_NOT_A_FLAG) {
+            // Nothing to do
+        }
+        else {
+            Str arg = {0};
+            if (flag.next_token_is_argument) {
+                strlist_push_back(&args, perm, token); // Add the flag
+                token = strlist_pop_front(&tokens);
+                arg   = token;
             }
-            else if (ignore_file_extension) { // TODO: fix language
-                token = str_normalize_if_path(token);
-                token = shell_str_unescape(perm, token);
-                strlist_push_back(&source_files, perm, token);
+            else {
+                arg = flag.argument;
+            }
+            // Arguments might be a path
+            arg = str_normalize_if_path(arg);
+
+            if (flag.kind == GCC_FLAG_IS_OUTPUT) {
+                output_file = arg;
+            }
+            else if (flag.kind == GCC_FLAG_IS_LANGUAGE) {
+                current_language = gcc_identify_language_from_x_flag(arg);
             }
         }
 
