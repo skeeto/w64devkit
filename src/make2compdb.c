@@ -471,16 +471,6 @@ static u8 str_pop(Str *s)
     return c;
 }
 
-static u8 str_set(Str *s, isize index, u8 value)
-{
-    u8 prev = 0;
-    if (s && 0 <= index && index < s->len) {
-        prev          = s->ptr[index];
-        s->ptr[index] = value;
-    }
-    return prev;
-}
-
 static Str str_duplicate(Arena *perm, Str to_copy)
 {
     if (!perm) return (Str){0};
@@ -501,108 +491,6 @@ static Str str_concat(Arena *perm, Str head, Str tail)
     assert((byte *)(head.ptr + head.len) == perm->cursor);
     head.len += str_duplicate(perm, tail).len;
     return head;
-}
-
-// Remove escape character from a string.
-static Str str_unescape(Arena *perm, Str s)
-{
-    isize index    = 0;
-    Str   unescape = ALLOC_SLICE(perm, s.len, unescape);
-
-    enum {
-        UNQUOTED,
-        IN_DOUBLE_QUOTE,
-        IN_SINGLE_QUOTE,
-    } state = UNQUOTED;
-
-    while (s.len > 0) {
-        u8 c = str_pop(&s);
-        switch (state) {
-        default: assert(0);
-
-        case UNQUOTED: {
-            switch (c) {
-            case '"': {
-                state = IN_DOUBLE_QUOTE;
-                break;
-            }
-            case '\'': {
-                state = IN_SINGLE_QUOTE;
-                break;
-            }
-            case '\\': {
-                if (s.len == 0) break; //< delete trailing
-
-                u8 next = str_peek(s);
-                if (next == '\n') {
-                    str_pop(&s); //< line continuation: Consume <eol>
-                }
-                else {
-                    str_pop(&s); //< Consume `next`
-                    str_set(&unescape, index++, next);
-                }
-                break;
-            }
-            default: {
-                str_set(&unescape, index++, c);
-                break;
-            }
-            }
-            break;
-        }
-
-        case IN_DOUBLE_QUOTE: {
-            switch (c) {
-            case '"': {
-                state = UNQUOTED;
-                break;
-            }
-            case '\\': {
-                if (s.len == 0) break; //< delete trailing
-
-                u8 next = str_peek(s);
-
-                // [In double quotes] the <backslash> shall retain its special meaning as
-                // an escape character (see Escape Character (Backslash)) only when followed
-                // by one of the following characters when considered special:
-                // $   `   "   \   <newline>
-                //
-                // Source: Shell Command Language, 2.2.3 Double-Quotes, IEEE Std 1003.1-2017
-                if (next == '\n') {
-                    str_pop(&s); //< line continuation: Consume <eol>
-                }
-                else if (next == '$' || next == '`' || next == '"' || next == '\\') {
-                    str_pop(&s); //< Consume `next`
-                    str_set(&unescape, index++, next);
-                }
-                else {
-                    str_set(&unescape, index++, c); //< literal backslash, next char handled next iteration
-                }
-                break;
-            }
-            default: {
-                str_set(&unescape, index++, c);
-                break;
-            }
-            }
-            break;
-        }
-
-        case IN_SINGLE_QUOTE: {
-            if (c == '\'') {
-                state = UNQUOTED;
-            }
-            else {
-                str_set(&unescape, index++, c);
-            }
-            break;
-        }
-        } // switch (state)
-    } // while (s.len > 0)
-
-    unescape = str_take_head(unescape, index);
-    arena_reset_to(perm, (byte *)unescape.ptr + unescape.len); // reclaim unused memory
-    return unescape;
 }
 
 // Return true for "1.0" or "1"
@@ -726,6 +614,41 @@ static u32 str_hash(Str s)
         h *= 0x01000193;
     }
     return h;
+}
+
+// :: StrBuf
+// A string buffer/builder
+typedef struct {
+    Str   buffer;
+    isize end;
+} StrBuf;
+
+StrBuf strbuf_alloc(StrBuf *sb, Arena *a, isize capacity)
+{
+    assert(sb);
+    assert(a);
+    assert(capacity >= 0);
+
+    sb->buffer = (Str)ALLOC_SLICE(a, capacity, sb->buffer);
+    sb->end    = 0;
+    return *sb;
+}
+
+isize strbuf_add(StrBuf *sb, u8 c)
+{
+    assert(sb->end < sb->buffer.len);
+    sb->buffer.ptr[sb->end++] = c;
+    return 1;
+}
+
+Str strbuf_finalize(StrBuf *sb, Arena *a)
+{
+    assert(sb);
+    assert(a);
+
+    Str s = str_take_head(sb->buffer, sb->end);
+    arena_reset_to(a, (byte *)s.ptr + s.len); // reclaim unused memory
+    return s;
 }
 
 // :: StrList
@@ -1154,10 +1077,10 @@ static void print_strlist(OsWriterInterface *w, StrList sl)
         println_str(w, SL("["));
         w->tab += 1;
 
-    for (StrListNode *node = sl.front; node != NULL; node = node->next) {
+        for (StrListNode *node = sl.front; node != NULL; node = node->next) {
             if (node != sl.front) println_str(w, SL(","));
-        print_str_json_escaped_string(w, node->str);
-    }
+            print_str_json_escaped_string(w, node->str);
+        }
         w->tab -= 1;
         print_str(w, SL("\n]"));
     }
@@ -1403,6 +1326,8 @@ static b32 shell_token_is_shell_substitution(Str token)
            (str_starts_with(token, SL("$")) && token.len > 1);
 }
 
+// This function's purpose is to cut the next token.
+// It does not allocate memory, do expansion, or
 static Str shell_tokenize_next(Str *shell_input, b32 *eol)
 {
     enum : u16 {
@@ -1467,8 +1392,8 @@ static Str shell_tokenize_next(Str *shell_input, b32 *eol)
                 }
                 break;
             }
-            case '&': // FALLTHROUGHds
-            case ';': // FALLTHROUGHds
+            case '&': // FALLTHROUGH
+            case ';': // FALLTHROUGH
             case '|': {
                 scanner_rewind_by(&sc, 1);
                 if (scanner_at_start(sc)) {
@@ -1598,6 +1523,170 @@ static StrList shell_tokenize_one_logical_line(Arena *perm, Str *shell_input)
         }
     }
     return tokens;
+}
+
+// Build a new string without escape character.
+// Because we are parsing the output of a makefile, we should not encounter
+// shell expansion, as they should of expended. To be prudent, we skip them.
+static Str shell_str_unescape(Arena *perm, Str s)
+{
+    StrBuf sb = {0};
+    strbuf_alloc(&sb, perm, s.len);
+
+    enum : u16 {
+        UNQUOTED = 0,
+        IN_QUOTE,              // '...'
+        IN_DOUBLE_QUOTE,       // "..."
+        IN_BACKTICK,           // `...`
+        IN_BRACE,              // {...} or ${...}
+        IN_PARENTHESES,        // (...) or $(...)
+        IN_DOUBLE_PARENTHESES, // ((...)) or $((...))
+        IN_BRACKET,            // [...]
+        IN_DOUBLE_BRACKET,     // [[...]]
+    } state = UNQUOTED;
+
+    while (s.len > 0) {
+        u8 c = str_pop(&s);
+
+        switch (make_u16(state, c)) {
+        case make_u16(IN_BACKTICK, '`'):    // FALLTHROUGH
+        case make_u16(IN_BRACE, '}'):       // FALLTHROUGH
+        case make_u16(IN_PARENTHESES, ')'): // FALLTHROUGH
+        case make_u16(IN_BRACKET, ']'):     {
+            strbuf_add(&sb, c);
+            state = UNQUOTED;
+            break;
+        }
+        case make_u16(IN_DOUBLE_PARENTHESES, ')'): {
+            strbuf_add(&sb, c);
+            if (s.len > 0 && str_peek(s) == ')') {
+                str_pop(&s);
+                strbuf_add(&sb, ')');
+                state = UNQUOTED;
+            }
+            break;
+        }
+        case make_u16(IN_DOUBLE_BRACKET, ']'): {
+            strbuf_add(&sb, c);
+            if (s.len > 0 && str_peek(s) == ']') {
+                str_pop(&s);
+                strbuf_add(&sb, ']');
+                state = UNQUOTED;
+            }
+            break;
+        }
+
+        case make_u16(IN_QUOTE, '\''):       state = UNQUOTED; break;
+        case make_u16(IN_DOUBLE_QUOTE, '"'): state = UNQUOTED; break;
+        default:                             {
+            if (state != UNQUOTED && state != IN_QUOTE && state != IN_DOUBLE_QUOTE) {
+                strbuf_add(&sb, c);
+                break;
+            }
+
+            if (state == IN_QUOTE) {
+                // Nothing is special inside single quotes.
+                strbuf_add(&sb, c);
+                break;
+            }
+
+            if (state == IN_DOUBLE_QUOTE) {
+                switch (c) {
+                case '\\': {
+                    if (s.len == 0) break; //< delete trailing
+
+                    u8 next = str_peek(s);
+
+                    // [In double quotes] the <backslash> shall retain its special
+                    // meaning as an escape character (see Escape Character
+                    // (Backslash)) only when followed by one of the following
+                    // characters when considered special:
+                    // $   `   "   \   <newline>
+                    //
+                    // Source: Shell Command Language, 2.2.3 Double-Quotes,
+                    // IEEE Std 1003.1-2017
+                    if (next == '\n') {
+                        str_pop(&s); //< line continuation: consume <eol>
+                    }
+                    else if (next == '$' || next == '`' || next == '"' || next == '\\') {
+                        str_pop(&s); //< consume `next`
+                        strbuf_add(&sb, next);
+                    }
+                    else {
+                        strbuf_add(&sb, c); //< literal backslash
+                    }
+                    break;
+                }
+                default: {
+                    strbuf_add(&sb, c);
+                    break;
+                }
+                }
+                break;
+            }
+
+            // state == UNQUOTED
+            switch (c) {
+            case '\'': state = IN_QUOTE; break;
+            case '"':  state = IN_DOUBLE_QUOTE; break;
+            case '`':  {
+                strbuf_add(&sb, c);
+                state = IN_BACKTICK;
+                break;
+            }
+            case '{': {
+                strbuf_add(&sb, c);
+                state = IN_BRACE;
+                break;
+            }
+            case '(': {
+                strbuf_add(&sb, c);
+                if (s.len > 0 && str_peek(s) == '(') {
+                    str_pop(&s);
+                    strbuf_add(&sb, '(');
+                    state = IN_DOUBLE_PARENTHESES;
+                }
+                else {
+                    state = IN_PARENTHESES;
+                }
+                break;
+            }
+            case '[': {
+                strbuf_add(&sb, c);
+                if (s.len > 0 && str_peek(s) == '[') {
+                    str_pop(&s);
+                    strbuf_add(&sb, '[');
+                    state = IN_DOUBLE_BRACKET;
+                }
+                else {
+                    state = IN_BRACKET;
+                }
+                break;
+            }
+            case '\\': {
+                if (s.len == 0) break; //< delete trailing
+
+                u8 next = str_peek(s);
+                if (next == '\n') {
+                    str_pop(&s); //< line continuation: consume <eol>
+                }
+                else {
+                    str_pop(&s); //< consume `next`
+                    strbuf_add(&sb, next);
+                }
+                break;
+            }
+            default: {
+                strbuf_add(&sb, c);
+                break;
+            }
+            }
+            break;
+        }
+        } // END: switch (make_u16(state, c))
+    } // END: while (s.len > 0)
+
+    return strbuf_finalize(&sb, perm);
 }
 
 // :: Compiler
@@ -1761,7 +1850,7 @@ static CompilerInvocation compiler_invocation_from_shell_line(Arena *perm, StrLi
             compiler = compiler_parse(token);
 
             if (COMPILER_IS_UNKNOWN != compiler.kind) {
-                Str unescaped_token = str_unescape(perm, token);
+                Str unescaped_token = shell_str_unescape(perm, token);
                 strlist_push_back(&tokens, perm, unescaped_token);
                 state = BUILD_INVOCATION;
             }
@@ -1776,7 +1865,7 @@ static CompilerInvocation compiler_invocation_from_shell_line(Arena *perm, StrLi
                 strlist_pop_front(line_tokens);
             }
             else {
-                Str unescaped_token = str_unescape(perm, token);
+                Str unescaped_token = shell_str_unescape(perm, token);
                 strlist_push_back(&tokens, perm, unescaped_token);
             }
             break;
@@ -2260,10 +2349,10 @@ static CommandObjectList shell_parse_one_logical_line(Arena *perm, Str *input, D
     //
     CommandObjectList command_objects = {0};
 
-    StrList line = shell_tokenize_one_logical_line(perm, input);
-    while (!strlist_is_empty(line)) {
+    StrList line_tokens = shell_tokenize_one_logical_line(perm, input);
+    while (!strlist_is_empty(line_tokens)) {
         Arena              save_point   = *perm;
-        CompilerInvocation invocation   = compiler_invocation_from_shell_line(perm, &line, os_stderr, verbose);
+        CompilerInvocation invocation   = compiler_invocation_from_shell_line(perm, &line_tokens, os_stderr, verbose);
         CompilerCommand    compiler_cmd = compiler_command_from_invocation(perm, invocation, os_stderr, verbose);
         CommandObjectList  commands     = command_objects_from_command(perm, dir_stack, compiler_cmd, os_stderr, verbose);
 
@@ -2535,7 +2624,7 @@ void run_test_unescape(Arena *perm, Str input, Str expected)
 {
     Arena scratch = *perm;
 
-    Str result = str_unescape(&scratch, input);
+    Str result = shell_str_unescape(&scratch, input);
     CHECK(str_equal(result, expected));
 }
 
@@ -2780,6 +2869,16 @@ static void test_shell_tokenizer(Arena a)
         line = shell_tokenize_one_logical_line(&scratch, &input);
         CHECK(strlist_is_empty(line));
     }
+
+    // Nested delimiter
+    {
+        run_test_shell_tokenizer(a, SL("echo $(cat $(find . -name x))"), SLIST(&a, "echo", "$(cat $(find . -name x))"));
+        run_test_shell_tokenizer(a, SL("echo $(a=(1 2 3))"), SLIST(&a, "echo", "$(a=(1 2 3))"));
+        run_test_shell_tokenizer(a, SL("`test -f 'file.c' || echo './'`"), SLIST(&a, "`test -f 'file.c' || echo './'`"));
+        run_test_shell_tokenizer(a, SL("echo $(echo \"hello world\")"), SLIST(&a, "echo", "$(echo \"hello world\")"));
+        run_test_shell_tokenizer(a, SL("echo 'not `a backtick`'"), SLIST(&a, "echo", "'not `a backtick`'"));
+        run_test_shell_tokenizer(a, SL("echo 'not $(a sub)'"), SLIST(&a, "echo", "'not $(a sub)'"));
+    }
 }
 
 static void run_test_parse_dir(Str input, Str expected_enter_dir, Str expected_leave_dir)
@@ -2843,10 +2942,10 @@ static void run_test_compiler_parser(Str input, Str expected_compiler_str, Compi
 {
     Compiler compiler = compiler_parse(input);
     CHECK(expected_compiler_kind == compiler.kind);
-    
+
     // We don't care about the message when unknown
     if (expected_compiler_kind != COMPILER_IS_UNKNOWN) {
-    CHECK(str_equal(expected_compiler_str, compiler.string));
+        CHECK(str_equal(expected_compiler_str, compiler.string));
     }
 }
 
@@ -2994,9 +3093,9 @@ static void run_test_shell_parse_line(Arena scratch, Str line, CommandObjectList
     CommandObject *expected = expected_list.first;
     for (isize i = 0; i < results_list.count; i++) {
         CHECK(result->ok == expected->ok);
-        CHECK(strlist_equal(result->arguments, expected->arguments));
         CHECK(str_equal(result->file, expected->file));
         CHECK(str_equal(result->output, expected->output));
+        CHECK(strlist_equal(result->arguments, expected->arguments));
 
         result   = result->next;
         expected = expected->next;
@@ -3090,7 +3189,7 @@ void test_shell_parsing(Arena a)
         run_test_shell_parse_line(a, line, expected_list);
     }
 
-    // With include dir (separate token) — "mydir" consumed by -I, excluded from arguments
+    // With include dir (separate token) - "mydir" consumed by -I, excluded from arguments
     {
         Str line = SL("gcc -I mydir -o main main.c");
 
@@ -3184,7 +3283,7 @@ void test_shell_parsing(Arena a)
         run_test_shell_parse_line(a, line, expected_list);
     }
 
-    // Multiple C source files — source files excluded from arguments
+    // Multiple C source files - source files excluded from arguments
     // NOTE: multiple sources expand into multiple CommandObject entries in the
     // resulting CommandObjectList, one per source file, all sharing the same
     // arguments/output.
@@ -3364,11 +3463,10 @@ void test_shell_parsing(Arena a)
                                   });
         run_test_shell_parse_line(a, line, expected_list);
     }
-#if 0
+
     // Ignore compiler wrappers
     // https://github.com/nickdiego/compiledb/issues/2
     {
-        // TODO: 
         Str line = SL(
             "/bin/sh ../libtool  --tag=CXX   --mode=compile /usr/bin/ccache g++ -std=c++11 -DHAVE_CONFIG_H -I. -I../src/config  "
             "-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=2 -I./obj -I./secp256k1/include -DBUILD_BITCOIN_INTERNAL -DHAVE_BUILD_INFO "
@@ -3381,7 +3479,7 @@ void test_shell_parsing(Arena a)
             &expected_list,
             &(CommandObject){
                 .ok     = 1,
-                .file   = SL("crypto/hmac_sha256.cpp"),
+                .file   = SL("`test -f 'crypto/hmac_sha256.cpp' || echo './'`crypto/hmac_sha256.cpp"),
                 .output = SL("crypto/libbitcoinconsensus_la-hmac_sha256.lo"),
                 .arguments =
                     SLIST(&a, "g++", "-std=c++11", "-DHAVE_CONFIG_H", "-I.", "-I../src/config", "-U_FORTIFY_SOURCE",
@@ -3390,12 +3488,11 @@ void test_shell_parsing(Arena a)
                           "-g", "-O2", "-Wall", "-Wextra", "-Wformat", "-Wvla", "-Wformat-security", "-Wno-unused-parameter",
                           "-Wno-implicit-fallthrough", "-MT", "crypto/libbitcoinconsensus_la-hmac_sha256.lo", "-MD", "-MP", "-MF",
                           "crypto/.deps/libbitcoinconsensus_la-hmac_sha256.Tpo", "-c", "-o",
-                          "crypto/libbitcoinconsensus_la-hmac_sha256.lo", "`test -f 'crypto/hmac_sha256.cpp' || echo './'`",
-                          "crypto/hmac_sha256.cpp"),
+                          "crypto/libbitcoinconsensus_la-hmac_sha256.lo",
+                          "`test -f 'crypto/hmac_sha256.cpp' || echo './'`crypto/hmac_sha256.cpp"),
             });
         run_test_shell_parse_line(a, line, expected_list);
     }
-#endif
 }
 
 int main(void)
