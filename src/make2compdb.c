@@ -148,6 +148,12 @@ static inline b32 is_whitespace(u8 c)
     }
 }
 
+static b32 is_ascii_alpha(u8 c)
+{
+    return (c >= 'a' && c <= 'z') || //
+           (c >= 'A' && c <= 'Z');
+}
+
 static inline b32 is_numeric(u8 c)
 {
     switch (c) {
@@ -1817,6 +1823,44 @@ typedef struct {
     StrList  tokens;
 } CompilerInvocation;
 
+// TODO: move
+static b32 str_is_windows_absolute_path(Str s)
+{
+    // This is not perfect, but we try to detect a pattern that looks like "C:/".
+    // Technically, I think windows can have non single letter drive name, but this seems unlikely.
+    if ((s.len >= 3) && is_ascii_alpha(s.ptr[0]) && (s.ptr[1] == ':') && (s.ptr[2] == '/' || s.ptr[2] == '\\')) {
+        return 1;
+    }
+
+    // Otherwise we try to find a Universal Naming Convention (UNC) windows path
+    return str_starts_with(s, SL("\\\\"));
+}
+
+static Str str_normalize_path(Str path)
+{
+    isize new_len            = 0;
+    b32   last_was_backslash = 0;
+    for (isize reader_idx = 0; reader_idx < path.len; reader_idx++) {
+        u8 c = path.ptr[reader_idx];
+        if (c == '\\') {
+            if (last_was_backslash) {
+                // Skip writing second backslash
+                last_was_backslash = 0;
+            }
+            else {
+                path.ptr[new_len++] = '/';
+                last_was_backslash  = 1;
+            }
+        }
+        else {
+            path.ptr[new_len++] = c;
+            last_was_backslash  = 0;
+        }
+    }
+    path.len = new_len;
+    return path;
+}
+
 static CompilerInvocation compiler_invocation_from_shell_line(Arena *perm, StrList *line_tokens, OsWriterInterface *w,
                                                               b32 verbose)
 {
@@ -1838,18 +1882,26 @@ static CompilerInvocation compiler_invocation_from_shell_line(Arena *perm, StrLi
     while (!strlist_is_empty(*line_tokens)) {
         Str token = strlist_pop_front(line_tokens);
 
-        if (shell_token_is_shell_substitution(token)) {
-            continue; //< Currrently we ignore subshell expression
+        // Currrently we ignore subshell expression and expansion
+        if (shell_token_is_shell_substitution(token)) { //< e.g. "`...`" or "$(...)"
+            continue;
         }
-        else if (shell_token_is_shell_expansion(token)) {
-            continue; //< Currrently we ignore shell expansion
+        else if (shell_token_is_shell_expansion(token)) { //< e.g. "${...}"
+            continue;
         }
 
         switch (state) {
         case SEARCH_COMPILER: {
             compiler = compiler_parse(token);
 
-            if (COMPILER_IS_UNKNOWN != compiler.kind) {
+            b32 compiler_is_known = (COMPILER_IS_UNKNOWN != compiler.kind);
+            if (compiler_is_known) {
+                // We need to normalize windows paths, because otherwise they
+                // conflict with posix unescaping logic.
+                if (str_is_windows_absolute_path(token)) {
+                    token = str_normalize_path(token);
+                }
+
                 Str unescaped_token = shell_str_unescape(perm, token);
                 strlist_push_back(&tokens, perm, unescaped_token);
                 state = BUILD_INVOCATION;
@@ -1857,16 +1909,16 @@ static CompilerInvocation compiler_invocation_from_shell_line(Arena *perm, StrLi
             break;
         }
         case BUILD_INVOCATION: {
-            if (shell_token_is_control_operator(token)) {
+            if (shell_token_is_control_operator(token)) { //< e.g. "||" or "&&"
                 goto end_of_invocation;
             }
-            else if (shell_token_is_redirect_operator(token)) {
-                // Delete the redirect file
-                strlist_pop_front(line_tokens);
+            else if (shell_token_is_redirect_operator(token)) { //< e.g. ">" or "&>"
+                // We don't need the this operator, nor the file it redirects to.
+                strlist_pop_front(line_tokens); //< Eat file
             }
             else {
-                Str unescaped_token = shell_str_unescape(perm, token);
-                strlist_push_back(&tokens, perm, unescaped_token);
+                // We push the token, unnormalized
+                strlist_push_back(&tokens, perm, token);
             }
             break;
         }
@@ -2739,48 +2791,45 @@ static void test_shell_tokenizer(Arena a)
     run_test_shell_tokenizer(a, SL("C:/Users/John_Falstaff/w64devkit/bin/gcc.exe -std=c11 -g -o app main.c"),
                              SLIST(&a, "C:/Users/John_Falstaff/w64devkit/bin/gcc.exe", "-std=c11", "-g", "-o", "app", "main.c"));
 
-    // Handle quotes inside of double quotes
     run_test_shell_tokenizer(a, SL("echo \"The Knights Who Say 'Ni'\""), SLIST(&a, "echo", "\"The Knights Who Say 'Ni'\""));
 
-    // Handle double quotes inside of quotes
     run_test_shell_tokenizer(a, SL("echo 'The Knights Who Say \"Ni\"'"), SLIST(&a, "echo", "'The Knights Who Say \"Ni\"'"));
 
-    // Unnecessary whitespace deleted everywhere except in quotes
     run_test_shell_tokenizer(a, SL("   echo    '  H E L L O   W O R L D  '     "),
                              SLIST(&a, "echo", "'  H E L L O   W O R L D  '"));
 
-    // Subshell expression kept as a single token
     run_test_shell_tokenizer(a, SL("gcc $(pkg-config --cflags glib) foo.c"),
                              SLIST(&a, "gcc", "$(pkg-config --cflags glib)", "foo.c"));
 
-    // Backslash line continuations (Unix)
     run_test_shell_tokenizer(a, SL("gcc \\\n -std=c11 \\\n -Wall \\\n -Wextra \\\n -g \\\n -o out/continued \\\n main.c"),
                              SLIST(&a, "gcc", "-std=c11", "-Wall", "-Wextra", "-g", "-o", "out/continued", "main.c"));
 
-    // Backslash line continuations (Windows \r\n)
     run_test_shell_tokenizer(
         a, SL("gcc \\\r\n -std=c11 \\\r\n -Wall \\\r\n -Wextra \\\r\n -g \\\r\n -o out/continued \\\r\n main.c"),
         SLIST(&a, "gcc", "-std=c11", "-Wall", "-Wextra", "-g", "-o", "out/continued", "main.c"));
 
-    // Compiler path with spaces in double quotes
     run_test_shell_tokenizer(
         a, SL("\"C:/Users/John Falstaff/w64devkit/bin/gcc.exe\" -std=c11 -g -o app main.c"),
         SLIST(&a, "\"C:/Users/John Falstaff/w64devkit/bin/gcc.exe\"", "-std=c11", "-g", "-o", "app", "main.c"));
 
-    // Compiler path with backslash-escaped space
     run_test_shell_tokenizer(
         a, SL("C:/Users/John\\ Falstaff/w64devkit/bin/gcc.exe -std=c11 -g -o app main.c"),
         SLIST(&a, "C:/Users/John\\ Falstaff/w64devkit/bin/gcc.exe", "-std=c11", "-g", "-o", "app", "main.c"));
 
-    // Compiler path with single-quoted path component
     run_test_shell_tokenizer(
         a, SL("C:/Users/'John Falstaff'/w64devkit/bin/gcc.exe -std=c11 -g -o app main.c"),
         SLIST(&a, "C:/Users/'John Falstaff'/w64devkit/bin/gcc.exe", "-std=c11", "-g", "-o", "app", "main.c"));
 
-    // Compiler path with double-quoted path component
     run_test_shell_tokenizer(
         a, SL("C:/Users/\"John Falstaff\"/w64devkit/bin/gcc.exe -std=c11 -g -o app main.c"),
         SLIST(&a, "C:/Users/\"John Falstaff\"/w64devkit/bin/gcc.exe", "-std=c11", "-g", "-o", "app", "main.c"));
+
+    // escaped newline
+    run_test_shell_tokenizer(a, SL("a \\\nb"), SLIST(&a, "a", "b"));
+
+    // Compiler is using a windows path
+    run_test_shell_tokenizer(a, SL("C:\\gcc -std=c11 -g -o app main.c"),
+                             SLIST(&a, "C:\\gcc", "-std=c11", "-g", "-o", "app", "main.c"));
 
     // redirect
     run_test_shell_tokenizer(a, SL("cmd &>file"), SLIST(&a, "cmd", "&>", "file"));
@@ -3491,6 +3540,37 @@ void test_shell_parsing(Arena a)
                           "crypto/libbitcoinconsensus_la-hmac_sha256.lo",
                           "`test -f 'crypto/hmac_sha256.cpp' || echo './'`crypto/hmac_sha256.cpp"),
             });
+        run_test_shell_parse_line(a, line, expected_list);
+    }
+
+    // Support new cppm file (C++ 20)
+    // https://github.com/nickdiego/compiledb/issues/145
+    {
+        Str line = SL("g++ -std=c++20 -c math.cppm -o math.o");
+
+        CommandObjectList expected_list = {0};
+        command_objects_push_back(&expected_list,
+                                  &(CommandObject){
+                                      .ok        = 1,
+                                      .file      = SL("math.cppm"),
+                                      .output    = SL("math.o"),
+                                      .arguments = SLIST(&a, "g++", "-std=c++20", "-c", "math.cppm", "-o", "math.o"),
+                                  });
+        run_test_shell_parse_line(a, line, expected_list);
+    }
+
+    // Support mixed path
+    // https://github.com/nickdiego/compiledb/issues/124
+    {
+        Str               line          = SL("g++ -IC:\\VulkanSDK\\1.3.216.0/include -c shader.cpp -o shader.o");
+        CommandObjectList expected_list = {0};
+        command_objects_push_back(&expected_list, &(CommandObject){
+                                                      .ok        = 1,
+                                                      .file      = SL("shader.cpp"),
+                                                      .output    = SL("shader.o"),
+                                                      .arguments = SLIST(&a, "g++", "-IC:\\VulkanSDK\\1.3.216.0/include", "-c",
+                                                                         "shader.cpp", "-o", "shader.o"),
+                                                  });
         run_test_shell_parse_line(a, line, expected_list);
     }
 }
