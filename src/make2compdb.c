@@ -215,13 +215,15 @@ static Arena arena_init(isize capacity, byte memory[static capacity])
 static byte *arena_alloc(Arena *a, isize count, isize size, isize align)
 {
     assert(NULL != a);
+    isize available = (a->end - a->cursor);
+    isize pad       = (isize) - (uintptr_t)a->cursor & (align - 1);
+    assert(count < (available - pad) / size); //< Make sure not OOM.
 
-    isize pad = (isize) - (uintptr_t)a->cursor & (align - 1);
-    assert(count < (a->end - a->cursor - pad) / size); // Make sure not OOM.
+    a->cursor += pad; //< Make sure we are aligned with the newly allocated object
 
-    byte *r    = a->cursor + pad;
-    a->cursor += pad + count * size;
-    return memory_set(r, 0, count * size);
+    byte *new  = a->cursor;
+    a->cursor += count * size;
+    return memory_set(new, 0, count * size);
 }
 
 #define SLICE_TYPE(SLICE)             type_of(*(SLICE).ptr)
@@ -242,6 +244,7 @@ static void arena_reset_to(Arena *a, byte *here)
 // :: Str
 // A `Str` is a slice of an array of characters.
 // It's the same concept as C++ std::string_view, Rust slice (&[T]) and Zig slice ([*]T).
+// The characters are assumed to always be UTF-8.
 typedef struct Str {
     isize len;
     u8   *ptr;
@@ -653,8 +656,7 @@ static b32 str_is_windows_absolute_path(Str s)
     }
 }
 
-// Remove backslashes, add slashes
-static Str str_normalize_windows_path(Str path)
+static Str str_replace_backslashes_with_slashes(Str path)
 {
     isize new_len            = 0;
     b32   last_was_backslash = 0;
@@ -684,7 +686,7 @@ static Str str_normalize_if_path(Str path)
     // We need to normalize windows paths, because otherwise they
     // conflict with posix unescaping logic.
     if (str_is_windows_absolute_path(path)) {
-        path = str_normalize_windows_path(path);
+        path = str_replace_backslashes_with_slashes(path);
     }
     return path;
 }
@@ -1227,10 +1229,14 @@ static Str directory_from_make_dir_line(Str *make_stdout)
         // Even stranger, sometimes the delimeter pairs don't match!
         Str valid_delims = SL("\'\"`");
 
-        if (str_contains_any(delim, valid_delims)) {
-            input            = str_drop_head(input, 1);
+        b32 found_valid_delim = str_contains_any(delim, valid_delims);
+        if (found_valid_delim) {
+            input            = str_drop_head(input, 1); // Drop delim
             isize next_delim = str_find_any(input, valid_delims);
-
+            if (next_delim < 0) {
+                // In case we didn't find a matching delimiter, let's just return the line
+                next_delim = str_find(input, SL("\n"));
+            }
             dir = str_take_head(input, next_delim);
             dir = str_trim_if(dir, is_whitespace);
         }
@@ -2679,9 +2685,9 @@ static void make_compile_commands_json(Arena *perm, OsWriterInterface *os_stdout
 
         if (verbose) {
             print_str(os_stderr, SL("-> +"));
-            print_number(os_stderr, command_count_total - command_count);
+            print_number(os_stderr, command_count);
             print_str(os_stderr, SL(" command objects (total = "));
-            print_number(os_stderr, command_count_total);
+            print_number(os_stderr, command_count_total + command_count);
             println_str(os_stderr, SL(")\n\n---\n"));
         }
 
@@ -4217,8 +4223,18 @@ static void os_stream_write(WinBufferedStream *w, Str in)
     }
     else {
         // In file or pipe mode, we can write directly.
-        i32 dummy     = 0;
-        w->stream.err = !WriteFile(w->stream.handle, in.ptr, to_i32(in.len), &dummy, 0);
+        while (in.len > 0 && !w->stream.err) {
+            Str chunk = str_take_head(in, INT32_MAX);
+
+            i32 written = 0;
+            b32 ok      = WriteFile(w->stream.handle, chunk.ptr, to_i32(chunk.len), &written, 0);
+            if (!ok || (written == 0)) {
+                w->stream.err = 1;
+            }
+            else {
+                in = str_drop_head(in, (isize)written);
+            }
+        }
     }
 }
 
