@@ -4270,8 +4270,9 @@ void mainCRTStartup(void);
 [[gnu::stdcall]]
 void mainCRTStartup(void)
 {
-    isize cap      = 1 << 26; // 64 MiB
-    byte *mem      = VirtualAlloc(0, cap, WIN32_MEM_COMMIT | WIN32_MEM_RESERVE, WIN32_PAGE_READWRITE);
+    isize cap = 1 << 26; // 64 MiB
+    byte *mem = VirtualAlloc(0, cap, WIN32_MEM_COMMIT | WIN32_MEM_RESERVE, WIN32_PAGE_READWRITE);
+    assert(mem);
     Arena arena[1] = {arena_init(cap, mem)};
 
     i32 not_needed = 0;
@@ -4326,6 +4327,7 @@ void mainCRTStartup(void)
 #include <sys/mman.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <errno.h>
 
 typedef struct {
     isize len;
@@ -4370,8 +4372,19 @@ static Str os_cwd_read(Arena *perm)
 static void os_stream_write(OsStream *std_out, Str in)
 {
     assert(std_out);
-    if (in.len > 0 && !std_out->err) {
-        std_out->err = (in.len != write((int)std_out->handle, in.ptr, to_usize(in.len)));
+
+    while (in.len > 0 && !std_out->err) {
+        isize written = write((int)std_out->handle, in.ptr, to_usize(in.len));
+
+        if (written > 0) {
+            in = str_drop_head(in, written);
+        }
+        else if ((written < 0) && (errno == EINTR)) {
+            continue;
+        }
+        else {
+            std_out->err = true;
+        }
     }
 }
 
@@ -4405,8 +4418,9 @@ static Str os_stdin_read(Arena *perm, OsStream *std_in)
 
 int main(int argc, char **argv)
 {
-    isize cap      = 1 << 26; // 64 MiB
-    byte *mem      = mmap(0, to_usize(cap), PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
+    isize cap = 1 << 26; // 64 MiB
+    byte *mem = mmap(0, to_usize(cap), PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
+    assert(mem != MAP_FAILED);
     Arena arena[1] = {arena_init(cap, mem)};
 
     OsStream std_in   = {0};
