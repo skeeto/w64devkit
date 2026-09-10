@@ -35,7 +35,7 @@
 //
 // BUILD TESTS
 //
-//         Both: $ cc -std=c23 -O2 -DTEST -o test make2compdb.c
+//         Both: $ cc -std=c23 -O2 -DTEST -o test.exe make2compdb.c
 //
 //
 // BUILD FUZZ
@@ -47,16 +47,25 @@
 //
 //      On windows, we do not support the CL (MSVC) compiler.
 //
-//      On linux, your makefile stdout depends on your locale (sadly).
+//      On linux, make stdout depends on locale (sadly).
 //      Even after working on this problem for a while, I could not find a clean
 //      way to parse them for all languages. Therefore, make2compdb expect you to
-//      run `make` using the `C.UTF-8` locale or equivalents.
+//      run `make` using the `C.UTF-8` locale or equivalents (like english).
 //
 //
-// REFERENCE
+// REFERENCES
 //
 //      JSON Compilation Database Format Specification
 //      https://clang.llvm.org/docs/JSONCompilationDatabase.html
+//
+//      Shell Command Language, IEEE - The Open Group Base Specifications
+//      https://pubs.opengroup.org/onlinepubs/9699919799/utilities/V3_chap02.html
+//
+//      CRT-free in 2023: tips and tricks, Chris Wellons
+//      https://nullprogram.com/blog/2023/02/15/
+//
+//      Bash Features
+//      https://www.gnu.org/savannah-checkouts/gnu/bash/manual/bash.html
 //
 //
 // LICENCE
@@ -74,7 +83,7 @@
     #error "This code expects to be compiled by a C23 toolchain"
 #endif
 
-#define VERSION "2026-09-07" // ISO-8601 date format
+#define VERSION "2026-09-07" //< ISO-8601 date format
 
 typedef uint8_t        u8;
 typedef uint16_t       u16;
@@ -512,7 +521,7 @@ static Str str_concat(Arena *perm, Str head, Str tail)
 // Return true for "1.0" or "1"
 static b32 str_is_numeric_version(Str s)
 {
-    if (s.len == 0) return false;
+    if (s.len == 0) return 0;
 
     b32 expecting_digit = 1;
 
@@ -536,7 +545,7 @@ static b32 str_is_numeric_version(Str s)
 
 static b32 str_is_source_file(Str file)
 {
-    static Str extensions[] = {
+    static Str s_extensions[] = {
         // C
         STATIC_SL(".c"),
         // C++
@@ -555,37 +564,8 @@ static b32 str_is_source_file(Str file)
     file = str_trim_postfix(file, SL("\""));
     file = str_trim_postfix(file, SL("\'"));
 
-    for (isize i = 0; i < count_of(extensions); i++) {
-        if (str_ends_with(file, extensions[i])) {
-            return 1;
-        }
-    }
-    return 0;
-}
-
-static b32 str_is_header_file(Str file)
-{
-    static Str extensions[] = {
-        // C
-        STATIC_SL(".c"),
-        // C++
-        STATIC_SL(".cc"),
-        STATIC_SL(".cpp"),
-        STATIC_SL(".cxx"),
-        STATIC_SL(".c++"),
-        STATIC_SL(".C"),
-        STATIC_SL(".cppm"),
-        // Assembly
-        STATIC_SL(".s"),
-        STATIC_SL(".S"),
-    };
-
-    // Unquote
-    file = str_trim_postfix(file, SL("\""));
-    file = str_trim_postfix(file, SL("\'"));
-
-    for (isize i = 0; i < count_of(extensions); i++) {
-        if (str_ends_with(file, extensions[i])) {
+    for (isize i = 0; i < count_of(s_extensions); i++) {
+        if (str_ends_with(file, s_extensions[i])) {
             return 1;
         }
     }
@@ -665,7 +645,6 @@ static b32 str_is_windows_absolute_path(Str s)
     // We try to detect a windows path by search for a pattern that looks like "C:/".
     // This is pretty fragile, but we do what we can.
     // Technically, I think windows can have non single letter drive name, but this seems unlikely.
-    //
     if ((s.len >= 3)) {
         return (is_ascii_alpha(s.ptr[0]) && (s.ptr[1] == ':') && (s.ptr[2] == '/' || s.ptr[2] == '\\'));
     }
@@ -674,6 +653,7 @@ static b32 str_is_windows_absolute_path(Str s)
     }
 }
 
+// Remove backslashes, add slashes
 static Str str_normalize_windows_path(Str path)
 {
     isize new_len            = 0;
@@ -1099,8 +1079,9 @@ static void print_str_json_escaped_string(OsWriterInterface *w, Str s)
         case '\\': print_str(w, SL("\\\\")); break;
         default:   {
             if (is_control_character(c)) {
-                // Not supported control character should be escaped like this "\u00xx".
-                // Where `xx` is the character numeric value in hexadecimal format.
+                // If a control character is not supported, it should be escaped
+                // like this "\u00xx".  Where `xx` is the character numeric value
+                // in hexadecimal format.
                 print_str(w, SL("\\u00"));
                 print_u8_as_hex(w, c);
             }
@@ -1136,7 +1117,7 @@ static void print_number(OsWriterInterface *w, isize number)
 {
     assert(w);
 
-    u8 buffer[sizeof("18446744073709551616")] = {0}; // (1 << 64)
+    u8 buffer[sizeof("18446744073709551616")] = {0}; //< (1 << 64)
 
     b32   negative = number < 0;
     usize uval     = negative ? ((usize)(0 - number)) : ((usize)number);
@@ -1230,7 +1211,7 @@ static Str directory_from_make_dir_line(Str *make_stdout)
 
     //       We want to go here |
     //                          v
-    // make: Entering directory 'C:/dev/gb/make2compdb/impl_c'
+    // "make: Entering directory 'C:/dev/gb/make2compdb/impl_c'"
     //
     Str input = *make_stdout;
     input     = str_cut(input, SL(" ")).tail; //< skip "make:"
@@ -1260,25 +1241,25 @@ static Str directory_from_make_dir_line(Str *make_stdout)
 }
 
 // :: Shell Definition
-// https://www.gnu.org/savannah-checkouts/gnu/bash/manual/bash.html#Definitions-1
+// See "bash feature" references in header file.
 
 // control operator - A token that performs a control function.
 // NOTE: This list needs to be order longer token first.
-static Str g_shell_control_operators[] = {
+static Str const g_shell_control_operators[] = {
     STATIC_SL(";;&"), STATIC_SL(";;"), STATIC_SL(";&"), STATIC_SL(";"), STATIC_SL("&&"), STATIC_SL("&"),
     STATIC_SL("||"),  STATIC_SL("|&"), STATIC_SL("|"),  STATIC_SL("("), STATIC_SL(")"),
 };
 
 // Before a command is executed, its input and output may be redirected using a special notation.
 // NOTE: This list needs to be order longer token first.
-static Str g_shell_redirects_operators[] = {
+static Str const g_shell_redirects_operators[] = {
     STATIC_SL("&>>"), STATIC_SL("&>|"), STATIC_SL("&>"), STATIC_SL(">|"), STATIC_SL("<<<"), STATIC_SL("<<-"), STATIC_SL(">>"),
     STATIC_SL("<<"),  STATIC_SL(">&"),  STATIC_SL("<&"), STATIC_SL("<>"), STATIC_SL(">"),   STATIC_SL("<"),
 };
 
 // GCC "consumer flags", i.e. a flag that is followed by an argument that must be consumed.
 // NOTE: flag with identical start must be ordered bigger first.
-static Str g_gcc_consumer_flags[] = {
+static Str const g_gcc_consumer_flags[] = {
     STATIC_SL("-I"),
     STATIC_SL("--include-directory"),
     STATIC_SL("-o"),
@@ -2114,6 +2095,9 @@ static GccFlag gcc_identify_flag(Str token)
     else {
         // The `token` still could be a consumer flag, but without space.
         // e.g. "-IC:/dir"
+        //
+        // NOTE: This function works because `g_gcc_consumer_flags` is organized
+        // so "--output=" is before "--output".
         for (isize i = 0; i < count_of(g_gcc_consumer_flags); ++i) {
             Str consumer_flag = g_gcc_consumer_flags[i];
             if (str_starts_with(token, consumer_flag)) {
@@ -2154,35 +2138,36 @@ typedef enum {
 
 GccLanguage gcc_identify_language_from_x_flag(Str x_flag)
 {
-    // Source: https://gcc.gnu.org/onlinedocs/gcc/Overall-Options.html
+    // Source: Gcc Manual
+    // https://gcc.gnu.org/onlinedocs/gcc/Overall-Options.html
     static Str s_c_language[] = {
-        SL("c"),
+        STATIC_SL("c"),
     };
 
     static Str s_c_header_language[] = {
-        SL("c-header"),
+        STATIC_SL("c-header"),
     };
 
     static Str s_cpp_language[] = {
-        SL("cpp-output"),
-        SL("c++"),
-        SL("c++-cpp-output"),
-        SL("c++-system-module"),
+        STATIC_SL("cpp-output"),
+        STATIC_SL("c++"),
+        STATIC_SL("c++-cpp-output"),
+        STATIC_SL("c++-system-module"),
     };
 
     static Str s_cpp_header_language[] = {
-        SL("c++-header"),
-        SL("c++-system-header"),
-        SL("c++-user-header"),
+        STATIC_SL("c++-header"),
+        STATIC_SL("c++-system-header"),
+        STATIC_SL("c++-user-header"),
     };
 
     static Str s_assembly_language[] = {
-        SL("assembler"),
-        SL("assembler-with-cpp"),
+        STATIC_SL("assembler"),
+        STATIC_SL("assembler-with-cpp"),
     };
 
     static Str s_none_language[] = {
-        SL("none"),
+        STATIC_SL("none"),
     };
 
     if (str_equal_any(x_flag, count_of(s_c_language), s_c_language)) {
@@ -2795,8 +2780,10 @@ typedef struct {
 
 // ---------------------------------------------------------------------------
 // ---------------------------------------------------------------------------
+// --------------------------- PROGRAM ENTRY ---------------------------------
 // ---------------------------------------------------------------------------
-#if defined(TEST) // Unit tests
+// ---------------------------------------------------------------------------
+#if defined(TEST) // Program Entry: Unit tests
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -3818,7 +3805,7 @@ int main(void)
 // ---------------------------------------------------------------------------
 // ---------------------------------------------------------------------------
 // ---------------------------------------------------------------------------
-#elif defined(FUZZ) // Fuzz testing using AFL++
+#elif defined(FUZZ) // Program Entry: Fuzz testing using AFL++
 
 // On a linux Shell:
 //
@@ -3892,7 +3879,7 @@ int main(void)
 // ---------------------------------------------------------------------------
 // ---------------------------------------------------------------------------
 // ---------------------------------------------------------------------------
-#elif defined(_WIN32) // Windows no CRT (from XP to 11)
+#elif defined(_WIN32) // Program Entry: Windows no CRT (from XP to 11)
 
 // :: Str16
 // Like `Str` but for utf-16 strings
@@ -4304,7 +4291,7 @@ void mainCRTStartup(void)
 // ---------------------------------------------------------------------------
 // ---------------------------------------------------------------------------
 // ---------------------------------------------------------------------------
-#else // POSIX
+#else // Program Entry: POSIX
 
 #include <sys/mman.h>
 #include <unistd.h>
@@ -4428,3 +4415,4 @@ int main(int argc, char **argv)
     unreachable();
 }
 #endif
+// Fin
