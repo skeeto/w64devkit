@@ -1273,7 +1273,6 @@ static Str const g_gcc_consumer_flags[] = {
     STATIC_SL("-U"),
     STATIC_SL("--undefine-macro"),
     STATIC_SL("-l"),
-    STATIC_SL("--library"),
     STATIC_SL("-e"),
     STATIC_SL("--entry"),
     STATIC_SL("-u"),
@@ -1281,7 +1280,8 @@ static Str const g_gcc_consumer_flags[] = {
     STATIC_SL("-T"),
     STATIC_SL("--script"),
     STATIC_SL("-L"),
-    STATIC_SL("--library-directory"),
+    STATIC_SL("--library-directory"), //< Must be before "--language"
+    STATIC_SL("--library"),
     STATIC_SL("-z"),
     STATIC_SL("-MF"),
     STATIC_SL("-MT"),
@@ -1601,6 +1601,19 @@ static Str shell_tokenize_next(Str *shell_input, b32 *eol)
                     scanner_next(&sc);
                     break;
                 }
+            }
+            case '#': {
+                b32 at_start = sc.position == 1;
+                if (at_start) {
+                    // We just entered a comments: Go to the end of the line
+                    while (('\n' != (scanner_peek(sc)) && !scanner_at_end(sc))) {
+                        scanner_next(&sc);
+                    }
+                    *eol  = 1;
+                    token = SL("");
+                    goto token_done;
+                }
+                break;
             }
             case '\r': {
                 if (scanner_match_u8(&sc, '\n')) {
@@ -3117,6 +3130,11 @@ static void test_shell_tokenizer(Arena a)
         run_test_shell_tokenizer(a, SL("echo 'not `a backtick`'"), SLIST(&a, "echo", "'not `a backtick`'"));
         run_test_shell_tokenizer(a, SL("echo 'not $(a sub)'"), SLIST(&a, "echo", "'not $(a sub)'"));
     }
+
+    // Comments
+    {
+        run_test_shell_tokenizer(a, SL("gcc main.c # -o main"), SLIST(&a, "gcc", "main.c"));
+    }
 }
 
 static void run_test_parse_dir(Str input, Str expected_enter_dir, Str expected_leave_dir)
@@ -3775,6 +3793,18 @@ void test_shell_parsing(Arena a)
                                                       .ok        = 1,
                                                       .file      = SL("x.c"),
                                                       .arguments = SLIST(&a, "gcc", "-c", "-Ds=It's fine\n", "x.c"),
+                                                  });
+        run_test_shell_parse_line(a, line, expected_list);
+    }
+
+    // Comments
+    {
+        Str               line          = SL("gcc main.c # -o main");
+        CommandObjectList expected_list = {0};
+        command_objects_push_back(&expected_list, &(CommandObject){
+                                                      .ok        = 1,
+                                                      .file      = SL("main.c"),
+                                                      .arguments = SLIST(&a, "gcc", "main.c"),
                                                   });
         run_test_shell_parse_line(a, line, expected_list);
     }
