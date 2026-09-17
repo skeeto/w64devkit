@@ -201,6 +201,10 @@ libraries have paths containing spaces.
   to examine GCC-incompatible binaries, potentially to make some use of
   them anyway.
 
+* `recycle`: sends files and folders straight to the recycle bin. Faster
+  than `rm -rf` and reversible. Composes well with Storage Sense automatic
+  delection of old Recycle Bin items.
+
 * [`debugbreak`][debugbreak]: causes all debugee processes to break in the
   debugger, like using Windows' F12 debugger hotkey. Especially useful for
   console subsystem programs.
