@@ -2,5 +2,6 @@ Os-no-declone-ctor-dtor.patch
 driver-self-locate.patch
 i686-dumpmachine.patch
 libgomp-gfortran-path.patch
+overloadable.patch
 relocatable.patch
 static-complit-flex-array.patch
