@@ -732,32 +732,17 @@ COPY --from=dl-busybox /dl/ /dl/
 
 WORKDIR /dl/busybox
 COPY src/busybox/ $PREFIX/src/busybox/
-COPY src/busybox-alias.c $PREFIX/src/
+COPY src/busybox-alias.c src/busybox.config $PREFIX/src/
+# Kconfig keeps the first assignment of each symbol, so prepended overrides
+# win over the stock defconfig. Then fail if any override did not survive
+# (unknown symbol, out of range, unmet dependency).
 RUN QUILT_PATCHES=$PREFIX/src/busybox quilt push -a \
  && rm -rf .pc \
- && make $BUSYBOX_CONFIG \
- && sed -ri 's/^(CONFIG_AR)=y/\1=n/' .config \
- && sed -ri 's/^(CONFIG_ASCII)=y/\1=n/' .config \
- && sed -ri -e 's/^(CONFIG_BASH_IS_ASH)=y/\1=n/' \
-            -e 's/^# (CONFIG_BASH_IS_NONE) is not set/\1=y/' .config \
- && sed -ri 's/^(CONFIG_CRON\w*)=y/\1=n/' .config \
- && sed -ri 's/^(CONFIG_DPKG\w*)=y/\1=n/' .config \
- && sed -ri 's/^(CONFIG_FEATURE_EDITING_HISTORY)=.*/\1=16384/' .config \
- && sed -ri 's/^(CONFIG_FEATURE_EDITING_HISTORY_DEFAULT)=.*/\1=1024/' .config \
- && sed -ri 's/^(CONFIG_FEATURE_FAIL_IF_UTF8_MANIFEST_UNSUPPORTED)=y/\1=n/' .config \
- && sed -ri 's/^(CONFIG_FTP\w*)=y/\1=n/' .config \
- && sed -ri 's/^(CONFIG_LINK)=y/\1=n/' .config \
- && sed -ri 's/^(CONFIG_MAN)=y/\1=n/' .config \
- && sed -ri 's/^(CONFIG_MAKE)=y/\1=n/' .config \
- && sed -ri 's/^(CONFIG_PDPMAKE)=y/\1=n/' .config \
- && sed -ri 's/^(CONFIG_RPM\w*)=y/\1=n/' .config \
- && sed -ri 's/^(CONFIG_STRINGS)=y/\1=n/' .config \
- && sed -ri 's/^(CONFIG_TEST2)=y/\1=n/' .config \
- && sed -ri 's/^(CONFIG_TSORT)=y/\1=n/' .config \
- && sed -ri 's/^(CONFIG_UNLINK)=y/\1=n/' .config \
- && sed -ri 's/^(CONFIG_UUIDGEN)=y/\1=n/' .config \
- && sed -ri 's/^(CONFIG_VI)=y/\1=n/' .config \
- && sed -ri 's/^(CONFIG_XXD)=y/\1=n/' .config \
+ && cat $PREFIX/src/busybox.config configs/$BUSYBOX_CONFIG \
+        >configs/w64devkit_defconfig \
+ && make w64devkit_defconfig \
+ && ! grep -x 'CONFIG_.*\|# CONFIG_.* is not set' $PREFIX/src/busybox.config \
+      | grep -vxFf .config \
  && make -j$(nproc) CROSS_COMPILE=$ARCH- \
     CONFIG_EXTRA_CFLAGS="-D_WIN32_WINNT=0x502" \
  && mkdir -p /out/bin \
