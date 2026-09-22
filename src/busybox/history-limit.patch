@@ -1,0 +1,11 @@
+--- a/libbb/Config.src
++++ b/libbb/Config.src
+@@ -193,7 +193,7 @@
+ config FEATURE_EDITING_HISTORY
+ 	int "History size"
+ 	# Don't allow way too big values here, code uses fixed "char *history[N]" struct member
+-	range 0 2000
++	range 0 16384
+ 	default 200
+ 	depends on FEATURE_EDITING
+ 	help

@@ -742,6 +742,8 @@ RUN QUILT_PATCHES=$PREFIX/src/busybox quilt push -a \
             -e 's/^# (CONFIG_BASH_IS_NONE) is not set/\1=y/' .config \
  && sed -ri 's/^(CONFIG_CRON\w*)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_DPKG\w*)=y/\1=n/' .config \
+ && sed -ri 's/^(CONFIG_FEATURE_EDITING_HISTORY)=.*/\1=16384/' .config \
+ && sed -ri 's/^(CONFIG_FEATURE_EDITING_HISTORY_DEFAULT)=.*/\1=1024/' .config \
  && sed -ri 's/^(CONFIG_FEATURE_FAIL_IF_UTF8_MANIFEST_UNSUPPORTED)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_FTP\w*)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_LINK)=y/\1=n/' .config \
