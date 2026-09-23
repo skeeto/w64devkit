@@ -301,7 +301,6 @@ RUN (cd /dl/gcc \
         --disable-libstdcxx-verbose \
         --disable-dependency-tracking \
         --disable-nls \
-        --disable-lto \
         CFLAGS_FOR_TARGET="-O2" \
         CXXFLAGS_FOR_TARGET="-O2" \
         LDFLAGS_FOR_TARGET="-s" \
@@ -507,6 +506,15 @@ RUN if [ "$GCC_MULTILIB" = enable ]; then \
 
 WORKDIR /gcc
 COPY src/gcc-final/ $PREFIX/src/gcc-final/
+# libstdc++, libgfortran, and libquadmath are built as fat LTO objects:
+# they link normally without -flto, but an -flto link can inline into them
+# and drop their unused functions, which --gc-sections cannot do on PE.
+# libstdc++ is the only C++ target library, so CXXFLAGS_FOR_TARGET reaches
+# it alone.
+# libgfortran and libquadmath share CFLAGS_FOR_TARGET with libgcc, libgomp,
+# and libatomic, which must stay plain, so they are rebuilt afterward with
+# their own flags. The LTO plugin is also installed where ar, nm, and
+# ranlib find it, so they can handle slim LTO objects without gcc-ar.
 RUN (cd /dl/gcc \
      && QUILT_PATCHES=$PREFIX/src/gcc-final quilt push -a \
      && rm -rf .pc) \
@@ -529,22 +537,26 @@ RUN (cd /dl/gcc \
         --enable-threads=posix \
         --enable-tls \
         --enable-version-specific-runtime-libs \
+        --disable-libstdcxx-dual-abi \
         --disable-libstdcxx-verbose \
         --disable-dependency-tracking \
-        --disable-lto \
         --disable-nls \
         --disable-win32-registry \
         $GCC_MANIFEST_FLAG \
         --enable-mingw-wildcard \
         CFLAGS_FOR_TARGET="-O2" \
-        CXXFLAGS_FOR_TARGET="-O2" \
+        CXXFLAGS_FOR_TARGET="-O2 -flto -ffat-lto-objects" \
         LDFLAGS_FOR_TARGET="-s" \
         CFLAGS="-O2" \
         CXXFLAGS="-O2" \
         LDFLAGS="-s" \
  && make -j$(nproc) \
+ && make clean-target-libquadmath clean-target-libgfortran \
+ && make -j$(nproc) all-target-libquadmath all-target-libgfortran \
+        CFLAGS_FOR_TARGET="-O2 -flto -ffat-lto-objects" \
  && make install \
- && rm -f $PREFIX/bin/ld.bfd.exe \
+ && cp $PREFIX/libexec/gcc/$ARCH/*/liblto_plugin.dll $PREFIX/lib/bfd-plugins/ \
+ && rm -f $PREFIX/bin/ld.bfd.exe $PREFIX/bin/lto-dump.exe \
  && $ARCH-gcc -DEXE=g++.exe -DCMD=c++ \
         -Oz -fno-asynchronous-unwind-tables \
         -Wl,--gc-sections -s -nostdlib \

@@ -7,7 +7,7 @@ compilers, and target-detecting build systems expect that prefix and
 invocation name.
 --- a/gcc/gcc.cc
 +++ b/gcc/gcc.cc
-@@ -4249,6 +4249,13 @@ driver_handle_option (struct gcc_options *opts,
+@@ -4254,6 +4254,13 @@
        exit (0);
  
      case OPT_dumpmachine:
