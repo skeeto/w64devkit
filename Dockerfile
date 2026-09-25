@@ -57,8 +57,8 @@ RUN mkdir binutils \
  && tar xjf mingw-w64-v$MINGW_VERSION.tar.bz2 -C mingw --strip-components=1
 
 FROM base AS dl-gdb
-ARG GDB_VERSION=17.2 \
-    GDB_SHA256=1c036c0d72e4b3d1fb5c94c88632add6f9d76f4d7c4d2ea793c12a9f19a3228c \
+ARG GDB_VERSION=18.1 \
+    GDB_SHA256=cd9fc3fe2b47743840e42c1592d3d87f8302eb18639c0b8b4ba0898002e2348f \
     EXPAT_VERSION=2.8.5 \
     EXPAT_TAG=R_2_8_5 \
     EXPAT_SHA256=1e727b8933ec51a77a9a9d9afcf8e688bce45d907c13e36ab7393fe36e703182 \
