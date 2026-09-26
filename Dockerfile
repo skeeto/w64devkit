@@ -656,7 +656,7 @@ COPY --from=dl-pdcurses /dl/pdcurses /dl/pdcurses
 
 WORKDIR /dl/pdcurses
 RUN make -j$(nproc) -C wincon \
-       CC=$ARCH-gcc AR=$ARCH-ar CFLAGS="-I.. -O2 -DPDC_WIDE" pdcurses.a \
+       CC=$ARCH-gcc AR=$ARCH-ar CFLAGS="-I.. -O2 -DPDC_WIDE -DPDC_FORCE_UTF8" pdcurses.a \
  && mkdir -p /deps/lib /deps/include \
  && cp wincon/pdcurses.a /deps/lib/libcurses.a \
  && cp curses.h /deps/include/curses.h
