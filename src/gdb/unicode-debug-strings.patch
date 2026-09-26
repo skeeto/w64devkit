@@ -1,0 +1,159 @@
+report OutputDebugStringW strings as Unicode
+
+GDB waits for debug events with WaitForDebugEvent, so the system
+converts OutputDebugStringW strings to the inferior's ANSI code page
+before reporting them.  Any character outside that code page is lost
+before GDB ever sees the string.
+
+Since Windows 10, a debugger opts in to receiving these strings as
+Unicode by waiting with WaitForDebugEventEx instead.  The event then
+has fUnicode set, and handle_output_debug_string must read UTF-16
+rather than bytes.  Reading it as bytes would stop at the zero high
+byte of the first ASCII character and print only that character.
+
+Load WaitForDebugEventEx at runtime, as with GetThreadDescription, so
+GDB still runs on Windows versions that lack it, where behavior is
+unchanged.  Read Unicode strings as UTF-16 and convert them to the
+host charset.
+
+The opt-in is a flag that only GDB sets.  gdbserver shares
+wait_for_debug_event, and its Unicode path converts with wcstombs,
+which fails on the first character the locale cannot represent, so
+gdbserver keeps the old behavior.
+
+--- a/gdb/nat/windows-nat.c
++++ b/gdb/nat/windows-nat.c
+@@ -69,6 +69,14 @@
+ typedef HRESULT WINAPI (GetThreadDescription_ftype) (HANDLE, PWSTR *);
+ static GetThreadDescription_ftype *GetThreadDescription;
+ 
++/* Available on Windows 10 and later.  */
++#define WaitForDebugEventEx dyn_WaitForDebugEventEx
++typedef BOOL WINAPI (WaitForDebugEventEx_ftype) (LPDEBUG_EVENT, DWORD);
++static WaitForDebugEventEx_ftype *WaitForDebugEventEx;
++
++/* See nat/windows-nat.h.  */
++bool unicode_debug_strings;
++
+ InitializeProcThreadAttributeList_ftype *InitializeProcThreadAttributeList;
+ UpdateProcThreadAttribute_ftype *UpdateProcThreadAttribute;
+ DeleteProcThreadAttributeList_ftype *DeleteProcThreadAttributeList;
+@@ -926,7 +934,11 @@
+ BOOL
+ wait_for_debug_event (DEBUG_EVENT *event, DWORD timeout)
+ {
+-  BOOL result = WaitForDebugEvent (event, timeout);
++  /* WaitForDebugEventEx behaves like WaitForDebugEvent, except that it
++     opts in to receiving OutputDebugStringW strings as Unicode.  */
++  BOOL result = (unicode_debug_strings && WaitForDebugEventEx != nullptr
++		 ? WaitForDebugEventEx (event, timeout)
++		 : WaitForDebugEvent (event, timeout));
+   if (result)
+     last_wait_event = *event;
+   return result;
+@@ -1168,6 +1180,7 @@
+ #endif
+       GPA (hm, GenerateConsoleCtrlEvent);
+       GPA (hm, GetThreadDescription);
++      GPA (hm, WaitForDebugEventEx);
+ 
+       GPA (hm, InitializeProcThreadAttributeList);
+       GPA (hm, UpdateProcThreadAttribute);
+--- a/gdb/nat/windows-nat.h
++++ b/gdb/nat/windows-nat.h
+@@ -403,6 +403,17 @@
+ 
+ extern BOOL wait_for_debug_event (DEBUG_EVENT *event, DWORD timeout);
+ 
++/* If true, and WaitForDebugEventEx is available (Windows 10 and
++   later), wait_for_debug_event uses it instead of WaitForDebugEvent.
++   That makes the system report OutputDebugStringW strings as Unicode,
++   with fUnicode set in the OUTPUT_DEBUG_STRING_EVENT, rather than
++   converting them to the inferior's ANSI code page, which loses any
++   character the code page cannot represent.  Only set this if the
++   client's handle_output_debug_string handles Unicode strings.
++   Defaults to false.  */
++
++extern bool unicode_debug_strings;
++
+ /* Wrappers for CreateProcess.  These exist primarily so that the
+    "disable randomization" feature can be implemented in a single
+    place.  */
+--- a/gdb/windows-nat.c
++++ b/gdb/windows-nat.c
+@@ -27,6 +27,7 @@
+ #include "infrun.h"
+ #include "target.h"
+ #include "gdbcore.h"
++#include "charset.h"
+ #include "command.h"
+ #include "completer.h"
+ #include "regcache.h"
+@@ -789,6 +790,40 @@
+   CloseHandle ((HANDLE) event_id);
+ }
+ 
++/* Read the null-terminated UTF-16 string at ADDR in the inferior, as
++   reported for OutputDebugStringW when fUnicode is set, and convert it
++   to the host character set.  Returns nullptr on error.  */
++
++static gdb::unique_xmalloc_ptr<char>
++read_unicode_debug_string (CORE_ADDR addr)
++{
++  gdb::unique_xmalloc_ptr<gdb_byte> buffer;
++  int bytes_read;
++
++  if (target_read_string (addr, -1, 2, 1024, &buffer, &bytes_read) != 0)
++    return nullptr;
++
++  /* Do not convert the terminating null character.  */
++  if (bytes_read >= 2
++      && buffer.get ()[bytes_read - 2] == 0
++      && buffer.get ()[bytes_read - 1] == 0)
++    bytes_read -= 2;
++
++  try
++    {
++      auto_obstack output;
++      convert_between_encodings ("UTF-16LE", host_charset (),
++				 buffer.get (), bytes_read, 2,
++				 &output, translit_char);
++      obstack_1grow (&output, '\0');
++      return make_unique_xstrdup ((const char *) obstack_base (&output));
++    }
++  catch (const gdb_exception_error &)
++    {
++      return nullptr;
++    }
++}
++
+ /* See nat/windows-nat.h.  */
+ 
+ bool
+@@ -803,10 +838,12 @@
+     internal_error ("OutputDebugString thread 0x%x has reply-later set",
+ 		    event_thr->tid);
+ 
++  CORE_ADDR addr
++    = (CORE_ADDR) (uintptr_t) current_event.u.DebugString.lpDebugStringData;
+   gdb::unique_xmalloc_ptr<char> s
+-    = (target_read_string
+-       ((CORE_ADDR) (uintptr_t) current_event.u.DebugString.lpDebugStringData,
+-	1024));
++    = (current_event.u.DebugString.fUnicode
++       ? read_unicode_debug_string (addr)
++       : target_read_string (addr, 1024));
+   if (s == nullptr || !*(s.get ()))
+     /* nothing to do */;
+   else if (!startswith (s.get (), _CYGWIN_SIGNAL_STRING))
+@@ -3527,6 +3564,10 @@
+ 
+   init_w32_command_list ();
+ 
++  /* handle_output_debug_string handles Unicode strings, so ask to
++     receive OutputDebugStringW output without lossy conversion.  */
++  unicode_debug_strings = true;
++
+   if (!initialize_loadable ())
+     {
+       /* This will probably fail on Windows 9x/Me.  Let the user know
