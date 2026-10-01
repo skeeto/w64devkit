@@ -72,10 +72,13 @@ struct QuiltState {
 
     // Computed helpers
     ptrdiff_t top_index() const;     // index of topmost applied in series (-1 if none)
+    // Patch after the topmost applied one (the first patch if none is
+    // applied), which new patches go in front of; empty at the series end.
+    std::string patch_after_top() const;
     bool is_applied(std::string_view patch) const;
     std::optional<ptrdiff_t> find_in_series(std::string_view patch) const;
     int get_strip_level(std::string_view patch) const;  // returns 1 if not set
-    std::string get_p_format(std::string_view patch) const;  // "0" or "1"
+    std::string get_p_format(std::string_view patch) const;  // strip level as "-p" value
 };
 
 // I/O helpers
@@ -97,17 +100,32 @@ std::vector<std::string> split_lines(std::string_view s);
 std::vector<std::string> split_on_whitespace(std::string_view s);
 std::vector<std::string> shell_split(std::string_view s);
 
-// Built-in patch engine
+// A patch's description and its diff, split as upstream's patch_header and
+// patch_body split them, and a description without its diffstat, as
+// upstream's strip_diffstat. Like those awk scripts, these keep every byte,
+// CRs included, but end a nonempty result with a newline.
+std::string patch_header(std::string_view patch);
+std::string patch_body(std::string_view patch);
+std::string strip_diffstat(std::string_view header);
+// A description with its diffstat replaced by (or, if it has none,
+// followed by) a new one, as upstream's refresh --diffstat does it
+std::string replace_diffstat(std::string_view header, std::string_view diffstat);
+
+// Built-in patch engine.  Like GNU patch given the -f that quilt always
+// passes, it never asks questions: it applies what it can and skips
+// missing files the patch does not create.
 struct PatchOptions {
     int strip_level = 1;       // -pN
-    int fuzz = 2;              // --fuzz=N (default 2)
+    int fuzz = 2;              // --fuzz=N (default 2), see set_fuzz_option
     bool reverse = false;      // -R
     bool dry_run = false;      // --dry-run
-    bool force = false;        // -f
     bool remove_empty = false; // -E
     bool quiet = false;        // -s
     bool merge = false;        // --merge
     std::string merge_style;   // "" or "diff3"
+    // A bad option, such as a fuzz factor that is not a number, which like
+    // GNU patch ends the patch before it touches any file
+    std::string option_error;
     // In-memory filesystem for fuzz testing. When non-null, all file I/O
     // in builtin_patch uses this map instead of real syscalls.
     // Key present = file exists, value = content.
@@ -115,12 +133,31 @@ struct PatchOptions {
 };
 
 struct PatchResult {
-    int exit_code;             // 0=success, 1=rejects
-    std::string out;           // stdout-equivalent messages
-    std::string err;           // stderr-equivalent messages
+    int exit_code;             // 0=success, 1=rejects, 2=fatal
+    // Like GNU patch, every message in order on stdout, and only a fatal
+    // error, which ends the patch, on stderr
+    std::string out;
+    std::string err;
+    // Files left alone that GNU patch would not have backed up: missing
+    // files the patch does not create, or every file when a bad option
+    // ends the patch before it starts
+    std::vector<std::string> skipped;
 };
 
 PatchResult builtin_patch(std::string_view patch_text, const PatchOptions &opts);
+
+// Set the fuzz factor from a --fuzz option's value, read as GNU patch
+// reads it: an optional sign, then digits, and not negative. A factor too
+// large for an int is clamped, since no hunk can use more fuzz than it has
+// context. A bad value, the first one only, goes in opts.option_error.
+void set_fuzz_option(PatchOptions &opts, std::string_view value);
+// Set the strip level from a -p option's value, read the same way.
+void set_strip_option(PatchOptions &opts, std::string_view value);
+
+// Files builtin_patch would modify, without duplicates, in patch order.
+// A deleted file (+++ /dev/null) is named by its --- line.
+std::vector<std::string> patch_target_files(std::string_view patch_text,
+                                            int strip_level, bool reverse = false);
 
 // Built-in diff engine
 enum class DiffFormat { unified, context };
@@ -157,6 +194,76 @@ inline std::string patch_path_display(const QuiltState &q, std::string_view name
     return format_patch(q, name);
 }
 
+// Default name for a fork of patch, like upstream's next_filename: a
+// trailing "-N" ahead of any .diff, .dif, or .patch and compression suffix
+// counts up, otherwise "-2" goes there (p.patch -> p-2.patch -> p-3.patch).
+std::string next_filename(std::string_view patch);
+
+// Patch lookups, like upstream's functions of the same names. Pass a
+// patch argument as given: these strip the patches/ prefix themselves.
+// Decide whether an argument was given before stripping, since a bare
+// "patches/" is an argument that names no patch, not a request for the
+// top patch. On failure, each prints the reason and returns nullopt.
+//
+// find_patch: the named patch must be in the series.
+// find_top_patch: the topmost applied patch, which must be in the series.
+// find_patch_in_series: find_patch, except an empty name means the top patch.
+// find_applied_patch: find_patch_in_series, and the patch must be applied.
+std::optional<std::string> find_patch(const QuiltState &q, std::string_view name);
+std::optional<std::string> find_top_patch(const QuiltState &q);
+std::optional<std::string> find_patch_in_series(const QuiltState &q, std::string_view name);
+std::optional<std::string> find_applied_patch(const QuiltState &q, std::string_view name);
+
+// Whether when, the value of a --color option, is valid. Like upstream, it
+// may be empty, always, auto, tty, or never. Quilt.cpp never colors its
+// output, so commands discard the option once it checks out.
+bool valid_color_value(std::string_view when);
+
+// Command-line options, parsed like the util-linux getopt(1) that upstream
+// runs over each command's arguments, QUILT_<CMD>_ARGS first:
+//
+// - Short options may be grouped (-qa). A value goes attached (-p0) or in
+//   the next word (-p 0), whatever that word is. An optional value, as in
+//   "z::", only goes attached, and is empty when absent.
+// - Long options take a value after "=" (--fuzz=2), or, when required, in
+//   the next word (--fuzz 2). A unique prefix names an option (--leave).
+//   When an upstream option and a quilt.cpp extension share the prefix,
+//   the upstream option wins.
+// - Options and operands mix in any order. "--" ends the options, and ""
+//   and "-" are operands.
+// - Every command takes --help as -h, a quilt.cpp extension.
+enum class OptArg : unsigned char { none, required, optional };
+
+struct LongOpt {
+    std::string_view name;
+    OptArg arg;
+    int key;                 // a short option letter for an alias, else >= 256
+    bool extension = false;  // quilt.cpp only, so upstream options win ties
+};
+
+struct ParsedOption {
+    int key;                 // the short option letter or LongOpt::key
+    std::string_view value;  // empty when absent
+};
+
+struct ParsedArgs {
+    std::vector<ParsedOption> options;   // in command-line order
+    std::vector<std::string_view> operands;
+};
+
+// Parse argv[1..argc), where argv[0] is the command's name. On a bad
+// option, print what is wrong and the command's usage, as upstream does,
+// and return nullopt, upon which the command exits with status 1.
+std::optional<ParsedArgs> parse_options(int argc, char **argv,
+                                        std::string_view shortopts,
+                                        std::span<const LongOpt> longopts = {});
+
+// Print the command's usage line on stderr, for wrong arguments, and
+// return 1, upstream's exit status for them.
+int usage_error(std::string_view command);
+// Print the command's help on stdout, for -h, and return 0.
+int command_help(std::string_view command);
+
 // Resolve a user-provided file path relative to the current subdirectory.
 inline std::string subdir_path(const QuiltState &q, std::string_view file) {
     if (q.subdir.empty()) return std::string(file);
@@ -167,14 +274,29 @@ inline std::string subdir_path(const QuiltState &q, std::string_view file) {
 bool ensure_pc_dir(QuiltState &q);
 std::string pc_patch_dir(const QuiltState &q, std::string_view patch);
 std::vector<std::string> files_in_patch(const QuiltState &q, std::string_view patch);
+std::vector<std::string> files_in_patch_ordered(const QuiltState &q, std::string_view patch);
 bool backup_file(QuiltState &q, std::string_view patch, std::string_view file);
 bool restore_file(QuiltState &q, std::string_view patch, std::string_view file);
 std::vector<std::string> read_series(std::string_view path,
                                      std::map<std::string, int> *strip_levels,
                                      std::set<std::string> *reversed);
-bool write_series(std::string_view path, std::span<const std::string> patches,
-                  const std::map<std::string, int> &strip_levels,
-                  const std::set<std::string> &reversed);
+// Line-preserving series edits, like upstream's insert_in_series,
+// remove_from_series, rename_in_series, and change_db_strip_level. Only the
+// patch's own line changes, so comments, blank lines, and options on other
+// lines survive. Each reloads q.series, q.patch_strip_level, and
+// q.patch_reversed from the edited file.
+//
+// insert_in_series adds "patch opts" in front of before's line, or at the
+// end when before is empty. set_series_strip_level records strip_level
+// (omitted when 1) and drops -R on patch's line, keeping its other options.
+bool insert_in_series(QuiltState &q, std::string_view patch,
+                      std::string_view opts, std::string_view before);
+bool remove_from_series(QuiltState &q, std::string_view patch);
+bool rename_in_series(QuiltState &q, std::string_view from, std::string_view to);
+bool set_series_strip_level(QuiltState &q, std::string_view patch,
+                            int strip_level);
+// The options on patch's series line, without any comment.
+std::string series_patch_args(const QuiltState &q, std::string_view patch);
 std::vector<std::string> read_applied(std::string_view path);
 bool write_applied(std::string_view path, std::span<const std::string> patches);
 
@@ -184,7 +306,8 @@ using CmdFn = int (*)(QuiltState &q, int argc, char **argv);
 struct Command {
     const char *name;
     CmdFn       fn;
-    const char *usage;
+    const char *synopsis;     // usage line for wrong arguments, as upstream's
+    const char *usage;        // full help, for -h
     const char *description;
 };
 
@@ -262,15 +385,18 @@ int run_cmd_tty(const std::vector<std::string> &argv);
 std::string read_file(std::string_view path);
 bool write_file(std::string_view path, std::string_view content);
 bool append_file(std::string_view path, std::string_view content);
+// Copies keep the source's modification time, like cp -p
 bool copy_file(std::string_view src, std::string_view dst);
 bool rename_path(std::string_view old_path, std::string_view new_path);
 bool delete_file(std::string_view path);
+bool delete_dir(std::string_view path);  // only if empty
 bool delete_dir_recursive(std::string_view path);
 bool make_dir(std::string_view path);
 bool make_dirs(std::string_view path);
 bool file_exists(std::string_view path);
 bool is_directory(std::string_view path);
-int64_t file_mtime(std::string_view path);  // -1 on failure
+// Seconds since the epoch, -1 on failure; nsec gets the fraction, if wanted
+int64_t file_mtime(std::string_view path, int32_t *nsec = nullptr);
 
 struct DirEntry {
     std::string name;
@@ -295,7 +421,6 @@ std::string get_system_quiltrc();
 // I/O
 void fd_write_stdout(std::string_view s);
 void fd_write_stderr(std::string_view s);
-bool stdout_is_tty();
 
 // Read all of stdin
 std::string read_stdin();
@@ -331,6 +456,17 @@ ptrdiff_t QuiltState::top_index() const {
     return -1;
 }
 
+std::string QuiltState::patch_after_top() const {
+    ptrdiff_t next = 0;
+    if (!applied.empty()) {
+        ptrdiff_t top = top_index();
+        if (top < 0) return {};
+        next = top + 1;
+    }
+    if (next >= std::ssize(series)) return {};
+    return series[checked_cast<size_t>(next)];
+}
+
 bool QuiltState::is_applied(std::string_view patch) const {
     for (const auto &a : applied) {
         if (a == patch) return true;
@@ -352,8 +488,7 @@ int QuiltState::get_strip_level(std::string_view patch) const {
 }
 
 std::string QuiltState::get_p_format(std::string_view patch) const {
-    if (get_strip_level(patch) == 0) return "0";
-    return "1";
+    return std::to_string(get_strip_level(patch));
 }
 
 void out(std::string_view s) {
@@ -422,11 +557,132 @@ std::string strip_trailing_slash(std::string_view s) {
     return s.empty() ? std::string("/") : std::string(s);
 }
 
+// The patches directory as named from where quilt was run, like
+// upstream's $SUBDIR_DOWN$QUILT_PATCHES/: one ../ per subdirectory level.
+// Upstream prepends the ../ to an absolute directory too, naming nothing,
+// so here an absolute directory is used as it is.
+static std::string patches_prefix(const QuiltState &q) {
+    std::string prefix;
+    if (!q.subdir.empty() && !is_absolute_path(q.patches_dir)) {
+        prefix = "../";
+        for (char c : q.subdir) {
+            if (c == '/') prefix += "../";
+        }
+    }
+    return prefix + q.patches_dir + "/";
+}
+
 std::string format_patch(const QuiltState &q, std::string_view name) {
     if (!get_env("QUILT_PATCHES_PREFIX").empty()) {
-        return q.patches_dir + "/" + std::string(name);
+        return patches_prefix(q) + std::string(name);
     }
     return std::string(name);
+}
+
+std::string next_filename(std::string_view patch) {
+    // Set aside one compression suffix, then one patch suffix
+    std::string_view base = patch;
+    for (std::string_view ext : {".gz", ".bz2", ".xz", ".lzma", ".lz", ".zst"}) {
+        if (base.ends_with(ext)) {
+            base.remove_suffix(ext.size());
+            break;
+        }
+    }
+    for (std::string_view ext : {".diff", ".dif", ".patch"}) {
+        if (base.ends_with(ext)) {
+            base.remove_suffix(ext.size());
+            break;
+        }
+    }
+    std::string_view ext = patch.substr(base.size());
+
+    // Take a trailing "-N" as decimal even with leading zeros, which
+    // upstream's shell arithmetic reads as octal
+    std::string_view stem = base;
+    while (!stem.empty() && stem.back() >= '0' && stem.back() <= '9')
+        stem.remove_suffix(1);
+    std::string_view digits = base.substr(stem.size());
+    std::string num = "1";
+    if (!digits.empty() && stem.ends_with('-')) {
+        while (std::ssize(digits) > 1 && digits.front() == '0')
+            digits.remove_prefix(1);
+        num = digits;
+        stem.remove_suffix(1);
+    } else {
+        stem = base;
+    }
+
+    // Count up in the string itself, so that no N is too long
+    auto it = num.rbegin();
+    for (; it != num.rend() && *it == '9'; ++it)
+        *it = '0';
+    if (it == num.rend()) num.insert(num.begin(), '1');
+    else ++*it;
+
+    return std::string(stem) + "-" + num + std::string(ext);
+}
+
+std::optional<std::string> find_patch(const QuiltState &q, std::string_view name) {
+    // Like upstream, strip the patches directory as format_patch names it,
+    // so from a subdirectory only ../patches/ is stripped. A bare
+    // "patches/" strips to nothing, which names no patch.
+    std::string prefix = patches_prefix(q);
+    std::string_view patch = name;
+    if (patch.starts_with(prefix)) patch.remove_prefix(prefix.size());
+    if (!patch.empty() && q.find_in_series(patch)) {
+        return std::string(patch);
+    }
+    if (!q.series_file_exists) {
+        err_line("No series file found");
+    } else if (q.series.empty()) {
+        err_line("No patches in series");
+    } else {
+        // Upstream echoes the name as given here, but not below
+        err("Patch "); err(name); err_line(" is not in series");
+    }
+    return std::nullopt;
+}
+
+std::optional<std::string> find_top_patch(const QuiltState &q) {
+    // Upstream checks for the series file, and that it still matches the
+    // applied patches, before running any command that looks up a patch
+    if (!q.series_file_exists) {
+        err_line("No series file found");
+        return std::nullopt;
+    }
+    if (!q.applied.empty()) {
+        if (!q.find_in_series(q.applied.back())) {
+            err_line("The series file no longer matches the applied patches. "
+                     "Please run 'quilt pop -a'.");
+            return std::nullopt;
+        }
+        return q.applied.back();
+    }
+    if (q.series.empty()) {
+        err_line("No patches in series");
+    } else {
+        err_line("No patches applied");
+    }
+    return std::nullopt;
+}
+
+std::optional<std::string> find_patch_in_series(const QuiltState &q, std::string_view name) {
+    return name.empty() ? find_top_patch(q) : find_patch(q, name);
+}
+
+std::optional<std::string> find_applied_patch(const QuiltState &q, std::string_view name) {
+    if (name.empty()) return find_top_patch(q);
+    auto patch = find_patch(q, name);
+    if (patch && !q.is_applied(*patch)) {
+        err("Patch "); err(format_patch(q, *patch)); err_line(" is not applied");
+        return std::nullopt;
+    }
+    return patch;
+}
+
+bool valid_color_value(std::string_view when) {
+    return when.empty() || when == "always" || when == "auto" ||
+           when == "tty" || when == "never";
 }
 
 std::string trim(std::string_view s) {
@@ -456,6 +712,189 @@ std::vector<std::string> split_lines(std::string_view s) {
         s.remove_prefix(checked_cast<size_t>(pos + 1));
     }
     return lines;
+}
+
+// /^<tag>[ \t][^ \t]/ for a tag of "***", "---" or "+++"
+static bool is_file_label(std::string_view line, std::string_view tag) {
+    return std::ssize(line) >= 5 && line.starts_with(tag) &&
+           (line[3] == ' ' || line[3] == '\t') &&
+           line[4] != ' ' && line[4] != '\t';
+}
+
+// /^Index:[ \t][^ \t]|^diff -/
+static bool is_diff_start(std::string_view line) {
+    return line.starts_with("diff -") ||
+           (std::ssize(line) >= 8 && line.starts_with("Index:") &&
+            (line[6] == ' ' || line[6] == '\t') &&
+            line[7] != ' ' && line[7] != '\t');
+}
+
+struct PatchSplit {
+    ptrdiff_t header_end;  // the header is [0, header_end)
+    ptrdiff_t body_start;  // the body is [body_start, end)
+};
+
+// The state machine shared by upstream's patch_header and patch_body awk
+// scripts. A "*** x" or "--- x" line starts the body only when the next
+// line is "--- y" or "+++ y" respectively. When it is not, the held line
+// goes to the header, and the next line cannot be held in turn, though it
+// may still be an "Index: x" or "diff -" line. A line still held at the
+// end of input is in neither part.
+static PatchSplit split_patch(std::string_view s) {
+    std::string_view confirm;  // the label that confirms the held line
+    ptrdiff_t held = 0;
+    ptrdiff_t n = std::ssize(s);
+    for (ptrdiff_t pos = 0, next = 0; pos < n; pos = next) {
+        ptrdiff_t nl = str_find(s, '\n', pos);
+        ptrdiff_t end = nl < 0 ? n : nl;
+        next = nl < 0 ? n : nl + 1;
+        std::string_view line = s.substr(checked_cast<size_t>(pos),
+                                         checked_cast<size_t>(end - pos));
+        if (confirm.empty()) {
+            if (is_file_label(line, "***")) confirm = "---";
+            else if (is_file_label(line, "---")) confirm = "+++";
+            if (!confirm.empty()) {
+                held = pos;
+                continue;
+            }
+        } else if (is_file_label(line, confirm)) {
+            return {held, held};
+        } else {
+            confirm = {};
+        }
+        if (is_diff_start(line)) return {pos, pos};
+    }
+    return {confirm.empty() ? n : held, n};
+}
+
+// Like awk's print, end the last line with a newline
+static std::string awk_lines(std::string_view s) {
+    std::string r(s);
+    if (!r.empty() && r.back() != '\n') r += '\n';
+    return r;
+}
+
+std::string patch_header(std::string_view patch) {
+    auto split = split_patch(patch);
+    return awk_lines(patch.substr(0, checked_cast<size_t>(split.header_end)));
+}
+
+std::string patch_body(std::string_view patch) {
+    auto split = split_patch(patch);
+    return awk_lines(patch.substr(checked_cast<size_t>(split.body_start)));
+}
+
+// Remove the first line from s and return it without its '\n'
+static std::string_view take_line(std::string_view &s) {
+    ptrdiff_t nl = str_find(s, '\n');
+    ptrdiff_t len = nl < 0 ? std::ssize(s) : nl;
+    std::string_view line = s.substr(0, checked_cast<size_t>(len));
+    s.remove_prefix(checked_cast<size_t>(nl < 0 ? len : len + 1));
+    return line;
+}
+
+// /^#? .* files? changed/, how upstream's diffstat summary patterns start
+static bool is_diffstat_summary(std::string_view line) {
+    ptrdiff_t p = line.starts_with('#') ? 1 : 0;
+    return std::ssize(line) > p && line[checked_cast<size_t>(p)] == ' ' &&
+           (str_find(line, " file changed", p + 1) >= 0 ||
+            str_find(line, " files changed", p + 1) >= 0);
+}
+
+// Like upstream: lines matching /#? .* \| / are held until a line matching
+// /^#? .* files? changed/ drops them and itself, or any other line puts
+// them back. The awk script has no END rule, so lines still held at the
+// end are lost.
+std::string strip_diffstat(std::string_view header) {
+    std::string result;
+    std::string held;
+    while (!header.empty()) {
+        std::string_view line = take_line(header);
+        ptrdiff_t space = str_find(line, ' ');
+        if (space >= 0 && str_find(line, " | ", space + 1) >= 0) {
+            held += line;
+            held += '\n';
+            continue;
+        }
+        if (is_diffstat_summary(line)) {
+            held.clear();
+            continue;
+        }
+        result += held;
+        result += line;
+        result += '\n';
+        held.clear();
+    }
+    return result;
+}
+
+// /^#? .* \|  *[1-9][0-9]* /, upstream refresh's diffstat file line
+static bool is_diffstat_file_line(std::string_view line) {
+    ptrdiff_t n = std::ssize(line);
+    ptrdiff_t p = line.starts_with('#') ? 1 : 0;
+    if (n <= p || line[checked_cast<size_t>(p)] != ' ') return false;
+    auto at = [&](ptrdiff_t i) { return line[checked_cast<size_t>(i)]; };
+    for (ptrdiff_t bar = str_find(line, " |", p + 1); bar >= 0;
+         bar = str_find(line, " |", bar + 1)) {
+        ptrdiff_t i = bar + 2;
+        if (i >= n || at(i) != ' ') continue;
+        while (i < n && at(i) == ' ') ++i;
+        if (i >= n || at(i) < '1' || at(i) > '9') continue;
+        while (i < n && at(i) >= '0' && at(i) <= '9') ++i;
+        if (i < n && at(i) == ' ') return true;
+    }
+    return false;
+}
+
+// Like upstream refresh --diffstat's awk script: diffstat file lines are
+// held. A summary line drops them and itself for the new diffstat, with
+// each line prefixed by "#" when the summary line starts with one. Any
+// other line puts the held lines back. With no summary line, the held
+// lines stay, and "---", the new diffstat and a line holding just the last
+// line's "#" prefix (if any) are added at the end, so an empty header
+// becomes "---", the diffstat and a blank line. Every other byte, CRs and
+// blank lines included, is kept.
+std::string replace_diffstat(std::string_view header, std::string_view diffstat) {
+    std::string result;
+    std::string held;
+    std::string_view prefix;
+    bool replaced = false;
+    auto put_diffstat = [&] {
+        for (std::string_view s = diffstat; !s.empty();) {
+            ptrdiff_t nl = str_find(s, '\n');
+            ptrdiff_t len = nl < 0 ? std::ssize(s) : nl + 1;
+            result += prefix;
+            result += s.substr(0, checked_cast<size_t>(len));
+            s.remove_prefix(checked_cast<size_t>(len));
+        }
+    };
+    while (!header.empty()) {
+        std::string_view line = take_line(header);
+        prefix = line.starts_with('#') ? "#" : "";
+        if (is_diffstat_file_line(line)) {
+            held += line;
+            held += '\n';
+            continue;
+        }
+        if (is_diffstat_summary(line)) {
+            put_diffstat();
+            replaced = true;
+            held.clear();
+            continue;
+        }
+        result += held;
+        result += line;
+        result += '\n';
+        held.clear();
+    }
+    result += held;
+    if (!replaced) {
+        result += "---\n";
+        put_diffstat();
+        result += prefix;
+        result += '\n';
+    }
+    return result;
 }
 
 
@@ -557,12 +996,10 @@ std::vector<std::string> shell_split(std::string_view s) {
     return tokens;
 }
 
-std::vector<std::string> read_series(std::string_view path,
-                                     std::map<std::string, int> *strip_levels,
-                                     std::set<std::string> *reversed) {
+static std::vector<std::string> parse_series(std::string_view content,
+                                             std::map<std::string, int> *strip_levels,
+                                             std::set<std::string> *reversed) {
     std::vector<std::string> patches;
-    std::string content = read_file(path);
-    if (content.empty()) return patches;
     auto lines = split_lines(content);
     for (auto &line : lines) {
         std::string trimmed = trim(line);
@@ -601,23 +1038,194 @@ std::vector<std::string> read_series(std::string_view path,
     return patches;
 }
 
-bool write_series(std::string_view path, std::span<const std::string> patches,
-                  const std::map<std::string, int> &strip_levels,
-                  const std::set<std::string> &reversed) {
-    std::string content;
-    for (const auto &p : patches) {
-        content += p;
-        auto it = strip_levels.find(p);
-        if (it != strip_levels.end() && it->second != 1) {
-            content += " -p";
-            content += std::to_string(it->second);
-        }
-        if (reversed.contains(p)) {
-            content += " -R";
-        }
-        content += '\n';
+std::vector<std::string> read_series(std::string_view path,
+                                     std::map<std::string, int> *strip_levels,
+                                     std::set<std::string> *reversed) {
+    return parse_series(read_file(path), strip_levels, reversed);
+}
+
+// Split series file content into lines, each keeping its line ending, so
+// that edits reproduce untouched lines byte for byte.
+static std::vector<std::string_view> series_lines(std::string_view content) {
+    std::vector<std::string_view> lines;
+    while (!content.empty()) {
+        auto nl = str_find(content, '\n');
+        auto len = nl < 0 ? std::ssize(content) : nl + 1;
+        lines.push_back(content.substr(0, checked_cast<size_t>(len)));
+        content.remove_prefix(checked_cast<size_t>(len));
     }
-    return write_file(path, content);
+    return lines;
+}
+
+// The patch a series line names, as read_series sees it: the first word of
+// the trimmed line, unless the line is blank or a comment, in which case it
+// is empty.
+static std::string_view series_line_patch(std::string_view line) {
+    auto is_space = [](char c) {
+        return c == ' ' || c == '\t' || c == '\r' || c == '\n';
+    };
+    while (!line.empty() && is_space(line.front())) line.remove_prefix(1);
+    while (!line.empty() && is_space(line.back())) line.remove_suffix(1);
+    ptrdiff_t len = 0;
+    while (len < std::ssize(line) && line[checked_cast<size_t>(len)] != ' ' &&
+           line[checked_cast<size_t>(len)] != '\t') {
+        ++len;
+    }
+    std::string_view name = line.substr(0, checked_cast<size_t>(len));
+    return name.starts_with('#') ? std::string_view{} : name;
+}
+
+// Write an edited series file, then reload the in-memory series from it.
+static bool store_series(QuiltState &q, std::string_view path,
+                         std::string_view content) {
+    if (!write_file(path, content)) return false;
+    q.series_file_exists = true;
+    q.patch_strip_level.clear();
+    q.patch_reversed.clear();
+    q.series = parse_series(content, &q.patch_strip_level, &q.patch_reversed);
+    return true;
+}
+
+bool insert_in_series(QuiltState &q, std::string_view patch,
+                      std::string_view opts, std::string_view before) {
+    std::string path = path_join(q.work_dir, q.series_file);
+    std::string content = read_file(path);
+    auto lines = series_lines(content);
+
+    // The new line follows the file's line endings
+    std::string_view eol = !lines.empty() && lines[0].ends_with("\r\n") ? "\r\n" : "\n";
+    std::string entry(patch);
+    if (!opts.empty()) {
+        entry += ' ';
+        entry += opts;
+    }
+    entry += eol;
+
+    std::string result;
+    bool inserted = false;
+    for (auto line : lines) {
+        if (!inserted && !before.empty() && series_line_patch(line) == before) {
+            result += entry;
+            inserted = true;
+        }
+        result += line;
+    }
+    if (!inserted) {
+        if (!result.empty() && !result.ends_with('\n')) result += eol;
+        result += entry;
+    }
+    return store_series(q, path, result);
+}
+
+bool remove_from_series(QuiltState &q, std::string_view patch) {
+    std::string path = path_join(q.work_dir, q.series_file);
+    std::string content = read_file(path);
+    std::string result;
+    for (auto line : series_lines(content)) {
+        auto name = series_line_patch(line);
+        if (name.empty() || name != patch) result += line;
+    }
+    return store_series(q, path, result);
+}
+
+bool rename_in_series(QuiltState &q, std::string_view from, std::string_view to) {
+    std::string path = path_join(q.work_dir, q.series_file);
+    std::string content = read_file(path);
+    std::string result;
+    for (auto line : series_lines(content)) {
+        auto name = series_line_patch(line);
+        if (name.empty() || name != from) {
+            result += line;
+            continue;
+        }
+        // Keep the indentation, options, and comment around the name
+        auto at = name.data() - line.data();
+        result += line.substr(0, checked_cast<size_t>(at));
+        result += to;
+        result += line.substr(checked_cast<size_t>(at + std::ssize(name)));
+    }
+    return store_series(q, path, result);
+}
+
+std::string series_patch_args(const QuiltState &q, std::string_view patch) {
+    std::string content = read_file(path_join(q.work_dir, q.series_file));
+    for (auto line : series_lines(content)) {
+        auto name = series_line_patch(line);
+        if (name.empty() || name != patch) continue;
+        auto end = name.data() - line.data() + std::ssize(name);
+        std::string args;
+        for (const auto &tok : split_on_whitespace(trim(line.substr(checked_cast<size_t>(end))))) {
+            if (tok.starts_with('#')) break;
+            if (!args.empty()) args += ' ';
+            args += tok;
+        }
+        return args;
+    }
+    return {};
+}
+
+bool set_series_strip_level(QuiltState &q, std::string_view patch,
+                            int strip_level) {
+    std::string path = path_join(q.work_dir, q.series_file);
+    std::string content = read_file(path);
+    std::string result;
+    bool changed = false;
+    for (auto line : series_lines(content)) {
+        auto name = series_line_patch(line);
+        if (name.empty() || name != patch) {
+            result += line;
+            continue;
+        }
+
+        // Split off the line ending and inline comment as read_series does
+        std::string_view body = line;
+        if (body.ends_with('\n')) body.remove_suffix(1);
+        if (body.ends_with('\r')) body.remove_suffix(1);
+        std::string_view eol = line.substr(body.size());
+        std::string_view comment;
+        auto hash = str_find(body, " #");
+        if (hash >= 0) {
+            comment = body.substr(checked_cast<size_t>(hash + 1));
+            body = body.substr(0, checked_cast<size_t>(hash));
+        }
+        auto tokens = split_on_whitespace(body);
+
+        // Drop -R and any -p option ("-pN" or "-p N"), then put the new
+        // level where the old one was, or right after the name.
+        std::vector<std::string> opts;
+        ptrdiff_t level_at = -1;
+        for (ptrdiff_t i = 1; i < std::ssize(tokens); ++i) {
+            const auto &tok = tokens[checked_cast<size_t>(i)];
+            if (tok == "-R") continue;
+            if (tok.starts_with("-p")) {
+                if (tok == "-p" && i + 1 < std::ssize(tokens)) ++i;
+                if (level_at < 0) level_at = std::ssize(opts);
+                continue;
+            }
+            opts.push_back(tok);
+        }
+        if (strip_level != 1) {
+            opts.insert(opts.begin() + std::max(level_at, ptrdiff_t{0}),
+                        "-p" + std::to_string(strip_level));
+        }
+        if (std::equal(opts.begin(), opts.end(), tokens.begin() + 1, tokens.end())) {
+            result += line;
+            continue;
+        }
+
+        result += tokens[0];
+        for (const auto &opt : opts) {
+            result += ' ';
+            result += opt;
+        }
+        if (!comment.empty()) {
+            result += ' ';
+            result += comment;
+        }
+        result += eol;
+        changed = true;
+    }
+    return !changed || store_series(q, path, result);
 }
 
 std::vector<std::string> read_applied(std::string_view path) {
@@ -874,13 +1482,87 @@ std::vector<std::string> files_in_patch(const QuiltState &q, std::string_view pa
     auto all = find_files_recursive(dir);
     std::vector<std::string> result;
     for (auto &f : all) {
-        // Skip quilt metadata files (e.g. .timestamp, .needs_refresh)
-        auto slash = str_rfind(std::string_view(f), '/');
-        std::string_view base = (slash >= 0)
-            ? std::string_view(f).substr(checked_cast<size_t>(slash + 1))
-            : std::string_view(f);
-        if (!base.empty() && base[0] == '.') continue;
+        // Skip quilt metadata, which lives only at the top level of
+        // .pc/<patch>/. Other dotfiles (.gitignore, sub/.hidden) are
+        // tracked files.
+        if (f == ".timestamp" || f == ".needs_refresh") continue;
         result.push_back(std::move(f));
+    }
+    return result;
+}
+
+// File names in the patch file, in order, like upstream's
+// filenames_in_patch: a loose scan of ---, +++, and *** lines anywhere in
+// the file, with the series strip level applied.
+static std::vector<std::string> filenames_in_patch(const QuiltState &q,
+                                                   std::string_view patch) {
+    std::vector<std::string> names;
+    std::string path = path_join(q.work_dir, q.patches_dir, patch);
+    if (!file_exists(path)) return names;
+    std::string content = read_file(path);
+    int strip = q.get_strip_level(patch);
+    std::set<std::string, std::less<>> seen;
+
+    std::string_view rest = content;
+    while (!rest.empty()) {
+        ptrdiff_t nl = str_find(rest, '\n');
+        std::string_view line = nl < 0 ? rest : rest.substr(0, checked_cast<size_t>(nl));
+        rest.remove_prefix(nl < 0 ? rest.size() : checked_cast<size_t>(nl + 1));
+
+        // The first and third whitespace-separated fields, like awk's
+        std::string_view fields[3];
+        std::string_view scan = line;
+        for (auto &field : fields) {
+            while (!scan.empty() && (scan[0] == ' ' || scan[0] == '\t')) scan.remove_prefix(1);
+            ptrdiff_t end = 0;
+            while (end < std::ssize(scan) && scan[checked_cast<size_t>(end)] != ' ' &&
+                   scan[checked_cast<size_t>(end)] != '\t') ++end;
+            field = scan.substr(0, checked_cast<size_t>(end));
+            scan.remove_prefix(checked_cast<size_t>(end));
+        }
+        if (!(fields[0] == "+++" || (fields[0] == "---" && fields[2] != "----") ||
+              (fields[0] == "***" && fields[2] != "****"))) continue;
+        if (std::ssize(line) < 4 || line[3] != ' ') continue;
+        std::string_view name = line.substr(4);
+
+        if (name.starts_with('"')) {
+            // Up to the first quote that ends the line or precedes a tab
+            name.remove_prefix(1);
+            for (ptrdiff_t i = 0; i < std::ssize(name); ++i) {
+                if (name[checked_cast<size_t>(i)] == '"' &&
+                    (i + 1 == std::ssize(name) || name[checked_cast<size_t>(i + 1)] == '\t')) {
+                    name = name.substr(0, checked_cast<size_t>(i));
+                    break;
+                }
+            }
+        } else {
+            ptrdiff_t tab = str_find(name, '\t');
+            if (tab >= 0) name = name.substr(0, checked_cast<size_t>(tab));
+        }
+        if (name.empty() || name == "/dev/null") continue;
+
+        for (int n = 0; n < strip; ++n) {
+            ptrdiff_t slash = str_find(name, '/');
+            if (slash > 0) name.remove_prefix(checked_cast<size_t>(slash + 1));
+        }
+        if (seen.insert(std::string(name)).second) names.emplace_back(name);
+    }
+    return names;
+}
+
+std::vector<std::string> files_in_patch_ordered(const QuiltState &q, std::string_view patch) {
+    // Like upstream: the patch's files in the order its patch file names
+    // them, then any others in sorted order
+    auto files = files_in_patch(q, patch);
+    std::ranges::sort(files);
+    std::set<std::string, std::less<>> tracked(files.begin(), files.end());
+    std::vector<std::string> result;
+    std::set<std::string, std::less<>> placed;
+    for (auto &name : filenames_in_patch(q, patch)) {
+        if (tracked.contains(name) && placed.insert(name).second) result.push_back(name);
+    }
+    for (auto &file : files) {
+        if (!placed.contains(file)) result.push_back(file);
     }
     return result;
 }
@@ -943,6 +1625,7 @@ std::string to_cstr(std::string_view s) {
 
 static Command commands[] = {
     {"new", cmd_new,
+     "Usage: quilt new [-p n] {patchname}",
      "Usage: quilt new [-p n] patchname\n"
      "\n"
      "Create a new empty patch and insert it after the topmost applied\n"
@@ -954,6 +1637,7 @@ static Command commands[] = {
      "Create a new empty patch"},
 
     {"add", cmd_add,
+     "Usage: quilt add [-P patch] {file} ...",
      "Usage: quilt add [-P patch] file ...\n"
      "\n"
      "Register files with the topmost patch by backing up their current\n"
@@ -966,6 +1650,8 @@ static Command commands[] = {
      "Add files to the topmost patch"},
 
     {"push", cmd_push,
+     "Usage: quilt push [-afqvm] [--fuzz=N] [--merge[=merge|diff3]] "
+     "[--leave-rejects] [--color[=always|auto|never]] [--refresh] [num|patch]",
      "Usage: quilt push [-afqv] [--fuzz=N] [-m] [--merge[=merge|diff3]]\n"
      "       [--leave-rejects] [--refresh] [num|patch]\n"
      "\n"
@@ -986,6 +1672,7 @@ static Command commands[] = {
      "Apply patches to the source tree"},
 
     {"pop", cmd_pop,
+     "Usage: quilt pop [-afRqv] [--refresh] [num|patch]",
      "Usage: quilt pop [-afRqv] [--refresh] [num|patch]\n"
      "\n"
      "Remove the topmost applied patch by restoring files from backup.\n"
@@ -1003,6 +1690,9 @@ static Command commands[] = {
      "Remove applied patches from the stack"},
 
     {"refresh", cmd_refresh,
+     "Usage: quilt refresh [-p n|-p ab] [-u|-U num|-c|-C num] [-z[new_name]] "
+     "[-f] [--no-timestamps] [--no-index] [--diffstat] [--sort] [--backup] "
+     "[--strip-trailing-whitespace] [patch]",
      "Usage: quilt refresh [-p n] [-u | -U num | -c | -C num] [-z [new_name]]\n"
      "       [-f] [--no-timestamps] [--no-index] [--diffstat] [--sort]\n"
      "       [--strip-trailing-whitespace] [--backup]\n"
@@ -1038,6 +1728,10 @@ static Command commands[] = {
      "Regenerate a patch from working tree changes"},
 
     {"diff", cmd_diff,
+     "Usage: quilt diff [-p n|-p ab] [-u|-U num|-c|-C num] "
+     "[--combine patch|-z] [-R] [-P patch] [--snapshot] [--diff=utility] "
+     "[--no-timestamps] [--no-index] [--sort] [--color[=always|auto|never]] "
+     "[file ...]",
      "Usage: quilt diff [-p n] [-u | -U num | -c | -C num]\n"
      "       [--combine patch] [-P patch] [-z] [-R] [--snapshot]\n"
      "       [--diff=utility] [--no-timestamps] [--no-index] [--sort]\n"
@@ -1075,15 +1769,17 @@ static Command commands[] = {
      "Show the diff of the topmost or a specified patch"},
 
     {"series", cmd_series,
+     "Usage: quilt series [--color[=always|auto|never]] [-v]",
      "Usage: quilt series [-v]\n"
      "\n"
      "List all patches in the series file, both applied and unapplied.\n"
      "\n"
      "Options:\n"
-     "  -v          Mark applied patches with = and the top with =.\n",
+     "  -v          Mark applied patches with + and the top with =.\n",
      "List all patches in the series"},
 
     {"applied", cmd_applied,
+     "Usage: quilt applied [patch]",
      "Usage: quilt applied [patch]\n"
      "\n"
      "List the currently applied patches in stack order. With a patch\n"
@@ -1091,6 +1787,7 @@ static Command commands[] = {
      "List applied patches"},
 
     {"unapplied", cmd_unapplied,
+     "Usage: quilt unapplied [patch]",
      "Usage: quilt unapplied [patch]\n"
      "\n"
      "List the patches that have not been applied yet. With a patch\n"
@@ -1098,12 +1795,14 @@ static Command commands[] = {
      "List patches not yet applied"},
 
     {"top", cmd_top,
+     "Usage: quilt top",
      "Usage: quilt top\n"
      "\n"
      "Print the name of the topmost applied patch.\n",
      "Show the topmost applied patch"},
 
     {"next", cmd_next,
+     "Usage: quilt next [patch]",
      "Usage: quilt next [patch]\n"
      "\n"
      "Print the patch after the topmost applied patch, or after the\n"
@@ -1111,6 +1810,7 @@ static Command commands[] = {
      "Show the next patch after the top or a given patch"},
 
     {"previous", cmd_previous,
+     "Usage: quilt previous [patch]",
      "Usage: quilt previous [patch]\n"
      "\n"
      "Print the patch before the topmost applied patch, or before the\n"
@@ -1118,7 +1818,8 @@ static Command commands[] = {
      "Show the patch before the top or a given patch"},
 
     {"delete", cmd_delete,
-     "Usage: quilt delete [-r] [--backup] [-n] [patch]\n"
+     "Usage: quilt delete [-r] [--backup] [patch|-n]",
+     "Usage: quilt delete [-r] [--backup] [patch|-n]\n"
      "\n"
      "Remove the topmost applied patch or a named unapplied patch from\n"
      "the series. The patch file is kept unless -r is given.\n"
@@ -1130,6 +1831,7 @@ static Command commands[] = {
      "Remove a patch from the series"},
 
     {"rename", cmd_rename,
+     "Usage: quilt rename [-P patch] new_name",
      "Usage: quilt rename [-P patch] new_name\n"
      "\n"
      "Rename the topmost or named patch. Updates the series file and\n"
@@ -1140,6 +1842,8 @@ static Command commands[] = {
      "Rename a patch"},
 
     {"import", cmd_import,
+     "Usage: quilt import [-p num] [-R] [-P patch] [-f] [-d "
+     "{o|a|n}] patchfile ...",
      "Usage: quilt import [-p n] [-R] [-P name] [-f] [-d {o|a|n}] file ...\n"
      "\n"
      "Copy an external patch file into the patches directory and add it\n"
@@ -1156,6 +1860,8 @@ static Command commands[] = {
      "Import an external patch into the series"},
 
     {"header", cmd_header,
+     "Usage: quilt header [-a|-r|-e] [--backup] [--strip-diffstat] "
+     "[--strip-trailing-whitespace] [patch]",
      "Usage: quilt header [-a|-r|-e] [--backup] [--dep3]\n"
      "       [--strip-diffstat] [--strip-trailing-whitespace] [patch]\n"
      "\n"
@@ -1174,6 +1880,7 @@ static Command commands[] = {
      "Print or modify a patch header"},
 
     {"files", cmd_files,
+     "Usage: quilt files [-v] [-a] [-l] [--combine patch] [patch]",
      "Usage: quilt files [-v] [-a] [-l] [--combine patch] [patch]\n"
      "\n"
      "List the files that the topmost or named patch modifies.\n"
@@ -1186,6 +1893,8 @@ static Command commands[] = {
      "List files modified by a patch"},
 
     {"patches", cmd_patches,
+     "Usage: quilt patches [-v] [--color[=always|auto|never]] {file} "
+     "[files...]",
      "Usage: quilt patches [-v] file ...\n"
      "\n"
      "List the patches that modify the given file or files. Searches\n"
@@ -1197,6 +1906,7 @@ static Command commands[] = {
      "List patches that modify a given file"},
 
     {"edit", cmd_edit,
+     "Usage: quilt edit file ...",
      "Usage: quilt edit file ...\n"
      "\n"
      "Add files to the topmost patch and open them in $EDITOR. This is\n"
@@ -1205,6 +1915,7 @@ static Command commands[] = {
      "Add files to the topmost patch and open an editor"},
 
     {"revert", cmd_revert,
+     "Usage: quilt revert [-P patch] {file} ...",
      "Usage: quilt revert [-P patch] file ...\n"
      "\n"
      "Discard uncommitted changes to files by restoring them from the\n"
@@ -1216,6 +1927,7 @@ static Command commands[] = {
      "Discard working tree changes to files in a patch"},
 
     {"remove", cmd_remove,
+     "Usage: quilt remove [-P patch] {file} ...",
      "Usage: quilt remove [-P patch] file ...\n"
      "\n"
      "Remove files from the topmost or named patch and restore them\n"
@@ -1226,6 +1938,7 @@ static Command commands[] = {
      "Remove files from the topmost patch"},
 
     {"fold", cmd_fold,
+     "Usage: quilt fold [-R] [-q] [-f] [-p strip-level]",
      "Usage: quilt fold [-R] [-q] [-f] [-p n]\n"
      "\n"
      "Fold a diff read from standard input into the topmost patch.\n"
@@ -1240,15 +1953,19 @@ static Command commands[] = {
      "Fold a diff from stdin into the topmost patch"},
 
     {"fork", cmd_fork,
+     "Usage: quilt fork [new_name]",
      "Usage: quilt fork [new_name]\n"
      "\n"
      "Copy the topmost patch to a new name. The series is updated to\n"
      "reference the copy; the original file is kept but removed from\n"
-     "the series. If no name is given, -2 is appended (or -3, etc.).\n",
+     "the series. If no name is given, -2 goes ahead of any .diff or\n"
+     ".patch suffix, or a -N already there counts up (patch.diff,\n"
+     "patch-2.diff, patch-3.diff).\n",
      "Create a copy of the topmost patch under a new name"},
 
     // Implemented analysis commands
     {"annotate", cmd_annotate,
+     "Usage: quilt annotate [-P patch] {file}",
      "Usage: quilt annotate [-P patch] file\n"
      "\n"
      "Show which applied patch last modified each line of a file,\n"
@@ -1260,6 +1977,8 @@ static Command commands[] = {
      "Show which patch modified each line of a file"},
 
     {"graph", cmd_graph,
+     "Usage: quilt graph [--all] [--reduce] [--lines[=num]] "
+     "[--edge-labels=files] [-T ps] [patch]",
      "Usage: quilt graph [--all] [--reduce] [--lines[=num]]\n"
      "                   [--edge-labels=files] [patch]\n"
      "\n"
@@ -1277,6 +1996,9 @@ static Command commands[] = {
      "Print a dot dependency graph of applied patches"},
 
     {"mail", cmd_mail,
+     "Usage: quilt mail {--mbox file} [--prefix prefix] [--sender ...] "
+     "[--from ...] [--to ...] [--cc ...] [--bcc ...] "
+     "[first_patch [last_patch]]",
      "Usage: quilt mail {--mbox file} [--prefix prefix] [--sender addr]\n"
      "                  [--from addr] [--to addr] [--cc addr] [--bcc addr]\n"
      "                  [first_patch [last_patch]]\n"
@@ -1297,6 +2019,7 @@ static Command commands[] = {
 
     // Stubs
     {"grep", cmd_grep,
+     "Usage: quilt grep [-h|options] {pattern}",
      "Usage: quilt grep [-h|options] pattern\n"
      "\n"
      "Search source files, skipping patches/ and .pc/ directories.\n"
@@ -1304,6 +2027,8 @@ static Command commands[] = {
      "Search source files (not implemented)"},
 
     {"setup", cmd_setup,
+     "Usage: quilt setup [-d path-prefix] [-v] [--sourcedir dir] [--fuzz=N] "
+     "[--spec-filter FILTER] [--slow|--fast] {specfile|seriesfile}",
      "Usage: quilt setup [-d path] series\n"
      "\n"
      "Initialize a source tree from a series file or RPM spec.\n"
@@ -1311,6 +2036,7 @@ static Command commands[] = {
      "Set up a source tree from a series file (not implemented)"},
 
     {"shell", cmd_shell,
+     "Usage: quilt shell [command]",
      "Usage: quilt shell [command]\n"
      "\n"
      "Open a shell or run a command in the quilt environment.\n"
@@ -1318,6 +2044,7 @@ static Command commands[] = {
      "Open a subshell (not implemented)"},
 
     {"snapshot", cmd_snapshot,
+     "Usage: quilt snapshot [-d]",
      "Usage: quilt snapshot [-d]\n"
      "\n"
      "Save a copy of the current working tree state for later\n"
@@ -1328,6 +2055,7 @@ static Command commands[] = {
      "Save a snapshot of the working tree for later diff"},
 
     {"upgrade", cmd_upgrade,
+     "Usage: quilt upgrade",
      "Usage: quilt upgrade\n"
      "\n"
      "Upgrade quilt metadata in .pc/ to the current format. This is\n"
@@ -1335,6 +2063,7 @@ static Command commands[] = {
      "Upgrade quilt metadata to the current format"},
 
     {"init", cmd_init,
+     "Usage: quilt init",
      "Usage: quilt init\n"
      "\n"
      "Initialize quilt metadata in the current directory. This is\n"
@@ -1346,6 +2075,145 @@ static Command commands[] = {
 
 static constexpr int num_commands = sizeof(commands) / sizeof(commands[0]);
 
+static const Command *find_command(std::string_view name) {
+    for (const auto &c : commands) {
+        if (name == c.name) return &c;
+    }
+    return nullptr;
+}
+
+int usage_error(std::string_view command) {
+    if (const Command *c = find_command(command)) err_line(c->synopsis);
+    return 1;
+}
+
+int command_help(std::string_view command) {
+    if (const Command *c = find_command(command)) out_line(c->usage);
+    return 0;
+}
+
+// The option that --name names: an exact match, or else the only option
+// that name abbreviates, where upstream's options beat quilt.cpp's
+// extensions. Without one, return the candidates, which may be none.
+static const LongOpt *match_long_option(std::span<const LongOpt> longopts,
+                                        std::string_view name,
+                                        std::vector<const LongOpt *> &candidates)
+{
+    for (const auto &opt : longopts) {
+        if (opt.name == name) return &opt;
+        if (!name.empty() && opt.name.starts_with(name)) candidates.push_back(&opt);
+    }
+    if (std::ranges::any_of(candidates, [](auto *c) { return !c->extension; })) {
+        std::erase_if(candidates, [](auto *c) { return c->extension; });
+    }
+    if (candidates.empty()) return nullptr;
+    // Like getopt_long, names for the same option are no ambiguity
+    const LongOpt *first = candidates.front();
+    bool same = std::ranges::all_of(candidates, [&](auto *c) {
+        return c->key == first->key && c->arg == first->arg;
+    });
+    return same ? first : nullptr;
+}
+
+std::optional<ParsedArgs> parse_options(int argc, char **argv,
+                                        std::string_view shortopts,
+                                        std::span<const LongOpt> longopts)
+{
+    std::string_view command = argv[0];
+    std::vector<LongOpt> all_longopts(longopts.begin(), longopts.end());
+    all_longopts.push_back({"help", OptArg::none, 'h', true});
+
+    // Like getopt(1), report every bad option before giving up
+    bool ok = true;
+    auto complain = [&](std::string_view what) {
+        err("quilt "); err(command); err(": "); err_line(what);
+        ok = false;
+    };
+
+    ParsedArgs parsed;
+    for (int i = 1; i < argc; ++i) {
+        std::string_view arg = argv[i];
+        if (arg == "--") {
+            while (++i < argc) parsed.operands.emplace_back(argv[i]);
+            break;
+        }
+        if (std::ssize(arg) < 2 || arg[0] != '-') {
+            parsed.operands.push_back(arg);
+            continue;
+        }
+
+        if (arg[1] == '-') {
+            std::string_view body = arg.substr(2);
+            ptrdiff_t eq = str_find(body, '=');
+            std::string_view name = body.substr(0, eq < 0 ? body.size() : checked_cast<size_t>(eq));
+            std::vector<const LongOpt *> candidates;
+            const LongOpt *opt = match_long_option(all_longopts, name, candidates);
+            if (!opt) {
+                std::string what;
+                if (candidates.empty()) {
+                    what = "unrecognized option '" + std::string(arg) + "'";
+                } else {
+                    what = "option '" + std::string(arg) + "' is ambiguous; possibilities:";
+                    for (auto *c : candidates) what += " '--" + std::string(c->name) + "'";
+                }
+                complain(what);
+                continue;
+            }
+            std::string_view value;
+            if (eq >= 0) {
+                if (opt->arg == OptArg::none) {
+                    complain("option '--" + std::string(opt->name) + "' doesn't allow an argument");
+                    continue;
+                }
+                value = body.substr(checked_cast<size_t>(eq + 1));
+            } else if (opt->arg == OptArg::required) {
+                if (i + 1 >= argc) {
+                    complain("option '--" + std::string(opt->name) + "' requires an argument");
+                    continue;
+                }
+                value = argv[++i];
+            }
+            parsed.options.push_back({opt->key, value});
+            continue;
+        }
+
+        for (ptrdiff_t j = 1; j < std::ssize(arg); ++j) {
+            char letter = arg[checked_cast<size_t>(j)];
+            ptrdiff_t at = letter == ':' ? -1 : str_find(shortopts, letter);
+            if (at < 0) {
+                complain(std::string("invalid option -- '") + letter + "'");
+                continue;
+            }
+            int key = static_cast<unsigned char>(letter);
+            auto colon_at = [&](ptrdiff_t k) {
+                return k < std::ssize(shortopts) && shortopts[checked_cast<size_t>(k)] == ':';
+            };
+            if (!colon_at(at + 1)) {
+                parsed.options.push_back({key, {}});
+                continue;
+            }
+            // The rest of the word is the value, or, for a required one,
+            // the next word, whatever it is
+            std::string_view value = arg.substr(checked_cast<size_t>(j + 1));
+            if (value.empty() && !colon_at(at + 2)) {
+                if (i + 1 >= argc) {
+                    complain(std::string("option requires an argument -- '") + letter + "'");
+                    break;
+                }
+                value = argv[++i];
+            }
+            parsed.options.push_back({key, value});
+            break;
+        }
+    }
+
+    if (!ok) {
+        usage_error(command);
+        return std::nullopt;
+    }
+    return parsed;
+}
+
 static std::string to_upper(std::string_view s) {
     std::string result(s);
     for (char &c : result) {
@@ -1355,48 +2223,58 @@ static std::string to_upper(std::string_view s) {
 }
 
 int quilt_main(int argc, char **argv) {
-    // --- Phase 1: Extract global options (--quiltrc) from argv ---
+    // --- Phase 1: Scan the arguments like upstream's bin/quilt ---
+    // The first argument not starting with "-" names the command, and the
+    // others go to it in order, so "quilt -a push" runs "push -a".
+    // --quiltrc and --trace are taken out wherever they appear.
     std::string quiltrc_path;   // empty = default search, "-" = disabled
     bool quiltrc_set = false;
-    std::vector<char *> clean_argv;
-    clean_argv.push_back(argv[0]);
+    std::optional<std::string> command;
+    std::vector<std::string> command_args;
+    bool bad_trace = false;
     for (int i = 1; i < argc; ++i) {
         std::string_view a = argv[i];
-        if (a == "--quiltrc" && i + 1 < argc) {
-            quiltrc_path = argv[i + 1];
-            quiltrc_set = true;
-            ++i; // skip the argument
-            continue;
-        }
-        if (a.starts_with("--quiltrc=")) {
+        if (!a.empty() && a[0] != '-') {
+            if (!command) command = std::string(a);
+            else command_args.emplace_back(a);
+        } else if (a.starts_with("--quiltrc=")) {
             quiltrc_path = std::string(a.substr(10));
             quiltrc_set = true;
-            continue;
+        } else if (a == "--quiltrc") {
+            // Without a value, upstream reads no configuration file
+            quiltrc_path = i + 1 < argc ? argv[++i] : "-";
+            quiltrc_set = true;
+        } else if (a.starts_with("--trace")) {
+            // Accepted but ignored; any other form prints the usage
+            if (a != "--trace" && a != "--trace=verbose") {
+                bad_trace = true;
+                break;
+            }
+        } else {
+            command_args.emplace_back(a);
         }
-        if (a == "--trace") {
-            continue;  // accepted but ignored
-        }
-        clean_argv.push_back(argv[i]);
     }
-    int clean_argc = checked_cast<int>(std::ssize(clean_argv));
 
-    // Handle no arguments
-    if (clean_argc < 2) {
+    auto usage = [] {
         err_line("Usage: quilt [--quiltrc file] <command> [options] [args]");
         err_line("Use \"quilt --help\" for a list of commands.");
         return 1;
-    }
+    };
+    if (bad_trace) return usage();
 
-    std::string_view arg1 = clean_argv[1];
-
-    // Handle --version
-    if (arg1 == "--version" || arg1 == "-v") {
-        out_line(QUILT_VERSION);
-        return 0;
+    if (!command) {
+        if (std::ssize(command_args) == 1 && command_args[0] == "--version") {
+            out_line(QUILT_VERSION);
+            return 0;
+        }
+        if (std::ranges::find(command_args, "--help") == command_args.end() &&
+            std::ranges::find(command_args, "-h") == command_args.end()) {
+            return usage();
+        }
     }
 
     // Handle --help
-    if (arg1 == "--help" || arg1 == "-h" || arg1 == "help") {
+    if (!command || *command == "help") {
         out_line("Usage: quilt [--quiltrc file] <command> [options] [args]");
         out_line("");
         out_line("Commands:");
@@ -1427,7 +2305,7 @@ int quilt_main(int argc, char **argv) {
     }
 
     // --- Phase 3: Find command ---
-    std::string cmd_name(arg1);
+    std::string cmd_name(*command);
 
     // Find command (supports unique prefix abbreviation)
     Command *found = nullptr;
@@ -1455,15 +2333,6 @@ int quilt_main(int argc, char **argv) {
         return 1;
     }
 
-    // Handle per-command -h/--help before dispatching
-    for (int i = 2; i < clean_argc; ++i) {
-        std::string_view a = clean_argv[checked_cast<size_t>(i)];
-        if (a == "-h" || a == "--help") {
-            out_line(found->usage);
-            return 0;
-        }
-    }
-
     // --- Phase 4: Load state ---
     std::string original_cwd = get_cwd();
     QuiltState q = load_state();
@@ -1485,7 +2354,8 @@ int quilt_main(int argc, char **argv) {
     auto extra_args = shell_split(cmd_args);
 
     // Build the final argv for the command: [cmd_name, extra_args..., user_args...]
-    // Command argv starts at clean_argv+1
+    // Like upstream, the command parses the variable's words and the command
+    // line in one pass, so a "--" in the variable ends the options for both.
     std::vector<std::string> final_argv_storage;
     std::vector<char *> final_argv;
 
@@ -1493,8 +2363,8 @@ int quilt_main(int argc, char **argv) {
     for (auto &ea : extra_args) {
         final_argv_storage.push_back(ea);
     }
-    for (int i = 2; i < clean_argc; ++i) {
-        final_argv_storage.push_back(clean_argv[checked_cast<size_t>(i)]);
+    for (auto &arg : command_args) {
+        final_argv_storage.push_back(arg);
     }
 
     for (auto &s : final_argv_storage) {
@@ -1537,40 +2407,40 @@ static ptrdiff_t bogosqrt(ptrdiff_t n)
     return r;
 }
 
-// Split content into lines, preserving the information about whether
-// the file ended with a newline.  Each element is one line WITHOUT its
-// terminating '\n'.
-struct FileLines {
-    std::vector<std::string_view> lines;
-    bool has_trailing_newline = true;
-};
-
-static FileLines split_file_lines(std::string_view content)
+// Split content into lines.  Each element keeps its terminating '\n', so
+// an incomplete last line compares equal only to the other file's
+// incomplete last line with the same text, never to a complete line.
+// GNU diff treats it the same way in unified and context output.
+static std::vector<std::string_view> split_file_lines(std::string_view content)
 {
-    FileLines fl;
-    if (content.empty()) {
-        fl.has_trailing_newline = true;  // empty file is fine
-        return fl;
-    }
-
-    fl.has_trailing_newline = (content.back() == '\n');
-
+    std::vector<std::string_view> lines;
     ptrdiff_t start = 0;
     ptrdiff_t len = std::ssize(content);
     for (ptrdiff_t i = 0; i < len; ++i) {
         if (content[checked_cast<size_t>(i)] == '\n') {
-            fl.lines.push_back(content.substr(checked_cast<size_t>(start),
-                                              checked_cast<size_t>(i - start)));
+            lines.push_back(content.substr(checked_cast<size_t>(start),
+                                           checked_cast<size_t>(i + 1 - start)));
             start = i + 1;
         }
     }
     // If there's content after the last newline (no trailing newline)
     if (start < len) {
-        fl.lines.push_back(content.substr(checked_cast<size_t>(start),
-                                          checked_cast<size_t>(len - start)));
+        lines.push_back(content.substr(checked_cast<size_t>(start),
+                                       checked_cast<size_t>(len - start)));
     }
+    return lines;
+}
 
-    return fl;
+// Append one line of a hunk body after its prefix, followed by a
+// "No newline" marker if it is an incomplete last line.
+static void append_hunk_line(std::string &out, std::string_view prefix,
+                             std::string_view line)
+{
+    out += prefix;
+    out += line;
+    if (!line.ends_with('\n')) {
+        out += "\n\\ No newline at end of file\n";
+    }
 }
 
 // Myers diff algorithm.
@@ -2228,8 +3098,11 @@ static std::vector<Hunk> build_hunks(const std::vector<EditOp> &ops,
     std::vector<ChangeRange> merged;
     merged.push_back(changes[0]);
     for (ptrdiff_t i = 1; i < std::ssize(changes); ++i) {
-        // If the context windows overlap or are adjacent, merge
-        if (changes[checked_cast<size_t>(i)].first - merged.back().last <= 2 * context_lines) {
+        // Like GNU diff, merge when no more than twice the context
+        // lines separate the changes, so the context windows overlap or
+        // are adjacent
+        ptrdiff_t gap = changes[checked_cast<size_t>(i)].first - merged.back().last - 1;
+        if (gap <= 2 * context_lines) {
             merged.back().last = changes[checked_cast<size_t>(i)].last;
         } else {
             merged.push_back(changes[checked_cast<size_t>(i)]);
@@ -2300,8 +3173,6 @@ static std::vector<Hunk> build_hunks(const std::vector<EditOp> &ops,
 static std::string format_unified(
     std::span<const std::string_view> old_lines,
     std::span<const std::string_view> new_lines,
-    bool old_has_trailing_nl,
-    bool new_has_trailing_nl,
     const std::vector<Hunk> &hunks,
     std::string_view old_label,
     std::string_view new_label)
@@ -2315,9 +3186,6 @@ static std::string format_unified(
     result += "+++ ";
     result += new_label;
     result += '\n';
-
-    ptrdiff_t old_total = std::ssize(old_lines);
-    ptrdiff_t new_total = std::ssize(new_lines);
 
     for (const auto &hunk : hunks) {
         // Hunk header: @@ -old_start[,old_count] +new_start[,new_count] @@
@@ -2339,50 +3207,11 @@ static std::string format_unified(
         // Hunk body
         for (const auto &op : hunk.ops) {
             if (op.type == 'E') {
-                bool last_old = (op.old_idx == old_total - 1);
-                bool last_new = (op.new_idx == new_total - 1);
-                bool old_need_annot = last_old && !old_has_trailing_nl;
-                bool new_need_annot = last_new && !new_has_trailing_nl;
-                // When the trailing-newline annotation differs between
-                // sides, emit as D+I so each gets its own marker.
-                if (old_need_annot != new_need_annot) {
-                    result += '-';
-                    result += old_lines[checked_cast<size_t>(op.old_idx)];
-                    result += '\n';
-                    if (!old_has_trailing_nl) {
-                        result += "\\ No newline at end of file\n";
-                    }
-                    result += '+';
-                    result += new_lines[checked_cast<size_t>(op.new_idx)];
-                    result += '\n';
-                    if (!new_has_trailing_nl) {
-                        result += "\\ No newline at end of file\n";
-                    }
-                } else {
-                    result += ' ';
-                    result += old_lines[checked_cast<size_t>(op.old_idx)];
-                    result += '\n';
-                    if (last_old && !old_has_trailing_nl &&
-                        last_new && !new_has_trailing_nl) {
-                        result += "\\ No newline at end of file\n";
-                    }
-                }
+                append_hunk_line(result, " ", old_lines[checked_cast<size_t>(op.old_idx)]);
             } else if (op.type == 'D') {
-                result += '-';
-                result += old_lines[checked_cast<size_t>(op.old_idx)];
-                result += '\n';
-                // Check if this is the last old line with no trailing newline
-                if (op.old_idx == old_total - 1 && !old_has_trailing_nl) {
-                    result += "\\ No newline at end of file\n";
-                }
+                append_hunk_line(result, "-", old_lines[checked_cast<size_t>(op.old_idx)]);
             } else { // 'I'
-                result += '+';
-                result += new_lines[checked_cast<size_t>(op.new_idx)];
-                result += '\n';
-                // Check if this is the last new line with no trailing newline
-                if (op.new_idx == new_total - 1 && !new_has_trailing_nl) {
-                    result += "\\ No newline at end of file\n";
-                }
+                append_hunk_line(result, "+", new_lines[checked_cast<size_t>(op.new_idx)]);
             }
         }
     }
@@ -2390,12 +3219,19 @@ static std::string format_unified(
     return result;
 }
 
+// A context diff range: "start,end", or like GNU diff a single number for
+// one line, or for an empty range the line before it.
+static std::string context_range(ptrdiff_t start, ptrdiff_t count)
+{
+    if (count > 1)
+        return std::format("{},{}", start, start + count - 1);
+    return std::format("{}", start);
+}
+
 // Format context diff output
 static std::string format_context(
     std::span<const std::string_view> old_lines,
     std::span<const std::string_view> new_lines,
-    bool old_has_trailing_nl,
-    bool new_has_trailing_nl,
     const std::vector<Hunk> &hunks,
     std::string_view old_label,
     std::string_view new_label)
@@ -2410,25 +3246,20 @@ static std::string format_context(
     result += new_label;
     result += '\n';
 
-    ptrdiff_t old_total = std::ssize(old_lines);
-    ptrdiff_t new_total = std::ssize(new_lines);
-
     for (const auto &hunk : hunks) {
         result += "***************\n";
 
         // Classify each edit group: adjacent D and I runs form "changes" (! prefix)
         // We need to build old-side and new-side lines with proper prefixes.
-        struct SideLine { char prefix; std::string_view text; bool no_newline; };
+        struct SideLine { std::string_view prefix; std::string_view text; };
         std::vector<SideLine> old_side, new_side;
 
         ptrdiff_t num_ops = std::ssize(hunk.ops);
         for (ptrdiff_t k = 0; k < num_ops; ) {
             const auto &op = hunk.ops[checked_cast<size_t>(k)];
             if (op.type == 'E') {
-                bool onl = (op.old_idx == old_total - 1 && !old_has_trailing_nl &&
-                            op.new_idx == new_total - 1 && !new_has_trailing_nl);
-                old_side.push_back({' ', old_lines[checked_cast<size_t>(op.old_idx)], onl});
-                new_side.push_back({' ', new_lines[checked_cast<size_t>(op.new_idx)], onl});
+                old_side.push_back({"  ", old_lines[checked_cast<size_t>(op.old_idx)]});
+                new_side.push_back({"  ", new_lines[checked_cast<size_t>(op.new_idx)]});
                 ++k;
             } else {
                 // Collect consecutive D then I runs
@@ -2441,58 +3272,44 @@ static std::string format_context(
                 bool is_change = (de > ds && ie > de);
                 for (ptrdiff_t j = ds; j < de; ++j) {
                     auto &dop = hunk.ops[checked_cast<size_t>(j)];
-                    bool onl = (dop.old_idx == old_total - 1 && !old_has_trailing_nl);
-                    old_side.push_back({is_change ? '!' : '-',
-                                       old_lines[checked_cast<size_t>(dop.old_idx)], onl});
+                    old_side.push_back({is_change ? "! " : "- ",
+                                       old_lines[checked_cast<size_t>(dop.old_idx)]});
                 }
                 for (ptrdiff_t j = de; j < ie; ++j) {
                     auto &iop = hunk.ops[checked_cast<size_t>(j)];
-                    bool onl = (iop.new_idx == new_total - 1 && !new_has_trailing_nl);
-                    new_side.push_back({is_change ? '!' : '+',
-                                       new_lines[checked_cast<size_t>(iop.new_idx)], onl});
+                    new_side.push_back({is_change ? "! " : "+ ",
+                                       new_lines[checked_cast<size_t>(iop.new_idx)]});
                 }
             }
         }
 
         // Old range header
-        ptrdiff_t oe = hunk.old_count == 0 ? hunk.old_start : hunk.old_start + hunk.old_count - 1;
-        result += std::format("*** {},{} ****\n", hunk.old_start, oe);
+        result += std::format("*** {} ****\n",
+                              context_range(hunk.old_start, hunk.old_count));
 
         // Print old-side lines only if there are changes (not just context)
         bool has_old_changes = false;
         for (const auto &sl : old_side) {
-            if (sl.prefix != ' ') { has_old_changes = true; break; }
+            if (sl.prefix != "  ") { has_old_changes = true; break; }
         }
         if (has_old_changes) {
             for (const auto &sl : old_side) {
-                result += sl.prefix;
-                result += ' ';
-                result += sl.text;
-                result += '\n';
-                if (sl.no_newline) {
-                    result += "\\ No newline at end of file\n";
-                }
+                append_hunk_line(result, sl.prefix, sl.text);
             }
         }
 
         // New range header
-        ptrdiff_t ne = hunk.new_count == 0 ? hunk.new_start : hunk.new_start + hunk.new_count - 1;
-        result += std::format("--- {},{} ----\n", hunk.new_start, ne);
+        result += std::format("--- {} ----\n",
+                              context_range(hunk.new_start, hunk.new_count));
 
         // Print new-side lines only if there are changes
         bool has_new_changes = false;
         for (const auto &sl : new_side) {
-            if (sl.prefix != ' ') { has_new_changes = true; break; }
+            if (sl.prefix != "  ") { has_new_changes = true; break; }
         }
         if (has_new_changes) {
             for (const auto &sl : new_side) {
-                result += sl.prefix;
-                result += ' ';
-                result += sl.text;
-                result += '\n';
-                if (sl.no_newline) {
-                    result += "\\ No newline at end of file\n";
-                }
+                append_hunk_line(result, sl.prefix, sl.text);
             }
         }
     }
@@ -2532,17 +3349,17 @@ DiffResult builtin_diff(std::string_view old_path, std::string_view new_path,
     }
 
     // Split into lines
-    auto old_fl = split_file_lines(old_content);
-    auto new_fl = split_file_lines(new_content);
+    auto old_lines = split_file_lines(old_content);
+    auto new_lines = split_file_lines(new_content);
 
     // Run diff algorithm
     std::vector<EditOp> ops;
     if (algorithm == DiffAlgorithm::patience)
-        ops = patience_diff(old_fl.lines, new_fl.lines);
+        ops = patience_diff(old_lines, new_lines);
     else if (algorithm == DiffAlgorithm::histogram)
-        ops = histogram_diff(old_fl.lines, new_fl.lines);
+        ops = histogram_diff(old_lines, new_lines);
     else
-        ops = myers_diff(old_fl.lines, new_fl.lines, algorithm);
+        ops = myers_diff(old_lines, new_lines, algorithm);
 
     // Check if there are any differences
     bool has_diff = false;
@@ -2550,37 +3367,8 @@ DiffResult builtin_diff(std::string_view old_path, std::string_view new_path,
         if (op.type != 'E') { has_diff = true; break; }
     }
 
-    // Also check trailing newline difference
-    if (!has_diff && !old_fl.lines.empty() &&
-        old_fl.has_trailing_newline != new_fl.has_trailing_newline) {
-        has_diff = true;
-    }
-
     if (!has_diff) {
         return {0, ""};
-    }
-
-    // When trailing newlines differ the last line must appear as a D+I
-    // pair (not a context 'E') so each side gets the right "\ No newline"
-    // annotation.  Replace the trailing 'E' with D+I before building hunks
-    // so that build_hunks sees a real change and includes it in a hunk.
-    if (!old_fl.lines.empty() &&
-        old_fl.has_trailing_newline != new_fl.has_trailing_newline) {
-        // Find the last 'E' op that covers the final line of both files
-        for (ptrdiff_t i = std::ssize(ops) - 1; i >= 0; --i) {
-            auto &op = ops[checked_cast<size_t>(i)];
-            if (op.type == 'E' &&
-                op.old_idx == std::ssize(old_fl.lines) - 1 &&
-                op.new_idx == std::ssize(new_fl.lines) - 1) {
-                // Replace with D then I
-                EditOp d_op{'D', op.old_idx, -1};
-                EditOp i_op{'I', -1, op.new_idx};
-                ops[checked_cast<size_t>(i)] = d_op;
-                ops.insert(ops.begin() + i + 1, i_op);
-                break;
-            }
-            if (op.type == 'E') break;  // only check the last equal op
-        }
     }
 
     // Use labels or default to paths
@@ -2592,15 +3380,9 @@ DiffResult builtin_diff(std::string_view old_path, std::string_view new_path,
 
     std::string output;
     if (format == DiffFormat::context) {
-        output = format_context(old_fl.lines, new_fl.lines,
-                                old_fl.has_trailing_newline,
-                                new_fl.has_trailing_newline,
-                                hunks, old_lbl, new_lbl);
+        output = format_context(old_lines, new_lines, hunks, old_lbl, new_lbl);
     } else {
-        output = format_unified(old_fl.lines, new_fl.lines,
-                                old_fl.has_trailing_newline,
-                                new_fl.has_trailing_newline,
-                                hunks, old_lbl, new_lbl);
+        output = format_unified(old_lines, new_lines, hunks, old_lbl, new_lbl);
     }
 
     return {1, std::move(output)};
@@ -2610,13 +3392,14 @@ DiffResult builtin_diff(std::string_view old_path, std::string_view new_path,
 
 // This is free and unencumbered software released into the public domain.
 //
-// Built-in patch engine for applying unified diffs.
+// Built-in patch engine for applying unified and context diffs.
 // Implements spiral search with offset tracking, fuzz matching,
 // reverse application, merge conflict markers, and reject files.
 
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
+#include <limits>
 
 // ── Patch parsing data structures ──────────────────────────────────────
 
@@ -2629,14 +3412,37 @@ struct PatchHunk {
     // Flags for "\ No newline at end of file" on old/new side
     bool old_no_newline = false;
     bool new_no_newline = false;
+    // What follows the ranges in the header, from the space before it,
+    // usually a function name, which GNU patch copies into the rejects
+    std::string function;
+    // In a context diff, the old and new sections as given, or as filled
+    // in when diff omitted one, each line with its marker (' ', '-', '+'
+    // or '!'), which GNU patch writes back into the rejects
+    std::vector<std::string> old_section;
+    std::vector<std::string> new_section;
 };
 
 struct PatchFile {
-    std::string old_path;
-    std::string new_path;
+    // The names and timestamps of the file headers, as GNU patch writes
+    // them in the rejects
+    std::string old_label;
+    std::string new_label;
+    bool context = false;      // a context diff rather than a unified one
     std::string target_path;   // after strip-level
-    bool is_creation = false;  // old = /dev/null
-    bool is_deletion = false;  // new = /dev/null
+    // How surely the patch says the file is absent before (old) and after
+    // (new) it, as GNU patch judges: 0 not at all, 1 when the first hunk's
+    // range on that side starts at line 0, 2 when the header also names
+    // /dev/null or gives the epoch as the file's timestamp, as diff -N does
+    int old_absent = 0;
+    int new_absent = 0;
+    // 1-based line where the text leading up to the first hunk begins,
+    // after the previous file's last hunk, as GNU patch quotes it
+    ptrdiff_t text_line = 0;
+    ptrdiff_t hunk_line = 0;   // 1-based line of the first hunk header
+    // 1-based line whose CRLF ending has GNU patch strip the CRs from the
+    // hunks: the "+++ " line of a unified diff, or the first hunk's
+    // "*** N ****" line of a context diff
+    ptrdiff_t crlf_line = 0;
     std::vector<PatchHunk> hunks;
 };
 
@@ -2679,49 +3485,456 @@ static std::string extract_path(std::string_view line)
     return std::string(rest);
 }
 
-// ── Unified diff parser ────────────────────────────────────────────────
-
-// Parse a complete unified diff into a list of per-file patch descriptions.
-static std::vector<PatchFile> parse_patch(std::string_view text, int strip_level,
-                                           bool reverse)
+// A file header as GNU patch writes it in the rejects: the name stripped of
+// strip leading components, then the rest of the line, the timestamp.  The
+// name /dev/null, or one with fewer slashes than it must strip, stands
+// alone as /dev/null.
+static std::string reject_label(std::string_view header, int strip)
 {
-    std::vector<PatchFile> files;
-    auto lines = split_lines(text);
-    ptrdiff_t n = std::ssize(lines);
-    ptrdiff_t i = 0;
+    std::string name = extract_path(header);
+    ptrdiff_t slashes = 0;  // runs of them, as strip_path counts them
+    for (ptrdiff_t k = 0; k < std::ssize(name); ++k) {
+        if (name[checked_cast<size_t>(k)] == '/' &&
+            (k + 1 == std::ssize(name) || name[checked_cast<size_t>(k + 1)] != '/')) {
+            ++slashes;
+        }
+    }
+    if (name == "/dev/null" || slashes < strip) return "/dev/null";
+    return strip_path(name, strip) + std::string(header.substr(name.size()));
+}
 
-    while (i < n) {
-        // Look for "--- " header
-        if (!lines[checked_cast<size_t>(i)].starts_with("--- ")) {
-            ++i;
-            continue;
+// ── Diff parser ────────────────────────────────────────────────────────
+
+// Remove prefix from the front of s, returning whether it was there.
+static bool take(std::string_view &s, std::string_view prefix)
+{
+    if (!s.starts_with(prefix)) return false;
+    s.remove_prefix(prefix.size());
+    return true;
+}
+
+// Remove a decimal number from the front of s.
+static bool take_number(std::string_view &s, ptrdiff_t &n)
+{
+    if (s.empty() || s[0] < '0' || s[0] > '9') return false;
+    auto [end, ec] = std::from_chars(s.data(), s.data() + s.size(), n);
+    if (ec != std::errc{}) return false;
+    s.remove_prefix(checked_cast<size_t>(end - s.data()));
+    return true;
+}
+
+// Whether a diff header's timestamp is the epoch, which diff -N gives a
+// missing file.  Like GNU patch, match any time within the range of local
+// time offsets of it, -25:00 to +26:00.  Reads the forms diff writes for -u,
+// "1970-01-01 00:00:00.000000000 +0000", and -c, "Thu Jan  1 00:00:00 1970".
+static bool is_epoch_timestamp(std::string_view s)
+{
+    ptrdiff_t year = 0, month = 0, day = 0, hour = 0, minute = 0, second = 0;
+    auto skip_spaces = [&] { while (take(s, " ")) {} };
+    auto take_time = [&] {
+        return take_number(s, hour) && take(s, ":") && take_number(s, minute) &&
+               take(s, ":") && take_number(s, second);
+    };
+
+    skip_spaces();
+    if (take_number(s, year)) {
+        if (!take(s, "-") || !take_number(s, month) || !take(s, "-") ||
+            !take_number(s, day) || !take(s, " ") || !take_time()) {
+            return false;
+        }
+        if (take(s, ".")) {
+            while (!s.empty() && s[0] >= '0' && s[0] <= '9') s.remove_prefix(1);
+        }
+    } else {
+        // Skip the weekday
+        ptrdiff_t space = str_find(s, ' ');
+        if (space < 0) return false;
+        s.remove_prefix(checked_cast<size_t>(space));
+        skip_spaces();
+        static constexpr std::string_view months = "JanFebMarAprMayJunJulAugSepOctNovDec";
+        if (std::ssize(s) < 3) return false;
+        ptrdiff_t m = str_find(months, s.substr(0, 3));
+        if (m < 0 || m % 3 != 0) return false;
+        month = m / 3 + 1;
+        s.remove_prefix(3);
+        skip_spaces();
+        if (!take_number(s, day) || !take(s, " ") || !take_time()) return false;
+        skip_spaces();
+        if (!take_number(s, year)) return false;
+    }
+
+    ptrdiff_t zone = 0;
+    skip_spaces();
+    bool west = take(s, "-");
+    if (west || take(s, "+")) {
+        ptrdiff_t hhmm = 0;
+        if (!take_number(s, hhmm) || hhmm > 2459) return false;
+        zone = (hhmm / 100 * 60 + hhmm % 100) * 60 * (west ? -1 : 1);
+    }
+
+    if (day > 31 || hour > 23 || minute > 59 || second > 60) return false;
+    ptrdiff_t days;
+    if (year == 1969 && month == 12) days = day - 32;
+    else if (year == 1970 && month == 1) days = day - 1;
+    else return false;  // too far from the epoch in any time zone
+    ptrdiff_t t = ((days * 24 + hour) * 60 + minute) * 60 + second - zone;
+    return -25 * 60 * 60 < t && t < 26 * 60 * 60;
+}
+
+// How surely a file header and the start of the first hunk's range on the
+// same side say that the file is absent; see PatchFile.  A /dev/null name
+// counts even without hunks, so such a header still creates or deletes.
+static int absence(std::string_view header, ptrdiff_t first_start)
+{
+    if (extract_path(header) == "/dev/null") return 2;
+    if (first_start != 0) return 0;
+    ptrdiff_t tab = str_find(header, '\t');
+    if (tab >= 0 && is_epoch_timestamp(header.substr(checked_cast<size_t>(tab) + 1))) {
+        return 2;
+    }
+    return 1;
+}
+
+static bool is_no_newline_marker(std::string_view line)
+{
+    return line.starts_with("\\ No newline at end of file") ||
+           line.starts_with("\\ no newline at end of file");
+}
+
+// GNU patch's message for a line it cannot parse.  It prints the line with
+// its newline, so the message ends in a blank line.
+static std::string malformed(ptrdiff_t lineno, std::string_view line)
+{
+    return std::format("malformed patch at line {}: {}\n", lineno, line);
+}
+
+static std::string malformed(std::span<const std::string> lines, ptrdiff_t i)
+{
+    return malformed(i + 1, lines[checked_cast<size_t>(i)]);
+}
+
+// Parse a unified hunk header "@@ -start[,count] +start[,count] @@" as
+// leniently as GNU patch: the spaces are optional, and anything may follow
+// the first '@' of the closing "@@".  Only what follows "@@ " counts as the
+// function, though.
+static bool parse_unified_range(std::string_view s, PatchHunk &hunk)
+{
+    hunk.old_count = hunk.new_count = 1;
+    if (!take(s, "@@ -") || !take_number(s, hunk.old_start)) return false;
+    if (take(s, ",") && !take_number(s, hunk.old_count)) return false;
+    take(s, " ");
+    if (!take(s, "+") || !take_number(s, hunk.new_start)) return false;
+    if (take(s, ",") && !take_number(s, hunk.new_count)) return false;
+    take(s, " ");
+    if (!s.starts_with("@")) return false;
+    if (s.starts_with("@@ ")) hunk.function = s.substr(2);
+    return true;
+}
+
+// Parse the unified hunk whose header is lines[i], advancing i past it.
+// Like GNU patch, read exactly the lines that the header's counts call for,
+// so a hunk that ends early, at a line that does not fit or at the end of
+// the patch, is malformed.
+static bool parse_unified_hunk(std::span<const std::string> lines, ptrdiff_t &i,
+                               PatchHunk &hunk, std::string &error)
+{
+    if (!parse_unified_range(lines[checked_cast<size_t>(i)], hunk)) {
+        error = malformed(lines, i);
+        return false;
+    }
+    ++i;
+
+    ptrdiff_t n = std::ssize(lines);
+    ptrdiff_t old_left = hunk.old_count, new_left = hunk.new_count;
+    while (old_left > 0 || new_left > 0) {
+        // When the patch ends with at most three new lines missing, GNU
+        // patch assumes that blank context lines were chopped off, and
+        // blames the patch's last line if they do not fit
+        std::string_view ln = " ";
+        ptrdiff_t lineno = n;
+        if (i < n) {
+            lineno = i + 1;
+            ln = lines[checked_cast<size_t>(i++)];
+        } else if (new_left > 3) {
+            error = "unexpected end of file in patch";
+            return false;
         }
 
-        // Peek ahead for "+++ "
-        if (i + 1 >= n || !lines[checked_cast<size_t>(i + 1)].starts_with("+++ ")) {
+        if (ln.starts_with('#')) continue;  // GNU patch skips comments
+
+        // A blank line, or one that starts with a tab, is a context line
+        // whose leading space was lost.  GNU patch also takes '=' for ' '.
+        std::string line;
+        if (ln.empty() || ln[0] == '\t') {
+            line = " " + std::string(ln);
+        } else if (ln[0] == '=') {
+            line = " " + std::string(ln.substr(1));
+        } else {
+            line = std::string(ln);
+        }
+        char mark = line[0];
+        bool fits = mark == '-' ? old_left > 0
+                  : mark == '+' ? new_left > 0
+                  : mark == ' ' && old_left > 0 && new_left > 0;
+        if (!fits) {
+            error = malformed(lineno, ln);
+            return false;
+        }
+        if (mark != '+') old_left--;
+        if (mark != '-') new_left--;
+        hunk.lines.push_back(std::move(line));
+
+        // "\ No newline at end of file" applies to the line before it.  GNU
+        // patch accepts it only after the last line of a side, but the
+        // built-in diff has written it after earlier lines too.
+        while (i < n && is_no_newline_marker(lines[checked_cast<size_t>(i)])) {
+            if (mark != '+') hunk.old_no_newline = true;
+            if (mark != '-') hunk.new_no_newline = true;
+            ++i;
+        }
+    }
+    return true;
+}
+
+// Parse a context hunk range "*** start[,end] ****" or "--- start[,end] ----",
+// where mark is "***" or "---".  A lone number names one line, or none if
+// it is 0.
+static bool parse_context_range(std::string_view s, std::string_view mark,
+                                ptrdiff_t &start, ptrdiff_t &count)
+{
+    if (!take(s, mark) || !take(s, " ") || !take_number(s, start)) return false;
+    count = start ? 1 : 0;
+    if (take(s, ",")) {
+        ptrdiff_t end = 0;
+        if (!take_number(s, end) || end < start) return false;
+        count = end - start + 1;
+    }
+    return take(s, " ") && s.starts_with(mark);
+}
+
+// One section of a context hunk: lines with their markers (' ', '-', '+'
+// or '!'), and whether the last line lacks a newline.
+struct ContextLine {
+    char mark;
+    std::string_view text;
+};
+
+struct ContextSection {
+    std::vector<ContextLine> lines;
+    bool no_newline = false;
+};
+
+// Split a context hunk line "m text" whose marker m is one of marks.  diff -T
+// puts a tab after the marker instead of a space, and a blank line can lose
+// its trailing whitespace, leaving just the marker or nothing at all.
+static bool split_context_line(std::string_view ln, std::string_view marks,
+                               ContextLine &cl)
+{
+    if (ln.empty()) {
+        cl = {' ', {}};
+        return true;
+    }
+    if (str_find(marks, ln[0]) < 0) return false;
+    if (std::ssize(ln) > 1 && ln[1] != ' ' && ln[1] != '\t') return false;
+    cl = {ln[0], ln.substr(std::ssize(ln) > 1 ? 2 : 1)};
+    return true;
+}
+
+// Parse the context hunk whose "***************" line is lines[i], advancing
+// i past it, and convert it to unified form.  diff omits a section that has
+// no changes, in which case the section is the other one's context lines.
+static bool parse_context_hunk(std::span<const std::string> lines, ptrdiff_t &i,
+                               PatchHunk &hunk, std::string &error)
+{
+    ptrdiff_t n = std::ssize(lines);
+    auto at = [&](ptrdiff_t k) -> std::string_view {
+        return lines[checked_cast<size_t>(k)];
+    };
+
+    // Like GNU patch, take a space after the stars to begin the function
+    std::string_view stars = at(i);
+    while (take(stars, "*")) {}
+    if (stars.starts_with(' ')) hunk.function = stars;
+
+    ++i;
+    ptrdiff_t range_line = i;
+    if (i >= n) {
+        error = "unexpected end of file in patch";
+        return false;
+    }
+    if (!parse_context_range(at(i), "***", hunk.old_start, hunk.old_count)) {
+        error = malformed(lines, i);
+        return false;
+    }
+
+    ContextSection old_sec, new_sec;
+    for (++i; i < n && !at(i).starts_with("--- "); ++i) {
+        ContextLine cl;
+        if (is_no_newline_marker(at(i))) {
+            old_sec.no_newline = true;
+        } else if (split_context_line(at(i), " -!", cl)) {
+            old_sec.lines.push_back(cl);
+        } else {
+            error = malformed(lines, i);
+            return false;
+        }
+    }
+    if (i >= n) {
+        error = "unexpected end of file in patch";
+        return false;
+    }
+    if (!parse_context_range(at(i), "---", hunk.new_start, hunk.new_count)) {
+        error = malformed(lines, i);
+        return false;
+    }
+
+    // Unlike the old section, the new section has no terminator, so stop
+    // after the lines its range names.  A first line that is not part of
+    // it means the section was omitted.  That includes a blank line, unless
+    // a change ('!') in the old section requires a new section.
+    bool may_omit = std::ranges::none_of(old_sec.lines, [](const ContextLine &cl) {
+        return cl.mark == '!';
+    });
+    for (++i; i < n && std::ssize(new_sec.lines) < hunk.new_count; ++i) {
+        ContextLine cl;
+        if (is_no_newline_marker(at(i))) {
+            new_sec.no_newline = true;
+            continue;
+        }
+        if (new_sec.lines.empty() && at(i).empty() && may_omit) break;
+        if (!split_context_line(at(i), " +!", cl)) {
+            if (new_sec.lines.empty()) break;
+            error = malformed(lines, i);
+            return false;
+        }
+        new_sec.lines.push_back(cl);
+    }
+    if (i < n && is_no_newline_marker(at(i))) {
+        new_sec.no_newline = true;
+        ++i;
+    }
+
+    auto context_of = [](const ContextSection &sec) {
+        ContextSection ctx;
+        for (const auto &cl : sec.lines) {
+            if (cl.mark == ' ') ctx.lines.push_back(cl);
+        }
+        ctx.no_newline = sec.no_newline && !sec.lines.empty() &&
+                         sec.lines.back().mark == ' ';
+        return ctx;
+    };
+    if (old_sec.lines.empty()) {
+        old_sec = context_of(new_sec);
+    } else if (new_sec.lines.empty()) {
+        new_sec = context_of(old_sec);
+    }
+
+    // A lone line number with no lines names the empty range after that
+    // line, as diff -C0 writes for a pure insertion or deletion.  The other
+    // section has the change then, or the hunk ended before its lines.
+    auto fits = [](ptrdiff_t &count, ptrdiff_t actual, ptrdiff_t other) {
+        if (actual == 0 && count == 1 && other > 0) count = 0;
+        return actual == count;
+    };
+    if (!fits(hunk.old_count, std::ssize(old_sec.lines), std::ssize(new_sec.lines)) ||
+        !fits(hunk.new_count, std::ssize(new_sec.lines), std::ssize(old_sec.lines))) {
+        error = std::format("replacement text or line numbers mangled in hunk at line {}",
+                            range_line + 1);
+        return false;
+    }
+
+    // Interleave the sections, pairing up their context lines
+    ptrdiff_t old_n = std::ssize(old_sec.lines);
+    ptrdiff_t new_n = std::ssize(new_sec.lines);
+    ptrdiff_t o = 0, w = 0;
+    for (;;) {
+        for (; o < old_n && old_sec.lines[checked_cast<size_t>(o)].mark != ' '; ++o) {
+            hunk.lines.push_back("-" + std::string(old_sec.lines[checked_cast<size_t>(o)].text));
+        }
+        for (; w < new_n && new_sec.lines[checked_cast<size_t>(w)].mark != ' '; ++w) {
+            hunk.lines.push_back("+" + std::string(new_sec.lines[checked_cast<size_t>(w)].text));
+        }
+        if (o == old_n && w == new_n) break;
+        if (o == old_n || w == new_n ||
+            old_sec.lines[checked_cast<size_t>(o)].text !=
+                new_sec.lines[checked_cast<size_t>(w)].text) {
+            error = std::format("context mangled in hunk at line {}", range_line + 1);
+            return false;
+        }
+        hunk.lines.push_back(" " + std::string(old_sec.lines[checked_cast<size_t>(o)].text));
+        ++o;
+        ++w;
+    }
+    hunk.old_no_newline = old_sec.no_newline;
+    hunk.new_no_newline = new_sec.no_newline;
+    for (const auto &cl : old_sec.lines) hunk.old_section.push_back(cl.mark + std::string(cl.text));
+    for (const auto &cl : new_sec.lines) hunk.new_section.push_back(cl.mark + std::string(cl.text));
+    return true;
+}
+
+// Swap a hunk's old and new sides, as patch -R does.
+static void reverse_hunk(PatchHunk &hunk)
+{
+    std::swap(hunk.old_start, hunk.new_start);
+    std::swap(hunk.old_count, hunk.new_count);
+    std::swap(hunk.old_no_newline, hunk.new_no_newline);
+    std::swap(hunk.old_section, hunk.new_section);
+    for (auto *lines : {&hunk.lines, &hunk.old_section, &hunk.new_section}) {
+        for (auto &line : *lines) {
+            if (line[0] == '-') line[0] = '+';
+            else if (line[0] == '+') line[0] = '-';
+        }
+    }
+}
+
+// Parse the lines of a complete unified or context diff into a list of
+// per-file patch descriptions.  A hunk that does not parse ends parsing,
+// with GNU patch's message for it in error.
+static std::vector<PatchFile> parse_patch(std::span<const std::string> lines,
+                                           int strip_level, bool reverse,
+                                           std::string &error)
+{
+    std::vector<PatchFile> files;
+    ptrdiff_t n = std::ssize(lines);
+    auto at = [&](ptrdiff_t k) -> std::string_view {
+        return lines[checked_cast<size_t>(k)];
+    };
+
+    ptrdiff_t i = 0;
+    ptrdiff_t text_line = 1;
+    while (i < n) {
+        // A unified diff names the files on "--- " and "+++ " lines, and a
+        // context diff on "*** " and "--- " lines before its first hunk
+        bool unified = at(i).starts_with("--- ") &&
+                       i + 1 < n && at(i + 1).starts_with("+++ ");
+        bool context = at(i).starts_with("*** ") &&
+                       i + 2 < n && at(i + 1).starts_with("--- ") &&
+                       at(i + 2).starts_with("***************");
+        if (!unified && !context) {
             ++i;
             continue;
         }
 
         PatchFile pf;
-        std::string raw_old = extract_path(std::string_view(lines[checked_cast<size_t>(i)]).substr(4));
-        std::string raw_new = extract_path(std::string_view(lines[checked_cast<size_t>(i + 1)]).substr(4));
+        std::string_view old_header = at(i).substr(4);
+        std::string_view new_header = at(i + 1).substr(4);
 
         if (reverse) {
-            std::swap(raw_old, raw_new);
+            std::swap(old_header, new_header);
         }
 
-        pf.old_path = raw_old;
-        pf.new_path = raw_new;
-        pf.is_creation = (raw_old == "/dev/null");
-        pf.is_deletion = (raw_new == "/dev/null");
+        std::string raw_old = extract_path(old_header);
+        std::string raw_new = extract_path(new_header);
+        pf.old_label = reject_label(old_header, strip_level);
+        pf.new_label = reject_label(new_header, strip_level);
+        pf.context = context;
 
         // Determine target path
         // Prefer new path like GNU patch does for the common -p0 case
         // where old has a .orig suffix (e.g., "--- f.txt.orig" / "+++ f.txt")
-        if (pf.is_creation) {
+        if (raw_old == "/dev/null") {
             pf.target_path = strip_path(raw_new, strip_level);
-        } else if (pf.is_deletion) {
+        } else if (raw_new == "/dev/null") {
             pf.target_path = strip_path(raw_old, strip_level);
         } else {
             std::string stripped_old = strip_path(raw_old, strip_level);
@@ -2737,130 +3950,58 @@ static std::vector<PatchFile> parse_patch(std::string_view text, int strip_level
             }
         }
 
-        i += 2;  // skip --- and +++ lines
+        i += 2;  // skip the file header lines
+        pf.text_line = text_line;
+        pf.hunk_line = i + 1;
+        pf.crlf_line = unified ? i : i + 2;
 
-        // Parse hunks
-        while (i < n && lines[checked_cast<size_t>(i)].starts_with("@@ ")) {
+        std::string_view hunk_start = unified ? "@@ " : "***************";
+        while (i < n && at(i).starts_with(hunk_start)) {
             PatchHunk hunk;
-
-            // Parse @@ -old_start[,old_count] +new_start[,new_count] @@
-            std::string_view hdr = std::string_view(lines[checked_cast<size_t>(i)]);
-            ptrdiff_t at1 = str_find(hdr, '-', 3);
-            if (at1 < 0) { ++i; continue; }
-
-            // Parse old range
-            ptrdiff_t pos = at1 + 1;
-            ptrdiff_t comma = str_find(hdr, ',', pos);
-            ptrdiff_t space = str_find(hdr, ' ', pos);
-            ptrdiff_t plus_pos = str_find(hdr, '+', pos);
-
-            // Need '+' marker and a space or comma delimiter before it
-            if (plus_pos < 0) { ++i; continue; }
-
-            if (comma >= 0 && comma < plus_pos && plus_pos - comma >= 2) {
-                hunk.old_start = parse_int(hdr.substr(checked_cast<size_t>(pos), checked_cast<size_t>(comma - pos)));
-                hunk.old_count = parse_int(hdr.substr(checked_cast<size_t>(comma + 1), checked_cast<size_t>(plus_pos - comma - 2)));
-            } else if (space >= 0 && space < plus_pos) {
-                hunk.old_start = parse_int(hdr.substr(checked_cast<size_t>(pos), checked_cast<size_t>(space - pos)));
-                hunk.old_count = 1;
-            } else {
-                ++i; continue;
-            }
-
-            // Parse new range
-            pos = plus_pos + 1;
-            comma = str_find(hdr, ',', pos);
-            ptrdiff_t end_at = str_find(hdr, ' ', pos);
-            if (end_at < 0) end_at = std::ssize(hdr);
-
-            if (end_at <= pos) { ++i; continue; }
-
-            if (comma >= 0 && comma < end_at) {
-                hunk.new_start = parse_int(hdr.substr(checked_cast<size_t>(pos), checked_cast<size_t>(comma - pos)));
-                hunk.new_count = parse_int(hdr.substr(checked_cast<size_t>(comma + 1), checked_cast<size_t>(end_at - comma - 1)));
-            } else {
-                hunk.new_start = parse_int(hdr.substr(checked_cast<size_t>(pos), checked_cast<size_t>(end_at - pos)));
-                hunk.new_count = 1;
-            }
-
-            if (reverse) {
-                std::swap(hunk.old_start, hunk.new_start);
-                std::swap(hunk.old_count, hunk.new_count);
-            }
-
-            ++i;  // skip @@ line
-
-            // Collect hunk body
-            ptrdiff_t old_seen = 0, new_seen = 0;
-            while (i < n) {
-                std::string_view ln = lines[checked_cast<size_t>(i)];
-
-                if (ln.starts_with("\\ No newline at end of file") ||
-                    ln.starts_with("\\ no newline at end of file")) {
-                    // Applies to the preceding line
-                    if (!hunk.lines.empty()) {
-                        // Prefixes are already swapped if reverse=true, so
-                        // '-' is always the old side and '+' the new side.
-                        char prev_prefix = hunk.lines.back()[0];
-                        if (prev_prefix == '-')
-                            hunk.old_no_newline = true;
-                        else if (prev_prefix == '+')
-                            hunk.new_no_newline = true;
-                        else
-                            hunk.old_no_newline = hunk.new_no_newline = true;
-                    }
-                    ++i;
-                    continue;
-                }
-
-                if (ln.empty()) {
-                    // Empty line in diff = context line (space was stripped)
-                    if (old_seen >= hunk.old_count && new_seen >= hunk.new_count) break;
-                    std::string line_str = " ";
-                    hunk.lines.push_back(line_str);
-                    old_seen++;
-                    new_seen++;
-                    ++i;
-                    continue;
-                }
-
-                char prefix = ln[0];
-                if (prefix == ' ' || prefix == '-' || prefix == '+') {
-                    std::string line_str(ln);
-
-                    if (reverse) {
-                        if (prefix == '-') line_str[0] = '+';
-                        else if (prefix == '+') line_str[0] = '-';
-                    }
-
-                    char actual_prefix = line_str[0];
-                    if (actual_prefix == ' ') {
-                        if (old_seen >= hunk.old_count && new_seen >= hunk.new_count) break;
-                        old_seen++;
-                        new_seen++;
-                    } else if (actual_prefix == '-') {
-                        if (old_seen >= hunk.old_count) break;
-                        old_seen++;
-                    } else { // '+'
-                        if (new_seen >= hunk.new_count) break;
-                        new_seen++;
-                    }
-
-                    hunk.lines.push_back(std::move(line_str));
-                    ++i;
-                } else {
-                    // Start of next file section or unknown line
-                    break;
-                }
-            }
-
+            bool ok = unified ? parse_unified_hunk(lines, i, hunk, error)
+                              : parse_context_hunk(lines, i, hunk, error);
+            if (!ok) return files;
+            if (reverse) reverse_hunk(hunk);
             pf.hunks.push_back(std::move(hunk));
         }
 
-        files.push_back(std::move(pf));
+        // GNU patch judges from the first hunk alone
+        const PatchHunk *first = pf.hunks.empty() ? nullptr : &pf.hunks[0];
+        pf.old_absent = absence(old_header, first ? first->old_start : -1);
+        pf.new_absent = absence(new_header, first ? first->new_start : -1);
+
+        // Like GNU patch, ignore file headers with no hunk after them, so
+        // the text leading up to the next file includes them
+        if (!pf.hunks.empty()) {
+            files.push_back(std::move(pf));
+            text_line = i + 1;
+        }
     }
 
     return files;
+}
+
+std::vector<std::string> patch_target_files(std::string_view patch_text,
+                                            int strip_level, bool reverse)
+{
+    std::vector<std::string> result;
+    std::string error;  // a patch that does not parse will not apply anyway
+    auto lines = split_lines(patch_text);
+    for (auto &pf : parse_patch(lines, strip_level, reverse, error)) {
+        if (pf.target_path.empty()) continue;
+        if (std::ranges::find(result, pf.target_path) != result.end()) continue;
+        result.push_back(std::move(pf.target_path));
+    }
+    return result;
+}
+
+// Remove directories left empty by deleting path, like GNU patch.
+static void remove_empty_parents(std::string_view path)
+{
+    for (std::string dir = dirname(path); dir != "." && dir != "/";
+         dir = dirname(dir)) {
+        if (!delete_dir(dir)) break;
+    }
 }
 
 // ── Line-based file representation ─────────────────────────────────────
@@ -2944,12 +4085,6 @@ struct HunkContext {
     ptrdiff_t suffix = 0;
 };
 
-// Per-hunk fuzz amounts used when matching (for trimming during application).
-struct HunkFuzz {
-    ptrdiff_t prefix = 0;
-    ptrdiff_t suffix = 0;
-};
-
 static HunkContext get_hunk_context(const PatchHunk &hunk)
 {
     HunkContext ctx;
@@ -2965,21 +4100,16 @@ static HunkContext get_hunk_context(const PatchHunk &hunk)
 }
 
 // Try to match a hunk's old-side pattern against file lines starting at
-// position `pos` (0-based), with `fuzz` context lines skipped at top/bottom.
-// prefix_ctx/suffix_ctx are the real context extents from the full hunk.
-// Returns true if the pattern matches.
+// position `pos` (0-based), skipping prefix_fuzz lines at its top and
+// suffix_fuzz at its bottom.  Returns true if the pattern matches.
 static bool try_match(std::span<const std::string> file_lines,
                       ptrdiff_t pos,
                       const std::vector<PatternLine> &pattern,
-                      int fuzz,
-                      ptrdiff_t prefix_ctx,
-                      ptrdiff_t suffix_ctx)
+                      ptrdiff_t prefix_fuzz,
+                      ptrdiff_t suffix_fuzz)
 {
     ptrdiff_t pat_len = std::ssize(pattern);
     if (pat_len == 0) return true;
-
-    ptrdiff_t prefix_fuzz = std::min(static_cast<ptrdiff_t>(fuzz), prefix_ctx);
-    ptrdiff_t suffix_fuzz = std::min(static_cast<ptrdiff_t>(fuzz), suffix_ctx);
 
     // Lines to match: skip prefix_fuzz from top, suffix_fuzz from bottom
     ptrdiff_t match_start = prefix_fuzz;
@@ -2998,15 +4128,33 @@ static bool try_match(std::span<const std::string> file_lines,
     return true;
 }
 
-// Spiral search: find where a hunk matches in the file.
-// Returns the 0-based file position, or -1 if not found.
-// Updates cumulative_offset on success.
+// 0-based file position of the hunk's old range.  An empty range names the
+// line it follows, as in "@@ -5,0 +6 @@" or "*** 5 ****" from diff -U0/-C0.
+static ptrdiff_t old_range_pos(const PatchHunk &hunk)
+{
+    if (hunk.old_count == 0) return hunk.old_start;
+    return std::max(hunk.old_start, ptrdiff_t{1}) - 1;
+}
+
+// Spiral search: find where a hunk matches in the file, as GNU patch does,
+// at each fuzz level up to max_fuzz in turn.  Returns the 0-based file
+// position, with fuzz_used set to the fuzz it matched with, or -1 if not
+// found.
+//
+// Lines before last_frozen_line are frozen: the hunks before have copied
+// them to the output or deleted them.  Search like GNU patch, which may
+// find a hunk among the frozen lines: return the guess for an empty
+// pattern, and for a guess among the frozen lines, try first as far before
+// the guess as the frozen lines reach past it, then the first line not
+// frozen, then each line up from the first.  The caller fails a hunk found
+// where it would change a frozen line.
 static ptrdiff_t locate_hunk(std::span<const std::string> file_lines,
                               const PatchHunk &hunk,
                               const std::vector<PatternLine> &pattern,
                               ptrdiff_t last_frozen_line,
                               ptrdiff_t cumulative_offset,
-                              int max_fuzz)
+                              int max_fuzz,
+                              ptrdiff_t &fuzz_used)
 {
     ptrdiff_t file_len = std::ssize(file_lines);
     ptrdiff_t pat_old_count = std::ssize(pattern);
@@ -3014,49 +4162,104 @@ static ptrdiff_t locate_hunk(std::span<const std::string> file_lines,
     // Get real prefix/suffix context from full hunk (not just old-side pattern)
     auto ctx = get_hunk_context(hunk);
 
-    // First guess: hunk header's old_start (1-based) converted to 0-based + offset
-    ptrdiff_t first_guess = hunk.old_start - 1 + cumulative_offset;
+    // First guess: the position the hunk header names, plus the offset
+    ptrdiff_t first_guess = old_range_pos(hunk) + cumulative_offset;
 
-    // Clamp to valid range
-    ptrdiff_t max_pos = file_len - pat_old_count;
-    if (max_pos < 0) max_pos = 0;
+    if (pat_old_count == 0) {
+        return first_guess < 0 ? -1 : first_guess;
+    }
 
-    for (int fuzz = 0; fuzz <= max_fuzz; ++fuzz) {
-        ptrdiff_t prefix_fuzz = std::min(static_cast<ptrdiff_t>(fuzz), ctx.prefix);
-        ptrdiff_t suffix_fuzz = std::min(static_cast<ptrdiff_t>(fuzz), ctx.suffix);
-        ptrdiff_t effective_pat_len = pat_old_count - prefix_fuzz - suffix_fuzz;
+    // Like GNU patch, fuzz no more than the hunk has context, and skip
+    // context at the end of the hunk with more of it first.  Until fuzz
+    // reaches the end with less, a hunk with less context at its start
+    // must start the file when its header puts it on line 1, and a hunk
+    // with less at its end must end the file.
+    ptrdiff_t context = std::max(ctx.prefix, ctx.suffix);
+    ptrdiff_t top_fuzz = std::min(ptrdiff_t{max_fuzz}, context);
+    for (ptrdiff_t fuzz = 0; fuzz <= top_fuzz; ++fuzz) {
+        fuzz_used = fuzz;
+        ptrdiff_t prefix_fuzz = fuzz + ctx.prefix - context;
+        ptrdiff_t suffix_fuzz = fuzz + ctx.suffix - context;
+        if (prefix_fuzz < 0 && old_range_pos(hunk) == 0) {
+            if (last_frozen_line <= ctx.prefix &&
+                try_match(file_lines, 0, pattern, 0, suffix_fuzz)) {
+                return 0;
+            }
+            continue;
+        }
+        prefix_fuzz = std::max(prefix_fuzz, ptrdiff_t{0});
+        if (suffix_fuzz < 0) {
+            ptrdiff_t pos = file_len - pat_old_count;
+            if (pos >= 0 && pos >= last_frozen_line &&
+                try_match(file_lines, pos, pattern, prefix_fuzz, 0)) {
+                return pos;
+            }
+            continue;
+        }
 
-        ptrdiff_t max_search = file_len - effective_pat_len;
-        if (effective_pat_len == 0) max_search = file_len;  // empty pattern matches anywhere
+        // The last position where the lines to match fit, which counts the
+        // fuzzed prefix, as GNU patch does
+        ptrdiff_t max_search = file_len - (pat_old_count - suffix_fuzz);
+
+        if (first_guess < last_frozen_line && first_guess <= max_search) {
+            // A first guess of 0 or less reaches no line before it
+            ptrdiff_t lowest = first_guess > 0 ? 2 * first_guess - last_frozen_line : -1;
+            if (lowest >= 0 &&
+                try_match(file_lines, lowest, pattern, prefix_fuzz, suffix_fuzz)) {
+                return lowest;
+            }
+            if (try_match(file_lines, last_frozen_line, pattern, prefix_fuzz, suffix_fuzz)) {
+                return last_frozen_line;
+            }
+            for (ptrdiff_t pos = std::max(lowest + 1, ptrdiff_t{0}); pos <= max_search; ++pos) {
+                if (try_match(file_lines, pos, pattern, prefix_fuzz, suffix_fuzz)) {
+                    return pos;
+                }
+            }
+            continue;
+        }
 
         // Try exact position first
         if (first_guess >= 0 && first_guess <= max_search &&
             first_guess > last_frozen_line - 1) {
-            if (try_match(file_lines, first_guess, pattern, fuzz, ctx.prefix, ctx.suffix)) {
+            if (try_match(file_lines, first_guess, pattern, prefix_fuzz, suffix_fuzz)) {
                 return first_guess;
             }
         }
 
-        // Spiral outward
+        // Spiral outward.  Start at the first offset that reaches a
+        // position the checks below accept, so a guess far past the end
+        // of the file, from a hunk header with a huge line number, doesn't
+        // step through every line in between.
         ptrdiff_t max_offset_forward = max_search - first_guess;
         ptrdiff_t max_offset_backward = first_guess - last_frozen_line;
         ptrdiff_t max_range = std::max(max_offset_forward, max_offset_backward);
         if (max_range < 0) max_range = 0;
+        ptrdiff_t min_range = std::max({ptrdiff_t{1},
+                                        last_frozen_line - first_guess,
+                                        first_guess - max_search});
 
-        for (ptrdiff_t delta = 1; delta <= max_range; ++delta) {
+        for (ptrdiff_t delta = min_range; delta <= max_range; ++delta) {
+            // Each direction is bounded before its position is computed,
+            // so a guess from a huge line number cannot overflow.
+
             // Try forward
-            ptrdiff_t pos = first_guess + delta;
-            if (pos >= 0 && pos <= max_search && pos > last_frozen_line - 1) {
-                if (try_match(file_lines, pos, pattern, fuzz, ctx.prefix, ctx.suffix)) {
-                    return pos;
+            if (delta <= max_offset_forward) {
+                ptrdiff_t pos = first_guess + delta;
+                if (pos >= 0 && pos <= max_search && pos > last_frozen_line - 1) {
+                    if (try_match(file_lines, pos, pattern, prefix_fuzz, suffix_fuzz)) {
+                        return pos;
+                    }
                 }
             }
 
             // Try backward
-            pos = first_guess - delta;
-            if (pos >= 0 && pos <= max_search && pos > last_frozen_line - 1) {
-                if (try_match(file_lines, pos, pattern, fuzz, ctx.prefix, ctx.suffix)) {
-                    return pos;
+            if (delta <= max_offset_backward) {
+                ptrdiff_t pos = first_guess - delta;
+                if (pos >= 0 && pos <= max_search && pos > last_frozen_line - 1) {
+                    if (try_match(file_lines, pos, pattern, prefix_fuzz, suffix_fuzz)) {
+                        return pos;
+                    }
                 }
             }
         }
@@ -3067,272 +4270,758 @@ static ptrdiff_t locate_hunk(std::span<const std::string> file_lines,
 
 // ── Hunk application ───────────────────────────────────────────────────
 
-// Get the new-side (replacement) lines from a hunk.
-static std::vector<std::string_view> get_new_lines(const PatchHunk &hunk)
-{
-    std::vector<std::string_view> result;
-    for (const auto &line : hunk.lines) {
-        char prefix = line[0];
-        if (prefix == ' ' || prefix == '+') {
-            result.push_back(std::string_view(line).substr(1));
-        }
-    }
-    return result;
-}
-
 // Build the output file content after applying all successfully matched hunks.
 // hunks_positions[i] = 0-based file position where hunk i matched, or -1 if rejected.
-// hunk_fuzz[i] = fuzz amounts used for hunk i (to trim context from both sides).
+// Like GNU patch, copy the file up to each change and write only the added
+// lines from the patch, so context, matched or fuzzed, comes from the file,
+// and a hunk may start among the trailing context of the hunk before.
 static std::string build_output(std::span<const std::string> file_lines,
                                  bool has_trailing_newline,
                                  const PatchFile &pf,
-                                 const std::vector<ptrdiff_t> &hunk_positions,
-                                 const std::vector<HunkFuzz> &hunk_fuzz)
+                                 const std::vector<ptrdiff_t> &hunk_positions)
 {
     std::string output;
     ptrdiff_t file_len = std::ssize(file_lines);
-    ptrdiff_t last_copied = 0;  // next line to copy from input
+    ptrdiff_t copied = 0;       // file lines copied or deleted so far
+    bool after_newline = true;  // whether output ends at a line's end
+
+    // Like GNU patch, end a line left incomplete before writing another
+    auto put = [&](std::string_view line, bool newline) {
+        if (!after_newline) output += '\n';
+        output += line;
+        if (newline) output += '\n';
+        after_newline = newline;
+    };
+    auto copy_till = [&](ptrdiff_t end) {
+        for (; copied < std::min(end, file_len); ++copied) {
+            put(file_lines[checked_cast<size_t>(copied)],
+                copied < file_len - 1 || has_trailing_newline);
+        }
+    };
 
     for (ptrdiff_t h = 0; h < std::ssize(pf.hunks); ++h) {
         ptrdiff_t pos = hunk_positions[checked_cast<size_t>(h)];
         if (pos < 0) continue;  // rejected hunk, skip
 
         const auto &hunk = pf.hunks[checked_cast<size_t>(h)];
-        auto pattern = get_old_pattern(hunk);
-        ptrdiff_t pat_len = std::ssize(pattern);
-        auto new_lines = get_new_lines(hunk);
-
-        // When fuzz was used, trim the fuzzed context lines from both sides.
-        // The fuzzed prefix/suffix context lines were not matched against the
-        // file, so we must not replace them.
-        auto fz = hunk_fuzz[checked_cast<size_t>(h)];
-        pos += fz.prefix;
-        pat_len -= fz.prefix + fz.suffix;
-        if (pat_len < 0) pat_len = 0;
-        ptrdiff_t new_start = fz.prefix;
-        ptrdiff_t new_end = std::ssize(new_lines) - fz.suffix;
-        if (new_end < new_start) new_end = new_start;
-
-        // Clamp to file bounds
-        if (pos > file_len) pos = file_len;
-
-        // Copy unchanged lines from last_copied to pos
-        for (ptrdiff_t j = last_copied; j < pos; ++j) {
-            output += file_lines[checked_cast<size_t>(j)];
-            output += '\n';
+        ptrdiff_t nlines = std::ssize(hunk.lines);
+        ptrdiff_t last_new = nlines - 1;  // last new-side line, if any
+        while (last_new >= 0 && hunk.lines[checked_cast<size_t>(last_new)][0] == '-') {
+            --last_new;
         }
 
-        // Write replacement lines (trimmed by fuzz)
-        for (ptrdiff_t j = new_start; j < new_end; ++j) {
-            output += new_lines[checked_cast<size_t>(j)];
-            bool is_last_new_line = (j == new_end - 1);
-            if (is_last_new_line && fz.suffix == 0 && hunk.new_no_newline) {
-                // Don't add trailing newline (only when suffix not trimmed)
+        ptrdiff_t old = pos;  // file line of the next old-side line
+        for (ptrdiff_t j = 0; j < nlines; ++j) {
+            std::string_view line = hunk.lines[checked_cast<size_t>(j)];
+            if (line[0] == ' ') {
+                ++old;
+            } else if (line[0] == '-') {
+                copy_till(old);
+                copied = ++old;
             } else {
-                output += '\n';
-            }
-        }
-
-        last_copied = pos + pat_len;
-        if (last_copied > file_len) last_copied = file_len;
-    }
-
-    // Copy remaining lines
-    for (ptrdiff_t j = last_copied; j < file_len; ++j) {
-        output += file_lines[checked_cast<size_t>(j)];
-        if (j < file_len - 1) {
-            output += '\n';
-        } else {
-            // Last line: preserve original trailing newline status
-            // unless a hunk changed it
-            if (has_trailing_newline) {
-                output += '\n';
+                copy_till(old);
+                put(line.substr(1), !(j == last_new && hunk.new_no_newline));
             }
         }
     }
 
+    copy_till(file_len);
     return output;
 }
 
-// ── Merge conflict markers ─────────────────────────────────────────────
+// ── Merging ────────────────────────────────────────────────────────────
+//
+// Merge mode follows GNU patch's merge.c, with the bestmatch.h and the
+// gnulib diffseq.h it builds on.  A hunk that matches exactly, without
+// fuzz, applies there.  Any other goes where its old lines best match the
+// file, a diff lines the two up, and each change in the hunk merges when
+// the file has its old lines, is left alone when the file already has its
+// new lines, and otherwise becomes a conflict.  Like the rest of the
+// engine, lines compare without their line endings.
 
-// Build output with merge conflict markers for rejected hunks.
-// Applies successful hunks normally, inserts conflict markers for failed ones.
-static std::string build_merge_output(std::span<const std::string> file_lines,
-                                       bool has_trailing_newline,
-                                       const PatchFile &pf,
-                                       const std::vector<ptrdiff_t> &hunk_positions,
-                                       const std::vector<HunkFuzz> &hunk_fuzz,
-                                       std::string_view merge_style)
+// A line on one side of a hunk: its mark, ' ' or '-' on the old side and
+// ' ' or '+' on the new, and its text.  Each side ends with a sentinel
+// marked '=' on the old side and '^' on the new.
+struct MergeLine {
+    char mark;
+    std::string_view text;
+};
+
+// Whether file line k, from 0, exists and is text
+static bool file_line_is(std::span<const std::string> file, ptrdiff_t k,
+                         std::string_view text)
 {
-    // For merge mode, we first apply successful hunks, then for rejected hunks
-    // we insert conflict markers at the hunk's expected position.
-    std::string output;
-    ptrdiff_t file_len = std::ssize(file_lines);
-    ptrdiff_t last_copied = 0;
+    return k >= 0 && k < std::ssize(file) && file[checked_cast<size_t>(k)] == text;
+}
 
-    // Process all hunks in order
+// GNU patch's bestmatch(): the fewest changes, at most max, that turn old
+// lines [xoff, xlim) into file lines [yoff, *py) while matching at least
+// min lines, with *py as far as those changes reach, or max + 1 if none
+// do.  Lines count from 1, as in GNU patch: its check of min compares
+// against xoff - yoff where xoff + yoff belongs, so it depends on them.
+static ptrdiff_t bestmatch(std::span<const MergeLine> old,
+                           std::span<const std::string> file,
+                           ptrdiff_t xoff, ptrdiff_t xlim,
+                           ptrdiff_t yoff, ptrdiff_t ylim,
+                           ptrdiff_t min, ptrdiff_t max, ptrdiff_t *py)
+{
+    auto equal = [&](ptrdiff_t x, ptrdiff_t y) {
+        return file_line_is(file, y - 1, old[checked_cast<size_t>(x - 1)].text);
+    };
+    const ptrdiff_t dmin = xoff - ylim;  // minimum valid diagonal
+    const ptrdiff_t dmax = xlim - yoff;  // maximum valid diagonal
+    const ptrdiff_t fmid = xoff - yoff;  // center diagonal
+    ptrdiff_t fmin = fmid;
+    ptrdiff_t fmax = fmid;
+    ptrdiff_t ymax = -1;
+
+    // How far along each diagonal the search has reached, in x, for the
+    // diagonals that max changes can reach
+    std::vector<ptrdiff_t> fdiag(checked_cast<size_t>(2 * max + 3), -1);
+    auto fd = [&](ptrdiff_t d) -> ptrdiff_t & {
+        return fdiag[checked_cast<size_t>(d - fmid + max + 1)];
+    };
+
+    ptrdiff_t fmid_plus_2_min = 0;
+    if (min) {
+        fmid_plus_2_min = fmid + 2 * min;
+        min += yoff;
+        if (min > ylim) return max + 1;
+    }
+
+    // Handle the exact match
+    while (xoff < xlim && yoff < ylim && equal(xoff, yoff)) {
+        xoff++;
+        yoff++;
+    }
+    if (xoff == xlim && yoff >= min && xoff + yoff >= fmid_plus_2_min) {
+        *py = yoff;
+        return 0;
+    }
+
+    fd(fmid) = xoff;
+    for (ptrdiff_t c = 1; c <= max; c++) {
+        if (fmin > dmin) fd(--fmin - 1) = -1;
+        else ++fmin;
+        if (fmax < dmax) fd(++fmax + 1) = -1;
+        else --fmax;
+        for (ptrdiff_t d = fmax; d >= fmin; d -= 2) {
+            ptrdiff_t x = fd(d - 1) < fd(d + 1) ? fd(d + 1) : fd(d - 1) + 1;
+            ptrdiff_t y = x - d;
+            while (x < xlim && y < ylim && equal(x, y)) {
+                x++;
+                y++;
+            }
+            fd(d) = x;
+            if (x == xlim && y >= min && x + y - c >= fmid_plus_2_min) {
+                ymax = std::max(ymax, y);
+                if (y == ylim) break;
+            }
+        }
+        if (ymax != -1) {
+            *py = ymax;
+            return c;
+        }
+    }
+    return max + 1;
+}
+
+// GNU patch's locate_merge(): the line, from 0, where a hunk that does not
+// match exactly best matches the file, and in matched how many file lines
+// from there its old lines match, 0 when none match well enough.  Like
+// GNU patch, it prefers the longest match closest to where the hunk
+// should be, and holds a hunk with less context after its changes than
+// before to the end of the file.
+static ptrdiff_t locate_merge(std::span<const std::string> file,
+                              const PatchHunk &hunk,
+                              std::span<const MergeLine> old,
+                              ptrdiff_t last_frozen_line,
+                              ptrdiff_t cumulative_offset,
+                              ptrdiff_t &matched)
+{
+    ptrdiff_t input_lines = std::ssize(file);
+    ptrdiff_t pch_first = old_range_pos(hunk) + 1;
+    ptrdiff_t first_guess = pch_first + cumulative_offset;
+    ptrdiff_t pat_lines = std::ssize(old);
+    ptrdiff_t context_lines = std::ranges::count(old, ' ', &MergeLine::mark);
+    ptrdiff_t min_where = last_frozen_line + 1;
+    ptrdiff_t max_pos_offset = input_lines - pat_lines + context_lines + 1 - first_guess;
+    ptrdiff_t max_neg_offset = first_guess - min_where;
+    ptrdiff_t max_offset = std::max(max_pos_offset, max_neg_offset);
+    ptrdiff_t where = first_guess;
+    matched = 0;
+
+    if (context_lines > 0) {
+        // Allow at most context_lines lines to be replaced, and require
+        // the remaining lines to match
+        ptrdiff_t max = 2 * context_lines;
+        ptrdiff_t min = pat_lines - context_lines;
+
+        // Hunks from the start or end of the file have less context, so
+        // anchor them there
+        auto ctx = get_hunk_context(hunk);
+        if (ctx.suffix > ctx.prefix && pch_first <= 1) max_pos_offset = 0;
+        bool match_until_eof = ctx.suffix < ctx.prefix;
+
+        // Do not try lines before the first
+        if (first_guess <= max_neg_offset) max_neg_offset = first_guess - 1;
+
+        // Whether guess matches exactly, after keeping it if it matches
+        // more lines than any match so far
+        auto try_guess = [&](ptrdiff_t guess) {
+            ptrdiff_t last = 0;
+            ptrdiff_t changes = bestmatch(
+                old, file, 1, pat_lines + 1, guess, input_lines + 1,
+                match_until_eof ? input_lines - guess + 1 : min, max, &last);
+            if (changes > max || last - guess <= matched) return false;
+            matched = last - guess;
+            where = guess;
+            min = matched;
+            max = changes - 1;
+            return changes == 0;
+        };
+        // Start at the first offset whose guess could win, so that a hunk
+        // header with a huge line number does not step through every line
+        // in between.  A match from bestmatch() ends at most pat_lines past
+        // the end of the file, and one from a guess before line 1 - max
+        // matches no line of the file, which it allows only from line -1.
+        ptrdiff_t lowest = std::min(1 - max, ptrdiff_t{-1});
+        ptrdiff_t highest = input_lines + pat_lines;
+        ptrdiff_t start = PTRDIFF_MAX;
+        if (first_guess <= highest) start = std::max(ptrdiff_t{0}, lowest - first_guess);
+        if (first_guess >= lowest) {
+            start = std::min(start, std::max(ptrdiff_t{1}, first_guess - highest));
+        }
+
+        for (ptrdiff_t offset = start; offset <= max_offset; offset++) {
+            if (offset <= max_pos_offset && try_guess(first_guess + offset)) break;
+            if (offset > 0 && offset <= max_neg_offset && try_guess(first_guess - offset)) break;
+        }
+    }
+
+    return std::max(where, min_where) - 1;
+}
+
+// The diff of gnulib's diffseq, which GNU patch's merge uses to line up a
+// hunk's old lines with the file lines they matched: it marks with '-'
+// each old line the file lines lack, and with '+' each file line the old
+// lines lack.  GNU patch sets no limit on the cost of the search, so the
+// diff is minimal, except past a cost of 200, where diffseq turns to a
+// heuristic that this leaves out, as a hunk would need hundreds of
+// context lines to get there.
+struct MergeDiff {
+    std::span<const MergeLine> old;
+    std::span<const std::string> file;
+    ptrdiff_t base;               // file line where the in lines start
+    std::vector<char> old_marks;  // per old line, then '='
+    std::vector<char> in_marks;   // per matched file line, then '^'
+    std::vector<ptrdiff_t> fdiag; // furthest x per diagonal, top down
+    std::vector<ptrdiff_t> bdiag; // furthest x per diagonal, bottom up
+    ptrdiff_t doff;               // index of diagonal 0
+
+    MergeDiff(std::span<const MergeLine> old_lines,
+              std::span<const std::string> file_lines,
+              ptrdiff_t where, ptrdiff_t matched)
+        : old(old_lines), file(file_lines), base(where),
+          old_marks(checked_cast<size_t>(std::ssize(old_lines) + 1), ' '),
+          in_marks(checked_cast<size_t>(matched + 1), ' '),
+          fdiag(checked_cast<size_t>(std::ssize(old_lines) + matched + 3)),
+          bdiag(fdiag.size()),
+          doff(matched + 1)
+    {
+        old_marks.back() = '=';
+        in_marks.back() = '^';
+    }
+
+    bool equal(ptrdiff_t x, ptrdiff_t y) const
+    {
+        return file_line_is(file, base + y, old[checked_cast<size_t>(x)].text);
+    }
+    ptrdiff_t &fd(ptrdiff_t d) { return fdiag[checked_cast<size_t>(d + doff)]; }
+    ptrdiff_t &bd(ptrdiff_t d) { return bdiag[checked_cast<size_t>(d + doff)]; }
+
+    // diffseq's diag(): the midpoint of the shortest edit script for old
+    // lines [xoff, xlim) and in lines [yoff, ylim), searching from both
+    // ends at once until the searches meet
+    void diag(ptrdiff_t xoff, ptrdiff_t xlim, ptrdiff_t yoff, ptrdiff_t ylim,
+              ptrdiff_t &xmid, ptrdiff_t &ymid)
+    {
+        const ptrdiff_t dmin = xoff - ylim;  // minimum valid diagonal
+        const ptrdiff_t dmax = xlim - yoff;  // maximum valid diagonal
+        const ptrdiff_t fmid = xoff - yoff;  // center diagonal, top down
+        const ptrdiff_t bmid = xlim - ylim;  // center diagonal, bottom up
+        ptrdiff_t fmin = fmid;
+        ptrdiff_t fmax = fmid;
+        ptrdiff_t bmin = bmid;
+        ptrdiff_t bmax = bmid;
+        bool odd = ((fmid - bmid) & 1) != 0;
+
+        fd(fmid) = xoff;
+        bd(bmid) = xlim;
+        for (;;) {
+            // Extend the top-down search by an edit step in each diagonal
+            if (fmin > dmin) fd(--fmin - 1) = -1;
+            else ++fmin;
+            if (fmax < dmax) fd(++fmax + 1) = -1;
+            else --fmax;
+            for (ptrdiff_t d = fmax; d >= fmin; d -= 2) {
+                ptrdiff_t tlo = fd(d - 1);
+                ptrdiff_t thi = fd(d + 1);
+                ptrdiff_t x = tlo < thi ? thi : tlo + 1;
+                ptrdiff_t y = x - d;
+                while (x < xlim && y < ylim && equal(x, y)) {
+                    x++;
+                    y++;
+                }
+                fd(d) = x;
+                if (odd && bmin <= d && d <= bmax && bd(d) <= x) {
+                    xmid = x;
+                    ymid = y;
+                    return;
+                }
+            }
+
+            // Likewise extend the bottom-up search
+            if (bmin > dmin) bd(--bmin - 1) = PTRDIFF_MAX;
+            else ++bmin;
+            if (bmax < dmax) bd(++bmax + 1) = PTRDIFF_MAX;
+            else --bmax;
+            for (ptrdiff_t d = bmax; d >= bmin; d -= 2) {
+                ptrdiff_t tlo = bd(d - 1);
+                ptrdiff_t thi = bd(d + 1);
+                ptrdiff_t x = tlo < thi ? tlo : thi - 1;
+                ptrdiff_t y = x - d;
+                while (xoff < x && yoff < y && equal(x - 1, y - 1)) {
+                    x--;
+                    y--;
+                }
+                bd(d) = x;
+                if (!odd && fmin <= d && d <= fmax && x <= fd(d)) {
+                    xmid = x;
+                    ymid = y;
+                    return;
+                }
+            }
+        }
+    }
+
+    // diffseq's compareseq(): mark the differences between old lines
+    // [xoff, xlim) and in lines [yoff, ylim)
+    void compareseq(ptrdiff_t xoff, ptrdiff_t xlim, ptrdiff_t yoff, ptrdiff_t ylim)
+    {
+        for (;;) {
+            // Slide down the bottom initial diagonal, and up the top one
+            while (xoff < xlim && yoff < ylim && equal(xoff, yoff)) {
+                xoff++;
+                yoff++;
+            }
+            while (xoff < xlim && yoff < ylim && equal(xlim - 1, ylim - 1)) {
+                xlim--;
+                ylim--;
+            }
+
+            if (xoff == xlim) {
+                for (; yoff < ylim; yoff++) in_marks[checked_cast<size_t>(yoff)] = '+';
+                return;
+            }
+            if (yoff == ylim) {
+                for (; xoff < xlim; xoff++) old_marks[checked_cast<size_t>(xoff)] = '-';
+                return;
+            }
+
+            // Split at the midpoint, recursing into the smaller half
+            ptrdiff_t xmid, ymid;
+            diag(xoff, xlim, yoff, ylim, xmid, ymid);
+            if ((xlim + ylim) - (xmid + ymid) < (xmid + ymid) - (xoff + yoff)) {
+                compareseq(xmid, xlim, ymid, ylim);
+                xlim = xmid;
+                ylim = ymid;
+            } else {
+                compareseq(xoff, xmid, yoff, ymid);
+                xoff = xmid;
+                yoff = ymid;
+            }
+        }
+    }
+};
+
+// GNU patch's merge_result(): report how a change in a hunk merged, the
+// first time as "Hunk #N <what> at <lines>", and after that on the same
+// line.  Like GNU patch, list a result of the same kind as the first with
+// just a comma, even after results of other kinds.
+struct MergeReport {
+    std::string &out;
+    ptrdiff_t hunk;
+    std::string_view first_what = {};
+
+    void add(std::string_view what, ptrdiff_t from, ptrdiff_t to)
+    {
+        if (first_what.empty()) {
+            out += std::format("Hunk #{} {} at ", hunk, what);
+            first_what = what;
+        } else if (what == first_what) {
+            out += ',';
+        } else {
+            out += std::format(", {} at ", what);
+        }
+        out += to <= from ? std::format("{}", from) : std::format("{}-{}", from, to);
+    }
+
+    void finish()
+    {
+        if (!first_what.empty()) out += ".\n";
+    }
+};
+
+// Merge each hunk of pf into the file's lines, like GNU patch --merge,
+// reporting what did not apply as it is.  Returns the merged text, with
+// conflicts set when some change did not merge.  Like GNU patch, reject
+// a hunk found where it would change a line already merged, and set
+// rejected[h] for it, with offsets[h] the lines to move it by.
+static std::string merge_hunks(const FileContent &fc, const PatchFile &pf,
+                               const PatchOptions &opts, std::string &out,
+                               bool &conflicts, std::vector<bool> &rejected,
+                               std::vector<ptrdiff_t> &offsets)
+{
+    std::span<const std::string> file = fc.lines;
+    ptrdiff_t file_len = std::ssize(file);
+    bool diff3 = opts.merge_style == "diff3";
+
+    std::string text;
+    bool after_newline = true;       // whether text ends with a newline
+    ptrdiff_t last_frozen_line = 0;  // file lines copied to text so far
+    ptrdiff_t cumulative_offset = 0;
+    // Like GNU patch, move the lines reported by the lines that hunks and
+    // conflicts added, but not by those that hunks deleted
+    ptrdiff_t out_offset = 0;
+
+    // Copy the file's lines before line n, from 0, to the text, first
+    // ending a last line written without a newline
+    auto copy_till = [&](ptrdiff_t n) {
+        for (; last_frozen_line < std::min(n, file_len); ++last_frozen_line) {
+            if (!after_newline) text += '\n';
+            text += file[checked_cast<size_t>(last_frozen_line)];
+            after_newline = last_frozen_line < file_len - 1 || fc.has_trailing_newline;
+            if (after_newline) text += '\n';
+        }
+        last_frozen_line = std::max(last_frozen_line, n);
+    };
+    auto write_line = [&](std::string_view line, bool newline) {
+        text += line;
+        if (newline) text += '\n';
+        after_newline = newline;
+    };
+    auto write_marker = [&](std::string_view marker) {
+        if (!after_newline) text += '\n';
+        text += marker;
+        text += '\n';
+        after_newline = true;
+    };
+
     for (ptrdiff_t h = 0; h < std::ssize(pf.hunks); ++h) {
         const auto &hunk = pf.hunks[checked_cast<size_t>(h)];
-        ptrdiff_t pos = hunk_positions[checked_cast<size_t>(h)];
 
-        if (pos >= 0) {
-            // Successfully matched — apply normally
-            if (pos > file_len) pos = file_len;
-            auto pattern = get_old_pattern(hunk);
-            ptrdiff_t pat_len = std::ssize(pattern);
-            auto new_lines = get_new_lines(hunk);
+        // Split the hunk into its sides
+        std::vector<MergeLine> old_lines, new_lines;
+        for (const auto &line : hunk.lines) {
+            std::string_view body = std::string_view(line).substr(1);
+            if (line[0] != '+') old_lines.push_back({line[0], body});
+            if (line[0] != '-') new_lines.push_back({line[0], body});
+        }
+        ptrdiff_t old_len = std::ssize(old_lines);
+        ptrdiff_t new_len = std::ssize(new_lines);
+        old_lines.push_back({'=', {}});
+        new_lines.push_back({'^', {}});
+        auto old_side = std::span<const MergeLine>(old_lines).first(checked_cast<size_t>(old_len));
+        auto old_char = [&](ptrdiff_t k) { return old_lines[checked_cast<size_t>(k)].mark; };
+        auto new_char = [&](ptrdiff_t k) { return new_lines[checked_cast<size_t>(k)].mark; };
+        auto write_old = [&](ptrdiff_t k) {
+            write_line(old_lines[checked_cast<size_t>(k)].text,
+                       !(hunk.old_no_newline && k == old_len - 1));
+        };
+        auto write_new = [&](ptrdiff_t k) {
+            write_line(new_lines[checked_cast<size_t>(k)].text,
+                       !(hunk.new_no_newline && k == new_len - 1));
+        };
 
-            // Trim fuzzed context lines
-            auto fz = hunk_fuzz[checked_cast<size_t>(h)];
-            pos += fz.prefix;
-            pat_len -= fz.prefix + fz.suffix;
-            if (pat_len < 0) pat_len = 0;
-            ptrdiff_t new_start = fz.prefix;
-            ptrdiff_t new_end = std::ssize(new_lines) - fz.suffix;
-            if (new_end < new_start) new_end = new_start;
+        // Apply the hunk where it matches exactly, or else merge it where
+        // it matches best
+        ptrdiff_t matched = old_len;
+        ptrdiff_t no_fuzz = 0;
+        ptrdiff_t where = locate_hunk(file, hunk, get_old_pattern(hunk),
+                                      last_frozen_line, cumulative_offset, 0, no_fuzz);
+        bool applies_cleanly = where >= 0;
+        if (applies_cleanly) {
+            cumulative_offset = where - old_range_pos(hunk);
 
-            if (pos > file_len) pos = file_len;
-
-            for (ptrdiff_t j = last_copied; j < pos; ++j) {
-                output += file_lines[checked_cast<size_t>(j)];
-                output += '\n';
-            }
-            for (ptrdiff_t j = new_start; j < new_end; ++j) {
-                output += new_lines[checked_cast<size_t>(j)];
-                bool is_last = (j == new_end - 1);
-                if (is_last && fz.suffix == 0 && hunk.new_no_newline) {
-                    // no trailing newline
-                } else {
-                    output += '\n';
+            // Like GNU patch, which finds a hunk among the lines merged
+            // already as it does outside merge mode, fail one whose changes
+            // start among them.  GNU patch notices only once it has copied
+            // the hunk's leading context, and with none, fails an assertion.
+            auto ctx = get_hunk_context(hunk);
+            if (ctx.prefix < std::ssize(hunk.lines) && where + ctx.prefix < last_frozen_line) {
+                out += "misordered hunks! output would be garbled\n";
+                if (!opts.quiet) {
+                    out += std::format("Hunk #{} FAILED at {}.\n", h + 1, where + 1 + out_offset);
                 }
+                rejected[checked_cast<size_t>(h)] = true;
+                offsets[checked_cast<size_t>(h)] = out_offset;
+                continue;
             }
-            last_copied = pos + pat_len;
-            if (last_copied > file_len) last_copied = file_len;
         } else {
-            // Rejected — insert per-change conflict markers at expected position
-            ptrdiff_t expected = hunk.old_start - 1;
-            if (expected < last_copied) expected = last_copied;
-            if (expected > file_len) expected = file_len;
+            where = locate_merge(file, hunk, old_side, last_frozen_line,
+                                 cumulative_offset, matched);
+        }
 
-            // Copy up to expected position
-            for (ptrdiff_t j = last_copied; j < expected; ++j) {
-                output += file_lines[checked_cast<size_t>(j)];
-                output += '\n';
+        // Line up the old lines with the file lines from where
+        MergeDiff md(old_side, file, where, matched);
+        md.compareseq(0, old_len, 0, matched);
+        auto old_diff = [&](ptrdiff_t k) { return md.old_marks[checked_cast<size_t>(k)]; };
+        auto in_diff = [&](ptrdiff_t k) { return md.in_marks[checked_cast<size_t>(k)]; };
+
+        // Walk the old lines, the new lines, and the file lines ("in") in
+        // step, a run of lines at a time
+        MergeReport report{out, h + 1};
+        copy_till(where);
+        ptrdiff_t old = 0, neu = 0, in = 0;
+        for (;;) {
+            ptrdiff_t first_old = old, first_new = neu, first_in = in;
+            bool conflict = false;
+
+            if (old_char(old) == '-' || new_char(neu) == '+') {
+                // A change merges when the file has its old lines, and no
+                // lines among them
+                while (!conflict && old_char(old) == '-') {
+                    if (old_diff(old) == '-' || in_diff(in) == '+') {
+                        conflict = true;
+                    } else {
+                        ++in;
+                        ++old;
+                    }
+                }
+                conflict = conflict || old_diff(old) == '-' || in_diff(in) == '+';
+                if (!conflict) {
+                    while (new_char(neu) == '+') ++neu;
+                    ptrdiff_t lines = neu - first_new;
+                    if (!opts.quiet && !applies_cleanly) {
+                        report.add("merged", where + 1 + out_offset, where + lines + out_offset);
+                    }
+                    last_frozen_line += old - first_old;
+                    where += old - first_old;
+                    out_offset += lines;
+                    for (ptrdiff_t k = first_new; k < neu; ++k) write_new(k);
+                    continue;
+                }
+            } else if (old_char(old) == ' ') {
+                if (old_diff(old) == '-') {
+                    // Context the file lacks drops out, unless a change
+                    // comes next
+                    while (old_char(old) == ' ' && old_diff(old) == '-') {
+                        if (new_char(neu) == '+') {
+                            conflict = true;
+                            break;
+                        }
+                        ++old;
+                        ++neu;
+                    }
+                    conflict = conflict || old_char(old) == '-' || new_char(neu) == '+';
+                    if (!conflict) continue;
+                } else if (in_diff(in) == '+') {
+                    // File lines the hunk lacks stay
+                    while (in_diff(in) == '+') ++in;
+                    where += in - first_in;
+                    copy_till(where);
+                    continue;
+                } else {
+                    // Context the file has stays
+                    while (old_char(old) == ' ' && old_diff(old) == ' ' &&
+                           new_char(neu) == ' ' && in_diff(in) == ' ') {
+                        ++old;
+                        ++neu;
+                        ++in;
+                    }
+                    where += in - first_in;
+                    copy_till(where);
+                    continue;
+                }
+            } else {
+                break;  // both sides are done
             }
 
-            // Walk through hunk lines, emitting context outside markers
-            // and changed regions inside markers.
-            ptrdiff_t file_pos = expected;
-            ptrdiff_t hi = 0;
-            ptrdiff_t hunk_len = std::ssize(hunk.lines);
-
-            while (hi < hunk_len) {
-                char prefix = hunk.lines[checked_cast<size_t>(hi)][0];
-
-                if (prefix == ' ') {
-                    // Context line — emit the file's actual line
-                    if (file_pos < file_len) {
-                        output += file_lines[checked_cast<size_t>(file_pos)];
-                        output += '\n';
-                        ++file_pos;
-                    }
-                    ++hi;
+            // Find the end of the conflict
+            for (;;) {
+                if (old_char(old) == '-') {
+                    while (in_diff(in) == '+') ++in;
+                    if (old_diff(old) == ' ') ++in;
+                    ++old;
+                } else if (old_diff(old) == '-') {
+                    while (new_char(neu) == '+') ++neu;
+                    ++neu;  // the context line
+                    ++old;
+                } else if (new_char(neu) == '+') {
+                    while (new_char(neu) == '+') ++neu;
+                } else if (in_diff(in) == '+') {
+                    while (in_diff(in) == '+') ++in;
                 } else {
-                    // Changed region — collect contiguous -/+ lines
-                    std::vector<std::string_view> old_lines, new_change;
-                    while (hi < hunk_len && hunk.lines[checked_cast<size_t>(hi)][0] == '-') {
-                        old_lines.push_back(std::string_view(hunk.lines[checked_cast<size_t>(hi)]).substr(1));
-                        ++hi;
-                    }
-                    while (hi < hunk_len && hunk.lines[checked_cast<size_t>(hi)][0] == '+') {
-                        new_change.push_back(std::string_view(hunk.lines[checked_cast<size_t>(hi)]).substr(1));
-                        ++hi;
-                    }
-
-                    output += "<<<<<<<\n";
-
-                    // Current file content for the old-side span
-                    ptrdiff_t span = std::ssize(old_lines);
-                    ptrdiff_t end = file_pos + span;
-                    if (end > file_len) end = file_len;
-                    for (ptrdiff_t j = file_pos; j < end; ++j) {
-                        output += file_lines[checked_cast<size_t>(j)];
-                        output += '\n';
-                    }
-
-                    if (merge_style == "diff3") {
-                        output += "|||||||\n";
-                        for (const auto &ol : old_lines) {
-                            output += ol;
-                            output += '\n';
-                        }
-                    }
-
-                    output += "=======\n";
-                    for (const auto &nl : new_change) {
-                        output += nl;
-                        output += '\n';
-                    }
-                    output += ">>>>>>>\n";
-
-                    file_pos = end;
+                    break;
                 }
             }
 
-            last_copied = file_pos;
+            // Keep the new lines that the file has at the start of the
+            // conflict.  When it has all of them, the change is already
+            // applied.
+            ptrdiff_t last = where;
+            while (first_in < in && first_new < neu &&
+                   file_line_is(file, last, new_lines[checked_cast<size_t>(first_new)].text)) {
+                ++first_in;
+                ++first_new;
+                ++last;
+            }
+            bool applied = first_in == in && first_new == neu;
+            if (applied) {
+                report.add("already applied", where + 1 + out_offset, last + out_offset);
+            } else if (diff3) {
+                // diff3 conflicts keep those lines on both sides.  GNU
+                // patch does this for a change already applied too, but
+                // then loses its place in the file, and merges the hunk's
+                // later changes into the wrong lines.
+                ptrdiff_t common_prefix = last - where;
+                first_in -= common_prefix;
+                first_new -= common_prefix;
+                last = where;
+            }
+            where = last;
+            copy_till(where);
+            if (applied) continue;
+
+            // Other conflicts set aside the new lines that the file has
+            // at the end
+            ptrdiff_t common_suffix = 0;
+            if (!diff3) {
+                for (last = where + (in - first_in);
+                     first_in < in && first_new < neu &&
+                     file_line_is(file, last - 1, new_lines[checked_cast<size_t>(neu - 1)].text);
+                     --in, --neu, --last) {
+                    ++common_suffix;
+                }
+            }
+
+            ptrdiff_t lines = 3 + (in - first_in) + (neu - first_new);
+            if (diff3) lines += 1 + (old - first_old);
+            report.add("NOT MERGED", where + 1 + out_offset, where + lines + out_offset);
+            out_offset += lines - (in - first_in);
+
+            write_marker("<<<<<<<");
+            where += in - first_in;
+            copy_till(where);
+            if (diff3) {
+                write_marker("|||||||");
+                for (ptrdiff_t k = first_old; k < old; ++k) write_old(k);
+            }
+            write_marker("=======");
+            for (ptrdiff_t k = first_new; k < neu; ++k) write_new(k);
+            write_marker(">>>>>>>");
+
+            where += common_suffix;
+            copy_till(where);
+            in += common_suffix;
+            neu += common_suffix;
+            conflicts = true;
         }
+        report.finish();
     }
 
-    // Copy remaining
-    for (ptrdiff_t j = last_copied; j < file_len; ++j) {
-        output += file_lines[checked_cast<size_t>(j)];
-        if (j < file_len - 1) {
-            output += '\n';
-        } else if (has_trailing_newline) {
-            output += '\n';
-        }
-    }
-
-    return output;
+    copy_till(file_len);
+    return text;
 }
 
 // ── Reject file generation ─────────────────────────────────────────────
 
-// Format rejected hunks as a unified diff .rej file.
-static std::string format_rejects(const PatchFile &pf,
-                                   const std::vector<bool> &rejected)
+// A unified diff range as GNU patch writes it, with no count for one line.
+static std::string reject_unified_range(ptrdiff_t start, ptrdiff_t count)
 {
-    std::string result;
-    bool has_any = false;
+    if (count == 1) return std::format("{}", start);
+    return std::format("{},{}", start, count);
+}
+
+// A context diff range as GNU patch writes it, from first to last line,
+// either alone for one line, or 0 for none.
+static std::string reject_context_range(ptrdiff_t start, ptrdiff_t count)
+{
+    if (count == 0) return "0";
+    if (count == 1) return std::format("{}", start);
+    return std::format("{},{}", start, start + count - 1);
+}
+
+// Format a file's rejected hunks for its .rej file like GNU patch does: as
+// a diff of the same form, with each hunk moved by the lines that the hunks
+// applied before it added, offsets[h].  GNU patch runs a line that lacks a
+// newline into the next one, though, where this marks it as diff does.
+static std::string format_rejects(const PatchFile &pf,
+                                  const std::vector<bool> &rejected,
+                                  const std::vector<ptrdiff_t> &offsets)
+{
+    static constexpr std::string_view no_newline = "\\ No newline at end of file\n";
+    std::string result = pf.context
+        ? "*** " + pf.old_label + "\n--- " + pf.new_label + "\n"
+        : "--- " + pf.old_label + "\n+++ " + pf.new_label + "\n";
 
     for (ptrdiff_t h = 0; h < std::ssize(pf.hunks); ++h) {
         if (!rejected[checked_cast<size_t>(h)]) continue;
         const auto &hunk = pf.hunks[checked_cast<size_t>(h)];
+        ptrdiff_t offset = offsets[checked_cast<size_t>(h)];
 
-        if (!has_any) {
-            // Write file headers
-            result += "--- ";
-            result += pf.old_path;
-            result += '\n';
-            result += "+++ ";
-            result += pf.new_path;
-            result += '\n';
-            has_any = true;
+        if (pf.context) {
+            auto add_section = [&](std::span<const std::string> section, bool no_nl) {
+                for (const auto &line : section) {
+                    result += line[0];
+                    result += ' ';
+                    result += std::string_view(line).substr(1);
+                    result += '\n';
+                }
+                if (no_nl && !section.empty()) result += no_newline;
+            };
+            result += "***************" + hunk.function + "\n";
+            result += "*** " + reject_context_range(hunk.old_start + offset, hunk.old_count) + " ****\n";
+            add_section(hunk.old_section, hunk.old_no_newline);
+            result += "--- " + reject_context_range(hunk.new_start + offset, hunk.new_count) + " ----\n";
+            add_section(hunk.new_section, hunk.new_no_newline);
+            continue;
         }
 
-        // Write hunk header
-        result += std::format("@@ -{},{} +{},{} @@\n",
-                              hunk.old_start, hunk.old_count,
-                              hunk.new_start, hunk.new_count);
+        result += std::format("@@ -{} +{} @@{}\n",
+                              reject_unified_range(hunk.old_start + offset, hunk.old_count),
+                              reject_unified_range(hunk.new_start + offset, hunk.new_count),
+                              hunk.function);
 
-        // Write hunk lines
-        for (const auto &line : hunk.lines) {
-            result += line;
-            result += '\n';
+        // The last line on each side, which alone may lack a newline
+        ptrdiff_t n = std::ssize(hunk.lines);
+        ptrdiff_t last_old = -1, last_new = -1;
+        for (ptrdiff_t k = 0; k < n; ++k) {
+            char mark = hunk.lines[checked_cast<size_t>(k)][0];
+            if (mark != '+') last_old = k;
+            if (mark != '-') last_new = k;
         }
-        if (hunk.old_no_newline) {
-            result += "\\ No newline at end of file\n";
+        auto add_line = [&](ptrdiff_t k) {
+            result += hunk.lines[checked_cast<size_t>(k)];
+            result += '\n';
+            if ((k == last_old && hunk.old_no_newline) ||
+                (k == last_new && hunk.new_no_newline)) {
+                result += no_newline;
+            }
+        };
+
+        // Like GNU patch, list each change's deletions before its additions
+        for (ptrdiff_t k = 0; k < n; ++k) {
+            ptrdiff_t end = k;
+            while (end < n && hunk.lines[checked_cast<size_t>(end)][0] != ' ') ++end;
+            for (char mark : {'-', '+'}) {
+                for (ptrdiff_t j = k; j < end; ++j) {
+                    if (hunk.lines[checked_cast<size_t>(j)][0] == mark) add_line(j);
+                }
+            }
+            if (end < n) add_line(end);
+            k = end;
         }
     }
 
@@ -3341,10 +5030,135 @@ static std::string format_rejects(const PatchFile &pf,
 
 // ── Main patch engine ──────────────────────────────────────────────────
 
+// Line k (from 1) of text as given, with its line ending, or empty
+static std::string_view raw_line(std::string_view text, ptrdiff_t k)
+{
+    if (k < 1) return {};
+    for (; k > 1; --k) {
+        ptrdiff_t nl = str_find(text, '\n');
+        if (nl < 0) return {};
+        text.remove_prefix(checked_cast<size_t>(nl + 1));
+    }
+    ptrdiff_t nl = str_find(text, '\n');
+    return nl < 0 ? text : text.substr(0, checked_cast<size_t>(nl + 1));
+}
+
+// A file name as GNU patch shows it, quoted as gnulib's quotearg does in
+// its default "shell" style, in the C locale: as is unless the shell would
+// take it otherwise, and then in single quotes, each single quote written
+// as '\''.  A name with a single quote and otherwise only printable ASCII
+// that needs no escaping in C goes in double quotes instead.
+static std::string quote_name(std::string_view name)
+{
+    bool quote = name.empty();
+    bool apostrophe = false;
+    bool plain = true;  // fit for double quotes
+    for (ptrdiff_t k = 0; k < std::ssize(name); ++k) {
+        unsigned char c = static_cast<unsigned char>(name[checked_cast<size_t>(k)]);
+        switch (c) {
+        case '{': case '}':  // special alone
+            if (std::ssize(name) == 1) {
+                quote = true;
+            } else {
+                plain = false;
+            }
+            break;
+        case '#': case '~':  // special at the start
+            if (k == 0) {
+                quote = true;
+            } else {
+                plain = false;
+            }
+            break;
+        case '\'':
+            apostrophe = true;
+            quote = true;
+            break;
+        case ' ':
+            quote = true;
+            break;
+        case '\t': case '\n': case '\r': case '\\': case '?':
+        case '!': case '"': case '$': case '&': case '(': case ')': case '*':
+        case ';': case '<': case '=': case '>': case '[': case '^': case '`':
+        case '|':
+            quote = true;
+            plain = false;
+            break;
+        default:
+            // Any other byte goes as it is, though only printable ASCII
+            // suits double quotes
+            if (c < 0x20 || c > 0x7e) plain = false;
+        }
+    }
+
+    if (!quote) return std::string(name);
+    if (apostrophe && plain) return "\"" + std::string(name) + "\"";
+    std::string result = "'";
+    for (char c : name) {
+        if (c == '\'') {
+            result += "'\\''";
+        } else {
+            result += c;
+        }
+    }
+    result += '\'';
+    return result;
+}
+
+// Read value as GNU patch reads a number for an option: an optional sign,
+// then digits, and not negative. A value too large for an int is clamped.
+// A bad value, the first one only, goes in opts.option_error, named by what.
+static void set_number_option(PatchOptions &opts, int &number, std::string_view what,
+                              std::string_view value)
+{
+    std::string_view digits = value;
+    bool negative = digits.starts_with('-');
+    if (negative || digits.starts_with('+')) digits.remove_prefix(1);
+
+    std::string_view problem;
+    if (digits.empty() ||
+        !std::ranges::all_of(digits, [](char c) { return c >= '0' && c <= '9'; })) {
+        problem = "is not a number";
+    } else if (negative && digits.find_first_not_of('0') != std::string_view::npos) {
+        problem = "is negative";
+    }
+    if (!problem.empty()) {
+        if (opts.option_error.empty()) {
+            opts.option_error = std::string(what) + " " + quote_name(value) + " " +
+                                std::string(problem);
+        }
+        return;
+    }
+
+    auto [ptr, ec] = std::from_chars(digits.data(), digits.data() + digits.size(), number);
+    if (ec == std::errc::result_out_of_range) {
+        number = std::numeric_limits<int>::max();
+    }
+}
+
+void set_fuzz_option(PatchOptions &opts, std::string_view value)
+{
+    set_number_option(opts, opts.fuzz, "fuzz factor", value);
+}
+
+void set_strip_option(PatchOptions &opts, std::string_view value)
+{
+    set_number_option(opts, opts.strip_level, "strip count", value);
+}
+
 PatchResult builtin_patch(std::string_view patch_text, const PatchOptions &opts)
 {
     PatchResult result;
     result.exit_code = 0;
+
+    // Like GNU patch, a bad option ends the patch before it touches, or
+    // backs up, any file
+    if (!opts.option_error.empty()) {
+        result.exit_code = 2;
+        result.err = "patch: **** " + opts.option_error + "\n";
+        result.skipped = patch_target_files(patch_text, opts.strip_level, opts.reverse);
+        return result;
+    }
 
     // Filesystem abstraction: use in-memory map when opts.fs is set
     auto fs_exists = [&](std::string_view p) -> bool {
@@ -3367,146 +5181,212 @@ PatchResult builtin_patch(std::string_view patch_text, const PatchOptions &opts)
         return delete_file(p);
     };
 
-    auto files = parse_patch(patch_text, opts.strip_level, opts.reverse);
+    std::string parse_error;
+    auto lines = split_lines(patch_text);
+    auto files = parse_patch(lines, opts.strip_level, opts.reverse, parse_error);
 
+    // A hunk that does not parse is fatal, so apply none of the patch
+    if (!parse_error.empty()) {
+        result.exit_code = 2;
+        result.err = "patch: **** " + parse_error + "\n";
+        return result;
+    }
+
+    // Like GNU patch, empty input applies nothing, but input with no hunk
+    // at all is fatal, even with -f or -s
     if (files.empty()) {
+        if (!patch_text.empty()) {
+            result.exit_code = 2;
+            result.err = "patch: **** Only garbage was found in the patch input.\n";
+        }
         return result;
     }
 
     bool had_rejects = false;
+    std::vector<std::string> patched;  // targets of the sections not skipped
 
     for (const auto &pf : files) {
         if (pf.target_path.empty()) continue;
 
-        if (!opts.quiet) {
-            result.out += "patching file " + pf.target_path + "\n";
-        }
-
-        // Load current file contents
-        FileContent fc;
         bool file_existed = fs_exists(pf.target_path);
+        std::string original = file_existed ? fs_read(pf.target_path) : std::string{};
+        bool is_empty = original.empty();
 
-        if (pf.is_creation && file_existed) {
-            // File exists but patch says it should be new — still try to apply
+        // Like GNU patch given -f, as quilt always does, warn about a
+        // patch that creates a file with contents, or deletes or empties
+        // one that is missing or empty, then apply it anyway
+        bool looks_reversed = is_empty ? pf.new_absent > 0 : pf.old_absent == 2;
+        if (looks_reversed && !opts.quiet) {
+            result.out += std::format(
+                "The next patch{} would {} the file {},\nwhich {}!  Applying it anyway.\n",
+                opts.reverse ? ", when reversed," : "",
+                !file_existed ? "delete" : is_empty ? "empty out" : "create",
+                quote_name(pf.target_path),
+                !file_existed ? "does not exist" : is_empty ? "is already empty"
+                                                            : "already exists");
         }
 
-        if (file_existed) {
-            fc = load_file_lines(fs_read(pf.target_path));
-        } else if (!pf.is_creation) {
-            // File doesn't exist and this isn't a creation patch
-            result.err += "can't find file to patch at input line 0\n";
-            if (!opts.force) {
-                result.exit_code = 1;
-                if (!opts.dry_run) {
-                    had_rejects = true;
-                    // Write all hunks as rejects
-                    std::vector<bool> all_rejected(checked_cast<size_t>(std::ssize(pf.hunks)), true);
-                    std::string rej_content = format_rejects(pf, all_rejected);
-                    if (!rej_content.empty()) {
-                        fs_write(pf.target_path + ".rej", rej_content);
-                    }
-                }
-                continue;
+        // Like GNU patch, note a CRLF ending on the line it goes by.  The
+        // patch is read with its CRs stripped in any case.
+        if (!opts.quiet && raw_line(patch_text, pf.crlf_line).ends_with("\r\n")) {
+            result.out += "(Stripping trailing CRs from patch; use --binary to disable.)\n";
+        }
+
+        // A missing file is patched as empty when the patch creates it, or
+        // when GNU patch would have warned above.  Otherwise, like GNU patch
+        // given -f, as quilt always does, quote the text leading up to the
+        // first hunk and skip the file without writing rejects.  As with -s,
+        // quiet drops only the first two lines.
+        if (!file_existed && !pf.old_absent && !looks_reversed) {
+            if (!opts.quiet) {
+                result.out += std::format(
+                    "can't find file to patch at input line {}\n"
+                    "Perhaps you used the wrong -p or --strip option?\n",
+                    pf.hunk_line);
             }
+            result.out += "The text leading up to this was:\n"
+                          "--------------------------\n";
+            // Quote the lines as given, carriage returns and all
+            std::string_view text = patch_text;
+            for (ptrdiff_t k = 1; k < pf.hunk_line; ++k) {
+                // Every line before a hunk header ends with a newline
+                ptrdiff_t len = str_find(text, '\n') + 1;
+                if (k >= pf.text_line) {
+                    result.out += '|';
+                    result.out += text.substr(0, checked_cast<size_t>(len));
+                }
+                text.remove_prefix(checked_cast<size_t>(len));
+            }
+            ptrdiff_t nhunks = std::ssize(pf.hunks);
+            result.out += std::format(
+                "--------------------------\n"
+                "No file to patch.  Skipping patch.\n"
+                "{} out of {} {} ignored\n",
+                nhunks, nhunks, nhunks == 1 ? "hunk" : "hunks");
+            result.exit_code = 1;
+            if (std::ranges::find(result.skipped, pf.target_path) == result.skipped.end()) {
+                result.skipped.push_back(pf.target_path);
+            }
+            continue;
         }
+        patched.push_back(pf.target_path);
 
-        // Try to match each hunk
+        if (!opts.quiet) {
+            result.out += "patching file " + quote_name(pf.target_path) + "\n";
+        }
+        FileContent fc = load_file_lines(original);
+
         std::vector<ptrdiff_t> hunk_positions(checked_cast<size_t>(std::ssize(pf.hunks)), -1);
-        std::vector<HunkFuzz> hunk_fuzz(checked_cast<size_t>(std::ssize(pf.hunks)));
         std::vector<bool> rejected(checked_cast<size_t>(std::ssize(pf.hunks)), false);
         ptrdiff_t cumulative_offset = 0;
+        // Lines that the hunks applied so far added, which GNU patch adds to
+        // the line numbers it reports, and offset_before[h] before hunk h
+        ptrdiff_t out_offset = 0;
+        std::vector<ptrdiff_t> offset_before(checked_cast<size_t>(std::ssize(pf.hunks)));
         ptrdiff_t last_frozen_line = 0;  // 0-based, exclusive: lines before this are frozen
-        bool file_has_rejects = false;
+        bool conflicts = false;
+        std::string merged;
 
-        for (ptrdiff_t h = 0; h < std::ssize(pf.hunks); ++h) {
-            const auto &hunk = pf.hunks[checked_cast<size_t>(h)];
-            auto pattern = get_old_pattern(hunk);
+        if (opts.merge) {
+            // Like GNU patch, merge every hunk, conflicts and all
+            merged = merge_hunks(fc, pf, opts, result.out, conflicts,
+                                 rejected, offset_before);
+        } else {
+            // Try to match each hunk
+            for (ptrdiff_t h = 0; h < std::ssize(pf.hunks); ++h) {
+                const auto &hunk = pf.hunks[checked_cast<size_t>(h)];
+                auto pattern = get_old_pattern(hunk);
+                offset_before[checked_cast<size_t>(h)] = out_offset;
 
-            ptrdiff_t pos = locate_hunk(fc.lines, hunk, pattern,
-                                         last_frozen_line, cumulative_offset,
-                                         opts.fuzz);
-
-            if (pos >= 0) {
-                hunk_positions[checked_cast<size_t>(h)] = pos;
-                ptrdiff_t pat_len = std::ssize(pattern);
-                ptrdiff_t actual_offset = pos - (std::max(hunk.old_start, ptrdiff_t{1}) - 1);
+                ptrdiff_t fuzz_used = 0;
+                ptrdiff_t pos = locate_hunk(fc.lines, hunk, pattern,
+                                             last_frozen_line, cumulative_offset,
+                                             opts.fuzz, fuzz_used);
                 auto ctx = get_hunk_context(hunk);
+                bool changes = ctx.prefix < std::ssize(hunk.lines);
 
-                // Determine fuzz level used for this hunk
-                int fuzz_used = 0;
-                if (opts.fuzz > 0) {
-                    for (int f = 0; f <= opts.fuzz; ++f) {
-                        if (try_match(fc.lines, pos, pattern, f, ctx.prefix, ctx.suffix)) {
-                            fuzz_used = f;
-                            break;
+                // Like GNU patch outside merge mode, refuse a hunk at the top
+                // of a file with contents when the patch surely creates it
+                bool refused = pos == 0 && pf.old_absent == 2 && !is_empty;
+
+                // Like GNU patch, fail a hunk found among the frozen lines that
+                // would change one, saying so even with -s, though the hunks
+                // after it still start from where it was found
+                bool misordered = !refused && pos >= 0 && changes &&
+                                  pos + ctx.prefix < last_frozen_line;
+                if (misordered) {
+                    result.out += "misordered hunks! output would be garbled\n";
+                    cumulative_offset = pos - old_range_pos(hunk);
+                }
+
+                if (pos >= 0 && !refused && !misordered) {
+                    hunk_positions[checked_cast<size_t>(h)] = pos;
+                    ptrdiff_t pat_len = std::ssize(pattern);
+                    ptrdiff_t actual_offset = pos - old_range_pos(hunk);
+
+                    // Like GNU patch, report the hunk's line in the patched
+                    // file and its whole offset from the line it names, even
+                    // when the hunk before had the same offset
+                    if ((actual_offset != 0 || fuzz_used > 0) && !opts.quiet) {
+                        result.out += std::format("Hunk #{} succeeded at {}",
+                                                  h + 1, pos + 1 + out_offset);
+                        if (fuzz_used > 0) {
+                            result.out += std::format(" with fuzz {}", fuzz_used);
                         }
+                        if (actual_offset != 0) {
+                            // Like GNU patch, only +1 is singular; -1 stays
+                            // "lines"
+                            result.out += std::format(" (offset {} line{})", actual_offset,
+                                                      actual_offset == 1 ? "" : "s");
+                        }
+                        result.out += ".\n";
                     }
-                }
 
-                // Record fuzz amounts for build_output trimming
-                hunk_fuzz[checked_cast<size_t>(h)] = {
-                    std::min(static_cast<ptrdiff_t>(fuzz_used), ctx.prefix),
-                    std::min(static_cast<ptrdiff_t>(fuzz_used), ctx.suffix)
-                };
-                auto &fz = hunk_fuzz[checked_cast<size_t>(h)];
-
-                if (actual_offset != cumulative_offset && !opts.quiet) {
-                    if (fuzz_used > 0) {
-                        result.out += std::format(
-                            "Hunk #{} succeeded at {} with fuzz {} (offset {} lines).\n",
-                            h + 1, pos + 1, fuzz_used, actual_offset - cumulative_offset);
-                    } else {
-                        result.out += std::format(
-                            "Hunk #{} succeeded at {} (offset {} lines).\n",
-                            h + 1, pos + 1, actual_offset - cumulative_offset);
-                    }
-                } else if (fuzz_used > 0 && !opts.quiet) {
-                    result.out += std::format(
-                        "Hunk #{} succeeded at {} with fuzz {}.\n",
-                        h + 1, pos + 1, fuzz_used);
-                }
-
-                // Update offset and frozen line (adjusted for fuzz)
-                cumulative_offset = actual_offset;
-                last_frozen_line = pos + pat_len - fz.suffix;
-            } else {
-                // Hunk failed
-                rejected[checked_cast<size_t>(h)] = true;
-                file_has_rejects = true;
-                if (!opts.quiet) {
-                    if (opts.merge) {
-                        result.err += std::format("Hunk #{} NOT MERGED at {}.\n",
-                                                  h + 1, hunk.old_start);
-                    } else {
-                        result.err += std::format("Hunk #{} FAILED at {}.\n",
-                                                  h + 1, hunk.old_start);
+                    // Update offset and frozen line.  Like GNU patch outside
+                    // merge mode, freeze only the lines through the hunk's last
+                    // change, as the output takes context from the file.
+                    cumulative_offset = actual_offset;
+                    if (changes) last_frozen_line = pos + pat_len - ctx.suffix;
+                    out_offset += hunk.new_count - hunk.old_count;
+                } else {
+                    // Hunk failed
+                    rejected[checked_cast<size_t>(h)] = true;
+                    if (!opts.quiet) {
+                        // Like GNU patch, the line a hunk was found at, or else
+                        // the line it names, the one after for an empty range
+                        ptrdiff_t line = refused || misordered ? pos + 1
+                                       : hunk.old_count == 0 ? hunk.old_start + 1
+                                       : hunk.old_start;
+                        result.out += std::format("Hunk #{} FAILED at {}.\n",
+                                                  h + 1, line + out_offset);
                     }
                 }
             }
         }
 
-        if (file_has_rejects) {
+        bool file_has_rejects = std::ranges::find(rejected, true) != rejected.end();
+        if (file_has_rejects || conflicts) {
             had_rejects = true;
             result.exit_code = 1;
         }
 
         // Apply changes
         if (!opts.dry_run) {
-            bool any_applied = false;
+            // Like GNU patch, merge mode always writes the file
+            bool any_applied = opts.merge;
             for (ptrdiff_t h = 0; h < std::ssize(pf.hunks); ++h) {
                 if (hunk_positions[checked_cast<size_t>(h)] >= 0) { any_applied = true; break; }
             }
 
-            if (any_applied || pf.is_creation || (opts.merge && file_has_rejects)) {
-                std::string new_content;
-
-                if (opts.merge && file_has_rejects) {
-                    new_content = build_merge_output(fc.lines, fc.has_trailing_newline,
-                                                      pf, hunk_positions, hunk_fuzz,
-                                                      opts.merge_style);
+            bool creating = !file_existed && pf.old_absent;
+            bool changed = any_applied || creating;
+            std::string new_content;
+            if (changed) {
+                if (opts.merge) {
+                    new_content = std::move(merged);
                 } else {
                     new_content = build_output(fc.lines, fc.has_trailing_newline,
-                                               pf, hunk_positions, hunk_fuzz);
+                                               pf, hunk_positions);
                 }
 
                 // Restore \r\n line endings if the original file used them
@@ -3530,32 +5410,44 @@ PatchResult builtin_patch(std::string_view patch_text, const PatchOptions &opts)
                         make_dirs(dir);
                     }
                 }
-
-                // Check if we should remove the file (-E flag)
-                if (opts.remove_empty && new_content.empty() && !pf.is_creation) {
-                    if (file_existed) {
-                        fs_delete(pf.target_path);
-                    }
-                } else {
-                    fs_write(pf.target_path, new_content);
-                }
             }
 
-            // Write reject file if needed (and not in merge mode)
-            if (file_has_rejects && !opts.merge) {
-                std::string rej_content = format_rejects(pf, rejected);
-                if (!rej_content.empty()) {
-                    fs_write(pf.target_path + ".rej", rej_content);
+            // GNU patch writes out the file even when no hunk changed it, so
+            // it judges what is left of the file either way
+            bool left_empty = changed ? new_content.empty() : is_empty;
+
+            // Remove a file left empty when -E is given or the patch
+            // surely deletes it, like GNU patch outside POSIX mode
+            if ((opts.remove_empty || pf.new_absent == 2) && left_empty && !pf.old_absent) {
+                if (file_existed && fs_delete(pf.target_path) && !opts.fs) {
+                    remove_empty_parents(pf.target_path);
                 }
-                if (!opts.quiet) {
-                    ptrdiff_t rej_count = 0;
-                    for (bool r : rejected) if (r) ++rej_count;
-                    result.err += std::format(
-                        "{} out of {} {} FAILED -- saving rejects to file {}.rej\n",
-                        rej_count, std::ssize(pf.hunks),
-                        std::ssize(pf.hunks) == 1 ? "hunk" : "hunks",
-                        pf.target_path);
+            } else {
+                // Like GNU patch, which in merge mode stays quiet about it
+                // once any hunk has failed
+                if (pf.new_absent == 2 && !left_empty &&
+                    !(opts.merge && result.exit_code != 0)) {
+                    result.exit_code = 1;
+                    if (!opts.quiet) {
+                        result.out += "Not deleting file " + quote_name(pf.target_path) +
+                                      " as content differs from patch\n";
+                    }
                 }
+                if (changed) fs_write(pf.target_path, new_content);
+            }
+
+            // Write the reject file, which merge mode needs only for a hunk
+            // found among lines it merged already
+            if (file_has_rejects) {
+                fs_write(pf.target_path + ".rej", format_rejects(pf, rejected, offset_before));
+                // Like GNU patch, even with -s
+                ptrdiff_t rej_count = 0;
+                for (bool r : rejected) if (r) ++rej_count;
+                result.out += std::format(
+                    "{} out of {} {} FAILED -- saving rejects to file {}\n",
+                    rej_count, std::ssize(pf.hunks),
+                    std::ssize(pf.hunks) == 1 ? "hunk" : "hunks",
+                    quote_name(pf.target_path + ".rej"));
             }
         }
     }
@@ -3563,6 +5455,11 @@ PatchResult builtin_patch(std::string_view patch_text, const PatchOptions &opts)
     if (had_rejects) {
         result.exit_code = 1;
     }
+
+    // Another section may have patched a skipped file, say by creating it
+    std::erase_if(result.skipped, [&](const std::string &file) {
+        return std::ranges::find(patched, file) != patched.end();
+    });
 
     return result;
 }
@@ -3576,64 +5473,158 @@ PatchResult builtin_patch(std::string_view patch_text, const PatchOptions &opts)
 static void write_applied_patches(QuiltState &q) {
     std::string path = path_join(q.work_dir, q.pc_dir, "applied-patches");
     write_applied(path, q.applied);
+    // Like the original quilt, remove the file once the stack is empty.
+    // Truncating first means a failed removal leaves no stale entries.
+    if (q.applied.empty()) delete_file(path);
 }
 
-// Parse affected files from a unified diff, stripping path components
-// to match what `patch -pN` would do.
-static std::vector<std::string> parse_patch_files(std::string_view content, int strip = 1) {
-    std::vector<std::string> files;
-    auto lines = split_lines(content);
-    for (const auto &line : lines) {
-        if (!line.starts_with("+++ ")) continue;
-        std::string_view rest = std::string_view(line).substr(4);
-        // Skip /dev/null
-        if (rest.starts_with("/dev/null")) continue;
-        // Strip trailing tab and timestamp (e.g., "\t2024-01-01 ...")
-        ptrdiff_t tab = str_find(rest, '\t');
-        if (tab >= 0) {
-            rest = rest.substr(0, checked_cast<size_t>(tab));
+// Apply the patch options from QUILT_PATCH_OPTS that the builtin engine
+// understands.
+static void apply_quilt_patch_opts(PatchOptions &opts, std::span<const std::string> extra)
+{
+    for (const auto &opt : extra) {
+        std::string_view o = opt;
+        if (o == "-R") opts.reverse = true;
+        else if (o == "-s") opts.quiet = true;
+        else if (o == "-E") opts.remove_empty = true;
+        else if (o.starts_with("--fuzz=")) set_fuzz_option(opts, o.substr(7));
+    }
+}
+
+// Rewrite the " -- saving rejects to file X" ending of patch's messages for
+// a reject file that push removes, as upstream push's cleanup_patch_output
+// does: name the file with the rejects, from the last "patching file" line,
+// or with -q, which hides those lines, drop the ending.
+static std::string cleanup_patch_output(std::string_view text, bool quiet)
+{
+    std::string result;
+    std::string_view file;
+    for (;;) {
+        ptrdiff_t nl = str_find(text, '\n');
+        std::string_view line = nl < 0 ? text : text.substr(0, checked_cast<size_t>(nl));
+        if (line.starts_with("patching file ")) {
+            file = line.substr(14);
         }
-        std::string f = trim(rest);
-        // Strip N leading path components (like patch -pN)
-        for (int i = 0; i < strip && !f.empty(); ++i) {
-            ptrdiff_t slash = str_find(std::string_view(f), '/');
-            if (slash >= 0) {
-                f = f.substr(checked_cast<size_t>(slash) + 1);
+        ptrdiff_t at = str_find(line, " -- saving rejects to ");
+        if (at < 0) {
+            result += line;
+        } else {
+            result += line.substr(0, checked_cast<size_t>(at));
+            if (!quiet) {
+                result += " -- rejects in file ";
+                result += file;
             }
         }
-        if (!f.empty()) {
-            files.push_back(std::move(f));
+        if (nl < 0) return result;
+        result += '\n';
+        text.remove_prefix(checked_cast<size_t>(nl + 1));
+    }
+}
+
+// Check that the patch file accounts for every change to the patch's files,
+// like upstream's check_for_pending_changes: apply the patch to the backups
+// in memory and compare each result with the working tree.
+static bool removes_cleanly(const QuiltState &q, std::string_view name,
+                            std::span<const std::string> extra_patch_opts)
+{
+    std::string pc_dir = pc_patch_dir(q, name);
+    auto files = files_in_patch(q, name);
+
+    std::map<std::string, std::string> memfs;
+    for (const auto &file : files) {
+        // An empty backup means the file did not exist before the patch
+        std::string backup = read_file(path_join(pc_dir, file));
+        if (!backup.empty()) memfs[file] = std::move(backup);
+    }
+
+    std::string patch_content = read_file(path_join(q.work_dir, q.patches_dir, name));
+    if (!patch_content.empty()) {
+        PatchOptions opts;
+        opts.strip_level = q.get_strip_level(name);
+        if (q.patch_reversed.contains(std::string(name))) opts.reverse = true;
+        apply_quilt_patch_opts(opts, extra_patch_opts);
+        // The engine keeps whatever applies, so a force-applied patch
+        // matches the partial result that push left behind
+        opts.quiet = true;
+        opts.fs = &memfs;
+        builtin_patch(patch_content, opts);
+    }
+
+    for (const auto &file : files) {
+        // A missing file compares as empty, like diff against /dev/null
+        auto it = memfs.find(file);
+        std::string_view expected = it != memfs.end() ? std::string_view(it->second) : "";
+        if (read_file(path_join(q.work_dir, file)) != expected) return false;
+    }
+    return true;
+}
+
+// Like upstream push, check whether a patch that does not apply is applied
+// already by applying it in reverse, here to copies of its files.  Set files
+// to those the reverse patch would have backed up.
+static bool reverse_applies(const QuiltState &q, std::string_view name,
+                            std::string_view patch_content, PatchOptions opts,
+                            std::span<const std::string> extra_patch_opts,
+                            std::vector<std::string> &files)
+{
+    // Flip the series' direction, though as with patch given -R twice, a
+    // -R in QUILT_PATCH_OPTS keeps the patch reversed
+    opts.reverse = !q.patch_reversed.contains(std::string(name));
+    apply_quilt_patch_opts(opts, extra_patch_opts);
+    opts.quiet = true;
+
+    files = patch_target_files(patch_content, opts.strip_level, opts.reverse);
+    std::map<std::string, std::string> memfs;
+    for (const auto &file : files) {
+        std::string path = path_join(q.work_dir, file);
+        if (file_exists(path)) memfs[file] = read_file(path);
+    }
+    opts.fs = &memfs;
+    PatchResult result = builtin_patch(patch_content, opts);
+
+    std::erase_if(files, [&](const std::string &file) {
+        return std::ranges::find(result.skipped, file) != result.skipped.end();
+    });
+    return result.exit_code == 0;
+}
+
+// List the files that rolling back a patch restored from their backups, as
+// upstream push -v does through backup-files: first those it removed, whose
+// empty backups mean they were missing or empty, then the rest.
+static void show_rollback(const QuiltState &q, std::span<const std::string> files)
+{
+    std::vector<std::string_view> restored;
+    for (const auto &file : files) {
+        if (read_file(path_join(q.work_dir, file)).empty()) {
+            out_line("Removing " + file);
+        } else {
+            restored.push_back(file);
         }
     }
-    return files;
+    for (auto file : restored) {
+        out("Restoring ");
+        out_line(file);
+    }
 }
 
 int cmd_series(QuiltState &q, int argc, char **argv) {
+    enum { COLOR = 256 };
+    static constexpr LongOpt longopts[] = {
+        {"color", OptArg::optional, COLOR},
+    };
+    auto args = parse_options(argc, argv, "vh", longopts);
+    if (!args) return 1;
     bool verbose = false;
-    // color: 0=never, 1=auto, 2=always
-    int color_mode = 0;
-    for (int i = 1; i < argc; ++i) {
-        std::string_view arg = argv[i];
-        if (arg == "-v") {
-            verbose = true;
-        } else if (arg == "--color") {
-            color_mode = 1;  // auto
-        } else if (arg.starts_with("--color=")) {
-            auto val = arg.substr(8);
-            if (val == "always") color_mode = 2;
-            else if (val == "auto") color_mode = 1;
-            else if (val == "never") color_mode = 0;
-            else {
-                err("Invalid --color value: "); err_line(val);
-                return 1;
-            }
-        } else if (arg[0] == '-') {
-            err("Unrecognized option: "); err_line(arg);
-            return 1;
+    for (const auto &opt : args->options) {
+        switch (opt.key) {
+        case 'v': verbose = true; break;
+        case COLOR:
+            if (!valid_color_value(opt.value)) return usage_error(argv[0]);
+            break;
+        case 'h': return command_help(argv[0]);
         }
     }
-
-    bool use_color = (color_mode == 2) || (color_mode == 1 && stdout_is_tty());
+    if (!args->operands.empty()) return usage_error(argv[0]);
 
     if (q.series.empty()) {
         if (q.series_file_exists) {
@@ -3655,49 +5646,30 @@ int cmd_series(QuiltState &q, int argc, char **argv) {
                 out("  ");
             }
         }
-        std::string name = format_patch(q, patch);
-        if (use_color) {
-            if (!q.applied.empty() && patch == q.applied.back()) {
-                out("\033[33m");  // yellow for top
-            } else if (q.is_applied(patch)) {
-                out("\033[32m");  // green for applied
-            } else {
-                out("\033[00m");  // default for unapplied
-            }
-            out(name);
-            out_line("\033[00m");
-        } else {
-            out_line(name);
-        }
+        out_line(format_patch(q, patch));
     }
     return 0;
 }
 
 int cmd_applied(QuiltState &q, int argc, char **argv) {
-    std::string_view target;
-    for (int i = 1; i < argc; ++i) {
-        std::string_view arg = argv[i];
-        if (arg[0] == '-') {
-            err("Unrecognized option: "); err_line(arg);
-            return 1;
-        }
-        target = strip_patches_prefix(q, arg);
+    // Upstream declares -n but never handles it, and loops forever on it,
+    // so -n does nothing here
+    auto args = parse_options(argc, argv, "nh");
+    if (!args) return 1;
+    for (const auto &opt : args->options) {
+        if (opt.key == 'h') return command_help(argv[0]);
     }
+    if (std::ssize(args->operands) > 1) return usage_error(argv[0]);
+    std::string_view target;
+    if (!args->operands.empty()) target = args->operands[0];
 
     if (!target.empty()) {
         // Print all applied patches up to and including target
-        auto idx = q.find_in_series(target);
-        if (!idx.has_value()) {
-            err("Patch "); err(format_patch(q, target)); err_line(" is not in series");
-            return 1;
-        }
-        if (!q.is_applied(target)) {
-            err("Patch "); err(format_patch(q, target)); err_line(" is not applied");
-            return 1;
-        }
+        auto found = find_applied_patch(q, target);
+        if (!found) return 1;
         for (const auto &a : q.applied) {
             out_line(format_patch(q, a));
-            if (a == target) break;
+            if (a == *found) break;
         }
         return 0;
     }
@@ -3722,15 +5694,12 @@ int cmd_applied(QuiltState &q, int argc, char **argv) {
 }
 
 int cmd_unapplied(QuiltState &q, int argc, char **argv) {
-    std::string_view target;
-    for (int i = 1; i < argc; ++i) {
-        std::string_view arg = argv[i];
-        if (arg[0] == '-') {
-            err("Unrecognized option: "); err_line(arg);
-            return 1;
-        }
-        target = strip_patches_prefix(q, arg);
-    }
+    auto args = parse_options(argc, argv, "h");
+    if (!args) return 1;
+    if (!args->options.empty()) return command_help(argv[0]);
+    if (std::ssize(args->operands) > 1) return usage_error(argv[0]);
+    std::optional<std::string_view> target;
+    if (!args->operands.empty()) target = args->operands[0];
 
     if (q.series.empty()) {
         if (q.series_file_exists) {
@@ -3742,13 +5711,12 @@ int cmd_unapplied(QuiltState &q, int argc, char **argv) {
     }
 
     ptrdiff_t start_idx;
-    if (!target.empty()) {
-        auto idx = q.find_in_series(target);
-        if (!idx.has_value()) {
-            err("Patch "); err(format_patch(q, target)); err_line(" is not in series");
-            return 1;
-        }
-        start_idx = idx.value() + 1;
+    if (target) {
+        // Like upstream, a given name is looked up even when empty, which
+        // means the top patch
+        auto found = find_patch_in_series(q, *target);
+        if (!found) return 1;
+        start_idx = q.find_in_series(*found).value() + 1;
     } else {
         ptrdiff_t top = q.top_index();
         start_idx = top + 1;
@@ -3757,7 +5725,7 @@ int cmd_unapplied(QuiltState &q, int argc, char **argv) {
     if (start_idx >= std::ssize(q.series)) {
         // With an explicit target patch, having no patches after it is not
         // an error — just print nothing.
-        if (!target.empty()) {
+        if (target) {
             return 0;
         }
         std::string_view top_name = q.applied.empty() ? std::string_view("??") : std::string_view(q.applied.back());
@@ -3772,13 +5740,10 @@ int cmd_unapplied(QuiltState &q, int argc, char **argv) {
 }
 
 int cmd_top(QuiltState &q, int argc, char **argv) {
-    for (int i = 1; i < argc; ++i) {
-        std::string_view arg = argv[i];
-        if (arg[0] == '-') {
-            err("Unrecognized option: "); err_line(arg);
-            return 1;
-        }
-    }
+    auto args = parse_options(argc, argv, "h");
+    if (!args) return 1;
+    if (!args->options.empty()) return command_help(argv[0]);
+    if (!args->operands.empty()) return usage_error(argv[0]);
     if (q.series.empty()) {
         if (q.series_file_exists) {
             err_line("No patches in series");
@@ -3797,14 +5762,24 @@ int cmd_top(QuiltState &q, int argc, char **argv) {
 }
 
 int cmd_next(QuiltState &q, int argc, char **argv) {
+    auto args = parse_options(argc, argv, "h");
+    if (!args) return 1;
+    if (!args->options.empty()) return command_help(argv[0]);
+    if (std::ssize(args->operands) > 1) return usage_error(argv[0]);
     std::string_view target;
-    for (int i = 1; i < argc; ++i) {
-        std::string_view arg = argv[i];
-        if (arg[0] == '-') {
-            err("Unrecognized option: "); err_line(arg);
-            return 1;
+    if (!args->operands.empty()) target = args->operands[0];
+
+    if (!target.empty()) {
+        auto found = find_patch(q, target);
+        if (!found) return 1;
+        // Original quilt: if the named patch is applied, error
+        if (q.is_applied(*found)) {
+            err("Patch "); err(format_patch(q, *found)); err_line(" is currently applied");
+            return 2;
         }
-        target = strip_patches_prefix(q, arg);
+        // If unapplied, return the patch itself (it's the "next" to be pushed)
+        out_line(format_patch(q, *found));
+        return 0;
     }
 
     if (q.series.empty()) {
@@ -3817,25 +5792,7 @@ int cmd_next(QuiltState &q, int argc, char **argv) {
         }
     }
 
-    ptrdiff_t after_idx;
-    if (!target.empty()) {
-        auto idx = q.find_in_series(target);
-        if (!idx.has_value()) {
-            err("Patch "); err(format_patch(q, target)); err_line(" is not in series");
-            return 2;
-        }
-        // Original quilt: if the named patch is applied, error
-        if (q.is_applied(target)) {
-            err("Patch "); err(format_patch(q, target)); err_line(" is currently applied");
-            return 2;
-        }
-        // If unapplied, return the patch itself (it's the "next" to be pushed)
-        out_line(format_patch(q, target));
-        return 0;
-    } else {
-        ptrdiff_t top = q.top_index();
-        after_idx = top + 1;
-    }
+    ptrdiff_t after_idx = q.top_index() + 1;
 
     if (after_idx >= std::ssize(q.series)) {
         std::string_view top_name = q.applied.empty() ? std::string_view("??") : std::string_view(q.applied.back());
@@ -3848,22 +5805,17 @@ int cmd_next(QuiltState &q, int argc, char **argv) {
 }
 
 int cmd_previous(QuiltState &q, int argc, char **argv) {
+    auto args = parse_options(argc, argv, "h");
+    if (!args) return 1;
+    if (!args->options.empty()) return command_help(argv[0]);
+    if (std::ssize(args->operands) > 1) return usage_error(argv[0]);
     std::string_view target;
-    for (int i = 1; i < argc; ++i) {
-        std::string_view arg = argv[i];
-        if (arg[0] == '-') {
-            err("Unrecognized option: "); err_line(arg);
-            return 1;
-        }
-        target = strip_patches_prefix(q, arg);
-    }
+    if (!args->operands.empty()) target = args->operands[0];
 
     if (!target.empty()) {
-        auto idx = q.find_in_series(target);
-        if (!idx.has_value()) {
-            err("Patch "); err(format_patch(q, target)); err_line(" is not in series");
-            return 2;
-        }
+        auto found = find_patch(q, target);
+        if (!found) return 1;
+        auto idx = q.find_in_series(*found);
         if (idx.value() == 0) {
             return 2;
         }
@@ -3898,8 +5850,8 @@ int cmd_push(QuiltState &q, int argc, char **argv) {
     bool push_all = false;
     bool force = false;
     bool quiet = false;
-    bool verbose = false;
-    int fuzz = -1;
+    bool verbose = false;  // lists the files of each rollback, like upstream
+    std::string_view fuzz;  // like upstream, an empty value means none
     bool merge = false;
     std::string merge_style;
     bool leave_rejects = false;
@@ -3907,40 +5859,80 @@ int cmd_push(QuiltState &q, int argc, char **argv) {
     int push_count = -1;
     std::string_view target;
 
-    for (int i = 1; i < argc; ++i) {
-        std::string_view arg = argv[i];
-        if (arg == "-a") { push_all = true; }
-        else if (arg == "-f") { force = true; }
-        else if (arg == "-q" || arg == "--quiet") { quiet = true; }
-        else if (arg == "-v" || arg == "--verbose") { verbose = true; }
-        else if (arg.starts_with("--fuzz=")) { fuzz = checked_cast<int>(parse_int(arg.substr(7))); }
-        else if (arg == "-m" || arg == "--merge") { merge = true; }
-        else if (arg.starts_with("--merge=")) { merge = true; merge_style = std::string(arg.substr(8)); }
-        else if (arg == "--leave-rejects") { leave_rejects = true; }
-        else if (arg == "--refresh") { do_refresh = true; }
-        else if (arg == "--color" || arg.starts_with("--color=")) {
-            if (arg.starts_with("--color=")) {
-                auto val = arg.substr(8);
-                if (val != "always" && val != "auto" && val != "never") {
-                    err("Invalid --color value: "); err_line(val);
-                    return 1;
-                }
+    enum { FUZZ = 256, LEAVE_REJECTS, COLOR, REFRESH };
+    static constexpr LongOpt longopts[] = {
+        {"fuzz", OptArg::required, FUZZ},
+        {"merge", OptArg::optional, 'm'},
+        {"leave-rejects", OptArg::none, LEAVE_REJECTS},
+        {"color", OptArg::optional, COLOR},
+        {"refresh", OptArg::none, REFRESH},
+        {"quiet", OptArg::none, 'q', true},
+        {"verbose", OptArg::none, 'v', true},
+    };
+    auto args = parse_options(argc, argv, "fqvam::h", longopts);
+    if (!args) return 1;
+    for (const auto &opt : args->options) {
+        switch (opt.key) {
+        case 'f': force = true; break;
+        case 'q': quiet = true; break;
+        case 'v': verbose = true; break;
+        case 'a': push_all = true; break;
+        case 'h': return command_help(argv[0]);
+        case FUZZ: fuzz = opt.value; break;
+        case 'm':
+            if (!opt.value.empty() && opt.value != "merge" && opt.value != "diff3") {
+                return usage_error(argv[0]);
             }
+            merge = true;
+            merge_style = opt.value == "diff3" ? "diff3" : "";
+            break;
+        case LEAVE_REJECTS: leave_rejects = true; break;
+        case COLOR:
+            if (!valid_color_value(opt.value)) return usage_error(argv[0]);
+            break;
+        case REFRESH: do_refresh = true; break;
         }
-        else if (arg[0] == '-') {
-            err("Unrecognized option: "); err_line(arg);
-            return 1;
+    }
+    auto &operands = args->operands;
+    if (std::ssize(operands) > 1 || (push_all && !operands.empty())) {
+        return usage_error(argv[0]);
+    }
+    if (!operands.empty()) {
+        // Try as number first
+        std::string_view arg = operands[0];
+        int val = 0;
+        auto [ptr, ec] = std::from_chars(arg.data(), arg.data() + arg.size(), val);
+        if (ec == std::errc{} && ptr == arg.data() + arg.size() && val > 0) {
+            push_count = val;
+        } else {
+            target = arg;
         }
-        else {
-            // Try as number first
-            int val = 0;
-            auto [ptr, ec] = std::from_chars(arg.data(), arg.data() + arg.size(), val);
-            if (ec == std::errc{} && ptr == arg.data() + arg.size() && val > 0) {
-                push_count = val;
-            } else {
-                target = strip_patches_prefix(q, arg);
-            }
+    }
+
+    ptrdiff_t top = q.top_index();
+    ptrdiff_t start_idx = top + 1;
+
+    // Like upstream's find_unapplied_patch, find the named target, or else
+    // the next patch, before checking anything else
+    ptrdiff_t target_idx = -1;
+    if (!push_all && !target.empty()) {
+        auto found = find_patch(q, target);
+        if (!found) return 1;
+        target_idx = q.find_in_series(*found).value();
+        if (target_idx < start_idx) {
+            err("Patch "); err(format_patch(q, *found)); err_line(" is currently applied");
+            return 2;
         }
+    } else if (!q.series_file_exists) {
+        err_line("No series file found");
+        return 1;
+    } else if (q.series.empty()) {
+        err_line("No patches in series");
+        return 2;
+    } else if (start_idx >= std::ssize(q.series)) {
+        err_line("File series fully applied, ends at patch " +
+                 patch_path_display(q, q.applied.back()));
+        return 2;
     }
 
     // Refuse to push if top patch needs refresh (was force-applied)
@@ -3953,38 +5945,11 @@ int cmd_push(QuiltState &q, int argc, char **argv) {
         }
     }
 
-    ptrdiff_t top = q.top_index();
-    ptrdiff_t start_idx = top + 1;
-
-    if (q.series.empty()) {
-        if (q.series_file_exists) {
-            err_line("No patches in series");
-        } else {
-            err_line("No series file found");
-        }
-        return 2;
-    }
-
-    if (start_idx >= std::ssize(q.series)) {
-        err_line("File series fully applied, ends at patch " +
-                 patch_path_display(q, q.applied.back()));
-        return 2;
-    }
-
     ptrdiff_t end_idx;  // inclusive
     if (push_all) {
         end_idx = std::ssize(q.series) - 1;
-    } else if (!target.empty()) {
-        auto idx = q.find_in_series(target);
-        if (!idx.has_value()) {
-            err("Patch "); err(format_patch(q, target)); err_line(" is not in series");
-            return 1;
-        }
-        end_idx = idx.value();
-        if (end_idx < start_idx) {
-            err("Patch "); err(format_patch(q, target)); err_line(" is currently applied");
-            return 2;
-        }
+    } else if (target_idx >= 0) {
+        end_idx = target_idx;
     } else if (push_count > 0) {
         end_idx = start_idx + push_count - 1;
         if (end_idx >= std::ssize(q.series)) {
@@ -4004,22 +5969,31 @@ int cmd_push(QuiltState &q, int argc, char **argv) {
         const std::string &name = q.series[checked_cast<size_t>(i)];
         std::string display = patch_path_display(q, name);
 
-        if (i > start_idx) {
+        if (i > start_idx && !quiet) {
             out_line("");
         }
         out_line("Applying patch " + display);
 
-        // Read patch file
+        // Read patch file. A missing patch applies as an empty one.
         std::string patch_path = path_join(q.work_dir, q.patches_dir, name);
-        std::string patch_content = read_file(patch_path);
-        if (patch_content.empty() && !file_exists(patch_path)) {
-            err_line("Patch " + display + " does not exist");
-            return 1;
-        }
+        bool patch_exists = file_exists(patch_path);
+        std::string patch_content = patch_exists ? read_file(patch_path) : "";
 
-        // Parse affected files and back them up
-        int strip_level = q.get_strip_level(name);
-        auto affected = parse_patch_files(patch_content, strip_level);
+        // Apply the patch using built-in patch engine
+        PatchOptions patch_opts;
+        patch_opts.strip_level = q.get_strip_level(name);
+        if (q.patch_reversed.contains(name)) patch_opts.reverse = true;
+        if (!fuzz.empty()) set_fuzz_option(patch_opts, fuzz);
+        if (merge) {
+            patch_opts.merge = true;
+            patch_opts.merge_style = merge_style;
+        }
+        patch_opts.quiet = quiet;
+        apply_quilt_patch_opts(patch_opts, extra_patch_opts);
+
+        // Back up every file the patch will modify, including deletions
+        auto affected = patch_target_files(patch_content, patch_opts.strip_level,
+                                           patch_opts.reverse);
         std::string pc_dir = pc_patch_dir(q, name);
         if (!is_directory(pc_dir)) {
             make_dirs(pc_dir);
@@ -4029,64 +6003,45 @@ int cmd_push(QuiltState &q, int argc, char **argv) {
             backup_file(q, name, file);
         }
 
-        // Apply the patch using built-in patch engine
-        PatchOptions patch_opts;
-        patch_opts.strip_level = strip_level;
-        patch_opts.remove_empty = true;
-        patch_opts.force = force;
-        if (q.patch_reversed.contains(name)) patch_opts.reverse = true;
-        if (fuzz >= 0) patch_opts.fuzz = fuzz;
-        if (merge) {
-            patch_opts.merge = true;
-            patch_opts.merge_style = merge_style;
-        }
-        // Parse QUILT_PATCH_OPTS for additional options
-        for (const auto &opt : extra_patch_opts) {
-            std::string_view o = opt;
-            if (o == "-R") patch_opts.reverse = true;
-            else if (o == "-f" || o == "--force") patch_opts.force = true;
-            else if (o == "-s") patch_opts.quiet = true;
-            else if (o == "-E") patch_opts.remove_empty = true;
-            else if (o.starts_with("--fuzz=")) {
-                patch_opts.fuzz = checked_cast<int>(parse_int(o.substr(7)));
-            }
+        // Like upstream, run patch only for a patch file with something in
+        // it, so that a bad option fails no empty patch
+        PatchResult result = patch_content.empty()
+            ? PatchResult{} : builtin_patch(patch_content, patch_opts);
+
+        // GNU patch backs up only the files it patches, so forget the
+        // missing files it skipped
+        for (const auto &file : result.skipped) {
+            delete_file(path_join(pc_dir, file));
+            std::erase(affected, file);
         }
 
-        // Print verbose file list ourselves instead of relying on
-        // patch --verbose, which is not available on busybox.
-        if (verbose && !quiet) {
-            for (const auto &file : affected) {
-                out_line("patching file " + file);
-            }
+        // Like upstream, which runs patch with 2>&1, show all of patch's
+        // output on stdout
+        if (!force && !leave_rejects) {
+            result.out = cleanup_patch_output(result.out, quiet);
         }
+        out(result.out);
+        out(result.err);
 
-        // Suppress builtin_patch's own "patching file" messages when we do verbose ourselves
-        if (verbose) patch_opts.quiet = true;
-
-        PatchResult result = builtin_patch(patch_content, patch_opts);
-
-        if (!quiet && !verbose && !result.out.empty()) {
-            out(result.out);
-        }
-
-        if (result.exit_code != 0) {
-            if (!result.err.empty()) {
-                err(result.err);
-            }
-            if (force) {
-                // Force-applied: record as applied but mark as needing refresh
-                q.applied.push_back(name);
-                write_applied_patches(q);
-                write_file(path_join(pc_dir, ".timestamp"), "");
-                write_file(path_join(pc_dir, ".needs_refresh"), "");
-                out_line("Applied patch " + display + " (forced; needs refresh)");
-                return 1;
-            } else {
+        bool failed = result.exit_code != 0;
+        if (failed) {
+            if (!force) {
                 // Not forced: restore files from backups and clean up
                 for (const auto &file : affected) {
                     restore_file(q, name, file);
                 }
-                err_line("Patch " + display + " does not apply (enforce with -f)");
+                if (verbose) show_rollback(q, affected);
+
+                std::vector<std::string> reversed_files;
+                if (reverse_applies(q, name, patch_content, patch_opts,
+                                    extra_patch_opts, reversed_files)) {
+                    out_line("Patch " + display + " can be reverse-applied");
+                } else {
+                    out_line("Patch " + display + " does not apply (enforce with -f)");
+                }
+                // Upstream rolls back its trial too
+                if (verbose) show_rollback(q, reversed_files);
+
                 if (!leave_rejects) {
                     for (const auto &file : affected) {
                         std::string rej = path_join(q.work_dir, file + ".rej");
@@ -4100,12 +6055,23 @@ int cmd_push(QuiltState &q, int argc, char **argv) {
             }
         }
 
-        // Record as applied
+        // Record as applied; a forced patch is marked as needing refresh
         q.applied.push_back(name);
         write_applied_patches(q);
-
-        // Create .timestamp
         write_file(path_join(pc_dir, ".timestamp"), "");
+        if (failed) {
+            write_file(path_join(pc_dir, ".needs_refresh"), "");
+        }
+
+        // Like upstream, these print even with -q
+        if (!patch_exists) {
+            out_line("Patch " + display + " does not exist; applied empty patch");
+        } else if (affected.empty()) {
+            out_line("Patch " + display + " appears to be empty; applied");
+        } else if (failed) {
+            out_line("Applied patch " + display + " (forced; needs refresh)");
+        }
+        if (failed) return 1;
 
         if (do_refresh) {
             char arg0[] = "refresh";
@@ -4131,70 +6097,100 @@ int cmd_pop(QuiltState &q, int argc, char **argv) {
     [[maybe_unused]] bool verbose = false;  // accepted for compat, pop is verbose by default
     bool auto_refresh = false;
     int pop_count = -1;
-    std::string_view target;
+    std::optional<std::string_view> target;
 
-    for (int i = 1; i < argc; ++i) {
-        std::string_view arg = argv[i];
-        if (arg == "-a") { pop_all = true; }
-        else if (arg == "-f") { force = true; }
-        else if (arg == "-q" || arg == "--quiet") { quiet = true; }
-        else if (arg == "-v" || arg == "--verbose") { verbose = true; }
-        else if (arg == "-R") { /* accepted for compat, always verified now */ }
-        else if (arg == "--refresh") { auto_refresh = true; }
-        else if (arg[0] == '-') {
-            err("Unrecognized option: "); err_line(arg);
-            return 1;
+    enum { REFRESH = 256 };
+    static constexpr LongOpt longopts[] = {
+        {"refresh", OptArg::none, REFRESH},
+        {"quiet", OptArg::none, 'q', true},
+        {"verbose", OptArg::none, 'v', true},
+    };
+    auto args = parse_options(argc, argv, "fRqvah", longopts);
+    if (!args) return 1;
+    for (const auto &opt : args->options) {
+        switch (opt.key) {
+        case 'f': force = true; break;
+        // -R (verify removal) is always done unless forced, so it only
+        // cancels an earlier -f, as in the original quilt.
+        case 'R': force = false; break;
+        case 'q': quiet = true; break;
+        case 'v': verbose = true; break;
+        case 'a': pop_all = true; break;
+        case 'h': return command_help(argv[0]);
+        case REFRESH: auto_refresh = true; break;
         }
-        else {
-            // Try as number first
-            int val = 0;
-            auto [ptr, ec] = std::from_chars(arg.data(), arg.data() + arg.size(), val);
-            if (ec == std::errc{} && ptr == arg.data() + arg.size() && val > 0) {
-                pop_count = val;
-            } else {
-                target = strip_patches_prefix(q, arg);
-            }
+    }
+    auto &operands = args->operands;
+    if (std::ssize(operands) > 1 || (pop_all && !operands.empty())) {
+        return usage_error(argv[0]);
+    }
+    if (!operands.empty()) {
+        std::string_view arg = operands[0];
+        if (!arg.empty() &&
+            std::ranges::all_of(arg, [](char c) { return c >= '0' && c <= '9'; })) {
+            // Any run of digits is a count, as in the original quilt
+            auto [ptr, ec] = std::from_chars(arg.data(), arg.data() + arg.size(), pop_count);
+            if (ec == std::errc::result_out_of_range) pop_all = true;
+        } else {
+            target = arg;
         }
     }
 
-    if (q.applied.empty()) {
-        if (!q.series_file_exists) {
-            err_line("No series file found");
-            return 1;
-        }
-        err_line("No patch removed");
-        return 2;
+    if (q.applied.empty() && !q.series_file_exists) {
+        err_line("No series file found");
+        return 1;
+    }
+
+    if (force && auto_refresh) {
+        err_line("Options -f and --refresh are mutually exclusive");
+        return 1;
     }
 
     ptrdiff_t stop_idx;  // index in applied to stop BEFORE (exclusive); pop down to this
     if (pop_all) {
         stop_idx = 0;
-    } else if (!target.empty()) {
-        // Find target in applied list
-        ptrdiff_t found_idx = -1;
-        for (ptrdiff_t i = 0; i < std::ssize(q.applied); ++i) {
-            if (q.applied[checked_cast<size_t>(i)] == target) {
-                found_idx = i;
-                break;
-            }
+    } else if (target) {
+        // Like upstream, an empty name means the top patch, so nothing
+        // is popped. Upstream does not check that the series still
+        // matches the applied patches for pop, so the top patch need not
+        // be in the series.
+        std::optional<std::string> found;
+        if (target->empty() && q.series_file_exists && !q.applied.empty()) {
+            found = q.applied.back();
+        } else {
+            found = find_applied_patch(q, *target);
         }
-        if (found_idx < 0) {
-            err("Patch "); err(format_patch(q, target)); err_line(" is not applied");
-            return 1;
-        }
+        if (!found) return 1;
+        ptrdiff_t found_idx = std::ranges::find(q.applied, *found) - q.applied.begin();
         // Pop down to (but not including) the target patch
         stop_idx = found_idx + 1;
-        if (stop_idx >= std::ssize(q.applied)) {
-            err_line("No patch removed");
-            return 2;
-        }
-    } else if (pop_count > 0) {
+    } else if (pop_count >= 0) {
         stop_idx = std::ssize(q.applied) - pop_count;
         if (stop_idx < 0) stop_idx = 0;
     } else {
         // Pop just the top patch
         stop_idx = std::ssize(q.applied) - 1;
     }
+
+    // Refuse to pop a force-applied top patch unless forced, even with
+    // --refresh. Like the original quilt, this comes after the target
+    // patch has been resolved.
+    if (!force && !q.applied.empty()) {
+        std::string top_nr = path_join(pc_patch_dir(q, q.applied.back()),
+                                       ".needs_refresh");
+        if (file_exists(top_nr)) {
+            err_line("Patch " + patch_path_display(q, q.applied.back()) +
+                     " needs to be refreshed first.");
+            return 1;
+        }
+    }
+
+    if (q.applied.empty() || stop_idx >= std::ssize(q.applied)) {
+        err_line("No patch removed");
+        return 2;
+    }
+
+    auto extra_patch_opts = shell_split(get_env("QUILT_PATCH_OPTS"));
 
     // Pop from the top down to stop_idx
     bool first_pop = true;
@@ -4217,44 +6213,29 @@ int cmd_pop(QuiltState &q, int argc, char **argv) {
             }
         }
 
-        // Check if patch needs refresh (force-applied) and -f not given
         std::string pc_dir = pc_patch_dir(q, name);
-        std::string nr = path_join(pc_dir, ".needs_refresh");
-        if (file_exists(nr) && !force && !auto_refresh) {
-            err_line("Patch " + display + " needs to be refreshed first.");
+
+        // Refuse to discard changes that are not in the patch file
+        if (!force && !removes_cleanly(q, name, extra_patch_opts)) {
+            err_line("Patch " + display +
+                     " does not remove cleanly (refresh it or enforce with -f)");
+            err_line("Hint: `quilt diff -z' will show the pending changes.");
             return 1;
         }
 
-        // Check if patch removes cleanly (detects dirty/unrefreshed changes)
-        if (!force) {
-            std::string patch_path = path_join(q.work_dir, q.patches_dir, name);
-            std::string patch_content = read_file(patch_path);
-            if (!patch_content.empty()) {
-                int strip_level = q.get_strip_level(name);
-                PatchOptions verify_opts;
-                verify_opts.strip_level = strip_level;
-                verify_opts.reverse = true;
-                verify_opts.dry_run = true;
-                verify_opts.force = true;
-                verify_opts.quiet = true;
-                PatchResult vr = builtin_patch(patch_content, verify_opts);
-                if (vr.exit_code != 0) {
-                    err_line("Patch " + display +
-                             " does not remove cleanly (refresh it or enforce with -f)");
-                    err_line("Hint: `quilt diff -z' will show the pending changes.");
-                    return 1;
-                }
-            }
-        }
-
-        if (!first_pop) {
-            out_line("");
-        }
-        out_line("Removing patch " + display);
-        first_pop = false;
-
         // Restore backed-up files
         auto files = files_in_patch(q, name);
+
+        if (!first_pop && !quiet) {
+            out_line("");
+        }
+        if (files.empty()) {
+            out_line("Patch " + display + " appears to be empty, removing");
+        } else {
+            out_line("Removing patch " + display);
+        }
+        first_pop = false;
+
         for (const auto &file : files) {
             restore_file(q, name, file);
             if (!quiet) {
@@ -4368,93 +6349,52 @@ static std::vector<std::string> reannotate_lines(std::span<const std::string> ol
     return result;
 }
 
-std::optional<AnnotateOptions> parse_options(const QuiltState &q, int argc, char **argv)
-{
-    AnnotateOptions opts;
-    for (int i = 1; i < argc; ++i) {
-        std::string_view arg = argv[i];
-        if (arg == "-P" && i + 1 < argc) {
-            opts.patch = strip_patches_prefix(q, argv[i + 1]);
-            ++i;
-            continue;
-        }
-        if (!arg.empty() && arg[0] == '-') {
-            return std::nullopt;
-        }
-        if (!opts.file.empty()) {
-            return std::nullopt;
-        }
-        opts.file = subdir_path(q, arg);
-    }
-
-    if (opts.file.empty()) {
-        return std::nullopt;
-    }
-    return opts;
-}
-
-int no_applied_patches_error(const QuiltState &q)
-{
-    if (!q.series_file_exists) {
-        err_line("No series file found");
-    } else if (q.series.empty()) {
-        err_line("No patches in series");
-    } else {
-        err_line("No patches applied");
-    }
-    return 1;
-}
-
 } // namespace
 
 int cmd_annotate(QuiltState &q, int argc, char **argv)
 {
-    auto opts = parse_options(q, argc, argv);
-    if (!opts.has_value()) {
-        err_line("Usage: quilt annotate [-P patch] file");
-        return 1;
+    auto args = parse_options(argc, argv, "P:h");
+    if (!args) return 1;
+    AnnotateOptions opts;
+    for (const auto &opt : args->options) {
+        if (opt.key == 'h') return command_help(argv[0]);
+        opts.patch = opt.value;
     }
+    if (std::ssize(args->operands) != 1) return usage_error(argv[0]);
+    opts.file = subdir_path(q, args->operands[0]);
+    if (opts.file.empty()) return usage_error(argv[0]);
 
-    if (q.applied.empty()) {
-        return no_applied_patches_error(q);
-    }
-
-    std::string stop_patch = opts->patch.empty() ? q.applied.back() : opts->patch;
-    if (!q.find_in_series(stop_patch).has_value()) {
-        err_line("Patch " + stop_patch + " is not in series");
-        return 1;
-    }
-    if (!q.is_applied(stop_patch)) {
-        err_line("Patch " + stop_patch + " is not applied");
-        return 1;
-    }
+    // No -P, or an empty one, means the top patch
+    auto found = find_applied_patch(q, opts.patch);
+    if (!found) return 1;
+    std::string stop_patch = *found;
 
     std::vector<std::string> patches;
     std::vector<std::string> files;
     std::string next_patch;
 
     for (const auto &patch : q.applied) {
-        std::string old_file = path_join(pc_patch_dir(q, patch), opts->file);
+        std::string old_file = path_join(pc_patch_dir(q, patch), opts.file);
         if (file_exists(old_file)) {
             patches.push_back(patch);
             files.push_back(old_file);
         }
         if (patch == stop_patch) {
-            next_patch = next_patch_for_file(q, stop_patch, opts->file);
+            next_patch = next_patch_for_file(q, stop_patch, opts.file);
             break;
         }
     }
 
     if (next_patch.empty()) {
-        files.push_back(path_join(q.work_dir, opts->file));
+        files.push_back(path_join(q.work_dir, opts.file));
     } else {
-        files.push_back(path_join(pc_patch_dir(q, next_patch), opts->file));
+        files.push_back(path_join(pc_patch_dir(q, next_patch), opts.file));
     }
 
     if (patches.empty()) {
         std::string target = files.back();
         if (!file_exists(target)) {
-            err_line("File " + opts->file + " does not exist");
+            err_line("File " + opts.file + " does not exist");
             return 1;
         }
         for (const auto &line : read_lines(target)) {
@@ -4491,29 +6431,11 @@ int cmd_annotate(QuiltState &q, int argc, char **argv)
 #include <cstdlib>
 #include <set>
 
-static std::string read_patch_header(std::string_view patch_path) {
-    std::string content = read_file(patch_path);
-    if (content.empty()) return "";
-
-    std::string header;
-    auto lines = split_lines(content);
-    for (const auto &line : lines) {
-        if (line.starts_with("Index:") ||
-            line.starts_with("---") ||
-            line.starts_with("diff ")) {
-            break;
-        }
-        header += line;
-        header += '\n';
-    }
-    return header;
-}
-
-int cmd_init(QuiltState &q, int argc, char **) {
-    if (argc != 1) {
-        err_line("Usage: quilt init");
-        return 1;
-    }
+int cmd_init(QuiltState &q, int argc, char **argv) {
+    auto args = parse_options(argc, argv, "h");
+    if (!args) return 1;
+    if (!args->options.empty()) return command_help(argv[0]);
+    if (!args->operands.empty()) return usage_error(argv[0]);
 
     q.work_dir = get_cwd();
     q.pc_dir = ".pc";
@@ -4546,7 +6468,7 @@ int cmd_init(QuiltState &q, int argc, char **) {
 
     std::string series_abs = path_join(q.work_dir, q.series_file);
     if (!file_exists(series_abs)) {
-        if (!write_series(series_abs, {}, {}, {})) {
+        if (!write_file(series_abs, "")) {
             err_line("Failed to write series file.");
             return 1;
         }
@@ -4565,40 +6487,28 @@ int cmd_init(QuiltState &q, int argc, char **) {
 }
 
 int cmd_new(QuiltState &q, int argc, char **argv) {
-    // Parse options
-    std::string patch_name;
+    auto args = parse_options(argc, argv, "p:h");
+    if (!args) return 1;
     std::string p_value;
-    int i = 1;  // skip argv[0] which is "new"
-    while (i < argc) {
-        std::string_view arg = argv[i];
-        if (arg == "-p" && i + 1 < argc) {
-            p_value = argv[i + 1];
-            i += 2;
-            continue;
-        }
-        if (arg.starts_with("-p") && std::ssize(arg) > 2) {
-            p_value = std::string(arg.substr(2));
-            i += 1;
-            continue;
-        }
-        // First non-option argument is the patch name
-        if (arg[0] != '-') {
-            patch_name = std::string(arg);
-            i += 1;
-            break;
-        }
-        err("Unrecognized option: "); err_line(arg);
+    for (const auto &opt : args->options) {
+        if (opt.key == 'h') return command_help(argv[0]);
+        p_value = opt.value;
+    }
+
+    // Like upstream, check the strip level before the arguments
+    if (!p_value.empty() && p_value != "0" && p_value != "1") {
+        err_line("Cannot create patches with -p" + p_value +
+                 ", please specify -p0 or -p1 instead");
         return 1;
     }
 
-    if (patch_name.empty()) {
-        err_line("Usage: quilt new [-p n] patchname");
-        return 1;
+    if (std::ssize(args->operands) != 1 || args->operands[0].empty()) {
+        return usage_error(argv[0]);
     }
+    std::string patch_name(strip_patches_prefix(q, args->operands[0]));
 
-    // Verify patch doesn't already exist in series
     if (q.find_in_series(patch_name).has_value()) {
-        err("Patch "); err(patch_name); err_line(" already exists in series.");
+        err_line("Patch " + patch_path_display(q, patch_name) + " exists already");
         return 1;
     }
 
@@ -4614,35 +6524,14 @@ int cmd_new(QuiltState &q, int argc, char **argv) {
         }
     }
 
-    // Insert patch name into series (after current top, or at beginning)
-    ptrdiff_t top_idx = q.top_index();
-    if (!q.applied.empty() && top_idx < 0) {
+    if (!q.applied.empty() && q.top_index() < 0) {
         err_line("The series file no longer matches the applied patches. Please run 'quilt pop -a'.");
         return 1;
     }
-    if (top_idx < 0) {
-        // No applied patches — insert at beginning
-        q.series.insert(q.series.begin(), patch_name);
-    } else {
-        // Insert after the current top
-        q.series.insert(q.series.begin() + top_idx + 1, patch_name);
-    }
 
-    // Validate strip level
-    if (!p_value.empty() && p_value != "0" && p_value != "1") {
-        err_line("Cannot create patches with -p" + p_value +
-                 ", please specify -p0 or -p1 instead");
-        return 1;
-    }
-
-    // Store strip level
-    if (!p_value.empty() && p_value != "1") {
-        q.patch_strip_level[patch_name] = checked_cast<int>(parse_int(p_value));
-    }
-
-    // Write series file
-    std::string series_abs = path_join(q.work_dir, q.series_file);
-    if (!write_series(series_abs, q.series, q.patch_strip_level, q.patch_reversed)) {
+    // Insert into the series after the current top, recording only -p0
+    if (!insert_in_series(q, patch_name, p_value == "0" ? "-p0" : "",
+                          q.patch_after_top())) {
         err_line("Failed to write series file.");
         return 1;
     }
@@ -4668,45 +6557,47 @@ int cmd_new(QuiltState &q, int argc, char **argv) {
     return 0;
 }
 
-int cmd_add(QuiltState &q, int argc, char **argv) {
-    if (q.applied.empty()) {
-        if (!q.series_file_exists) {
-            err_line("No series file found");
-            return 1;
-        }
-        err_line("No patches applied");
-        return 1;
-    }
-
-    // Parse options
-    std::string_view patch = q.applied.back();
+// Parse the options of add, remove, and revert, which take "P:h" and at
+// least one file. Return nullopt, with the exit status in status, for -h
+// or wrong arguments.
+struct PatchFileArgs {
+    std::string_view patch;  // -P, empty for the top patch
     std::vector<std::string> files;
-    int i = 1;
-    while (i < argc) {
-        std::string_view arg = argv[i];
-        if (arg == "-P" && i + 1 < argc) {
-            patch = strip_patches_prefix(q, argv[i + 1]);
-            i += 2;
-            continue;
-        }
-        if (arg[0] != '-') {
-            files.push_back(subdir_path(q, arg));
-        } else {
-            err("Unrecognized option: "); err_line(arg);
-            return 1;
-        }
-        i += 1;
-    }
+};
 
-    if (files.empty()) {
-        err_line("Usage: quilt add [-P patch] file ...");
-        return 1;
+static std::optional<PatchFileArgs> parse_patch_file_args(const QuiltState &q, int argc,
+                                                          char **argv, int &status)
+{
+    auto args = parse_options(argc, argv, "P:h");
+    status = 1;
+    if (!args) return std::nullopt;
+    PatchFileArgs result;
+    for (const auto &opt : args->options) {
+        if (opt.key == 'h') {
+            status = command_help(argv[0]);
+            return std::nullopt;
+        }
+        result.patch = opt.value;
     }
+    if (args->operands.empty()) {
+        status = usage_error(argv[0]);
+        return std::nullopt;
+    }
+    for (auto file : args->operands) result.files.push_back(subdir_path(q, file));
+    return result;
+}
 
-    if (!q.is_applied(patch)) {
-        err("Patch "); err(format_patch(q, patch)); err_line(" is not applied");
-        return 1;
-    }
+int cmd_add(QuiltState &q, int argc, char **argv) {
+    int rc;
+    auto args = parse_patch_file_args(q, argc, argv, rc);
+    if (!args) return rc;
+    std::string_view patch_arg = args->patch;
+    const auto &files = args->files;
+
+    // No -P, or an empty one, means the top patch
+    auto found = find_applied_patch(q, patch_arg);
+    if (!found) return 1;
+    std::string_view patch = *found;
 
     for (const auto &file : files) {
         // Check if file is already tracked by this patch
@@ -4746,40 +6637,16 @@ int cmd_add(QuiltState &q, int argc, char **argv) {
 }
 
 int cmd_remove(QuiltState &q, int argc, char **argv) {
-    if (q.applied.empty()) {
-        err_line("No patches applied");
-        return 1;
-    }
+    int rc;
+    auto args = parse_patch_file_args(q, argc, argv, rc);
+    if (!args) return rc;
+    std::string_view patch_arg = args->patch;
+    const auto &files = args->files;
 
-    // Parse options
-    std::string_view patch = q.applied.back();
-    std::vector<std::string> files;
-    int i = 1;
-    while (i < argc) {
-        std::string_view arg = argv[i];
-        if (arg == "-P" && i + 1 < argc) {
-            patch = strip_patches_prefix(q, argv[i + 1]);
-            i += 2;
-            continue;
-        }
-        if (arg[0] != '-') {
-            files.push_back(subdir_path(q, arg));
-        } else {
-            err("Unrecognized option: "); err_line(arg);
-            return 1;
-        }
-        i += 1;
-    }
-
-    if (files.empty()) {
-        err_line("Usage: quilt remove [-P patch] file ...");
-        return 1;
-    }
-
-    if (!q.is_applied(patch)) {
-        err("Patch "); err(format_patch(q, patch)); err_line(" is not applied");
-        return 1;
-    }
+    // No -P, or an empty one, means the top patch
+    auto found = find_applied_patch(q, patch_arg);
+    if (!found) return 1;
+    std::string_view patch = *found;
 
     for (const auto &file : files) {
         // Check if file is tracked by this patch
@@ -4807,25 +6674,18 @@ int cmd_remove(QuiltState &q, int argc, char **argv) {
 }
 
 int cmd_edit(QuiltState &q, int argc, char **argv) {
+    auto args = parse_options(argc, argv, "h");
+    if (!args) return 1;
+    if (!args->options.empty()) return command_help(argv[0]);
+    if (args->operands.empty()) return usage_error(argv[0]);
+
     if (q.applied.empty()) {
         err_line("No patches applied");
         return 1;
     }
 
     std::vector<std::string> files;
-    for (int i = 1; i < argc; ++i) {
-        std::string_view arg = argv[i];
-        if (arg[0] == '-') {
-            err("Unrecognized option: "); err_line(arg);
-            return 1;
-        }
-        files.push_back(subdir_path(q, arg));
-    }
-
-    if (files.empty()) {
-        err_line("Usage: quilt edit file ...");
-        return 1;
-    }
+    for (auto file : args->operands) files.push_back(subdir_path(q, file));
 
     std::string_view patch = q.applied.back();
 
@@ -4858,120 +6718,17 @@ int cmd_edit(QuiltState &q, int argc, char **argv) {
     return run_cmd_tty(cmd_argv);
 }
 
-// Convert unified diff output to context diff format.  This allows
-// quilt to produce -c/-C output even when the external diff command
-// (e.g. busybox) only supports unified format.
-static std::string unified_to_context(std::string_view unified)
-{
-    auto lines = split_lines(unified);
-    std::string result;
-    ptrdiff_t n = std::ssize(lines);
-    ptrdiff_t i = 0;
-
-    // File headers: unified --- becomes context ***, unified +++ becomes context ---
-    while (i < n && !lines[checked_cast<size_t>(i)].starts_with("--- ")) ++i;
-    if (i < n) { result += "*** " + lines[checked_cast<size_t>(i)].substr(4) + "\n"; ++i; }
-    if (i < n && lines[checked_cast<size_t>(i)].starts_with("+++ ")) {
-        result += "--- " + lines[checked_cast<size_t>(i)].substr(4) + "\n"; ++i;
-    }
-
-    while (i < n) {
-        if (!lines[checked_cast<size_t>(i)].starts_with("@@ ")) { ++i; continue; }
-
-        // Parse @@ -os[,oc] +ns[,nc] @@
-        int os = 0, oc = 1, ns = 0, nc = 1;
-        {
-            std::string_view hdr = lines[checked_cast<size_t>(i)];
-            ptrdiff_t at1 = str_find(hdr, '-', 3);
-            if (at1 >= 0) {
-                ptrdiff_t p = at1 + 1;
-                ptrdiff_t c = str_find(hdr, ',', p);
-                ptrdiff_t pp = str_find(hdr, '+', p);
-                if (pp >= 0) {
-                    if (c >= 0 && c < pp) {
-                        os = checked_cast<int>(parse_int(hdr.substr(checked_cast<size_t>(p), checked_cast<size_t>(c - p))));
-                        oc = checked_cast<int>(parse_int(hdr.substr(checked_cast<size_t>(c + 1), checked_cast<size_t>(pp - c - 2))));
-                    } else {
-                        os = checked_cast<int>(parse_int(hdr.substr(checked_cast<size_t>(p), checked_cast<size_t>(pp - p - 1))));
-                    }
-                    p = pp + 1;
-                    c = str_find(hdr, ',', p);
-                    ptrdiff_t end = str_find(hdr, ' ', p);
-                    if (end < 0) end = std::ssize(hdr);
-                    if (c >= 0 && c < end) {
-                        ns = checked_cast<int>(parse_int(hdr.substr(checked_cast<size_t>(p), checked_cast<size_t>(c - p))));
-                        nc = checked_cast<int>(parse_int(hdr.substr(checked_cast<size_t>(c + 1), checked_cast<size_t>(end - c - 1))));
-                    } else {
-                        ns = checked_cast<int>(parse_int(hdr.substr(checked_cast<size_t>(p), checked_cast<size_t>(end - p))));
-                    }
-                }
-            }
-        }
-        ++i;
-
-        // Collect unified hunk body lines with their types
-        struct UL { char type; std::string text; };
-        std::vector<UL> body;
-        while (i < n && !lines[checked_cast<size_t>(i)].starts_with("@@ ")) {
-            std::string_view ln = lines[checked_cast<size_t>(i)];
-            body.push_back({ln.empty() ? ' ' : ln[0],
-                            ln.empty() ? std::string{} : std::string(ln.substr(1))});
-            ++i;
-        }
-
-        // Build old-side and new-side lines with context-diff prefixes.
-        // Adjacent -/+ runs form "change" blocks and get '!' prefix.
-        std::vector<std::pair<char, std::string>> old_side, new_side;
-        for (ptrdiff_t k = 0; k < std::ssize(body); ) {
-            if (body[checked_cast<size_t>(k)].type == ' ') {
-                old_side.push_back({' ', body[checked_cast<size_t>(k)].text});
-                new_side.push_back({' ', body[checked_cast<size_t>(k)].text});
-                ++k;
-            } else if (body[checked_cast<size_t>(k)].type == '-') {
-                ptrdiff_t ds = k;
-                while (k < std::ssize(body) && body[checked_cast<size_t>(k)].type == '-') ++k;
-                ptrdiff_t as = k;
-                while (k < std::ssize(body) && body[checked_cast<size_t>(k)].type == '+') ++k;
-                bool change = (as > ds && k > as);
-                for (ptrdiff_t m = ds; m < as; ++m)
-                    old_side.push_back({change ? '!' : '-', body[checked_cast<size_t>(m)].text});
-                for (ptrdiff_t m = as; m < k; ++m)
-                    new_side.push_back({change ? '!' : '+', body[checked_cast<size_t>(m)].text});
-            } else if (body[checked_cast<size_t>(k)].type == '+') {
-                new_side.push_back({'+', body[checked_cast<size_t>(k)].text});
-                ++k;
-            } else {
-                ++k;
-            }
-        }
-
-        int oe = oc == 0 ? os : os + oc - 1;
-        int ne = nc == 0 ? ns : ns + nc - 1;
-
-        result += "***************\n";
-        result += std::format("*** {},{} ****\n", os, oe);
-        bool has_old = false;
-        for (auto &[p, t] : old_side) if (p != ' ') { has_old = true; break; }
-        if (has_old)
-            for (auto &[p, t] : old_side)
-                result += std::string(1, p) + " " + t + "\n";
-
-        result += std::format("--- {},{} ----\n", ns, ne);
-        bool has_new = false;
-        for (auto &[p, t] : new_side) if (p != ' ') { has_new = true; break; }
-        if (has_new)
-            for (auto &[p, t] : new_side)
-                result += std::string(1, p) + " " + t + "\n";
-    }
-
-    return result;
-}
-
 static constexpr std::string_view SNAPSHOT_PATCH = ".snap";
 
 static bool is_placeholder_copy(std::string_view path)
 {
     return file_exists(path) && read_file(path).empty();
+}
+
+// Detect binary content (null bytes in the first 8 KB)
+static bool is_binary_data(std::string_view data)
+{
+    return str_find(data.substr(0, 8192), '\0') >= 0;
 }
 
 // Parse QUILT_DIFF_OPTS and extract context line count if present.
@@ -4991,16 +6748,17 @@ static int parse_diff_opts_context(std::span<const std::string> opts)
 }
 
 // p_format: "ab" for a/b labels, "0" for bare filenames, "1" (default) for dir.orig/dir
-// Format a file modification time as "YYYY-MM-DD HH:MM:SS.000000000 +HHMM".
+// Format a file modification time as "YYYY-MM-DD HH:MM:SS.NNNNNNNNN +HHMM".
 static std::string format_file_timestamp(std::string_view path) {
-    int64_t mt = file_mtime(path);
+    int32_t nsec = 0;
+    int64_t mt = file_mtime(path, &nsec);
     if (mt <= 0) return "";
     DateTime dt = local_time(mt);
     int off_h = dt.utc_offset / 3600;
     int off_m = (std::abs(dt.utc_offset) % 3600) / 60;
-    return std::format("\t{:04d}-{:02d}-{:02d} {:02d}:{:02d}:{:02d}.000000000 {:+03d}{:02d}",
+    return std::format("\t{:04d}-{:02d}-{:02d} {:02d}:{:02d}:{:02d}.{:09d} {:+03d}{:02d}",
                        dt.year, dt.month, dt.day,
-                       dt.hour, dt.min, dt.sec, off_h, off_m);
+                       dt.hour, dt.min, dt.sec, nsec, off_h, off_m);
 }
 
 static std::string generate_path_diff(const QuiltState &q,
@@ -5011,7 +6769,6 @@ static std::string generate_path_diff(const QuiltState &q,
                                       bool new_placeholder,
                                       std::string_view p_format = "1",
                                       bool reverse = false,
-                                      std::span<const std::string> diff_cmd_base = {},
                                       int context_lines = 3,
                                       DiffFormat diff_format = DiffFormat::unified,
                                       bool no_timestamps = false,
@@ -5021,15 +6778,21 @@ static std::string generate_path_diff(const QuiltState &q,
     bool new_missing = new_path.empty() || !file_exists(new_path) ||
         (new_placeholder && is_placeholder_copy(new_path));
 
-    // Detect binary files (null bytes in first 8 KB)
-    auto is_binary = [](std::string_view path) {
-        std::string data = read_file(path);
-        size_t check_len = data.size() < 8192 ? data.size() : 8192;
-        return data.find('\0', 0) < check_len;
-    };
-    if ((!old_missing && is_binary(old_path)) ||
-        (!new_missing && is_binary(new_path))) {
+    // Identical files never differ, binary or not. Only a changed binary
+    // file is reported, which callers treat as a failed diff.
+    std::string old_data = old_missing ? std::string() : read_file(old_path);
+    std::string new_data = new_missing ? std::string() : read_file(new_path);
+    if (old_data == new_data) {
+        return {};
+    }
+    if (is_binary_data(old_data) || is_binary_data(new_data)) {
         return "Binary files differ\n";
+    }
+
+    // As in the original quilt, labels follow the files after the swap
+    if (reverse) {
+        std::swap(old_path, new_path);
+        std::swap(old_missing, new_missing);
     }
 
     std::string old_arg = old_missing ? "/dev/null" : std::string(old_path);
@@ -5053,6 +6816,8 @@ static std::string generate_path_diff(const QuiltState &q,
         old_label = "/dev/null";
     }
     if (new_missing) {
+        // A -p0 deletion names the file itself, so it can be applied
+        if (p_format == "0") old_label = new_label;
         new_label = "/dev/null";
     }
 
@@ -5064,51 +6829,22 @@ static std::string generate_path_diff(const QuiltState &q,
             new_label += format_file_timestamp(new_path);
     }
 
-    if (reverse) {
-        std::swap(old_arg, new_arg);
-    }
-
-    // Use built-in diff when no external diff utility is specified
-    if (diff_cmd_base.empty()) {
-        int ctx = context_lines;
-        // QUILT_DIFF_OPTS may override context lines
-        auto extra_diff_opts = shell_split(get_env("QUILT_DIFF_OPTS"));
-        int opts_ctx = parse_diff_opts_context(extra_diff_opts);
-        if (opts_ctx >= 0) ctx = opts_ctx;
-
-        DiffResult result = builtin_diff(old_arg, new_arg, ctx,
-                                          old_label, new_label, diff_format,
-                                          diff_algorithm);
-        return result.output;
-    }
-
-    // External diff utility path
-    std::vector<std::string> cmd_argv(diff_cmd_base.begin(), diff_cmd_base.end());
+    // QUILT_DIFF_OPTS may override context lines
+    int ctx = context_lines;
     auto extra_diff_opts = shell_split(get_env("QUILT_DIFF_OPTS"));
-    for (const auto &opt : extra_diff_opts) {
-        cmd_argv.push_back(opt);
-    }
+    int opts_ctx = parse_diff_opts_context(extra_diff_opts);
+    if (opts_ctx >= 0) ctx = opts_ctx;
 
-    cmd_argv.push_back("--label");
-    cmd_argv.push_back(old_label);
-    cmd_argv.push_back("--label");
-    cmd_argv.push_back(new_label);
-    cmd_argv.push_back(old_arg);
-    cmd_argv.push_back(new_arg);
-
-    ProcessResult result = run_cmd(cmd_argv);
-    if (result.exit_code == 2) {
-        return {};
-    }
-
-    return result.out;
+    DiffResult result = builtin_diff(old_arg, new_arg, ctx,
+                                      old_label, new_label, diff_format,
+                                      diff_algorithm);
+    return result.output;
 }
 
 static std::string generate_file_diff(const QuiltState &q, std::string_view patch,
                                       std::string_view file,
                                       std::string_view p_format = "1",
                                       bool reverse = false,
-                                      std::span<const std::string> diff_cmd_base = {},
                                       int context_lines = 3,
                                       DiffFormat diff_format = DiffFormat::unified,
                                       bool no_timestamps = false,
@@ -5116,7 +6852,7 @@ static std::string generate_file_diff(const QuiltState &q, std::string_view patc
     std::string backup_path = path_join(pc_patch_dir(q, patch), file);
     std::string working_path = path_join(q.work_dir, file);
     return generate_path_diff(q, file, backup_path, true, working_path, false,
-                              p_format, reverse, diff_cmd_base,
+                              p_format, reverse,
                               context_lines, diff_format, no_timestamps,
                               diff_algorithm);
 }
@@ -5200,7 +6936,7 @@ static std::vector<std::string> collect_files_for_patches(
     std::vector<std::string> files;
     std::set<std::string> seen;
     for (const auto &patch : patches) {
-        append_unique_files(files, seen, files_in_patch(q, patch));
+        append_unique_files(files, seen, files_in_patch_ordered(q, patch));
     }
     return files;
 }
@@ -5254,15 +6990,17 @@ static void apply_file_filter(std::vector<std::string> &tracked,
 }
 
 int cmd_snapshot(QuiltState &q, int argc, char **argv) {
+    auto args = parse_options(argc, argv, "dh");
+    if (!args) return 1;
     bool remove_snapshot = false;
+    for (const auto &opt : args->options) {
+        if (opt.key == 'h') return command_help(argv[0]);
+        remove_snapshot = true;
+    }
+    if (!args->operands.empty()) return usage_error(argv[0]);
 
-    for (int i = 1; i < argc; ++i) {
-        std::string_view arg = argv[i];
-        if (arg == "-d") {
-            remove_snapshot = true;
-            continue;
-        }
-        err_line("Usage: quilt snapshot [-d]");
+    if (!q.series_file_exists) {
+        err_line("No series file found");
         return 1;
     }
 
@@ -5295,47 +7033,75 @@ int cmd_snapshot(QuiltState &q, int argc, char **argv) {
     return 0;
 }
 
-// Built-in diffstat: parse unified diff, produce a summary matching
-// the output format of the external diffstat(1) utility.
+// A context diff hunk's "*** N[,M] ****" or "--- N[,M] ----" line, for
+// a mark of '*' or '-'
+static bool is_context_range(std::string_view line, char mark)
+{
+    std::string head = std::string(3, mark) + ' ';
+    std::string tail = ' ' + std::string(4, mark);
+    if (std::ssize(line) <= std::ssize(head) + std::ssize(tail) ||
+        !line.starts_with(head) || !line.ends_with(tail)) {
+        return false;
+    }
+    line.remove_prefix(head.size());
+    line.remove_suffix(tail.size());
+    return std::ranges::all_of(line, [](char c) {
+        return (c >= '0' && c <= '9') || c == ',';
+    });
+}
+
+// The name diffstat(1) lists a file under, given the labels of its old
+// and new versions in the diff's file header: the new label, or the old
+// one for a deleted file, without its timestamp and first path component
+static std::string diffstat_name(std::string_view old_label,
+                                 std::string_view new_label)
+{
+    auto strip = [](std::string_view label) {
+        ptrdiff_t tab = str_find(label, '\t');
+        if (tab >= 0) label = label.substr(0, checked_cast<size_t>(tab));
+        ptrdiff_t slash = str_find(label, '/');
+        if (slash >= 0) label.remove_prefix(checked_cast<size_t>(slash + 1));
+        return std::string(label);
+    };
+    std::string name = strip(new_label);
+    if (name == "dev/null" || new_label.starts_with("/dev/null")) {
+        name = strip(old_label);
+    }
+    return name;
+}
+
+// Built-in diffstat: parse a unified or context diff, produce a summary
+// matching the output of the external diffstat(1) utility with its
+// default options and 80 columns.
 static std::string generate_diffstat(std::string_view diff)
 {
     struct FileStat {
         std::string name;
-        ptrdiff_t added   = 0;
-        ptrdiff_t removed = 0;
+        ptrdiff_t added    = 0;
+        ptrdiff_t removed  = 0;
+        ptrdiff_t modified = 0;  // "! " lines of a context diff, both sides
     };
 
+    // diffstat(1) lists files in byte order by name, the order refresh
+    // already lists them in
     std::vector<FileStat> stats;
     auto lines = split_lines(diff);
 
     for (ptrdiff_t i = 0; i < std::ssize(lines); ++i) {
-        const auto &line = lines[checked_cast<size_t>(i)];
+        const std::string &line = lines[checked_cast<size_t>(i)];
+        std::string_view next;
+        if (i + 1 < std::ssize(lines)) next = lines[checked_cast<size_t>(i + 1)];
 
-        // Detect file header: "--- a/file" followed by "+++ b/file"
-        if (line.starts_with("--- ") &&
-            i + 1 < std::ssize(lines) &&
-            lines[checked_cast<size_t>(i + 1)].starts_with("+++ ")) {
-            const auto &plus_line = lines[checked_cast<size_t>(i + 1)];
-
-            // Extract filename from +++ line, strip "b/" prefix
-            auto name = plus_line.substr(4);
-            // Strip trailing timestamp (tab-separated)
-            auto tab = str_find(name, '\t');
-            if (tab >= 0) name = name.substr(0, checked_cast<size_t>(tab));
-            // Strip one leading path component (a/ or b/ prefix)
-            auto slash = str_find(name, '/');
-            if (slash >= 0) name = name.substr(checked_cast<size_t>(slash + 1));
-            // /dev/null means new or deleted file — use --- line instead
-            if (name == "dev/null" || plus_line.substr(4).starts_with("/dev/null")) {
-                name = lines[checked_cast<size_t>(i)].substr(4);
-                tab = str_find(name, '\t');
-                if (tab >= 0) name = name.substr(0, checked_cast<size_t>(tab));
-                slash = str_find(name, '/');
-                if (slash >= 0) name = name.substr(checked_cast<size_t>(slash + 1));
-            }
-
-            stats.push_back({std::string(name), 0, 0});
-            i += 1;  // skip +++ line
+        // A file header: "--- old" then "+++ new" in a unified diff, or
+        // "*** old" then "--- new" in a context diff, unlike a context
+        // hunk's "*** N,M ****" and "--- N,M ----" lines
+        bool unified = line.starts_with("--- ") && next.starts_with("+++ ");
+        bool context = line.starts_with("*** ") && next.starts_with("--- ") &&
+                       !is_context_range(line, '*') && !is_context_range(next, '-');
+        if (unified || context) {
+            stats.push_back({diffstat_name(std::string_view(line).substr(4),
+                                           next.substr(4))});
+            i += 1;  // skip the new version's label
             continue;
         }
 
@@ -5345,78 +7111,54 @@ static std::string generate_diffstat(std::string_view diff)
             stats.back().added++;
         else if (line.starts_with("-") && !line.starts_with("---"))
             stats.back().removed++;
+        else if (line.starts_with("!"))
+            stats.back().modified++;
     }
 
-    if (stats.empty()) return {};
+    // Like diffstat(1), an empty diff gives just the summary
+    if (stats.empty()) return " 0 files changed\n";
 
-    // Leading "---" separator (matches git format-patch / original quilt)
-    std::string result = "---\n";
-
-    // Find max filename width and max change count
-    ptrdiff_t max_name = 0;
-    ptrdiff_t max_changes = 0;
+    // Each line is " name |", the name padded one past the longest, then
+    // the file's total in at least five columns and a histogram that is
+    // scaled down when the largest total does not fit in the rest
+    ptrdiff_t name_width = 0;
+    ptrdiff_t plot_scale = 0;
     for (const auto &s : stats) {
-        max_name = std::max(max_name, std::ssize(s.name));
-        max_changes = std::max(max_changes, s.added + s.removed);
+        name_width = std::max(name_width, std::ssize(s.name) + 1);
+        plot_scale = std::max(plot_scale, s.added + s.removed + s.modified);
     }
+    ptrdiff_t plot_width = std::max(80 - name_width - 8, ptrdiff_t{10});
+    plot_scale = std::max(plot_scale, plot_width);
 
-    // Format change count to find its width (minimum 4, matching diffstat)
-    auto num_width = std::max(std::ssize(std::to_string(max_changes)),
-                              static_cast<ptrdiff_t>(4));
-
-    // Bar graph width: fit in ~72 columns after " name | num "
-    //   1 (leading space) + max_name + 3 (" | ") + num_width + 1 (space)
-    ptrdiff_t used = 1 + max_name + 3 + num_width + 1;
-    ptrdiff_t bar_width = std::max(static_cast<ptrdiff_t>(1),
-                                   static_cast<ptrdiff_t>(72) - used);
-
-    // Scale factor for bar graph
-    double scale = (max_changes > bar_width)
-        ? static_cast<double>(bar_width) / static_cast<double>(max_changes)
-        : 1.0;
-
-    ptrdiff_t total_added = 0, total_removed = 0;
+    std::string result;
+    ptrdiff_t total_added = 0, total_removed = 0, total_modified = 0;
     ptrdiff_t total_files = std::ssize(stats);
 
     for (const auto &s : stats) {
         total_added += s.added;
         total_removed += s.removed;
-
-        ptrdiff_t changes = s.added + s.removed;
-        ptrdiff_t plus_bars = static_cast<ptrdiff_t>(
-            static_cast<double>(s.added) * scale + 0.5);
-        ptrdiff_t minus_bars = static_cast<ptrdiff_t>(
-            static_cast<double>(s.removed) * scale + 0.5);
-
-        // Ensure at least 1 bar for non-zero counts
-        if (s.added > 0 && plus_bars == 0) plus_bars = 1;
-        if (s.removed > 0 && minus_bars == 0) minus_bars = 1;
-
-        // Cap total bars at scaled width
-        ptrdiff_t total_bars = plus_bars + minus_bars;
-        ptrdiff_t limit = static_cast<ptrdiff_t>(
-            static_cast<double>(changes) * scale + 0.5);
-        if (limit < 1 && changes > 0) limit = 1;
-        if (total_bars > limit) {
-            // Reduce the larger portion
-            if (plus_bars > minus_bars)
-                plus_bars = limit - minus_bars;
-            else
-                minus_bars = limit - plus_bars;
-        }
+        total_modified += s.modified;
 
         result += ' ';
         result += s.name;
-        for (ptrdiff_t j = std::ssize(s.name); j < max_name; ++j)
-            result += ' ';
-        result += " | ";
-        auto num_str = std::to_string(changes);
-        for (ptrdiff_t j = std::ssize(num_str); j < num_width; ++j)
-            result += ' ';
-        result += num_str;
+        result.append(checked_cast<size_t>(name_width - std::ssize(s.name)), ' ');
+        result += '|';
+        std::string total = std::to_string(s.added + s.removed + s.modified);
+        result.append(checked_cast<size_t>(std::max(5 - std::ssize(total), ptrdiff_t{0})), ' ');
+        result += total;
         result += ' ';
-        for (ptrdiff_t j = 0; j < plus_bars; ++j) result += '+';
-        for (ptrdiff_t j = 0; j < minus_bars; ++j) result += '-';
+
+        // diffstat(1)'s plot_num, including how it carries the remainder
+        // from one mark to the next
+        ptrdiff_t extra = 0;
+        for (auto [count, mark] : {std::pair{s.added, '+'}, std::pair{s.removed, '-'},
+                                   std::pair{s.modified, '!'}}) {
+            if (count == 0) continue;
+            ptrdiff_t product = plot_width * count;
+            ptrdiff_t bars = (product + extra) / plot_scale;
+            extra = product - bars * plot_scale - extra;
+            if (bars > 0) result.append(checked_cast<size_t>(bars), mark);
+        }
         result += '\n';
     }
 
@@ -5434,81 +7176,216 @@ static std::string generate_diffstat(std::string_view diff)
         result += std::to_string(total_removed);
         result += (total_removed == 1) ? " deletion(-)" : " deletions(-)";
     }
+    if (total_modified > 0) {
+        result += ", ";
+        result += std::to_string(total_modified);
+        result += (total_modified == 1) ? " modification(!)" : " modifications(!)";
+    }
     result += '\n';
 
     return result;
 }
 
-// Remove an existing diffstat section from a patch header.
-// Detects "---" separator followed by " file | N ++--" lines ending
-// with a "N file(s) changed" summary line.
-static std::string remove_diffstat_section(std::string_view header) {
-    auto lines = split_lines(header);
-    std::string result;
-    for (ptrdiff_t i = 0; i < std::ssize(lines); ++i) {
-        const auto &line = lines[checked_cast<size_t>(i)];
-
-        // Detect "---" separator followed by diffstat, or bare diffstat
-        ptrdiff_t ds_start = i;
-        if (line == "---" && i + 1 < std::ssize(lines)) {
-            ds_start = i + 1;
-        }
-
-        const auto &first = lines[checked_cast<size_t>(ds_start)];
-        if (!first.empty() && first[0] == ' ' &&
-            str_find(first, '|') >= 0) {
-            // Look ahead to confirm this is a diffstat block
-            bool found_summary = false;
-            ptrdiff_t summary_end = -1;
-            for (ptrdiff_t j = ds_start; j < std::ssize(lines); ++j) {
-                const auto &l = lines[checked_cast<size_t>(j)];
-                if (l.find("changed") != std::string::npos &&
-                    l.find("file") != std::string::npos) {
-                    found_summary = true;
-                    summary_end = j;
-                    break;
-                }
-                // If we hit an empty line or non-diffstat line, stop
-                if (l.empty() || (l[0] != ' ' && str_find(l, '|') < 0))
-                    break;
-            }
-            if (found_summary) {
-                // Skip the entire diffstat block including summary
-                i = summary_end;
-                // Also skip a trailing blank line after diffstat
-                if (i + 1 < std::ssize(lines) && lines[checked_cast<size_t>(i + 1)].empty())
-                    i++;
-                continue;
-            }
-        }
-        result += line;
-        result += '\n';
+// Split text into lines, each keeping its '\n' terminator (the last line
+// may have none).
+static std::vector<std::string_view> split_lines_keep_eol(std::string_view s)
+{
+    std::vector<std::string_view> lines;
+    while (!s.empty()) {
+        ptrdiff_t nl = str_find(s, '\n');
+        ptrdiff_t len = nl < 0 ? std::ssize(s) : nl + 1;
+        lines.push_back(s.substr(0, checked_cast<size_t>(len)));
+        s.remove_prefix(checked_cast<size_t>(len));
     }
-    return result;
+    return lines;
 }
 
-// Strip trailing whitespace from diff output lines.
-// Returns the cleaned diff and emits warnings to stderr.
+// Length of the run of spaces and tabs ending a line, just before its '\n'
+// (if any), not counting into the first `keep` bytes. As in upstream, '\r'
+// is not whitespace here, so a CRLF line is left alone.
+static ptrdiff_t trailing_ws_len(std::string_view line, ptrdiff_t keep)
+{
+    if (line.ends_with('\n')) line.remove_suffix(1);
+    keep = std::min(keep, std::ssize(line));
+    std::string_view tail = line.substr(checked_cast<size_t>(keep));
+    auto last = tail.find_last_not_of(" \t");
+    if (last == std::string_view::npos) return std::ssize(tail);
+    return std::ssize(tail) - checked_cast<ptrdiff_t>(last) - 1;
+}
 
-int cmd_refresh(QuiltState &q, int argc, char **argv) {
-    if (q.applied.empty()) {
-        err_line("No patches applied");
-        return 1;
+// Append a line less the `n` bytes just before its '\n' (if any).
+static void append_without_trailing_ws(std::string &out,
+                                       std::string_view line, ptrdiff_t n)
+{
+    bool eol = line.ends_with('\n');
+    if (eol) line.remove_suffix(1);
+    out += line.substr(0, checked_cast<size_t>(std::ssize(line) - n));
+    if (eol) out += '\n';
+}
+
+// Parse a decimal number at s[pos], advancing pos past it.
+static ptrdiff_t parse_diff_num(std::string_view s, ptrdiff_t &pos)
+{
+    ptrdiff_t n = 0;
+    auto first = s.data() + pos;
+    auto [ptr, ec] = std::from_chars(first, s.data() + s.size(), n);
+    pos += ptr - first;
+    return n;
+}
+
+static bool char_at_is(std::string_view s, ptrdiff_t pos, char c)
+{
+    return pos < std::ssize(s) && s[checked_cast<size_t>(pos)] == c;
+}
+
+static bool digit_at(std::string_view s, ptrdiff_t pos)
+{
+    return pos < std::ssize(s) && s[checked_cast<size_t>(pos)] >= '0' &&
+           s[checked_cast<size_t>(pos)] <= '9';
+}
+
+// Strip trailing whitespace from the lines a single-file diff (unified or
+// context format) adds, like upstream's remove-trailing-ws script. Returns
+// the line numbers, in the new file, of the lines that were stripped.
+static std::vector<ptrdiff_t> strip_diff_trailing_ws(std::string &diff)
+{
+    std::vector<ptrdiff_t> stripped_lines;
+    auto lines = split_lines_keep_eol(diff);
+    std::string result;
+    ptrdiff_t n = std::ssize(lines);
+    ptrdiff_t i = 0;
+    auto line_at = [&](ptrdiff_t k) { return lines[checked_cast<size_t>(k)]; };
+
+    // Strip a line that adds content after a `keep`-byte prefix
+    auto take_added = [&](std::string_view line, ptrdiff_t keep,
+                          ptrdiff_t line_number) {
+        ptrdiff_t ws = trailing_ws_len(line, keep);
+        if (ws > 0) stripped_lines.push_back(line_number);
+        append_without_trailing_ws(result, line, ws);
+    };
+
+    bool context = false;
+    for (; i < n; ++i) {
+        result += line_at(i);
+        if (line_at(i).starts_with("--- ")) { ++i; break; }
+        if (line_at(i).starts_with("*** ")) { context = true; ++i; break; }
     }
 
-    // Parse options
-    std::string patch;
+    while (i < n) {
+        std::string_view line = line_at(i++);
+        result += line;
+        if (!context && line.starts_with("@@ -") && digit_at(line, 4)) {
+            // @@ -a[,b] +c[,d] @@
+            ptrdiff_t pos = 4;
+            parse_diff_num(line, pos);
+            ptrdiff_t removed = 1, added = 1;
+            if (char_at_is(line, pos, ',')) removed = parse_diff_num(line, ++pos);
+            if (!char_at_is(line, pos, ' ') || !char_at_is(line, pos + 1, '+') ||
+                !digit_at(line, pos + 2)) {
+                continue;
+            }
+            pos += 2;
+            ptrdiff_t line_number = parse_diff_num(line, pos);
+            if (char_at_is(line, pos, ',')) added = parse_diff_num(line, ++pos);
+            while ((removed > 0 || added > 0) && i < n) {
+                std::string_view hl = line_at(i++);
+                if (hl.starts_with('+')) {
+                    take_added(hl, 1, line_number);
+                    added--;
+                    line_number++;
+                    continue;
+                }
+                if (hl.starts_with('-')) {
+                    removed--;
+                } else if (hl.starts_with(' ') || hl == "\n") {
+                    removed--;
+                    added--;
+                    line_number++;
+                }
+                result += hl;
+            }
+        } else if (context && line.starts_with("--- ") && digit_at(line, 4) &&
+                   line.ends_with(" ----\n")) {
+            // --- c[,d] ----
+            ptrdiff_t pos = 4;
+            ptrdiff_t line_number = parse_diff_num(line, pos);
+            ptrdiff_t last_line = line_number;
+            if (char_at_is(line, pos, ',')) last_line = parse_diff_num(line, ++pos);
+            for (; line_number <= last_line && i < n; ++line_number) {
+                std::string_view hl = line_at(i++);
+                if (hl.starts_with("+ ") || hl.starts_with("! ")) {
+                    take_added(hl, 2, line_number);
+                } else {
+                    result += hl;
+                }
+                if (hl.starts_with("****") || hl.starts_with("*** ")) break;
+            }
+        }
+    }
+
+    diff = std::move(result);
+    return stripped_lines;
+}
+
+// Remove trailing spaces and tabs from the given (ascending, 1-based) lines
+// of a file, leaving all other bytes alone. The file is rewritten only if
+// something changed.
+static bool strip_file_trailing_ws(const std::string &path,
+                                   std::span<const ptrdiff_t> line_numbers)
+{
+    std::string content = read_file(path);
+    std::string result;
+    ptrdiff_t lineno = 0;
+    auto next = line_numbers.begin();
+    for (auto line : split_lines_keep_eol(content)) {
+        ++lineno;
+        while (next != line_numbers.end() && *next < lineno) ++next;
+        ptrdiff_t ws = 0;
+        if (next != line_numbers.end() && *next == lineno) {
+            ws = trailing_ws_len(line, 0);
+        }
+        append_without_trailing_ws(result, line, ws);
+    }
+    if (result == content) return true;
+    return write_file(path, result);
+}
+
+// Like upstream change_db_strip_level, record in the series the strip level
+// a refreshed patch was written with. Refresh always writes forward, so -R
+// is dropped too.
+static bool record_strip_level(QuiltState &q, const std::string &patch,
+                               int strip_level) {
+    if (!set_series_strip_level(q, patch, strip_level)) {
+        err_line("Failed to write series file.");
+        return false;
+    }
+    return true;
+}
+
+int cmd_refresh(QuiltState &q, int argc, char **argv) {
+    enum { NO_TIMESTAMPS = 256, DIFFSTAT, BACKUP, SORT, NO_INDEX,
+           STRIP_TRAILING_WHITESPACE, DIFF_ALGORITHM };
+    static constexpr LongOpt longopts[] = {
+        {"no-timestamps", OptArg::none, NO_TIMESTAMPS},
+        {"diffstat", OptArg::none, DIFFSTAT},
+        {"backup", OptArg::none, BACKUP},
+        {"sort", OptArg::none, SORT},
+        {"no-index", OptArg::none, NO_INDEX},
+        {"strip-trailing-whitespace", OptArg::none, STRIP_TRAILING_WHITESPACE},
+        {"diff-algorithm", OptArg::required, DIFF_ALGORITHM, true},
+    };
+    auto args = parse_options(argc, argv, "p:uU:cC:fz::h", longopts);
+    if (!args) return 1;
+
     std::string p_format;
-    bool explicit_p = false;
-    int i = 1;
     bool no_timestamps = !get_env("QUILT_NO_DIFF_TIMESTAMPS").empty();
     bool no_index = !get_env("QUILT_NO_DIFF_INDEX").empty();
-    bool sort_files = true;
+    bool sort_files = false;
     bool force = false;
     std::string diff_type;
     std::string context_num;
     bool opt_fork = false;
-    std::string fork_name;
+    std::optional<std::string> fork_name;
     bool opt_diffstat = false;
     bool opt_backup = false;
     bool opt_strip_whitespace = false;
@@ -5525,137 +7402,79 @@ int cmd_refresh(QuiltState &q, int argc, char **argv) {
         }
     }
 
-    while (i < argc) {
-        std::string_view arg = argv[i];
-        if (arg == "-p" && i + 1 < argc) {
-            p_format = std::string(argv[i + 1]);
-            explicit_p = true;
-            i += 2;
-            continue;
-        }
-        if (arg.starts_with("-p") && std::ssize(arg) > 2) {
-            p_format = std::string(arg.substr(2));
-            explicit_p = true;
-            i += 1;
-            continue;
-        }
-        if (arg == "-f") {
-            force = true;
-            i += 1;
-            continue;
-        }
-        if (arg == "-u") {
-            diff_type = "u";
+    for (const auto &opt : args->options) {
+        switch (opt.key) {
+        case 'p': p_format = opt.value; break;
+        case 'f': force = true; break;
+        case 'u':
+        case 'c':
+            diff_type = static_cast<char>(opt.key);
             context_num.clear();
-            i += 1;
-            continue;
-        }
-        if (arg.starts_with("-U")) {
-            diff_type = "U";
-            if (arg == "-U" && i + 1 < argc) {
-                context_num = argv[i + 1];
-                i += 2;
-            } else {
-                context_num = std::string(arg.substr(2));
-                i += 1;
-            }
-            continue;
-        }
-        if (arg == "-c") {
-            diff_type = "c";
-            context_num.clear();
-            i += 1;
-            continue;
-        }
-        if (arg.starts_with("-C")) {
-            diff_type = "C";
-            if (arg == "-C" && i + 1 < argc) {
-                context_num = argv[i + 1];
-                i += 2;
-            } else {
-                context_num = std::string(arg.substr(2));
-                i += 1;
-            }
-            continue;
-        }
-        if (arg.starts_with("-z")) {
+            break;
+        case 'U':
+        case 'C':
+            diff_type = static_cast<char>(opt.key);
+            context_num = opt.value;
+            break;
+        case 'z':
             opt_fork = true;
-            if (std::ssize(arg) > 2) {
-                fork_name = strip_patches_prefix(q, arg.substr(2));
-            }
-            i += 1;
-            continue;
-        }
-        if (arg == "--no-timestamps" || arg == "--no-timestamp") {
-            no_timestamps = true;
-            i += 1;
-            continue;
-        }
-        if (arg == "--no-index") {
-            no_index = true;
-            i += 1;
-            continue;
-        }
-        if (arg == "--sort") {
-            sort_files = true;
-            i += 1;
-            continue;
-        }
-        if (arg == "--diffstat") {
-            opt_diffstat = true;
-            i += 1;
-            continue;
-        }
-        if (arg == "--backup") {
-            opt_backup = true;
-            i += 1;
-            continue;
-        }
-        if (arg == "--strip-trailing-whitespace") {
-            opt_strip_whitespace = true;
-            i += 1;
-            continue;
-        }
-        if (arg.starts_with("--diff-algorithm=")) {
-            auto name = arg.substr(17);
-            auto algo = parse_diff_algorithm(name);
+            // An empty value means no name was given; a name that strips
+            // to nothing still names the patches directory, as upstream
+            if (!opt.value.empty()) fork_name = strip_patches_prefix(q, opt.value);
+            break;
+        case 'h': return command_help(argv[0]);
+        case NO_TIMESTAMPS: no_timestamps = true; break;
+        case NO_INDEX: no_index = true; break;
+        case DIFFSTAT: opt_diffstat = true; break;
+        case BACKUP: opt_backup = true; break;
+        case SORT: sort_files = true; break;
+        case STRIP_TRAILING_WHITESPACE: opt_strip_whitespace = true; break;
+        case DIFF_ALGORITHM: {
+            auto algo = parse_diff_algorithm(opt.value);
             if (!algo) {
-                err("Unknown diff algorithm: "); err_line(name);
+                err("Unknown diff algorithm: "); err_line(opt.value);
                 return 1;
             }
             diff_algorithm = *algo;
-            i += 1;
-            continue;
+            break;
         }
-        if (arg == "--diff-algorithm" && i + 1 < argc) {
-            std::string_view name = argv[i + 1];
-            auto algo = parse_diff_algorithm(name);
-            if (!algo) {
-                err("Unknown diff algorithm: "); err_line(name);
-                return 1;
-            }
-            diff_algorithm = *algo;
-            i += 2;
-            continue;
         }
-        if (arg[0] == '-') {
-            err("Unrecognized option: "); err_line(arg);
-            return 1;
-        }
-        // Non-option: patch name
-        if (patch.empty()) {
-            patch = arg;
-        }
-        i += 1;
     }
 
-    if (patch.empty()) {
-        patch = q.applied.back();
+    // Like upstream, any argument names the patch, even an empty one
+    if (std::ssize(args->operands) > 1) return usage_error(argv[0]);
+    std::optional<std::string_view> patch_arg;
+    if (!args->operands.empty()) patch_arg = args->operands[0];
+
+    if (!q.series_file_exists) {
+        err_line("No series file found");
+        return 1;
     }
 
-    if (!explicit_p) {
+    // Like upstream, look up the patch first, so that an unknown name is
+    // reported as such. No argument, or an empty one, means the top patch.
+    auto found = find_applied_patch(q, patch_arg.value_or(""));
+    if (!found) return 1;
+    std::string patch = *found;
+
+    // Like upstream, -z forks only the top patch, and only when no patch
+    // is named, even if the name is the top patch's or empty
+    if (opt_fork && patch_arg) {
+        err_line("Can only refresh the topmost patch with -z currently");
+        return 1;
+    }
+
+    // Like the original quilt, validate the effective strip level, which
+    // may come from the series file.
+    if (p_format.empty()) {
         p_format = q.get_p_format(patch);
     }
+    if (p_format != "0" && p_format != "1" && p_format != "ab") {
+        err("Cannot refresh patches with -p"); err(p_format);
+        err_line(", please specify -p0, -p1, or -pab instead");
+        return 1;
+    }
+    int strip_level = p_format == "0" ? 0 : 1;
 
     // Compute diff format and context lines
     DiffFormat diff_format = DiffFormat::unified;
@@ -5674,28 +7493,19 @@ int cmd_refresh(QuiltState &q, int argc, char **argv) {
     // inserts a new patch *after* the original and refreshes the fork.
     // The original patch keeps its content. The fork captures only the
     // delta between the original's refreshed state and the current working
-    // tree.
-    bool did_fork = false;
+    // tree. Like upstream, the fork joins the series only once its patch is
+    // written, so a fork with nothing in it leaves everything as it was.
+    std::string fork_of;
     if (opt_fork) {
-        if (patch != q.applied.back()) {
-            err_line("Can only use -z with the topmost applied patch");
-            return 1;
-        }
         std::string old_name(patch);
 
-        // Generate fork name
-        std::string new_name;
-        if (!fork_name.empty()) {
-            new_name = fork_name;
-        } else {
-            auto dot = str_rfind(old_name, '.');
-            if (dot > 0) {
-                new_name = old_name.substr(0, checked_cast<size_t>(dot)) + "-2" + old_name.substr(checked_cast<size_t>(dot));
-            } else {
-                new_name = old_name + "-2";
-            }
-        }
+        std::string new_name = fork_name ? *fork_name : next_filename(old_name);
 
+        if (file_exists(path_join(q.work_dir, q.patches_dir, new_name))) {
+            err("Patch "); err(patch_path_display(q, new_name));
+            err_line(" exists already");
+            return 1;
+        }
         if (q.find_in_series(new_name)) {
             err("Patch "); err(new_name); err_line(" already exists in series");
             return 1;
@@ -5713,6 +7523,7 @@ int cmd_refresh(QuiltState &q, int argc, char **argv) {
         // the original patch to the backup copies in an in-memory FS.
         std::string old_pc = pc_patch_dir(q, old_name);
         std::string new_pc = pc_patch_dir(q, new_name);
+        if (is_directory(new_pc)) delete_dir_recursive(new_pc);
         make_dirs(new_pc);
 
         std::string orig_patch_path = path_join(q.work_dir, q.patches_dir, old_name);
@@ -5752,69 +7563,24 @@ int cmd_refresh(QuiltState &q, int argc, char **argv) {
             }
         }
 
-        // Write .timestamp for the fork
-        write_file(path_join(new_pc, ".timestamp"), "");
-
-        // Migrate per-patch metadata to fork
-        auto sl_it = q.patch_strip_level.find(old_name);
-        if (sl_it != q.patch_strip_level.end()) {
-            q.patch_strip_level[new_name] = sl_it->second;
-        }
-        if (q.patch_reversed.contains(old_name)) {
-            q.patch_reversed.insert(new_name);
-        }
-
-        // Insert new patch after original in series
-        q.series.insert(q.series.begin() + *idx + 1, new_name);
-        std::string series_abs = path_join(q.work_dir, q.series_file);
-        if (!write_series(series_abs, q.series, q.patch_strip_level, q.patch_reversed)) {
-            err_line("Failed to write series file.");
-            return 1;
-        }
-
-        // Update applied: add fork after original
-        q.applied.push_back(new_name);
-        std::string applied_path = path_join(q.work_dir, q.pc_dir, "applied-patches");
-        write_applied(applied_path, q.applied);
-
-        out_line("Fork of patch " + patch_path_display(q, old_name) +
-                 " created as " + patch_path_display(q, new_name));
         patch = new_name;
-        // Suppress the "Refreshed patch" message; the fork message is sufficient
-        did_fork = true;
+        fork_of = old_name;
     }
 
-    // Compute shadowed files (files modified by patches above this one)
-    // For each shadowed file, record the first patch above that tracks it
-    // (needed to find its backup as the "new" side of the diff).
-    std::set<std::string> shadowed;
-    std::map<std::string, std::string> shadow_next_patch;
-    if (patch != q.applied.back()) {
-        bool above = false;
-        for (const auto &a : q.applied) {
-            if (above) {
-                auto above_files = files_in_patch(q, a);
-                for (const auto &f : above_files) {
-                    if (!shadowed.contains(f)) {
-                        shadow_next_patch[f] = a;
-                    }
-                    shadowed.insert(f);
-                }
-            }
-            if (a == patch) above = true;
-        }
-    }
-
-    if (!shadowed.empty() && !force) {
-        err("More recent patches modify files in patch ");
-        err(patch_path_display(q, patch)); err_line(". Enforce refresh with -f.");
+    // An unfinished fork leaves nothing behind
+    auto fail = [&] {
+        if (!fork_of.empty()) delete_dir_recursive(pc_patch_dir(q, patch));
         return 1;
-    }
+    };
 
     // Get files tracked by this patch
-    auto tracked = files_in_patch(q, patch);
+    // Like upstream, the patch's own order unless --sort is given
+    std::vector<std::string> tracked;
     if (sort_files) {
+        tracked = files_in_patch(q, patch);
         std::ranges::sort(tracked);
+    } else {
+        tracked = files_in_patch_ordered(q, patch);
     }
 
     // Read existing patch file for header
@@ -5823,200 +7589,145 @@ int cmd_refresh(QuiltState &q, int argc, char **argv) {
     std::string header;
     if (file_exists(patch_file)) {
         old_content = read_file(patch_file);
-        header = read_patch_header(patch_file);
-    }
-
-    // Backup old patch file if requested
-    if (opt_backup && file_exists(patch_file)) {
-        copy_file(patch_file, patch_file + "~");
+        header = patch_header(old_content);
     }
 
     // Generate diffs
     std::string work_base = basename(q.work_dir);
     std::string patch_content = header;
+    // The patch with trailing whitespace stripped from added lines, which
+    // --strip-trailing-whitespace writes if it strips the files too
+    std::string stripped_content = header;
+    // Added lines (per file) with trailing whitespace, reported once every
+    // diff has succeeded. Like upstream, which checks the whole generated
+    // patch, this includes files shadowed by later patches.
+    std::map<std::string, std::vector<ptrdiff_t>> ws_lines;
+    bool files_were_shadowed = false;
+
+    auto append_diff = [&](std::string &content, const std::string &file,
+                           const std::string &diff) {
+        if (diff.empty()) return;
+        if (!no_index) {
+            std::string idx_name;
+            if (p_format == "0") idx_name = file;
+            else if (p_format == "ab") idx_name = "b/" + file;
+            else idx_name = work_base + "/" + file;
+            content += "Index: " + idx_name + "\n";
+            content += "===================================================================\n";
+        }
+        content += diff;
+        // Ensure trailing newline
+        if (content.back() != '\n') content += '\n';
+    };
 
     for (const auto &file : tracked) {
-        if (shadowed.contains(file)) {
-            // Diff this patch's backup against the next patch's backup
-            auto it = shadow_next_patch.find(file);
-            if (it != shadow_next_patch.end()) {
-                std::string this_backup = path_join(pc_patch_dir(q, patch), file);
-                std::string next_backup = path_join(pc_patch_dir(q, it->second), file);
-                std::string diff_out = generate_path_diff(q, file,
-                    this_backup, true, next_backup, true,
-                    p_format, false, {}, ctx_lines, diff_format, no_timestamps,
-                    diff_algorithm);
-                if (!diff_out.empty()) {
-                    if (!no_index) {
-                        std::string idx_name;
-                        if (p_format == "0") idx_name = file;
-                        else if (p_format == "ab") idx_name = "b/" + file;
-                        else idx_name = basename(q.work_dir) + "/" + file;
-                        patch_content += "Index: " + idx_name + "\n";
-                        patch_content += "===================================================================\n";
-                    }
-                    patch_content += diff_out;
-                    if (!patch_content.empty() && patch_content.back() != '\n') {
-                        patch_content += '\n';
-                    }
-                }
-            }
-            continue;
+        std::string diff_out;
+        // Like upstream, a file that a later patch also changes is diffed
+        // against that patch's backup
+        std::string next = fork_of.empty() ? next_patch_for_file(q, patch, file) : "";
+        if (!next.empty()) {
+            std::string this_backup = path_join(pc_patch_dir(q, patch), file);
+            std::string next_backup = path_join(pc_patch_dir(q, next), file);
+            diff_out = generate_path_diff(q, file,
+                this_backup, true, next_backup, true,
+                p_format, false, ctx_lines, diff_format, no_timestamps,
+                diff_algorithm);
+            files_were_shadowed = true;
+        } else {
+            diff_out = generate_file_diff(q, patch, file, p_format,
+                                          false, ctx_lines,
+                                          diff_format, no_timestamps,
+                                          diff_algorithm);
         }
-        // Strip trailing whitespace from lines modified by this patch
-        if (opt_strip_whitespace) {
-            std::string working_path = path_join(q.work_dir, file);
-            if (file_exists(working_path)) {
-                // Find which lines are modified by diffing backup vs working
-                std::set<int> modified_lines;
-                std::string diff_check = generate_file_diff(
-                    q, patch, file, "1", false, {}, 0,
-                    DiffFormat::unified, true, diff_algorithm);
-                if (!diff_check.empty()) {
-                    auto dlines = split_lines(diff_check);
-                    int new_lineno = 0;
-                    for (const auto &dl : dlines) {
-                        if (dl.starts_with("---") || dl.starts_with("+++")) {
-                            continue;
-                        }
-                        if (dl.starts_with("@@")) {
-                            // Parse @@ -X,Y +N,M @@
-                            auto plus = str_find(dl, '+');
-                            if (plus >= 0) {
-                                auto comma = str_find(
-                                    std::string_view(dl).substr(
-                                        checked_cast<size_t>(plus)), ',');
-                                std::string_view num_str;
-                                if (comma >= 0) {
-                                    num_str = std::string_view(dl).substr(
-                                        checked_cast<size_t>(plus) + 1,
-                                        checked_cast<size_t>(comma) - 1);
-                                } else {
-                                    auto sp = str_find(
-                                        std::string_view(dl).substr(
-                                            checked_cast<size_t>(plus)), ' ');
-                                    if (sp >= 0) {
-                                        num_str = std::string_view(dl).substr(
-                                            checked_cast<size_t>(plus) + 1,
-                                            checked_cast<size_t>(sp) - 1);
-                                    }
-                                }
-                                if (!num_str.empty()) {
-                                    int n = 0;
-                                    std::from_chars(num_str.data(),
-                                        num_str.data() + num_str.size(), n);
-                                    new_lineno = n - 1;  // will be incremented
-                                }
-                            }
-                        } else if (dl.starts_with("+")) {
-                            new_lineno++;
-                            modified_lines.insert(new_lineno);
-                        } else if (!dl.starts_with("-")) {
-                            new_lineno++;  // context line
-                        }
-                    }
-                }
-
-                std::string content = read_file(working_path);
-                std::string stripped;
-                auto lines = split_lines(content);
-                int lineno = 0;
-                for (const auto &line : lines) {
-                    lineno++;
-                    std::string_view l = line;
-                    bool is_modified = modified_lines.contains(lineno);
-                    auto end = l.find_last_not_of(" \t");
-                    if (is_modified && end == std::string::npos) {
-                        if (!l.empty()) {
-                            out_line("Removing trailing whitespace from line "
-                                     + std::to_string(lineno) + " of " + file);
-                        }
-                        stripped += '\n';
-                    } else if (is_modified &&
-                               static_cast<ptrdiff_t>(end) + 1 < std::ssize(l)) {
-                        out_line("Removing trailing whitespace from line "
-                                 + std::to_string(lineno) + " of " + file);
-                        stripped += l.substr(0, end + 1);
-                        stripped += '\n';
-                    } else {
-                        stripped += l;
-                        stripped += '\n';
-                    }
-                }
-                if (stripped != content) {
-                    write_file(working_path, stripped);
-                }
-            }
-        }
-
-        std::string diff_out = generate_file_diff(q, patch, file, p_format,
-                                                   false, {}, ctx_lines,
-                                                   diff_format, no_timestamps,
-                                                   diff_algorithm);
         if (diff_out.starts_with("Binary files ")) {
             err("Diff failed on file '"); err(file); err_line("', aborting");
-            return 1;
+            return fail();
         }
-        if (!diff_out.empty()) {
-            if (!no_index) {
-                std::string idx_name;
-                if (p_format == "0") idx_name = file;
-                else if (p_format == "ab") idx_name = "b/" + file;
-                else idx_name = work_base + "/" + file;
-                patch_content += "Index: " + idx_name + "\n";
-                patch_content += "===================================================================\n";
-            }
-            patch_content += diff_out;
-            // Ensure trailing newline
-            if (!patch_content.empty() && patch_content.back() != '\n') {
-                patch_content += '\n';
-            }
+        if (files_were_shadowed && !force) {
+            err("More recent patches modify files in patch ");
+            err(patch_path_display(q, patch)); err_line(". Enforce refresh with -f.");
+            return fail();
         }
+        // Like upstream, complain for this and every later file once one is
+        // shadowed, but strip them all anyway
+        if (files_were_shadowed && opt_strip_whitespace) {
+            err_line("Cannot use --strip-trailing-whitespace on a patch that has shadowed files.");
+        }
+        std::string stripped = diff_out;
+        auto lines = strip_diff_trailing_ws(stripped);
+        if (!lines.empty()) ws_lines[file] = std::move(lines);
+        append_diff(patch_content, file, diff_out);
+        if (opt_strip_whitespace) append_diff(stripped_content, file, stripped);
     }
 
-    // Add diffstat to header if requested
-    if (opt_diffstat) {
-        std::string diff_portion = patch_content.substr(checked_cast<size_t>(std::ssize(header)));
-        if (!diff_portion.empty()) {
-            std::string ds_out = generate_diffstat(diff_portion);
-            if (!ds_out.empty()) {
-                std::string clean_header = remove_diffstat_section(header);
-                // Remove trailing blank lines from header
-                while (std::ssize(clean_header) > 1 &&
-                       clean_header[checked_cast<size_t>(std::ssize(clean_header) - 1)] == '\n' &&
-                       clean_header[checked_cast<size_t>(std::ssize(clean_header) - 2)] == '\n') {
-                    clean_header.pop_back();
-                }
-                patch_content = clean_header;
-                if (!patch_content.empty() && patch_content.back() != '\n')
-                    patch_content += '\n';
-                patch_content += ds_out;
-                if (!ds_out.empty() && ds_out.back() != '\n')
-                    patch_content += '\n';
-                patch_content += '\n';
-                patch_content += diff_portion;
-            }
-        }
+    // Like upstream, there is something in the patch when the diff is not
+    // empty. The header may hold lines that look like a diff.
+    bool has_diff = std::ssize(patch_content) != std::ssize(header);
+
+    if (!fork_of.empty() && !has_diff) {
+        err("Nothing in patch "); err_line(patch_path_display(q, patch));
+        return fail();
     }
 
-    // Check if patch has no diff hunks
-    bool has_diff = false;
-    for (auto &line : split_lines(patch_content)) {
-        if (line.starts_with("--- ") || line.starts_with("diff ")) {
-            has_diff = true;
+    // Like upstream's remove-trailing-ws, report (or strip) the files in name
+    // order. A file that cannot be opened stops the stripping, and the patch
+    // is then written unstripped.
+    bool strip_patch = opt_strip_whitespace;
+    for (const auto &[file, lines] : ws_lines) {
+        std::string list;
+        for (auto n : lines) {
+            if (!list.empty()) list += ',';
+            list += std::to_string(n);
+        }
+        if (!opt_strip_whitespace) {
+            err(std::ssize(lines) == 1 ? "Warning: trailing whitespace in line "
+                                       : "Warning: trailing whitespace in lines ");
+            err(list); err(" of "); err_line(file);
+            continue;
+        }
+        err(std::ssize(lines) == 1 ? "Removing trailing whitespace from line "
+                                   : "Removing trailing whitespace from lines ");
+        err(list); err(" of "); err_line(file);
+        // A shadowed file's line numbers are those of the next patch's
+        // backup, but like upstream (which has a FIXME for this), they are
+        // stripped in the working file, which may be a later patch's line.
+        // A file that a later patch deleted is missing.
+        std::string path = path_join(q.work_dir, file);
+        if (!file_exists(path)) {
+            err(file); err_line(": No such file or directory");
+            strip_patch = false;
             break;
         }
+        if (!strip_file_trailing_ws(path, lines)) {
+            err("Failed to write "); err_line(file);
+            return fail();
+        }
+    }
+    if (strip_patch) patch_content = std::move(stripped_content);
+
+    // Like upstream, --diffstat replaces the diffstat in the old header,
+    // or adds one at its end, even when the diff is empty
+    if (opt_diffstat) {
+        std::string diff_portion =
+            patch_content.substr(checked_cast<size_t>(std::ssize(header)));
+        patch_content = replace_diffstat(header, generate_diffstat(diff_portion)) +
+                        diff_portion;
     }
 
-    // Check if patch content is unchanged (only skip write if file exists)
+    // Like upstream, refreshing clears the .needs_refresh marker left by a
+    // forced push, even when the patch file does not change
+    std::string nr = path_join(pc_patch_dir(q, patch), ".needs_refresh");
+
+    // Leave an existing patch file alone if its content is unchanged, even
+    // when there is nothing in it. Like upstream, "Nothing in patch" is only
+    // for a patch file that gets written.
     if (patch_content == old_content && file_exists(patch_file)) {
-        if (!has_diff) {
-            out("Nothing in patch "); out_line(patch_path_display(q, patch));
-        } else {
-            out("Patch "); out(patch_path_display(q, patch));
-            out_line(" is unchanged");
+        if (file_exists(nr)) {
+            delete_file(nr);
         }
-        return 0;
+        out("Patch "); out(patch_path_display(q, patch));
+        out_line(" is unchanged");
+        return record_strip_level(q, patch, strip_level) ? 0 : 1;
     }
 
     // Ensure patches directory exists
@@ -6025,50 +7736,83 @@ int cmd_refresh(QuiltState &q, int argc, char **argv) {
         make_dirs(patch_dir);
     }
 
+    // Like upstream, back up the old patch file only when replacing it
+    if (opt_backup && file_exists(patch_file)) {
+        copy_file(patch_file, patch_file + "~");
+    }
+
     // Write the patch file
     if (!write_file(patch_file, patch_content)) {
         err_line("Failed to write patch file " + patch_file);
-        return 1;
+        return fail();
+    }
+
+    if (!fork_of.empty()) {
+        // Like upstream, insert the fork after the original (the top) with
+        // the original's options. Refresh then records the strip level the
+        // fork is written with, which defaults to the original's, and drops -R.
+        if (!insert_in_series(q, patch, series_patch_args(q, fork_of),
+                              q.patch_after_top())) {
+            err_line("Failed to write series file.");
+            delete_file(patch_file);
+            return fail();
+        }
+
+        // Update applied: add fork after original
+        q.applied.push_back(patch);
+        std::string applied_path = path_join(q.work_dir, q.pc_dir, "applied-patches");
+        write_applied(applied_path, q.applied);
+
+        // The fork message replaces the "Refreshed patch" message
+        out_line("Fork of patch " + patch_path_display(q, fork_of) +
+                 " created as " + patch_path_display(q, patch));
     }
 
     // Update .timestamp
     write_file(path_join(pc_patch_dir(q, patch), ".timestamp"), "");
 
     // Clear .needs_refresh marker if present
-    std::string nr = path_join(pc_patch_dir(q, patch), ".needs_refresh");
     if (file_exists(nr)) {
         delete_file(nr);
     }
 
-    if (!did_fork) {
+    if (fork_of.empty()) {
         if (!has_diff) {
             out("Nothing in patch "); out_line(patch_path_display(q, patch));
         } else {
             out("Refreshed patch "); out_line(patch_path_display(q, patch));
         }
     }
-    return 0;
+    return record_strip_level(q, patch, strip_level) ? 0 : 1;
 }
 
 int cmd_diff(QuiltState &q, int argc, char **argv) {
-    if (q.applied.empty()) {
-        err_line("No patches applied");
-        return 1;
-    }
+    enum { DIFF = 256, SNAPSHOT, NO_TIMESTAMPS, NO_INDEX, COMBINE, COLOR, SORT,
+           DIFF_ALGORITHM };
+    static constexpr LongOpt longopts[] = {
+        {"diff", OptArg::required, DIFF},
+        {"snapshot", OptArg::none, SNAPSHOT},
+        {"no-timestamps", OptArg::none, NO_TIMESTAMPS},
+        {"no-index", OptArg::none, NO_INDEX},
+        {"combine", OptArg::required, COMBINE},
+        {"color", OptArg::optional, COLOR},
+        {"sort", OptArg::none, SORT},
+        {"diff-algorithm", OptArg::required, DIFF_ALGORITHM, true},
+    };
+    auto args = parse_options(argc, argv, "p:P:RuU:cC:zh", longopts);
+    if (!args) return 1;
 
-    // Parse options
-    std::string_view patch;
+    std::string_view patch_arg;
     std::string p_format;
-    bool explicit_p = false;
     std::vector<std::string> file_filter;
     bool no_timestamps = !get_env("QUILT_NO_DIFF_TIMESTAMPS").empty();
     bool no_index = !get_env("QUILT_NO_DIFF_INDEX").empty();
     bool since_refresh = false;
     bool against_snapshot = false;
     bool reverse = false;
-    bool sort_files = true;
+    bool sort_files = false;
     std::string diff_utility;
-    std::string combine_patch;
+    std::optional<std::string_view> combine_arg;
     std::string diff_type = "u";
     std::string context_num;
     DiffAlgorithm diff_algorithm = DiffAlgorithm::myers;
@@ -6083,156 +7827,65 @@ int cmd_diff(QuiltState &q, int argc, char **argv) {
             diff_algorithm = *parsed;
         }
     }
-    int i = 1;
 
-    while (i < argc) {
-        std::string_view arg = argv[i];
-        if (arg == "-P" && i + 1 < argc) {
-            patch = strip_patches_prefix(q, argv[i + 1]);
-            i += 2;
-            continue;
-        }
-        if (arg == "-p" && i + 1 < argc) {
-            p_format = std::string(argv[i + 1]);
-            explicit_p = true;
-            i += 2;
-            continue;
-        }
-        if (arg.starts_with("-p") && std::ssize(arg) > 2) {
-            p_format = std::string(arg.substr(2));
-            explicit_p = true;
-            i += 1;
-            continue;
-        }
-        if (arg == "-u") {
-            diff_type = "u";
+    for (const auto &opt : args->options) {
+        switch (opt.key) {
+        case 'p': p_format = opt.value; break;
+        case 'P': patch_arg = opt.value; break;
+        case COMBINE: combine_arg = opt.value; break;
+        case 'R': reverse = true; break;
+        case 'z': since_refresh = true; break;
+        case 'u':
+        case 'c':
+            diff_type = static_cast<char>(opt.key);
             context_num.clear();
-            i += 1;
-            continue;
-        }
-        if (arg == "-c") {
-            diff_type = "c";
-            context_num.clear();
-            i += 1;
-            continue;
-        }
-        if (arg.starts_with("-C")) {
-            diff_type = "C";
-            if (arg == "-C" && i + 1 < argc) {
-                context_num = argv[i + 1];
-                i += 2;
-            } else {
-                context_num = std::string(arg.substr(2));
-                i += 1;
-            }
-            continue;
-        }
-        if (arg.starts_with("-U")) {
-            diff_type = "U";
-            if (arg == "-U" && i + 1 < argc) {
-                context_num = argv[i + 1];
-                i += 2;
-            } else {
-                context_num = std::string(arg.substr(2));
-                i += 1;
-            }
-            continue;
-        }
-        if (arg == "-z") {
-            since_refresh = true;
-            i += 1;
-            continue;
-        }
-        if (arg == "--snapshot") {
-            against_snapshot = true;
-            i += 1;
-            continue;
-        }
-        if (arg == "-R") {
-            reverse = true;
-            i += 1;
-            continue;
-        }
-        if (arg == "--no-timestamps" || arg == "--no-timestamp") {
-            no_timestamps = true;
-            i += 1;
-            continue;
-        }
-        if (arg == "--no-index") {
-            no_index = true;
-            i += 1;
-            continue;
-        }
-        if (arg == "--sort") {
-            sort_files = true;
-            i += 1;
-            continue;
-        }
-        if (arg == "--combine" && i + 1 < argc) {
-            combine_patch = argv[i + 1];
-            i += 2;
-            continue;
-        }
-        if (arg.starts_with("--combine=")) {
-            combine_patch = std::string(arg.substr(10));
-            i += 1;
-            continue;
-        }
-        if (arg.starts_with("--diff=")) {
-            diff_utility = std::string(arg.substr(7));
-            i += 1;
-            continue;
-        }
-        if (arg.starts_with("--diff-algorithm=")) {
-            auto name = arg.substr(17);
-            auto algo = parse_diff_algorithm(name);
+            break;
+        case 'U':
+        case 'C':
+            diff_type = static_cast<char>(opt.key);
+            context_num = opt.value;
+            break;
+        case 'h': return command_help(argv[0]);
+        case SNAPSHOT: against_snapshot = true; break;
+        case DIFF: diff_utility = opt.value; break;
+        case NO_TIMESTAMPS: no_timestamps = true; break;
+        case NO_INDEX: no_index = true; break;
+        case SORT: sort_files = true; break;
+        case COLOR:
+            if (!valid_color_value(opt.value)) return usage_error(argv[0]);
+            break;
+        case DIFF_ALGORITHM: {
+            auto algo = parse_diff_algorithm(opt.value);
             if (!algo) {
-                err("Unknown diff algorithm: "); err_line(name);
+                err("Unknown diff algorithm: "); err_line(opt.value);
                 return 1;
             }
             diff_algorithm = *algo;
-            i += 1;
-            continue;
+            break;
         }
-        if (arg == "--diff-algorithm" && i + 1 < argc) {
-            std::string_view name = argv[i + 1];
-            auto algo = parse_diff_algorithm(name);
-            if (!algo) {
-                err("Unknown diff algorithm: "); err_line(name);
-                return 1;
-            }
-            diff_algorithm = *algo;
-            i += 2;
-            continue;
         }
-        if (arg == "--color" || arg.starts_with("--color=")) {
-            if (arg.starts_with("--color=")) {
-                auto val = arg.substr(8);
-                if (val != "always" && val != "auto" && val != "never") {
-                    err("Invalid --color value: "); err_line(val);
-                    return 1;
-                }
-            }
-            i += 1;
-            continue;
-        }
-        if (arg[0] == '-') {
-            err("Unrecognized option: "); err_line(arg);
-            return 1;
-        }
-        // Non-option: file name or patch name
-        if (arg[0] != '-') {
-            file_filter.push_back(subdir_path(q, arg));
-        }
-        i += 1;
     }
 
-    if (patch.empty()) {
-        patch = q.applied.back();
+    // Like upstream, an empty name names no file, unless the subdirectory
+    // prefix makes it one
+    for (auto arg : args->operands) {
+        std::string file = subdir_path(q, arg);
+        if (!file.empty()) file_filter.push_back(std::move(file));
     }
 
-    if (!explicit_p) {
-        p_format = q.get_p_format(patch);
+    if (!q.series_file_exists) {
+        err_line("No series file found");
+        return 1;
+    }
+
+    // Resolve --combine before -P, in the same order as upstream. Neither
+    // "-" nor an empty name is looked up: "-" means the first applied
+    // patch, and an empty name matches no patch in the range below.
+    std::string combine_start;
+    if (combine_arg && !combine_arg->empty() && *combine_arg != "-") {
+        auto found = find_applied_patch(q, *combine_arg);
+        if (!found) return 1;
+        combine_start = *found;
     }
 
     if (since_refresh && against_snapshot) {
@@ -6240,13 +7893,41 @@ int cmd_diff(QuiltState &q, int argc, char **argv) {
         return 1;
     }
 
-    if (!combine_patch.empty() && since_refresh) {
+    if (combine_arg && since_refresh) {
         err_line("Options `--combine' and `-z' cannot be combined.");
         return 1;
     }
 
-    if (!combine_patch.empty() && against_snapshot) {
+    if (combine_arg && against_snapshot) {
         err_line("Options `--combine' and `--snapshot' cannot be combined.");
+        return 1;
+    }
+
+    // No -P, or an empty one, means the top patch
+    auto found = find_applied_patch(q, patch_arg);
+    if (!found) return 1;
+    std::string patch = *found;
+
+    if (combine_arg) {
+        if (*combine_arg == "-") {
+            combine_start = q.applied.front();
+        }
+        if (combine_start.empty() ||
+            std::ranges::find(q.applied, combine_start) > std::ranges::find(q.applied, patch)) {
+            err("Patch "); err(format_patch(q, combine_start));
+            err(" not applied before patch "); err_line(format_patch(q, patch));
+            return 1;
+        }
+    }
+
+    // Like the original quilt, validate the effective strip level, which
+    // may come from the series file.
+    if (p_format.empty()) {
+        p_format = q.get_p_format(patch);
+    }
+    if (p_format != "0" && p_format != "1" && p_format != "ab") {
+        err("Cannot diff patches with -p"); err(p_format);
+        err_line(", please specify -p0, -p1, or -pab instead");
         return 1;
     }
 
@@ -6262,38 +7943,36 @@ int cmd_diff(QuiltState &q, int argc, char **argv) {
         ctx_lines = checked_cast<int>(parse_int(context_num));
     }
 
-    // Build diff command base for external diff utility (empty = use builtin)
-    bool convert_to_context = false;
-    std::vector<std::string> diff_cmd_base;
-    if (!diff_utility.empty()) {
-        auto parts = split_on_whitespace(diff_utility);
-        for (auto &p : parts) diff_cmd_base.push_back(std::move(p));
-        // External diff: always request unified, convert to context in-process
-        convert_to_context = (diff_type == "c" || diff_type == "C");
-        if (diff_type == "U" || diff_type == "C") {
-            diff_cmd_base.push_back("-U");
-            diff_cmd_base.push_back(context_num);
-        } else {
-            diff_cmd_base.push_back("-u");
+    // Like upstream's do_diff, a --diff utility gets just the two files,
+    // as upstream names them, with an empty or missing one as /dev/null.
+    // It runs only for files that differ, its output goes straight
+    // through, without an Index line, and its exit status is ignored.
+    auto run_diff_utility = [&](std::string old_f, std::string new_f) {
+        if (reverse) std::swap(old_f, new_f);
+        std::string base = q.work_dir + "/";
+        std::string old_data, new_data;
+        for (auto [path, data] : {std::pair{&old_f, &old_data}, std::pair{&new_f, &new_data}}) {
+            if (path->starts_with(base)) path->erase(0, base.size());
+            if (file_exists(*path)) *data = read_file(*path);
+            if (data->empty()) *path = "/dev/null";
         }
-    }
-
-    auto emit_diff = [&](std::string_view d) {
-        if (convert_to_context)
-            out(unified_to_context(d));
-        else
-            out(d);
+        if (old_f == new_f || old_data == new_data) return;
+        std::vector<std::string> cmd;
+        for (auto &part : split_on_whitespace(diff_utility)) cmd.push_back(std::move(part));
+        cmd.push_back(old_f);
+        cmd.push_back(new_f);
+        run_cmd_tty(cmd);
     };
 
-    // Resolve --combine patch name
-    std::string combine_start;
-    if (!combine_patch.empty()) {
-        if (combine_patch == "-") {
-            combine_start = q.applied.front();
-        } else {
-            combine_start = strip_patches_prefix(q, combine_patch);
+    // A changed binary file is reported as "Binary files differ", and like
+    // the original quilt, a failed diff aborts the whole command
+    auto abort_on_binary = [&](std::string_view diff_out, std::string_view file) {
+        if (diff_out.starts_with("Binary files ")) {
+            err("Diff failed on file '"); err(file); err_line("', aborting");
+            return true;
         }
-    }
+        return false;
+    };
 
     auto patches = patch_range_for_diff(q, patch);
     std::vector<std::string> tracked;
@@ -6305,7 +7984,9 @@ int cmd_diff(QuiltState &q, int argc, char **argv) {
         }
 
         std::set<std::string> seen;
-        append_unique_files(tracked, seen, files_in_patch(q, SNAPSHOT_PATCH));
+        auto snapshot_files = files_in_patch(q, SNAPSHOT_PATCH);
+        std::ranges::sort(snapshot_files);
+        append_unique_files(tracked, seen, snapshot_files);
         append_unique_files(tracked, seen, collect_files_for_patches(q, patches));
     } else if (!combine_start.empty()) {
         // Collect files across the combine range
@@ -6318,11 +7999,12 @@ int cmd_diff(QuiltState &q, int argc, char **argv) {
         }
         tracked = collect_files_for_patches(q, combine_range);
     } else {
-        tracked = files_in_patch(q, patch);
+        tracked = files_in_patch_ordered(q, patch);
     }
 
     apply_file_filter(tracked, file_filter);
 
+    // Like upstream, files go in the order first seen unless --sort is given
     if (sort_files) {
         std::ranges::sort(tracked);
     }
@@ -6348,6 +8030,8 @@ int cmd_diff(QuiltState &q, int argc, char **argv) {
             return 1;
         }
 
+        bool files_were_shadowed = false;
+
         for (const auto &file : tracked) {
             std::string backup_path = path_join(pc_patch_dir(q, patch), file);
             std::string working_path = path_join(q.work_dir, file);
@@ -6359,12 +8043,13 @@ int cmd_diff(QuiltState &q, int argc, char **argv) {
                 make_dirs(tmp_file_dir);
             }
 
-            // Copy backup to temp (empty backup = file didn't exist)
-            if (file_exists(backup_path)) {
-                std::string backup_content = read_file(backup_path);
-                write_file(tmp_file, backup_content);
-            } else {
-                write_file(tmp_file, "");
+            // Rebuild the refreshed state as the original quilt does: start
+            // from the backup (an empty backup means the file did not
+            // exist), then apply this file's section of the stored patch.
+            // The result is removed only if the section deletes the file;
+            // a file the patch merely empties stays as an empty file.
+            if (file_exists(backup_path) && !is_placeholder_copy(backup_path)) {
+                write_file(tmp_file, read_file(backup_path));
             }
 
             // Apply stored patch section to temp file
@@ -6375,36 +8060,53 @@ int cmd_diff(QuiltState &q, int argc, char **argv) {
                 // Extract just the hunk lines from the stored section
                 auto section_lines = split_lines(it->second);
                 bool in_hunk = false;
+                bool deletes_file = false;
                 for (const auto &sl : section_lines) {
                     if (sl.starts_with("@@")) {
                         in_hunk = true;
                         mini_patch += sl + "\n";
                     } else if (in_hunk) {
                         mini_patch += sl + "\n";
+                    } else if (sl.starts_with("+++ /dev/null")) {
+                        deletes_file = true;
                     }
                 }
                 if (in_hunk) {
+                    if (!file_exists(tmp_file)) write_file(tmp_file, "");
                     std::string saved_cwd = get_cwd();
                     if (set_cwd(tmp_dir)) {
                         PatchOptions po;
                         po.strip_level = 0;
-                        po.remove_empty = true;
                         po.quiet = true;
                         builtin_patch(mini_patch, po);
                         set_cwd(saved_cwd);
                     }
+                    if (deletes_file) delete_file(tmp_file);
                 }
             }
 
-            // Now diff the reconstructed "refreshed" file against working file
-            if (!file_exists(working_path) && !file_exists(tmp_file)) continue;
+            // Diff the reconstructed "refreshed" file against the working
+            // file or, if a later applied patch modifies this file, against
+            // that patch's backup. The original quilt warns about shadowed
+            // files after the loop.
+            std::string new_src = working_path;
+            std::string shadowing_patch = next_patch_for_file(q, patch, file);
+            if (!shadowing_patch.empty()) {
+                files_were_shadowed = true;
+                new_src = path_join(pc_patch_dir(q, shadowing_patch), file);
+            }
+            if (!file_exists(new_src) && !file_exists(tmp_file)) continue;
+            if (!diff_utility.empty()) {
+                run_diff_utility(tmp_file, new_src);
+                continue;
+            }
 
             std::string old_label, new_label;
             if (p_format == "ab") {
                 old_label = "a/" + file;
                 new_label = "b/" + file;
             } else if (p_format == "0") {
-                old_label = file;
+                old_label = file + ".orig";
                 new_label = file;
             } else {
                 old_label = work_base + ".orig/" + file;
@@ -6412,16 +8114,29 @@ int cmd_diff(QuiltState &q, int argc, char **argv) {
             }
 
             std::string old_f = tmp_file;
-            std::string new_f = working_path;
-            if (!file_exists(working_path)) new_f = "/dev/null";
-
+            std::string new_f = new_src;
             if (reverse) {
                 std::swap(old_f, new_f);
             }
+            // As in the original quilt, a missing or empty old file and a
+            // missing new file are diffed as /dev/null.
+            if (!file_exists(old_f) || read_file(old_f).empty()) {
+                old_f = "/dev/null";
+                old_label = "/dev/null";
+            }
+            if (!file_exists(new_f)) {
+                if (p_format == "0") old_label = new_label;
+                new_f = "/dev/null";
+                new_label = "/dev/null";
+            }
 
             std::string diff_out;
-            if (diff_cmd_base.empty()) {
-                // Use built-in diff
+            std::string old_data = old_f == "/dev/null" ? std::string() : read_file(old_f);
+            std::string new_data = new_f == "/dev/null" ? std::string() : read_file(new_f);
+            if (old_data != new_data &&
+                (is_binary_data(old_data) || is_binary_data(new_data))) {
+                diff_out = "Binary files differ\n";
+            } else {
                 int ctx = ctx_lines;
                 auto extra_diff_opts = shell_split(get_env("QUILT_DIFF_OPTS"));
                 int opts_ctx = parse_diff_opts_context(extra_diff_opts);
@@ -6431,29 +8146,23 @@ int cmd_diff(QuiltState &q, int argc, char **argv) {
                                              old_label, new_label, diff_format,
                                              diff_algorithm);
                 diff_out = std::move(dr.output);
-            } else {
-                std::vector<std::string> diff_cmd = diff_cmd_base;
-                auto extra_diff_opts = shell_split(get_env("QUILT_DIFF_OPTS"));
-                for (const auto &opt : extra_diff_opts) diff_cmd.push_back(opt);
-                diff_cmd.push_back("--label");
-                diff_cmd.push_back(old_label);
-                diff_cmd.push_back("--label");
-                diff_cmd.push_back(new_label);
-                diff_cmd.push_back(old_f);
-                diff_cmd.push_back(new_f);
-
-                ProcessResult result = run_cmd(diff_cmd);
-                if (result.exit_code == 1) {
-                    diff_out = std::move(result.out);
-                }
+            }
+            if (abort_on_binary(diff_out, file)) {
+                delete_dir_recursive(tmp_dir);
+                return 1;
             }
             if (!diff_out.empty()) {
                 if (!no_index) {
                     out("Index: " + (p_format == "0" ? file : p_format == "ab" ? "b/" + file : work_base + "/" + file) + "\n");
                     out("===================================================================\n");
                 }
-                emit_diff(diff_out);
+                out(diff_out);
             }
+        }
+
+        if (files_were_shadowed) {
+            err("Warning: more recent patches modify files in patch ");
+            err_line(patch_path_display(q, patch));
         }
 
         delete_dir_recursive(tmp_dir);
@@ -6477,16 +8186,25 @@ int cmd_diff(QuiltState &q, int argc, char **argv) {
                 new_placeholder = true;
             }
 
+            if (!diff_utility.empty()) {
+
+                run_diff_utility(old_path, new_path);
+
+                continue;
+
+            }
+
             std::string diff_out = generate_path_diff(
                 q, file, old_path, old_placeholder, new_path, new_placeholder,
-                p_format, reverse, diff_cmd_base, ctx_lines, diff_format,
+                p_format, reverse, ctx_lines, diff_format,
                 no_timestamps, diff_algorithm);
+            if (abort_on_binary(diff_out, file)) return 1;
             if (!diff_out.empty()) {
                 if (!no_index) {
                     out("Index: " + (p_format == "0" ? file : p_format == "ab" ? "b/" + file : work_base + "/" + file) + "\n");
                     out("===================================================================\n");
                 }
-                emit_diff(diff_out);
+                out(diff_out);
             }
         }
     } else if (!combine_start.empty()) {
@@ -6519,28 +8237,34 @@ int cmd_diff(QuiltState &q, int argc, char **argv) {
                 new_placeholder = true;
             }
 
+            if (!diff_utility.empty()) {
+
+                run_diff_utility(old_path, new_path);
+
+                continue;
+
+            }
+
             std::string diff_out = generate_path_diff(
                 q, file, old_path, true, new_path, new_placeholder,
-                p_format, reverse, diff_cmd_base, ctx_lines, diff_format,
+                p_format, reverse, ctx_lines, diff_format,
                 no_timestamps, diff_algorithm);
+            if (abort_on_binary(diff_out, file)) return 1;
             if (!diff_out.empty()) {
                 if (!no_index) {
                     out("Index: " + (p_format == "0" ? file : p_format == "ab" ? "b/" + file : work_base + "/" + file) + "\n");
                     out("===================================================================\n");
                 }
-                emit_diff(diff_out);
+                out(diff_out);
             }
         }
     } else {
-        // Warn if more recent patches modify files in this patch
-        bool warned_shadowing = false;
+        // Like upstream, warn after the diffs if more recent patches
+        // modify files in this patch
+        bool files_were_shadowed = false;
         for (const auto &file : tracked) {
             std::string shadowing = next_patch_for_file(q, patch, file);
-            if (!shadowing.empty() && !warned_shadowing) {
-                err("Warning: more recent patches modify files in patch ");
-                err_line(patch_path_display(q, patch));
-                warned_shadowing = true;
-            }
+            if (!shadowing.empty()) files_were_shadowed = true;
 
             std::string old_path = path_join(pc_patch_dir(q, patch), file);
             std::string new_path = path_join(q.work_dir, file);
@@ -6552,106 +8276,145 @@ int cmd_diff(QuiltState &q, int argc, char **argv) {
                 new_placeholder = true;
             }
 
+            if (!diff_utility.empty()) {
+
+                run_diff_utility(old_path, new_path);
+
+                continue;
+
+            }
+
             std::string diff_out = generate_path_diff(
                 q, file, old_path, true, new_path, new_placeholder,
-                p_format, reverse, diff_cmd_base, ctx_lines, diff_format,
+                p_format, reverse, ctx_lines, diff_format,
                 no_timestamps, diff_algorithm);
+            if (abort_on_binary(diff_out, file)) return 1;
             if (!diff_out.empty()) {
                 if (!no_index) {
                     out("Index: " + (p_format == "0" ? file : p_format == "ab" ? "b/" + file : work_base + "/" + file) + "\n");
                     out("===================================================================\n");
                 }
-                emit_diff(diff_out);
+                out(diff_out);
             }
+        }
+        if (files_were_shadowed) {
+            err("Warning: more recent patches modify files in patch ");
+            err_line(patch_path_display(q, patch));
         }
     }
 
     return 0;
 }
 
-int cmd_revert(QuiltState &q, int argc, char **argv) {
-    if (q.applied.empty()) {
-        err_line("No patches applied");
-        return 1;
-    }
+// The backup of a file named as the user typed it. Unlike path_join,
+// concatenation keeps an absolute name inside the .pc directory, as
+// upstream's "$QUILT_PC/$patch/$file" does.
+static std::string revert_backup_path(const QuiltState &q, std::string_view patch,
+                                      std::string_view file) {
+    return pc_patch_dir(q, patch) + "/" + std::string(file);
+}
 
-    // Parse options
-    std::string_view patch = q.applied.back();
-    std::vector<std::string> files;
-    int i = 1;
-    while (i < argc) {
-        std::string_view arg = argv[i];
-        if (arg == "-P" && i + 1 < argc) {
-            patch = strip_patches_prefix(q, argv[i + 1]);
-            i += 2;
-            continue;
-        }
-        if (arg[0] != '-') {
-            files.push_back(subdir_path(q, arg));
+// Like upstream's file_in_patch: the backup must be a regular file, and
+// it is looked up through the filesystem, so "./f" and "d/../f" find the
+// backup of "f".
+static bool revert_file_in_patch(const QuiltState &q, std::string_view patch,
+                                 std::string_view file) {
+    std::string path = revert_backup_path(q, patch, file);
+    return file_exists(path) && !is_directory(path);
+}
+
+// Lexically normalize a relative path ("./f", "d//f", "d/../f" become
+// "f"), so that two names for the same file compare equal.
+static std::string normalize_relative_path(std::string_view path) {
+    std::vector<std::string_view> parts;
+    while (!path.empty()) {
+        ptrdiff_t slash = str_find(path, '/');
+        std::string_view part = path;
+        if (slash < 0) {
+            path = {};
         } else {
-            err("Unrecognized option: "); err_line(arg);
-            return 1;
+            part = path.substr(0, checked_cast<size_t>(slash));
+            path.remove_prefix(checked_cast<size_t>(slash + 1));
         }
-        i += 1;
+        if (part.empty() || part == ".") continue;
+        if (part == ".." && !parts.empty() && parts.back() != "..") {
+            parts.pop_back();
+        } else {
+            parts.push_back(part);
+        }
     }
-
-    if (files.empty()) {
-        err_line("Usage: quilt revert [-P patch] file ...");
-        return 1;
+    std::string result;
+    for (auto part : parts) {
+        if (!result.empty()) result += '/';
+        result += part;
     }
+    return result;
+}
 
-    if (!q.is_applied(patch)) {
-        err("Patch "); err(format_patch(q, patch)); err_line(" is not applied");
-        return 1;
-    }
+int cmd_revert(QuiltState &q, int argc, char **argv) {
+    int rc;
+    auto args = parse_patch_file_args(q, argc, argv, rc);
+    if (!args) return rc;
+    std::string_view patch_arg = args->patch;
+    const auto &files = args->files;
 
-    // Check if any later applied patch also modifies these files
-    bool found_patch = false;
-    for (const auto &ap : q.applied) {
-        if (!found_patch) {
-            if (ap == patch) found_patch = true;
+    // No -P, or an empty one, means the top patch
+    auto found = find_applied_patch(q, patch_arg);
+    if (!found) return 1;
+    std::string patch = *found;
+
+    // Check every file before changing any, reporting each problem
+    int status = 0;
+    for (const auto &file : files) {
+        if (!revert_file_in_patch(q, patch, file)) {
+            err("File "); err(file); err(" is not in patch ");
+            err_line(patch_path_display(q, patch));
+            status = 1;
             continue;
         }
-        // ap is a patch applied after 'patch'
-        auto later_files = files_in_patch(q, ap);
-        for (const auto &file : files) {
-            for (const auto &lf : later_files) {
-                if (lf == file) {
-                    err("File "); err(file);
-                    err(" modified by patch ");
-                    err_line(patch_path_display(q, ap));
-                    return 1;
-                }
+        auto later = std::ranges::find(q.applied, patch);
+        for (++later; later != q.applied.end(); ++later) {
+            if (revert_file_in_patch(q, *later, file)) {
+                out("File "); out(file); out(" modified by patch ");
+                out_line(patch_path_display(q, *later));
+                status = 1;
+                break;
             }
         }
     }
+    if (status != 0) return status;
 
     // Read the patch file to apply its hunks to backup content
     std::string patch_file = path_join(q.work_dir, q.patches_dir, patch);
     std::string patch_text = read_file(patch_file);
-    int strip_level = q.patch_strip_level.count(std::string(patch))
-        ? q.patch_strip_level.at(std::string(patch)) : 1;
+    int strip_level = q.patch_strip_level.count(patch)
+        ? q.patch_strip_level.at(patch) : 1;
+    bool reverse = q.patch_reversed.contains(patch);
+    auto targets = patch_target_files(patch_text, strip_level, reverse);
 
     for (const auto &file : files) {
-        // Check if file is tracked by the patch
-        std::string backup_path = path_join(pc_patch_dir(q, patch), file);
-        if (!file_exists(backup_path)) {
-            err("File "); err(file); err(" is not in patch ");
-            err_line(patch_path_display(q, patch));
-            return 1;
+        // Build the clean post-patch state by applying patch to backup,
+        // under the name the patch uses for the file. builtin_patch keys
+        // files by their names in the patch headers, which may be spelled
+        // differently from the name given ("./f" for "f").
+        std::string backup_content = read_file(revert_backup_path(q, patch, file));
+        std::string name = normalize_relative_path(file);
+        for (const auto &target : targets) {
+            if (normalize_relative_path(target) == name) {
+                name = target;
+                break;
+            }
         }
-
-        // Build the clean post-patch state by applying patch to backup
-        std::string backup_content = read_file(backup_path);
         std::map<std::string, std::string> memfs;
-        memfs[file] = backup_content;
+        memfs[name] = backup_content;
         PatchOptions opts;
         opts.strip_level = strip_level;
+        opts.reverse = reverse;
         opts.quiet = true;
         opts.fs = &memfs;
         builtin_patch(patch_text, opts);
 
-        std::string clean_content = memfs.count(file) ? memfs[file] : "";
+        std::string clean_content = memfs.count(name) ? memfs[name] : "";
 
         // Check if current file matches clean state (unchanged)
         std::string target = path_join(q.work_dir, file);
@@ -6693,16 +8456,6 @@ int cmd_revert(QuiltState &q, int argc, char **argv) {
 // This is free and unencumbered software released into the public domain.
 
 
-static bool write_series_checked(const QuiltState &q,
-                                 std::span<const std::string> series) {
-    std::string series_abs = path_join(q.work_dir, q.series_file);
-    if (!write_series(series_abs, series, q.patch_strip_level, q.patch_reversed)) {
-        err_line("Failed to write series file.");
-        return false;
-    }
-    return true;
-}
-
 static bool write_applied_checked(const QuiltState &q,
                                   std::span<const std::string> applied) {
     std::string applied_path = path_join(q.work_dir, q.pc_dir, "applied-patches");
@@ -6710,85 +8463,94 @@ static bool write_applied_checked(const QuiltState &q,
         err_line("Failed to write applied-patches.");
         return false;
     }
+    // Like the original quilt, remove the file once the stack is empty.
+    if (applied.empty()) delete_file(applied_path);
     return true;
 }
 
-
-static std::string extract_header(std::string_view content) {
-    std::string header;
-    auto lines = split_lines(content);
-    for (const auto &line : lines) {
-        if (line.starts_with("Index:") ||
-            line.starts_with("--- ") ||
-            line.starts_with("diff ") ||
-            line.starts_with("===")) {
-            break;
-        }
-        header += line;
-        header += '\n';
-    }
-    return header;
+// Files an unapplied patch would modify, per its series options
+static std::vector<std::string> unapplied_patch_files(const QuiltState &q,
+                                                      std::string_view patch) {
+    std::string content = read_file(path_join(q.work_dir, q.patches_dir, patch));
+    return patch_target_files(content, q.get_strip_level(patch),
+                              q.patch_reversed.contains(std::string(patch)));
 }
 
-static std::string replace_header(std::string_view content, std::string_view new_header) {
-    std::string result;
-    auto lines = split_lines(content);
-    bool in_diff = false;
-    // Find where diffs start
-    ptrdiff_t diff_start = 0;
-    for (ptrdiff_t i = 0; i < std::ssize(lines); ++i) {
-        if (lines[checked_cast<size_t>(i)].starts_with("Index:") ||
-            lines[checked_cast<size_t>(i)].starts_with("--- ") ||
-            lines[checked_cast<size_t>(i)].starts_with("diff ") ||
-            lines[checked_cast<size_t>(i)].starts_with("===")) {
-            diff_start = i;
-            in_diff = true;
-            break;
+// Like upstream's merge_patches, build the new contents of a patch that
+// import -f replaces, keeping the old (o), all (a) or new (n) header. The
+// headers are compared, and the old one kept, without their diffstats.
+// Without a mode, keep whichever header is not empty, or show how they
+// differ and fail. Unlike upstream, matching headers take the new version
+// as it is (upstream writes the header twice), and the mode chosen here is
+// not kept for the next patch.
+static std::optional<std::string> merge_patches(std::string_view old_patch,
+                                                std::string_view new_patch,
+                                                char mode) {
+    std::string old_desc = strip_diffstat(patch_header(old_patch));
+    std::string new_desc = strip_diffstat(patch_header(new_patch));
+
+    if (!mode) {
+        if (old_desc.empty() || old_desc == new_desc) {
+            mode = 'n';
+        } else if (new_desc.empty()) {
+            mode = 'o';
+        } else {
+            std::map<std::string, std::string> fs = {{"a", old_desc},
+                                                     {"b", new_desc}};
+            std::string diff = builtin_diff("a", "b", 3, {}, {},
+                                            DiffFormat::unified,
+                                            DiffAlgorithm::myers, &fs).output;
+            // Like sed -e '1,2d', drop the --- and +++ lines
+            for (int i = 0; i < 2; ++i) {
+                diff.erase(0, checked_cast<size_t>(str_find(diff, '\n') + 1));
+            }
+            err_line("Patch headers differ:");
+            err(diff);
+            err_line("Please use -d {o|a|n} to specify which patch "
+                     "header(s) to keep.");
+            return std::nullopt;
         }
     }
 
-    result += std::string(new_header);
-    // Ensure header ends with newline if non-empty
-    if (!result.empty() && result.back() != '\n') {
-        result += '\n';
+    std::string merged;
+    if (mode != 'n') merged = old_desc;
+    if (mode == 'a') merged += "---\n";
+    if (mode == 'o') {
+        merged += patch_body(new_patch);
+    } else {
+        merged += new_patch;
     }
-
-    if (in_diff) {
-        for (ptrdiff_t i = diff_start; i < std::ssize(lines); ++i) {
-            result += lines[checked_cast<size_t>(i)];
-            result += '\n';
-        }
-    }
-    return result;
+    return merged;
 }
 
 
 int cmd_delete(QuiltState &q, int argc, char **argv) {
+    enum { BACKUP = 256 };
+    static constexpr LongOpt longopts[] = {
+        {"backup", OptArg::none, BACKUP},
+    };
+    auto args = parse_options(argc, argv, "nrh", longopts);
+    if (!args) return 1;
     bool opt_remove = false;
     bool opt_backup = false;
     bool opt_next = false;
-    std::string_view patch_arg;
-
-    for (int i = 1; i < argc; ++i) {
-        std::string_view arg = argv[i];
-        if (arg == "-r") {
-            opt_remove = true;
-        } else if (arg == "--backup") {
-            opt_backup = true;
-        } else if (arg == "-n") {
-            opt_next = true;
-        } else if (arg[0] == '-') {
-            err("Unrecognized option: "); err_line(arg);
-            return 1;
-        } else {
-            patch_arg = strip_patches_prefix(q, arg);
+    for (const auto &opt : args->options) {
+        switch (opt.key) {
+        case 'n': opt_next = true; break;
+        case 'r': opt_remove = true; break;
+        case 'h': return command_help(argv[0]);
+        case BACKUP: opt_backup = true; break;
         }
     }
+    const auto &operands = args->operands;
+    if (std::ssize(operands) > 1 || (opt_next && !operands.empty())) {
+        return usage_error(argv[0]);
+    }
+    std::string_view patch_arg;
+    if (!operands.empty()) patch_arg = operands[0];
 
     std::string patch;
-    if (!patch_arg.empty()) {
-        patch = patch_arg;
-    } else if (opt_next) {
+    if (opt_next) {
         // Next unapplied patch
         ptrdiff_t top_idx = q.top_index();
         ptrdiff_t next_idx = top_idx + 1;
@@ -6798,19 +8560,10 @@ int cmd_delete(QuiltState &q, int argc, char **argv) {
         }
         patch = q.series[checked_cast<size_t>(next_idx)];
     } else {
-        // Topmost applied patch
-        if (q.applied.empty()) {
-            err_line("No patches applied");
-            return 1;
-        }
-        patch = q.applied.back();
-    }
-
-    // Verify patch is in series
-    auto idx = q.find_in_series(patch);
-    if (!idx) {
-        err("Patch "); err(patch); err_line(" is not in series");
-        return 1;
+        // No argument, or an empty one, means the top patch
+        auto found = find_patch_in_series(q, patch_arg);
+        if (!found) return 1;
+        patch = *found;
     }
 
     // If patch is applied, only allow deleting the topmost patch
@@ -6822,7 +8575,12 @@ int cmd_delete(QuiltState &q, int argc, char **argv) {
         }
         // Pop the topmost patch silently (no per-file messages)
         auto tracked = files_in_patch(q, patch);
-        out_line("Removing patch " + patch_path_display(q, patch));
+        if (tracked.empty()) {
+            out_line("Patch " + patch_path_display(q, patch) +
+                     " appears to be empty, removing");
+        } else {
+            out_line("Removing patch " + patch_path_display(q, patch));
+        }
         for (const auto &f : tracked) {
             restore_file(q, patch, f);
         }
@@ -6838,13 +8596,10 @@ int cmd_delete(QuiltState &q, int argc, char **argv) {
         }
     }
 
-    // Remove from series
-    auto new_series = q.series;
-    new_series.erase(new_series.begin() + *idx);
-    if (!write_series_checked(q, new_series)) {
+    if (!remove_from_series(q, patch)) {
+        err_line("Failed to write series file.");
         return 1;
     }
-    q.series = std::move(new_series);
 
     // Optionally remove the patch file
     if (opt_remove) {
@@ -6866,45 +8621,27 @@ int cmd_delete(QuiltState &q, int argc, char **argv) {
 }
 
 int cmd_rename(QuiltState &q, int argc, char **argv) {
-    std::string old_patch;
-    std::string new_name;
-
-    for (int i = 1; i < argc; ++i) {
-        std::string_view arg = argv[i];
-        if (arg == "-P" && i + 1 < argc) {
-            old_patch = strip_patches_prefix(q, argv[++i]);
-        } else if (arg[0] == '-') {
-            err("Unrecognized option: "); err_line(arg);
-            return 1;
-        } else {
-            new_name = strip_patches_prefix(q, arg);
-        }
+    auto args = parse_options(argc, argv, "P:h");
+    if (!args) return 1;
+    std::string_view old_arg;
+    for (const auto &opt : args->options) {
+        if (opt.key == 'h') return command_help(argv[0]);
+        old_arg = opt.value;
     }
+    if (std::ssize(args->operands) != 1) return usage_error(argv[0]);
+    std::string new_name(strip_patches_prefix(q, args->operands[0]));
 
-    // Default to top patch
-    if (old_patch.empty()) {
-        if (q.applied.empty()) {
-            err_line("No patches applied");
-            return 1;
-        }
-        old_patch = q.applied.back();
-    }
+    // No -P, or an empty one, means the top patch
+    auto found = find_patch_in_series(q, old_arg);
+    if (!found) return 1;
+    std::string old_patch = *found;
 
-    if (new_name.empty()) {
-        err_line("Usage: quilt rename [-P patch] new_name");
-        return 1;
-    }
-
-    // Verify old patch exists in series
-    auto idx = q.find_in_series(old_patch);
-    if (!idx) {
-        err("Patch "); err(old_patch); err_line(" is not in series");
-        return 1;
-    }
-
-    // Verify new name doesn't exist in series
-    auto new_idx = q.find_in_series(new_name);
-    if (new_idx) {
+    // Like upstream, refuse a name in any use, so nothing is overwritten.
+    // An empty name (from "" or "patches/") names the directories
+    // themselves, so it is always in use.
+    if (new_name.empty() || q.find_in_series(new_name) ||
+        is_directory(pc_patch_dir(q, new_name)) ||
+        file_exists(path_join(q.work_dir, q.patches_dir, new_name))) {
         err("Patch "); err(patch_path_display(q, new_name));
         err_line(" exists already, please choose a different name");
         return 1;
@@ -6954,33 +8691,8 @@ int cmd_rename(QuiltState &q, int argc, char **argv) {
         }
     }
 
-    // Migrate per-patch metadata before writing series
-    std::string old_key(old_patch);
-    auto sl_it = q.patch_strip_level.find(old_key);
-    int saved_strip = -1;
-    bool saved_reversed = false;
-    if (sl_it != q.patch_strip_level.end()) {
-        saved_strip = sl_it->second;
-        q.patch_strip_level[new_name] = sl_it->second;
-        q.patch_strip_level.erase(sl_it);
-    }
-    if (q.patch_reversed.erase(old_key)) {
-        saved_reversed = true;
-        q.patch_reversed.insert(new_name);
-    }
-
-    auto new_series = q.series;
-    new_series[checked_cast<size_t>(*idx)] = new_name;
-    if (!write_series_checked(q, new_series)) {
-        // Undo metadata migration
-        if (saved_strip >= 0) {
-            q.patch_strip_level[old_key] = saved_strip;
-            q.patch_strip_level.erase(new_name);
-        }
-        if (saved_reversed) {
-            q.patch_reversed.erase(new_name);
-            q.patch_reversed.insert(old_key);
-        }
+    if (!rename_in_series(q, old_patch, new_name)) {
+        err_line("Failed to write series file.");
         if (renamed_pc_dir) {
             rename_path(pc_patch_dir(q, new_name), pc_patch_dir(q, old_patch));
         }
@@ -6991,15 +8703,7 @@ int cmd_rename(QuiltState &q, int argc, char **argv) {
     }
 
     if (q.is_applied(old_patch) && !write_applied_checked(q, new_applied)) {
-        write_series_checked(q, q.series);
-        if (saved_strip >= 0) {
-            q.patch_strip_level[old_key] = saved_strip;
-            q.patch_strip_level.erase(new_name);
-        }
-        if (saved_reversed) {
-            q.patch_reversed.erase(new_name);
-            q.patch_reversed.insert(old_key);
-        }
+        rename_in_series(q, new_name, old_patch);
         if (renamed_pc_dir) {
             rename_path(pc_patch_dir(q, new_name), pc_patch_dir(q, old_patch));
         }
@@ -7009,7 +8713,6 @@ int cmd_rename(QuiltState &q, int argc, char **argv) {
         return 1;
     }
 
-    q.series = std::move(new_series);
     if (q.is_applied(old_patch)) {
         q.applied = std::move(new_applied);
     }
@@ -7020,37 +8723,34 @@ int cmd_rename(QuiltState &q, int argc, char **argv) {
 }
 
 int cmd_import(QuiltState &q, int argc, char **argv) {
-    int strip_level = -1;
+    std::string strip_arg;  // -p value, recorded verbatim in the series
     std::string target_name;
     bool force = false;
-    char dup_mode = 0;  // o=overwrite, a=append, n=next
+    char dup_mode = 0;  // -d: keep the o(ld), a(ll) or n(ew) header
     bool reversed = false;
     std::vector<std::string> patchfiles;
 
-    for (int i = 1; i < argc; ++i) {
-        std::string_view arg = argv[i];
-        if (arg == "-p" && i + 1 < argc) {
-            strip_level = checked_cast<int>(parse_int(argv[++i]));
-        } else if (arg == "-R") {
-            reversed = true;
-        } else if (arg == "-P" && i + 1 < argc) {
-            target_name = strip_patches_prefix(q, argv[++i]);
-        } else if (arg == "-f") {
-            force = true;
-        } else if (arg == "-d" && i + 1 < argc) {
-            dup_mode = argv[++i][0];
-        } else if (arg[0] == '-') {
-            err("Unrecognized option: "); err_line(arg);
-            return 1;
-        } else {
-            patchfiles.emplace_back(arg);
+    auto args = parse_options(argc, argv, "P:d:fp:Rh");
+    if (!args) return 1;
+    for (const auto &opt : args->options) {
+        switch (opt.key) {
+        case 'P': target_name = strip_patches_prefix(q, opt.value); break;
+        case 'p': strip_arg = opt.value; break;
+        case 'R': reversed = true; break;
+        case 'd':
+            if (opt.value != "o" && opt.value != "a" && opt.value != "n") {
+                return usage_error(argv[0]);
+            }
+            dup_mode = opt.value[0];
+            break;
+        case 'f': force = true; break;
+        case 'h': return command_help(argv[0]);
         }
     }
+    for (auto file : args->operands) patchfiles.emplace_back(file);
 
-    if (patchfiles.empty()) {
-        err_line("Usage: quilt import [-p num] [-R] [-P patch] [-f] [-d {o|a|n}] patchfile ...");
-        return 1;
-    }
+    // Like upstream, importing no patches does nothing
+    if (patchfiles.empty()) return 0;
 
     if (!target_name.empty() && patchfiles.size() > 1) {
         err_line("Option `-P' can only be used when importing a single patch");
@@ -7070,7 +8770,20 @@ int cmd_import(QuiltState &q, int argc, char **argv) {
         }
     }
 
+    // Like the original quilt, record -p as given (even -p1, or a value that
+    // is not a number), and insert every patch in front of the same one,
+    // keeping their order.
+    std::string patch_args;
+    if (!strip_arg.empty()) patch_args = "-p" + strip_arg;
+    if (reversed) patch_args += patch_args.empty() ? "-R" : " -R";
+    std::string before = q.patch_after_top();
+
     for (const auto &patchfile : patchfiles) {
+        if (!file_exists(patchfile)) {
+            err_line("Patch " + patchfile + " does not exist");
+            return 1;
+        }
+
         // Determine target name
         std::string name;
         if (!target_name.empty()) {
@@ -7103,92 +8816,32 @@ int cmd_import(QuiltState &q, int argc, char **argv) {
             }
         }
 
-        // Copy patchfile to patches/<name>, handling -d header mode
-        if (existing && force && dup_mode && dup_mode != 'n') {
-            // Merge headers based on -d mode
-            std::string old_content = read_file(dest);
-            std::string new_content = read_file(patchfile);
-            std::string old_hdr = extract_header(old_content);
-            std::string new_hdr = extract_header(new_content);
-            std::string merged_header;
-            if (dup_mode == 'o') {
-                merged_header = old_hdr;
-            } else if (dup_mode == 'a') {
-                merged_header = old_hdr;
-                if (!merged_header.empty() && merged_header.back() != '\n')
-                    merged_header += '\n';
-                merged_header += "---\n";
-                merged_header += new_hdr;
-            }
-            std::string result = replace_header(new_content, merged_header);
-            if (!write_file(dest, result)) {
-                err_line("Failed to write " + dest);
-                return 1;
-            }
-        } else if (existing && force && !dup_mode) {
-            // Both patches exist and no -d flag: check if both have headers
-            std::string old_content = read_file(dest);
-            std::string new_content = read_file(patchfile);
-            std::string old_hdr = extract_header(old_content);
-            std::string new_hdr = extract_header(new_content);
-            if (!old_hdr.empty() && !new_hdr.empty() && old_hdr != new_hdr) {
-                err_line("Patch headers differ:");
-                err_line("@@ -1 +1 @@");
-                err_line("-" + old_hdr);
-                err_line("+" + new_hdr);
-                err_line("Please use -d {o|a|n} to specify which patch "
-                         "header(s) to keep.");
-                return 1;
-            }
-            if (!copy_file(patchfile, dest)) {
-                err_line("Failed to copy " + patchfile + " to " + dest);
-                return 1;
-            }
-        } else {
-            if (!copy_file(patchfile, dest)) {
-                err_line("Failed to copy " + patchfile + " to " + dest);
-                return 1;
-            }
+        // Copy patchfile to patches/<name>, merging the headers of a patch
+        // it replaces unless -d n
+        std::optional<std::string> merged;
+        if (existing && dup_mode != 'n') {
+            merged = merge_patches(read_file(dest), read_file(patchfile),
+                                   dup_mode);
+            if (!merged) return 1;
         }
-
-        // Update per-patch metadata
-        if (strip_level >= 0 && strip_level != 1) {
-            q.patch_strip_level[name] = strip_level;
-        } else if (strip_level < 0) {
-            q.patch_strip_level.erase(name);
-        }
-        if (reversed) {
-            q.patch_reversed.insert(name);
-        } else {
-            q.patch_reversed.erase(name);
-        }
-
-        // Add to series if not already present
-        if (!existing) {
-            // Insert after top applied patch, or at end if none applied
-            ptrdiff_t top_idx = q.top_index();
-            auto new_series = q.series;
-            if (top_idx >= 0 && top_idx + 1 < std::ssize(new_series)) {
-                new_series.insert(new_series.begin() + top_idx + 1, name);
-            } else {
-                new_series.push_back(name);
-            }
-            if (!write_series_checked(q, new_series)) {
-                delete_file(dest);
-                return 1;
-            }
-            q.series = std::move(new_series);
-        } else {
-            // Overwriting existing patch — rewrite series for metadata update
-            if (!write_series_checked(q, q.series)) {
-                return 1;
-            }
-        }
-
-        if (existing && force) {
-            out_line("Replacing patch " + patch_path_display(q, name) +
+        if (existing) {
+            err_line("Replacing patch " + patch_path_display(q, name) +
                      " with new version");
-        } else {
+        }
+        if (merged ? !write_file(dest, *merged) : !copy_file(patchfile, dest)) {
+            err_line("Failed to import patch " + patch_path_display(q, name));
+            return 1;
+        }
+
+        // When replacing an existing patch the original quilt leaves the
+        // series entry (and thus its -p/-R args) untouched.
+        if (!existing && !insert_in_series(q, name, patch_args, before)) {
+            err_line("Failed to write series file.");
+            delete_file(dest);
+            return 1;
+        }
+
+        if (!existing) {
             out_line("Importing patch " + patchfile +
                      " (stored as " + patch_path_display(q, name) + ")");
         }
@@ -7197,74 +8850,19 @@ int cmd_import(QuiltState &q, int argc, char **argv) {
     return 0;
 }
 
-// Remove an existing diffstat section from a header.
-// Detects "---" separator followed by " file | N ++--" lines ending
-// with a "N file(s) changed" summary line.
-static std::string strip_diffstat(std::string_view header) {
-    auto lines = split_lines(header);
-    std::string result;
-    for (ptrdiff_t i = 0; i < std::ssize(lines); ++i) {
-        const auto &line = lines[checked_cast<size_t>(i)];
-
-        // Detect "---" separator followed by diffstat, or bare diffstat
-        ptrdiff_t ds_start = i;
-        if (line == "---" && i + 1 < std::ssize(lines)) {
-            ds_start = i + 1;
-        }
-
-        const auto &first = lines[checked_cast<size_t>(ds_start)];
-        if (!first.empty() && first[0] == ' ' &&
-            str_find(first, '|') >= 0) {
-            bool found_summary = false;
-            ptrdiff_t summary_end = -1;
-            for (ptrdiff_t j = ds_start; j < std::ssize(lines); ++j) {
-                const auto &l = lines[checked_cast<size_t>(j)];
-                if (l.find("changed") != std::string::npos &&
-                    l.find("file") != std::string::npos) {
-                    found_summary = true;
-                    summary_end = j;
-                    break;
-                }
-                if (l.empty() || (l[0] != ' ' && str_find(l, '|') < 0))
-                    break;
-            }
-            if (found_summary) {
-                // Keep the "---" separator if the diffstat followed it
-                if (ds_start != i) {
-                    result += line;
-                    result += '\n';
-                }
-                i = summary_end;
-                if (i + 1 < std::ssize(lines) && lines[checked_cast<size_t>(i + 1)].empty())
-                    i++;
-                continue;
-            }
-        }
-        result += line;
-        result += '\n';
-    }
-    return result;
-}
-
-// Strip trailing whitespace from each line of a header.
+// Strip trailing spaces and tabs from each line of a header. Like upstream's
+// sed -e 's:[ \t]*$::', this leaves a CR, and a missing final newline, alone.
 static std::string strip_header_trailing_ws(std::string_view header) {
     std::string result;
-    auto lines = split_lines(header);
-    for (const auto &line : lines) {
-        if (line.empty()) {
-            result += '\n';
-            continue;
-        }
-        // Strip \r from CRLF before checking for trailing whitespace
-        std::string_view l = line;
-        if (!l.empty() && l.back() == '\r') l.remove_suffix(1);
-        auto end = l.find_last_not_of(" \t");
-        if (end == std::string::npos) {
-            result += '\n';
-        } else {
-            result += l.substr(0, end + 1);
-            result += '\n';
-        }
+    while (!header.empty()) {
+        ptrdiff_t nl = str_find(header, '\n');
+        ptrdiff_t len = nl < 0 ? std::ssize(header) : nl;
+        std::string_view line = header.substr(0, checked_cast<size_t>(len));
+        header.remove_prefix(checked_cast<size_t>(nl < 0 ? len : len + 1));
+        while (!line.empty() && (line.back() == ' ' || line.back() == '\t'))
+            line.remove_suffix(1);
+        result += line;
+        if (nl >= 0) result += '\n';
     }
     return result;
 }
@@ -7287,48 +8885,43 @@ int cmd_header(QuiltState &q, int argc, char **argv) {
     bool opt_dep3 = false;
     bool opt_strip_ds = false;
     bool opt_strip_ws = false;
+    bool mode_conflict = false;
+    // Repeating a mode is fine; combining different modes is not.
+    auto set_mode = [&](Mode m) {
+        if (mode != PRINT && mode != m) mode_conflict = true;
+        mode = m;
+    };
+
+    enum { BACKUP = 256, STRIP_TRAILING_WHITESPACE, STRIP_DIFFSTAT, DEP3 };
+    static constexpr LongOpt longopts[] = {
+        {"backup", OptArg::none, BACKUP},
+        {"strip-trailing-whitespace", OptArg::none, STRIP_TRAILING_WHITESPACE},
+        {"strip-diffstat", OptArg::none, STRIP_DIFFSTAT},
+        {"dep3", OptArg::none, DEP3, true},
+    };
+    auto args = parse_options(argc, argv, "areh", longopts);
+    if (!args) return 1;
+    for (const auto &opt : args->options) {
+        switch (opt.key) {
+        case 'a': set_mode(APPEND); break;
+        case 'r': set_mode(REPLACE); break;
+        case 'e': set_mode(EDIT); break;
+        case BACKUP: opt_backup = true; break;
+        case STRIP_DIFFSTAT: opt_strip_ds = true; break;
+        case STRIP_TRAILING_WHITESPACE: opt_strip_ws = true; break;
+        case DEP3: opt_dep3 = true; break;
+        case 'h': return command_help(argv[0]);
+        }
+    }
+
+    if (mode_conflict || std::ssize(args->operands) > 1) return usage_error(argv[0]);
     std::string_view patch_arg;
+    if (!args->operands.empty()) patch_arg = args->operands[0];
 
-    for (int i = 1; i < argc; ++i) {
-        std::string_view arg = argv[i];
-        if (arg == "-a") {
-            mode = APPEND;
-        } else if (arg == "-r") {
-            mode = REPLACE;
-        } else if (arg == "-e") {
-            mode = EDIT;
-        } else if (arg == "--backup") {
-            opt_backup = true;
-        } else if (arg == "--dep3") {
-            opt_dep3 = true;
-        } else if (arg == "--strip-diffstat") {
-            opt_strip_ds = true;
-        } else if (arg == "--strip-trailing-whitespace") {
-            opt_strip_ws = true;
-        } else if (arg[0] == '-') {
-            err("Unrecognized option: "); err_line(arg);
-            return 1;
-        } else {
-            patch_arg = strip_patches_prefix(q, arg);
-        }
-    }
-
-    // Determine patch
-    std::string_view patch;
-    if (!patch_arg.empty()) {
-        patch = patch_arg;
-        // Verify patch is in series
-        if (!q.find_in_series(patch)) {
-            err("Patch "); err(patch);
-            err_line(" is not in series");
-            return 1;
-        }
-    } else if (!q.applied.empty()) {
-        patch = q.applied.back();
-    } else {
-        err_line("No patches applied");
-        return 1;
-    }
+    // No argument, or an empty one, means the top patch
+    auto found = find_patch_in_series(q, patch_arg);
+    if (!found) return 1;
+    std::string patch = *found;
 
     std::string patch_file = path_join(q.work_dir, q.patches_dir, patch);
     std::string content = read_file(patch_file);
@@ -7340,34 +8933,32 @@ int cmd_header(QuiltState &q, int argc, char **argv) {
         return h;
     };
 
+    // Like upstream, end the new header with a newline (unless it ends with
+    // a CR) before the strip options apply, then append the patch body.
+    auto write_header = [&](std::string h) {
+        if (!h.empty() && h.back() != '\n' && h.back() != '\r') h += '\n';
+        if (opt_backup) {
+            copy_file(patch_file, patch_file + "~");
+        }
+        write_file(patch_file, apply_strip(std::move(h)) + patch_body(content));
+    };
+
     if (mode == PRINT) {
-        std::string header = apply_strip(extract_header(content));
+        std::string header = apply_strip(patch_header(content));
         out(header);
         return 0;
     }
 
     if (mode == APPEND) {
         std::string stdin_data = read_stdin();
-        std::string old_header = extract_header(content);
-        std::string new_header = apply_strip(old_header + stdin_data);
-        if (opt_backup) {
-            copy_file(patch_file, patch_file + "~");
-        }
-        std::string new_content = replace_header(content, new_header);
-        write_file(patch_file, new_content);
+        write_header(patch_header(content) + stdin_data);
         out_line("Appended text to header of patch " +
                  patch_path_display(q, patch));
         return 0;
     }
 
     if (mode == REPLACE) {
-        std::string stdin_data = read_stdin();
-        std::string new_header = apply_strip(stdin_data);
-        if (opt_backup) {
-            copy_file(patch_file, patch_file + "~");
-        }
-        std::string new_content = replace_header(content, new_header);
-        write_file(patch_file, new_content);
+        write_header(read_stdin());
         out_line("Replaced header of patch " +
                  patch_path_display(q, patch));
         return 0;
@@ -7377,7 +8968,7 @@ int cmd_header(QuiltState &q, int argc, char **argv) {
         std::string editor = get_env("EDITOR");
         if (editor.empty()) editor = "vi";
 
-        std::string header = extract_header(content);
+        std::string header = patch_header(content);
         // Insert DEP-3 template if header is empty and --dep3 given
         if (opt_dep3 && trim(header).empty()) {
             header = dep3_template;
@@ -7392,14 +8983,10 @@ int cmd_header(QuiltState &q, int argc, char **argv) {
             return 1;
         }
 
-        std::string new_header = apply_strip(read_file(tmp_file));
+        std::string new_header = read_file(tmp_file);
         delete_file(tmp_file);
 
-        if (opt_backup) {
-            copy_file(patch_file, patch_file + "~");
-        }
-        std::string new_content = replace_header(content, new_header);
-        write_file(patch_file, new_content);
+        write_header(std::move(new_header));
         out_line("Replaced header of patch " + patch_path_display(q, patch));
         return 0;
     }
@@ -7411,109 +8998,91 @@ int cmd_files(QuiltState &q, int argc, char **argv) {
     bool opt_verbose = false;
     bool opt_all = false;
     bool opt_labels = false;
-    std::string combine_patch;
-    std::string_view patch_arg;
+    std::optional<std::string_view> combine_arg;
 
-    for (int i = 1; i < argc; ++i) {
-        std::string_view arg = argv[i];
-        if (arg == "-v") {
-            opt_verbose = true;
-        } else if (arg == "-a") {
-            opt_all = true;
-        } else if (arg == "-l") {
-            opt_labels = true;
-        } else if (arg == "--combine" && i + 1 < argc) {
-            combine_patch = argv[++i];
-        } else if (arg[0] == '-') {
-            err("Unrecognized option: "); err_line(arg);
-            return 1;
-        } else {
-            patch_arg = strip_patches_prefix(q, arg);
+    enum { COMBINE = 256 };
+    static constexpr LongOpt longopts[] = {
+        {"combine", OptArg::required, COMBINE},
+    };
+    auto args = parse_options(argc, argv, "vhal", longopts);
+    if (!args) return 1;
+    for (const auto &opt : args->options) {
+        switch (opt.key) {
+        case 'v': opt_verbose = true; break;
+        case 'a': opt_all = true; break;
+        case 'l': opt_labels = true; break;
+        case 'h': return command_help(argv[0]);
+        case COMBINE: combine_arg = opt.value; break;
         }
     }
+    if (std::ssize(args->operands) > 1) return usage_error(argv[0]);
+    std::string_view patch_arg;
+    if (!args->operands.empty()) patch_arg = args->operands[0];
 
-    // Determine target patch (topmost or specified)
-    std::string target_patch;
-    if (!patch_arg.empty()) {
-        target_patch = patch_arg;
-    } else if (!q.applied.empty()) {
-        target_patch = q.applied.back();
-    } else if (!opt_all) {
-        err_line("No patches applied");
-        return 1;
+    // Like upstream, resolve --combine first. Both "-" and an empty name
+    // stand for the first applied patch, resolved below.
+    std::string combine_start;
+    if (combine_arg && !combine_arg->empty() && *combine_arg != "-") {
+        auto found = find_patch(q, *combine_arg);
+        if (!found) return 1;
+        combine_start = *found;
     }
 
-    // Build list of patches to show files for
+    // No argument, or an empty one, means the top patch
+    auto found = find_patch_in_series(q, patch_arg);
+    if (!found) return 1;
+    std::string target_patch = *found;
+
+    // Like upstream, --combine implies -a, and -a lists every patch in the
+    // series from the first applied (or the --combine patch) through the
+    // target, each on its own
+    if (combine_arg) opt_all = true;
     std::vector<std::string> patches_to_show;
     if (opt_all) {
-        patches_to_show = q.applied;
-    } else if (!combine_patch.empty()) {
-        // Range from combine_patch through target_patch
-        std::string start = combine_patch;
-        if (start == "-") {
-            if (q.applied.empty()) {
-                err_line("No patches applied");
-                return 1;
-            }
-            start = q.applied.front();
-        } else {
-            start = strip_patches_prefix(q, start);
+        std::string first = combine_start;
+        if (first.empty() && !q.applied.empty()) first = q.applied.front();
+        auto last = q.find_in_series(target_patch);
+        ptrdiff_t start = -1;
+        for (ptrdiff_t i = 0; last && i <= *last; ++i) {
+            if (q.series[checked_cast<size_t>(i)] == first) { start = i; break; }
         }
-        bool in_range = false;
-        for (const auto &a : q.applied) {
-            if (a == start) in_range = true;
-            if (in_range) patches_to_show.push_back(a);
-            if (a == target_patch) break;
-        }
-        if (!in_range || patches_to_show.empty()) {
-            err("Patch ");
-            err(start);
-            err_line(" not applied");
+        if (start < 0) {
+            err_line("Patch " + format_patch(q, first) + " not applied before patch " +
+                     format_patch(q, target_patch));
             return 1;
+        }
+        for (ptrdiff_t i = start; i <= *last; ++i) {
+            patches_to_show.push_back(q.series[checked_cast<size_t>(i)]);
         }
     } else {
         patches_to_show.push_back(target_patch);
     }
 
-    // With labels (-l): iterate patches, output per-patch file listings
-    if (opt_labels) {
-        for (const auto &patch : patches_to_show) {
-            std::vector<std::string> file_list;
-            if (q.is_applied(patch)) {
-                file_list = files_in_patch(q, patch);
-            } else {
-                std::string patch_file = path_join(q.work_dir, q.patches_dir, patch);
-                std::string content = read_file(patch_file);
-                file_list = parse_patch_files(content);
+    auto nonempty = [](const std::string &path) {
+        return file_exists(path) && !read_file(path).empty();
+    };
+    bool use_status = opt_verbose && !opt_labels;
+    for (const auto &patch : patches_to_show) {
+        if (opt_all && use_status) out_line(patch);
+        std::vector<std::string> file_list = q.is_applied(patch)
+            ? files_in_patch(q, patch)
+            : unapplied_patch_files(q, patch);
+        std::ranges::sort(file_list);
+        for (const auto &f : file_list) {
+            std::string line;
+            if (opt_labels) line = opt_verbose ? "[" + patch + "] " : patch + " ";
+            if (use_status) {
+                // Like upstream: - for a file the patch removes, + for one
+                // it adds, judged by which side is empty or missing
+                char status = ' ';
+                bool backup = nonempty(path_join(pc_patch_dir(q, patch), f));
+                bool current = nonempty(path_join(q.work_dir, f));
+                if (backup && !current) status = '-';
+                else if (!backup && current) status = '+';
+                line += status;
+                line += ' ';
             }
-            std::ranges::sort(file_list);
-            for (const auto &f : file_list) {
-                out_line(patch + " " + f);
-            }
-        }
-    } else {
-        // Collect all files across patches
-        std::vector<std::string> all_files;
-        for (const auto &patch : patches_to_show) {
-            std::vector<std::string> file_list;
-            if (q.is_applied(patch)) {
-                file_list = files_in_patch(q, patch);
-            } else {
-                std::string patch_file = path_join(q.work_dir, q.patches_dir, patch);
-                std::string content = read_file(patch_file);
-                file_list = parse_patch_files(content);
-            }
-            for (auto &f : file_list) {
-                all_files.push_back(std::move(f));
-            }
-        }
-        std::ranges::sort(all_files);
-        for (const auto &f : all_files) {
-            if (opt_verbose) {
-                out_line("  " + f);
-            } else {
-                out_line(f);
-            }
+            out_line(line + f);
         }
     }
 
@@ -7522,32 +9091,24 @@ int cmd_files(QuiltState &q, int argc, char **argv) {
 
 int cmd_patches(QuiltState &q, int argc, char **argv) {
     bool opt_verbose = false;
-    std::vector<std::string> target_files;
-
-    for (int i = 1; i < argc; ++i) {
-        std::string_view arg = argv[i];
-        if (arg == "-v") {
-            opt_verbose = true;
-        } else if (arg == "--color" || arg.starts_with("--color=")) {
-            if (arg.starts_with("--color=")) {
-                auto val = arg.substr(8);
-                if (val != "always" && val != "auto" && val != "never") {
-                    err("Invalid --color value: "); err_line(val);
-                    return 1;
-                }
-            }
-        } else if (arg[0] == '-') {
-            err("Unrecognized option: "); err_line(arg);
-            return 1;
-        } else {
-            target_files.push_back(subdir_path(q, arg));
+    enum { COLOR = 256 };
+    static constexpr LongOpt longopts[] = {
+        {"color", OptArg::optional, COLOR},
+    };
+    auto args = parse_options(argc, argv, "vh", longopts);
+    if (!args) return 1;
+    for (const auto &opt : args->options) {
+        switch (opt.key) {
+        case 'v': opt_verbose = true; break;
+        case COLOR:
+            if (!valid_color_value(opt.value)) return usage_error(argv[0]);
+            break;
+        case 'h': return command_help(argv[0]);
         }
     }
-
-    if (target_files.empty()) {
-        err_line("Usage: quilt patches [-v] [--color] file [files...]");
-        return 1;
-    }
+    if (args->operands.empty()) return usage_error(argv[0]);
+    std::vector<std::string> target_files;
+    for (auto file : args->operands) target_files.push_back(subdir_path(q, file));
 
     for (const auto &patch : q.series) {
         bool touches = false;
@@ -7564,9 +9125,7 @@ int cmd_patches(QuiltState &q, int argc, char **argv) {
             }
         } else {
             // Parse patch file for references
-            std::string patch_file = path_join(q.work_dir, q.patches_dir, patch);
-            std::string content = read_file(patch_file);
-            auto patched_files = parse_patch_files(content);
+            auto patched_files = unapplied_patch_files(q, patch);
             for (const auto &tf : target_files) {
                 for (const auto &pf : patched_files) {
                     if (pf == tf) {
@@ -7602,26 +9161,20 @@ int cmd_fold(QuiltState &q, int argc, char **argv) {
     bool opt_reverse = false;
     bool opt_quiet = false;
     bool opt_force = false;
-    int strip_level = 1;
+    std::string_view strip_arg;
 
-    for (int i = 1; i < argc; ++i) {
-        std::string_view arg = argv[i];
-        if (arg == "-R") {
-            opt_reverse = true;
-        } else if (arg == "-q") {
-            opt_quiet = true;
-        } else if (arg == "-f") {
-            opt_force = true;
-        } else if (arg == "-p" && i + 1 < argc) {
-            strip_level = checked_cast<int>(parse_int(argv[++i]));
-        } else if (arg.starts_with("-p") && arg.size() > 2 &&
-                   arg[2] >= '0' && arg[2] <= '9') {
-            strip_level = checked_cast<int>(parse_int(arg.substr(2)));
-        } else if (arg[0] == '-') {
-            err("Unrecognized option: "); err_line(arg);
-            return 1;
+    auto args = parse_options(argc, argv, "Rp:qfh");
+    if (!args) return 1;
+    for (const auto &opt : args->options) {
+        switch (opt.key) {
+        case 'R': opt_reverse = true; break;
+        case 'f': opt_force = true; break;
+        case 'p': strip_arg = opt.value; break;
+        case 'q': opt_quiet = true; break;
+        case 'h': return command_help(argv[0]);
         }
     }
+    if (!args->operands.empty()) return usage_error(argv[0]);
 
     if (q.applied.empty()) {
         err_line("No patches applied");
@@ -7635,46 +9188,98 @@ int cmd_fold(QuiltState &q, int argc, char **argv) {
         return 0;
     }
 
-    // Parse the incoming patch to find affected files
-    auto affected_files = parse_patch_files(stdin_data, strip_level);
-
-    // Track new files in the current patch
-    auto currently_tracked = files_in_patch(q, top);
-    for (const auto &f : affected_files) {
-        bool already_tracked = false;
-        for (const auto &t : currently_tracked) {
-            if (t == f) { already_tracked = true; break; }
-        }
-        if (!already_tracked) {
-            backup_file(q, top, f);
-        }
-    }
-
     // Apply patch using built-in patch engine
     PatchOptions patch_opts;
-    patch_opts.strip_level = strip_level;
+    // Like upstream, an empty -p means the default, 1, and patch checks the
+    // rest, refusing a strip level that is not a number
+    if (!strip_arg.empty()) set_strip_option(patch_opts, strip_arg);
     patch_opts.reverse = opt_reverse;
-    patch_opts.force = opt_force;
     patch_opts.quiet = opt_quiet;
     auto extra_patch_opts = shell_split(get_env("QUILT_PATCH_OPTS"));
     for (const auto &opt : extra_patch_opts) {
         std::string_view o = opt;
         if (o == "-R") patch_opts.reverse = true;
-        else if (o == "-f" || o == "--force") patch_opts.force = true;
         else if (o == "-s") patch_opts.quiet = true;
         else if (o == "-E") patch_opts.remove_empty = true;
-        else if (o.starts_with("--fuzz=")) {
-            patch_opts.fuzz = checked_cast<int>(parse_int(o.substr(7)));
-        }
+        else if (o.starts_with("--fuzz=")) set_fuzz_option(patch_opts, o.substr(7));
+    }
+
+    // Like upstream's "patch -d $SUBDIR", file names in the patch are
+    // relative to the subdirectory quilt was run from
+    std::string patch_dir = path_join(q.work_dir, q.subdir);
+    if (!set_cwd(patch_dir)) {
+        err_line("Cannot change into directory " + patch_dir);
+        return 1;
+    }
+
+    // Track new files in the current patch, including deletions. Snapshot
+    // every target file so that a failed fold can be undone: backups of
+    // files the top patch already tracks predate the top patch, not the fold.
+    struct Snapshot {
+        std::string file;
+        bool existed;
+        std::string content;
+        bool added;  // backed up into the top patch by this fold
+    };
+    std::vector<Snapshot> snapshots;
+    auto affected_files = patch_target_files(stdin_data, patch_opts.strip_level,
+                                             patch_opts.reverse);
+    auto currently_tracked = files_in_patch(q, top);
+    auto is_tracked = [&](const std::string &f) {
+        return std::ranges::find(currently_tracked, f) != currently_tracked.end();
+    };
+    for (auto &f : affected_files) {
+        f = subdir_path(q, f);
+        std::string path = path_join(q.work_dir, f);
+        Snapshot s{f, file_exists(path), {}, !is_tracked(f)};
+        if (s.existed) s.content = read_file(path);
+        if (s.added) backup_file(q, top, f);
+        snapshots.push_back(std::move(s));
     }
 
     PatchResult r = builtin_patch(stdin_data, patch_opts);
-    if (!opt_quiet && !r.out.empty()) {
-        out(r.out);
+    set_cwd(q.work_dir);
+
+    // GNU patch backs up only the files it patches, so leave the missing
+    // files it skipped out of the patch
+    for (const auto &skipped : r.skipped) {
+        std::string f = subdir_path(q, skipped);
+        if (!is_tracked(f)) {
+            delete_file(path_join(pc_patch_dir(q, top), f));
+        }
     }
-    if (!r.err.empty()) err(r.err);
+    out(r.out);
+    err(r.err);
 
     if (r.exit_code != 0 && !opt_force) {
+        // Like upstream, restore the pre-fold state and drop the backups
+        // this fold added. Reject files stay behind.
+        std::string pc_dir = pc_patch_dir(q, top);
+        for (const auto &s : snapshots) {
+            std::string path = path_join(q.work_dir, s.file);
+            bool exists = file_exists(path);
+            if (exists != s.existed || (exists && read_file(path) != s.content)) {
+                bool ok;
+                if (s.existed) {
+                    std::string dir = dirname(path);
+                    ok = (is_directory(dir) || make_dirs(dir)) &&
+                         write_file(path, s.content);
+                } else {
+                    ok = delete_file(path);
+                }
+                if (!ok) {
+                    err("File "); err(s.file); err_line(" may be corrupted");
+                }
+            }
+            if (s.added) {
+                std::string backup = path_join(pc_dir, s.file);
+                delete_file(backup);
+                for (std::string dir = dirname(backup);
+                     std::ssize(dir) > std::ssize(pc_dir); dir = dirname(dir)) {
+                    if (!delete_dir(dir)) break;
+                }
+            }
+        }
         return 1;
     }
 
@@ -7682,63 +9287,26 @@ int cmd_fold(QuiltState &q, int argc, char **argv) {
 }
 
 int cmd_fork(QuiltState &q, int argc, char **argv) {
-    if (q.applied.empty()) {
-        err_line("No patches applied");
-        return 1;
-    }
+    auto args = parse_options(argc, argv, "h");
+    if (!args) return 1;
+    if (!args->options.empty()) return command_help(argv[0]);
+    if (std::ssize(args->operands) > 1) return usage_error(argv[0]);
+    std::optional<std::string> given_name;
+    if (!args->operands.empty()) given_name = strip_patches_prefix(q, args->operands[0]);
 
-    std::string old_name = q.applied.back();
-    std::string new_name;
+    auto top = find_top_patch(q);
+    if (!top) return 1;
+    std::string old_name = *top;
 
-    for (int i = 1; i < argc; ++i) {
-        std::string_view arg = argv[i];
-        if (arg[0] == '-') {
-            err("Unrecognized option: "); err_line(arg);
-            return 1;
-        }
-        new_name = strip_patches_prefix(q, arg);
-        break;
-    }
+    // An empty name, given as "" or as "patches/", is refused below since
+    // .pc/ itself exists, as upstream does
+    std::string new_name = given_name ? *given_name : next_filename(old_name);
 
-    // Generate default name if none given: increment "-N" suffix before extension
-    if (new_name.empty()) {
-        auto dot = str_rfind(old_name, '.');
-        std::string base;
-        std::string ext;
-        if (dot > 0) {
-            base = old_name.substr(0, checked_cast<size_t>(dot));
-            ext = old_name.substr(checked_cast<size_t>(dot));
-        } else {
-            base = old_name;
-        }
-        // Check for existing -N suffix and increment it
-        auto dash = str_rfind(base, '-');
-        if (dash >= 0) {
-            std::string_view suffix = std::string_view(base).substr(
-                checked_cast<size_t>(dash) + 1);
-            int n = 0;
-            auto [ptr, ec] = std::from_chars(suffix.data(),
-                suffix.data() + suffix.size(), n);
-            if (ec == std::errc{} && ptr == suffix.data() + suffix.size()) {
-                new_name = base.substr(0, checked_cast<size_t>(dash) + 1)
-                    + std::to_string(n + 1) + ext;
-            } else {
-                new_name = base + "-2" + ext;
-            }
-        } else {
-            new_name = base + "-2" + ext;
-        }
-    }
-
-    // Check that the new name doesn't already exist in series
-    if (q.find_in_series(new_name)) {
-        err("Patch "); err(new_name); err_line(" already exists in series");
-        return 1;
-    }
-
-    auto idx = q.find_in_series(old_name);
-    if (!idx) {
-        err("Patch "); err(old_name); err_line(" is not in series");
+    // Like upstream, refuse a name in any use, so nothing is overwritten
+    if (q.find_in_series(new_name) || is_directory(pc_patch_dir(q, new_name)) ||
+        file_exists(path_join(q.work_dir, q.patches_dir, new_name))) {
+        err("Patch "); err(patch_path_display(q, new_name));
+        err_line(" exists already, please choose a new name");
         return 1;
     }
 
@@ -7776,31 +9344,8 @@ int cmd_fork(QuiltState &q, int argc, char **argv) {
         renamed_pc_dir = true;
     }
 
-    // Migrate per-patch metadata before writing series
-    auto sl_it = q.patch_strip_level.find(old_name);
-    int saved_strip = -1;
-    bool saved_reversed = false;
-    if (sl_it != q.patch_strip_level.end()) {
-        saved_strip = sl_it->second;
-        q.patch_strip_level[new_name] = sl_it->second;
-        q.patch_strip_level.erase(sl_it);
-    }
-    if (q.patch_reversed.erase(old_name)) {
-        saved_reversed = true;
-        q.patch_reversed.insert(new_name);
-    }
-
-    auto new_series = q.series;
-    new_series[checked_cast<size_t>(*idx)] = new_name;
-    if (!write_series_checked(q, new_series)) {
-        if (saved_strip >= 0) {
-            q.patch_strip_level[old_name] = saved_strip;
-            q.patch_strip_level.erase(new_name);
-        }
-        if (saved_reversed) {
-            q.patch_reversed.erase(new_name);
-            q.patch_reversed.insert(old_name);
-        }
+    if (!rename_in_series(q, old_name, new_name)) {
+        err_line("Failed to write series file.");
         if (renamed_pc_dir) {
             rename_path(new_pc, old_pc);
         }
@@ -7818,15 +9363,7 @@ int cmd_fork(QuiltState &q, int argc, char **argv) {
         }
     }
     if (!write_applied_checked(q, new_applied)) {
-        write_series_checked(q, q.series);
-        if (saved_strip >= 0) {
-            q.patch_strip_level[old_name] = saved_strip;
-            q.patch_strip_level.erase(new_name);
-        }
-        if (saved_reversed) {
-            q.patch_reversed.erase(new_name);
-            q.patch_reversed.insert(old_name);
-        }
+        rename_in_series(q, new_name, old_name);
         if (renamed_pc_dir) {
             rename_path(new_pc, old_pc);
         }
@@ -7836,31 +9373,20 @@ int cmd_fork(QuiltState &q, int argc, char **argv) {
         return 1;
     }
 
-    q.series = std::move(new_series);
     q.applied = std::move(new_applied);
 
-    out_line("Fork of patch " + old_name +
-             " created as " + new_name);
+    out_line("Fork of patch " + patch_path_display(q, old_name) +
+             " created as " + patch_path_display(q, new_name));
     return 0;
 }
 
 int cmd_upgrade(QuiltState &, int argc, char **argv)
 {
-    for (int i = 1; i < argc; ++i) {
-        std::string_view arg = argv[i];
-        if (arg == "-h" || arg == "--help") {
-            out_line("Usage: quilt upgrade");
-            out_line("");
-            out_line("Upgrade the metadata in the .pc/ directory from version 1 to");
-            out_line("version 2. This command does nothing because quilt.cpp only");
-            out_line("supports the version 2 format.");
-            return 0;
-        }
-        if (arg[0] == '-') {
-            err("Unrecognized option: "); err_line(arg);
-            return 1;
-        }
-    }
+    // Like upstream, take one argument, which means nothing
+    auto args = parse_options(argc, argv, "h");
+    if (!args) return 1;
+    if (!args->options.empty()) return command_help(argv[0]);
+    if (std::ssize(args->operands) > 1) return usage_error(argv[0]);
     return 0;
 }
 
@@ -7869,6 +9395,7 @@ int cmd_upgrade(QuiltState &, int argc, char **argv)
 // This is free and unencumbered software released into the public domain.
 #include <cmath>
 #include <iomanip>
+#include <limits>
 #include <map>
 #include <optional>
 #include <regex>
@@ -8147,10 +9674,23 @@ static std::string render_dot(const std::vector<GraphNode> &nodes,
     }
 
     std::string dot = "digraph dependencies {\n";
+
+    // Nodes without any edge are de-emphasized, matching the original
+    // dependency-graph script's close_node_style.
+    std::set<int> connected;
+    for (const auto &[key, value] : edges) {
+        (void)value;
+        connected.insert(key.first);
+        connected.insert(key.second);
+    }
+
     for (const auto &node : nodes) {
         if (!used_nodes.contains(node.number)) continue;
 
         std::vector<std::string> attrs = node.attrs;
+        if (!connected.contains(node.number)) {
+            attrs.push_back("color=grey");
+        }
         attrs.push_back("label=\"" + dot_escape(node.name) + "\"");
 
         dot += "\tn" + std::to_string(node.number);
@@ -8201,84 +9741,67 @@ int cmd_graph(QuiltState &q, int argc, char **argv) {
     bool opt_reduce = false;
     bool opt_edge_labels = false;
     std::optional<int> opt_lines;
-    std::string_view patch_arg;
+    bool opt_postscript = false;
 
-    for (int i = 1; i < argc; ++i) {
-        std::string_view arg = argv[i];
-        if (arg == "--all") {
-            opt_all = true;
-        } else if (arg == "--reduce") {
-            opt_reduce = true;
-        } else if (arg == "--lines") {
-            opt_lines = 2;
-            if (i + 1 < argc && is_number(argv[i + 1])) {
-                opt_lines = checked_cast<int>(parse_int(argv[++i]));
+    enum { ALL = 256, REDUCE, LINES, EDGE_LABELS };
+    static constexpr LongOpt longopts[] = {
+        {"all", OptArg::none, ALL},
+        {"reduce", OptArg::none, REDUCE},
+        {"lines", OptArg::optional, LINES},
+        {"edge-labels", OptArg::required, EDGE_LABELS},
+    };
+    auto args = parse_options(argc, argv, "T:h", longopts);
+    if (!args) return 1;
+    for (const auto &opt : args->options) {
+        switch (opt.key) {
+        case 'T':
+            if (opt.value != "ps") return usage_error(argv[0]);
+            opt_postscript = true;
+            break;
+        case ALL: opt_all = true; break;
+        case REDUCE: opt_reduce = true; break;
+        case LINES:
+            // Like upstream, --lines alone means 2, and the number only
+            // goes after "=", so "--lines 3" names patch 3
+            if (opt.value.empty()) {
+                opt_lines = 2;
+            } else if (is_number(opt.value)) {
+                // Saturate, since no patch has more lines than that
+                int lines = 0;
+                auto [ptr, ec] = std::from_chars(opt.value.data(),
+                                                 opt.value.data() + opt.value.size(), lines);
+                if (ec == std::errc::result_out_of_range) {
+                    lines = std::numeric_limits<int>::max();
+                }
+                opt_lines = lines;
+            } else {
+                return usage_error(argv[0]);
             }
-        } else if (arg.starts_with("--lines=")) {
-            std::string value(arg.substr(8));
-            if (!is_number(value)) {
-                err_line("Usage: quilt graph [--all] [--reduce] [--lines[=num]] [--edge-labels=files] [-T ps] [patch]");
-                return 1;
-            }
-            opt_lines = checked_cast<int>(parse_int(value));
-        } else if (arg == "--edge-labels") {
-            if (i + 1 >= argc || std::string_view(argv[i + 1]) != "files") {
-                err_line("Usage: quilt graph [--all] [--reduce] [--lines[=num]] [--edge-labels=files] [-T ps] [patch]");
-                return 1;
-            }
+            break;
+        case EDGE_LABELS:
+            if (opt.value != "files") return usage_error(argv[0]);
             opt_edge_labels = true;
-            ++i;
-        } else if (arg == "--edge-labels=files") {
-            opt_edge_labels = true;
-        } else if (arg == "-T") {
-            if (i + 1 >= argc || std::string_view(argv[i + 1]) != "ps") {
-                err_line("Usage: quilt graph [--all] [--reduce] [--lines[=num]] [--edge-labels=files] [-T ps] [patch]");
-                return 1;
-            }
-            ++i;
-            err_line("quilt graph -T ps: not implemented");
-            return 1;
-        } else if (arg == "-Tps") {
-            err_line("quilt graph -T ps: not implemented");
-            return 1;
-        } else if (!arg.empty() && arg[0] == '-') {
-            err_line("Usage: quilt graph [--all] [--reduce] [--lines[=num]] [--edge-labels=files] [-T ps] [patch]");
-            return 1;
-        } else if (!patch_arg.empty()) {
-            err_line("Usage: quilt graph [--all] [--reduce] [--lines[=num]] [--edge-labels=files] [-T ps] [patch]");
-            return 1;
-        } else {
-            patch_arg = strip_patches_prefix(q, arg);
+            break;
+        case 'h': return command_help(argv[0]);
         }
     }
-
-    if (!patch_arg.empty() && opt_all) {
-        err_line("Usage: quilt graph [--all] [--reduce] [--lines[=num]] [--edge-labels=files] [-T ps] [patch]");
+    const auto &operands = args->operands;
+    if (std::ssize(operands) > 1 || (opt_all && !operands.empty())) {
+        return usage_error(argv[0]);
+    }
+    if (opt_postscript) {
+        err_line("quilt graph -T ps: not implemented");
         return 1;
     }
+    std::string_view patch_arg;
+    if (!operands.empty()) patch_arg = operands[0];
 
-    std::string_view selected_patch;
+    std::string selected_patch;
     if (!opt_all) {
-        if (q.applied.empty()) {
-            if (!q.series_file_exists) {
-                err_line("No series file found");
-            } else if (q.series.empty()) {
-                err_line("No patches in series");
-            } else {
-                err_line("No patches applied");
-            }
-            return 1;
-        }
-
-        selected_patch = patch_arg.empty() ? std::string_view(q.applied.back()) : patch_arg;
-        if (!q.find_in_series(selected_patch).has_value()) {
-            err("Patch "); err(selected_patch); err_line(" is not in series");
-            return 1;
-        }
-        if (!q.is_applied(selected_patch)) {
-            err("Patch "); err(selected_patch); err_line(" is not applied");
-            return 1;
-        }
+        // No argument, or an empty one, means the top patch
+        auto found = find_applied_patch(q, patch_arg);
+        if (!found) return 1;
+        selected_patch = *found;
     } else if (q.applied.empty()) {
         err_line("No patches applied");
         return 1;
@@ -8312,7 +9835,6 @@ int cmd_graph(QuiltState &q, int argc, char **argv) {
         }
 
         selected->attrs.push_back("style=bold");
-        selected->attrs.push_back("color=grey");
 
         std::set<std::string> selected_files;
         for (const auto &[file, ranges] : selected->files) {
@@ -8396,28 +9918,6 @@ int cmd_graph(QuiltState &q, int argc, char **argv) {
 
 #include <cstdio>
 
-
-
-static std::string extract_diff(std::string_view content) {
-    auto lines = split_lines(content);
-    std::string diff;
-    bool in_diff = false;
-    for (const auto &line : lines) {
-        if (!in_diff) {
-            if (line.starts_with("Index:") ||
-                line.starts_with("--- ") ||
-                line.starts_with("diff ") ||
-                line.starts_with("===")) {
-                in_diff = true;
-            }
-        }
-        if (in_diff) {
-            diff += line;
-            diff += '\n';
-        }
-    }
-    return diff;
-}
 
 static bool has_non_ascii(std::string_view s) {
     for (char ch : s) {
@@ -8517,52 +10017,45 @@ int cmd_mail(QuiltState &q, int argc, char **argv) {
     std::vector<std::string> to_addrs;
     std::vector<std::string> cc_addrs;
     std::vector<std::string> bcc_addrs;
-    std::vector<std::string> positional;
 
-    for (int i = 1; i < argc; ++i) {
-        std::string_view arg = argv[i];
-        if (arg == "--mbox" && i + 1 < argc) {
-            mbox_file = argv[++i];
-        } else if (arg == "--send") {
+    enum { FROM = 256, TO, CC, BCC, SUBJECT, SEND, MBOX, CHARSET, SENDER, PREFIX,
+           REPLY_TO, SIGNATURE };
+    static constexpr LongOpt longopts[] = {
+        {"from", OptArg::required, FROM},
+        {"to", OptArg::required, TO},
+        {"cc", OptArg::required, CC},
+        {"bcc", OptArg::required, BCC},
+        {"subject", OptArg::required, SUBJECT},
+        {"send", OptArg::none, SEND},
+        {"mbox", OptArg::required, MBOX},
+        {"charset", OptArg::required, CHARSET},
+        {"sender", OptArg::required, SENDER},
+        {"prefix", OptArg::required, PREFIX},
+        {"reply-to", OptArg::required, REPLY_TO},
+        {"signature", OptArg::required, SIGNATURE},
+    };
+    auto args = parse_options(argc, argv, "m:M:h", longopts);
+    if (!args) return 1;
+    for (const auto &opt : args->options) {
+        switch (opt.key) {
+        case MBOX: mbox_file = opt.value; break;
+        case SEND:
             err_line("quilt mail: send mode is not supported; use --mbox");
             return 1;
-        } else if (arg == "--sender" && i + 1 < argc) {
-            sender_addr = argv[++i];
-        } else if (arg == "--from" && i + 1 < argc) {
-            from_addr = argv[++i];
-        } else if (arg == "--prefix" && i + 1 < argc) {
-            prefix = argv[++i];
-        } else if (arg == "--to" && i + 1 < argc) {
-            to_addrs.emplace_back(argv[++i]);
-        } else if (arg == "--cc" && i + 1 < argc) {
-            cc_addrs.emplace_back(argv[++i]);
-        } else if (arg == "--bcc" && i + 1 < argc) {
-            bcc_addrs.emplace_back(argv[++i]);
-        } else if (arg == "--subject" && i + 1 < argc) {
-            ++i; // consume and ignore (cover letter not generated)
-        } else if (arg == "-m" && i + 1 < argc) {
-            ++i; // consume and ignore (cover letter not generated)
-        } else if (arg == "-M" && i + 1 < argc) {
-            ++i; // consume and ignore (cover letter not generated)
-        } else if (arg == "--reply-to" && i + 1 < argc) {
-            ++i; // consume and ignore (cover letter not generated)
-        } else if (arg == "--charset" && i + 1 < argc) {
-            ++i; // consume and ignore
-        } else if (arg == "--signature" && i + 1 < argc) {
-            ++i; // consume and ignore
-        } else if (arg == "-h" || arg == "--help") {
-            out_line("Usage: quilt mail {--mbox file} [--prefix prefix] "
-                     "[--sender ...] [--from ...] [--to ...] [--cc ...] "
-                     "[--bcc ...] [first_patch [last_patch]]");
-            return 0;
-        } else if (arg[0] != '-' || arg == "-") {
-            positional.emplace_back(arg);
-        } else {
-            err("quilt mail: unknown option: ");
-            err_line(arg);
-            return 1;
+        case SENDER: sender_addr = opt.value; break;
+        case FROM: from_addr = opt.value; break;
+        case PREFIX: prefix = opt.value; break;
+        case TO: to_addrs.emplace_back(opt.value); break;
+        case CC: cc_addrs.emplace_back(opt.value); break;
+        case BCC: bcc_addrs.emplace_back(opt.value); break;
+        // No cover letter, so its options do nothing
+        case 'm': case 'M': case SUBJECT: case REPLY_TO: break;
+        case CHARSET: case SIGNATURE: break;
+        case 'h': return command_help(argv[0]);
         }
     }
+    const auto &positional = args->operands;
+    if (std::ssize(positional) > 2) return usage_error(argv[0]);
 
     if (mbox_file.empty()) {
         err_line("quilt mail: --mbox is required");
@@ -8590,7 +10083,7 @@ int cmd_mail(QuiltState &q, int argc, char **argv) {
 
     if (std::ssize(positional) == 1) {
         // Single patch
-        std::string name = positional[0];
+        std::string name(positional[0]);
         if (name == "-") {
             // "-" as single arg means all patches
         } else {
@@ -8603,8 +10096,8 @@ int cmd_mail(QuiltState &q, int argc, char **argv) {
             last_idx = *idx;
         }
     } else if (std::ssize(positional) == 2) {
-        std::string first_name = positional[0];
-        std::string last_name = positional[1];
+        std::string first_name(positional[0]);
+        std::string last_name(positional[1]);
 
         if (first_name == "-") {
             first_idx = 0;
@@ -8632,9 +10125,6 @@ int cmd_mail(QuiltState &q, int argc, char **argv) {
             err_line("quilt mail: first patch must come before last patch in series");
             return 1;
         }
-    } else if (std::ssize(positional) > 2) {
-        err_line("Usage: quilt mail {--mbox file} [options] [first_patch [last_patch]]");
-        return 1;
     }
 
     ptrdiff_t total = last_idx - first_idx + 1;
@@ -8655,8 +10145,8 @@ int cmd_mail(QuiltState &q, int argc, char **argv) {
         }
 
         // Extract header and diff
-        std::string header = extract_header(content);
-        std::string diff = extract_diff(content);
+        std::string header = patch_header(content);
+        std::string diff = patch_body(content);
 
         // Split header into subject (first line) and body (rest)
         std::string subject_text;
@@ -8802,17 +10292,23 @@ int cmd_mail(QuiltState &q, int argc, char **argv) {
 
 // This is free and unencumbered software released into the public domain.
 
-static int not_implemented(const char *name)
+// Print the help for -h or --help ahead of any "--", else refuse to run
+static int not_implemented(int argc, char **argv)
 {
+    for (int i = 1; i < argc; ++i) {
+        std::string_view arg = argv[i];
+        if (arg == "--") break;
+        if (arg == "-h" || arg == "--help") return command_help(argv[0]);
+    }
     err("quilt ");
-    err(name);
+    err(argv[0]);
     err_line(": not implemented");
     return 1;
 }
 
-int cmd_grep(QuiltState &, int, char **)     { return not_implemented("grep"); }
-int cmd_setup(QuiltState &, int, char **)    { return not_implemented("setup"); }
-int cmd_shell(QuiltState &, int, char **)    { return not_implemented("shell"); }
+int cmd_grep(QuiltState &, int argc, char **argv)  { return not_implemented(argc, argv); }
+int cmd_setup(QuiltState &, int argc, char **argv) { return not_implemented(argc, argv); }
+int cmd_shell(QuiltState &, int argc, char **argv) { return not_implemented(argc, argv); }
 
 // === src/platform_win32.cpp ===
 
@@ -9177,6 +10673,12 @@ bool delete_file(std::string_view path)
     return DeleteFileW(wpath.c_str()) != 0;
 }
 
+bool delete_dir(std::string_view path)
+{
+    std::wstring wpath = utf8_to_wide(path);
+    return RemoveDirectoryW(wpath.c_str()) != 0;
+}
+
 bool delete_dir_recursive(std::string_view path)
 {
     std::wstring wpath = utf8_to_wide(path);
@@ -9279,7 +10781,7 @@ bool is_directory(std::string_view path)
     return (attr & FILE_ATTRIBUTE_DIRECTORY) != 0;
 }
 
-int64_t file_mtime(std::string_view path)
+int64_t file_mtime(std::string_view path, int32_t *nsec)
 {
     std::wstring wpath = utf8_to_wide(path);
     WIN32_FILE_ATTRIBUTE_DATA data;
@@ -9288,7 +10790,9 @@ int64_t file_mtime(std::string_view path)
     // FILETIME: 100-nanosecond intervals since 1601-01-01
     uint64_t ft = (static_cast<uint64_t>(data.ftLastWriteTime.dwHighDateTime) << 32)
                 | data.ftLastWriteTime.dwLowDateTime;
-    return static_cast<int64_t>((ft - 116444736000000000ULL) / 10000000ULL);
+    ft -= 116444736000000000ULL;
+    if (nsec) *nsec = static_cast<int32_t>(ft % 10000000ULL * 100);
+    return static_cast<int64_t>(ft / 10000000ULL);
 }
 
 std::vector<DirEntry> list_dir(std::string_view path)
@@ -9461,12 +10965,6 @@ void fd_write_stderr(std::string_view s)
     HANDLE h = GetStdHandle(STD_ERROR_HANDLE);
     if (h != INVALID_HANDLE_VALUE)
         write_console_or_file(h, s);
-}
-
-bool stdout_is_tty()
-{
-    HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
-    return h != INVALID_HANDLE_VALUE && GetFileType(h) == FILE_TYPE_CHAR;
 }
 
 std::string read_stdin()
