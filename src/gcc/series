@@ -2,3 +2,5 @@ avx-misaligned.patch
 dynamic-load-tzdb.patch
 libgfortran-mapview.patch
 trap-terminate.patch
+no-abi-compat-aliases.patch
+lto-portable-real-cst.patch

@@ -7,7 +7,7 @@ in bin/ rather than a tooldir. With this patch the toolchain works
 without w64devkit bin/ in PATH.
 --- a/gcc/gcc.cc
 +++ b/gcc/gcc.cc
-@@ -56,6 +56,11 @@ compilation is specified by a string called a "spec".  */
+@@ -56,6 +56,11 @@
  #include "opts-diagnostic.h"
  #include "auto-profile.h" /* for AUTO_PROFILE_VERSION.  */
  
@@ -19,7 +19,7 @@ without w64devkit bin/ in PATH.
  #ifndef MATH_LIBRARY
  #define MATH_LIBRARY "m"
  #endif
-@@ -5566,6 +5571,17 @@ process_command (unsigned int decoded_options_count,
+@@ -5566,6 +5571,17 @@
  	      "BINUTILS", PREFIX_PRIORITY_LAST, 0, 1);
    free (tooldir_prefix);
  
@@ -37,7 +37,7 @@ without w64devkit bin/ in PATH.
  #if defined(TARGET_SYSTEM_ROOT_RELOCATABLE) && !defined(VMS)
    /* If the normal TARGET_SYSTEM_ROOT is inside of $exec_prefix,
       then consider it to relocate with the rest of the GCC installation
-@@ -8307,6 +8323,14 @@ driver::main (int argc, char **argv)
+@@ -8307,6 +8323,22 @@
    bool early_exit;
  
    set_progname (argv[0]);
@@ -47,7 +47,15 @@ without w64devkit bin/ in PATH.
 +  static char self[260];
 +  unsigned selflen = GetModuleFileNameA (0, self, sizeof self);
 +  if (selflen && selflen < sizeof self)
-+    argv[0] = self;
++    {
++      /* Use forward slashes: this path becomes COLLECT_GCC, which
++	 lto-wrapper writes unquoted into a Makefile for parallel LTO,
++	 where a shell would consume backslashes.  */
++      for (char *p = self; *p; p++)
++	if (*p == '\\')
++	  *p = '/';
++      argv[0] = self;
++    }
 +#endif
    expand_at_files (&argc, &argv);
    decode_argv (argc, const_cast <const char **> (argv));

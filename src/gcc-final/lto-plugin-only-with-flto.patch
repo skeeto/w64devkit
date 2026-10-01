@@ -1,0 +1,34 @@
+Use the LTO linker plugin only when -flto is given at link time
+
+With full plugin support in the linker, the driver passes the LTO
+plugin on every link, and the plugin claims any input containing LTO
+bytecode. Since libstdc++, libgfortran, and libquadmath are now fat
+LTO objects, that recompiled the library members of every C++ program,
+whether or not the user asked for LTO: links took 4x longer for tiny
+programs and 30-45x for typical ones, lto-wrapper nagged about serial
+compilation, and every LTO edge case reached every user.
+
+Only pass the plugin when -flto, -flto=N, or -fuse-linker-plugin is on
+the link line. Ordinary links use the libraries' regular code exactly
+as before, and -flto links get the full benefit, including dead-code
+elimination inside the libraries. The one behavior change is that a
+slim LTO object linked without -flto now fails with "plugin needed to
+handle lto object", which is what the GCC manual documents anyway.
+
+--- a/gcc/gcc.cc
++++ b/gcc/gcc.cc
+@@ -1105,9 +1105,12 @@
+ 
+ /* The linker has some plugin support.  */
+ #if HAVE_LTO_PLUGIN > 0
+-/* The linker used has full plugin support, use LTO plugin by default.  */
++/* The linker used has full plugin support, but only use the LTO plugin
++   when LTO is requested at link time.  The runtime libraries are fat
++   LTO objects, and the plugin would otherwise claim their IR on every
++   link, recompiling the library and slowing all links.  */
+ #if HAVE_LTO_PLUGIN == 2
+-#define PLUGIN_COND "!fno-use-linker-plugin:%{!fno-lto"
++#define PLUGIN_COND "!fno-use-linker-plugin:%{flto|flto=*|fuse-linker-plugin"
+ #define PLUGIN_COND_CLOSE "}"
+ #else
+ /* The linker used has limited plugin support, use LTO plugin with explicit
