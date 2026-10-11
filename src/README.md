@@ -13,8 +13,8 @@ at it from inside an unpacked source tree, with `--quiltrc` selecting the
 shared settings in `quiltrc` so that everyone produces identical patches:
 
     $ W=/path/to/w64devkit
-    $ tar xf $W/source/cmake-4.4.3.tar.gz
-    $ cd cmake-4.4.3/
+    $ tar xf $W/source/cmake-4.4.4.tar.gz
+    $ cd cmake-4.4.4/
     $ export QUILT_PATCHES=$W/src/cmake
     $ quilt --quiltrc $W/src/quiltrc push -a
 
