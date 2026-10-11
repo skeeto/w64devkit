@@ -9,17 +9,15 @@ On Windows, consider automatic color available only for a native console handle,
 
 Keep redirected output unchanged and avoid changing console modes for compilers that do not support forced diagnostic colors. The translation is based on GCC's MinGW console handling in gcc/pretty-print.cc.
 ---
- src/ccache/argprocessing.cpp |  47 ++++++-
- src/ccache/argsinfo.hpp      |   3 +
- src/ccache/core/common.cpp   | 243 ++++++++++++++++++++++++++++++++++-
- src/ccache/core/common.hpp   |   7 +-
+ src/ccache/argprocessing.cpp |   47 +++++++-
+ src/ccache/argsinfo.hpp      |    3 
+ src/ccache/core/common.cpp   |  243 ++++++++++++++++++++++++++++++++++++++++++-
+ src/ccache/core/common.hpp   |    7 -
  4 files changed, 292 insertions(+), 8 deletions(-)
 
-diff --git a/src/ccache/argprocessing.cpp b/src/ccache/argprocessing.cpp
-index 7eed1430..fd6baf2e 100644
 --- a/src/ccache/argprocessing.cpp
 +++ b/src/ccache/argprocessing.cpp
-@@ -184,9 +184,43 @@ private:
+@@ -186,12 +186,46 @@
  bool
  color_output_possible()
  {
@@ -33,9 +31,9 @@ index 7eed1430..fd6baf2e 100644
    return isatty(STDERR_FILENO) && term_env
           && util::to_lowercase(term_env) != "dumb";
 +#endif
-+}
-+
-+bool
+ }
+ 
+ bool
 +windows_console_needs_color_translation()
 +{
 +#ifdef _WIN32
@@ -60,10 +58,13 @@ index 7eed1430..fd6baf2e 100644
 +#else
 +  return false;
 +#endif
- }
- 
- bool
-@@ -1978,10 +2012,11 @@ process_args(Context& ctx)
++}
++
++bool
+ is_wp_macro_option_list(std::string_view options)
+ {
+   const auto is_macro_option = [](const auto option) {
+@@ -2071,10 +2105,11 @@
      state.add_common_arg(state.explicit_language);
    }
  
@@ -78,24 +79,24 @@ index 7eed1430..fd6baf2e 100644
  
    // Since output is redirected, compilers will not color their output by
    // default, so force it explicitly.
-@@ -1997,6 +2032,12 @@ process_args(Context& ctx)
+@@ -2090,8 +2125,14 @@
    } else {
      // Other compilers shouldn't output color, so no need to strip it.
      args_info.strip_diagnostics_colors = false;
 +    args_info.translate_diagnostics_colors = false;
-+  }
-+
+   }
+ 
 +  if (diagnostics_color_arg) {
 +    args_info.translate_diagnostics_colors =
 +      colors_enabled && windows_console_needs_color_translation();
-   }
- 
++  }
++
    if (args_info.generating_dependencies) {
-diff --git a/src/ccache/argsinfo.hpp b/src/ccache/argsinfo.hpp
-index 7db64d0c..c8f727d7 100644
+     if (state.output_dep_origin == OutputDepOrigin::none) {
+       args_info.output_dep = util::with_extension(args_info.output_obj, ".d");
 --- a/src/ccache/argsinfo.hpp
 +++ b/src/ccache/argsinfo.hpp
-@@ -122,6 +122,9 @@ struct ArgsInfo
+@@ -122,6 +122,9 @@
    // Whether to strip color codes from diagnostic messages on output.
    bool strip_diagnostics_colors = false;
  
@@ -105,8 +106,6 @@ index 7db64d0c..c8f727d7 100644
    // Have we seen --?
    bool seen_double_dash = false;
  
-diff --git a/src/ccache/core/common.cpp b/src/ccache/core/common.cpp
-index 528c3fe2..4692a28f 100644
 --- a/src/ccache/core/common.cpp
 +++ b/src/ccache/core/common.cpp
 @@ -28,12 +28,155 @@
@@ -265,7 +264,7 @@ index 528c3fe2..4692a28f 100644
  // Search for the first match of the following regular expression:
  //
  //   \x1b\[[\x30-\x3f]*[\x20-\x2f]*[Km]
-@@ -66,6 +209,81 @@ find_first_ansi_csi_seq(std::string_view string)
+@@ -66,6 +209,81 @@
    }
  }
  
@@ -347,11 +346,10 @@ index 528c3fe2..4692a28f 100644
  } // namespace
  
  namespace core {
-@@ -188,6 +406,18 @@ send_to_console(const Context& ctx, std::string_view text, int fd)
-   std::string_view text_to_send = text;
+@@ -189,6 +407,18 @@
    std::string modified_text;
  
-+#ifdef _WIN32
+ #ifdef _WIN32
 +  DWORD console_mode;
 +  HANDLE handle = reinterpret_cast<HANDLE>(_get_osfhandle(fd));
 +  bool translate_colors =
@@ -363,10 +361,11 @@ index 528c3fe2..4692a28f 100644
 +    ;
 +#endif
 +
- #ifdef _WIN32
++#ifdef _WIN32
    // stdout/stderr are normally opened in text mode, which would convert
    // newlines a second time since we treat output as binary data. Make sure to
-@@ -196,7 +426,11 @@ send_to_console(const Context& ctx, std::string_view text, int fd)
+   // switch to binary mode.
+@@ -196,7 +426,11 @@
    DEFER(_setmode(fd, oldmode));
  #endif
  
@@ -379,7 +378,7 @@ index 528c3fe2..4692a28f 100644
      modified_text = strip_ansi_csi_seqs(text);
      text_to_send = modified_text;
    }
-@@ -206,6 +440,13 @@ send_to_console(const Context& ctx, std::string_view text, int fd)
+@@ -206,6 +440,13 @@
      text_to_send = modified_text;
    }
  
@@ -393,11 +392,9 @@ index 528c3fe2..4692a28f 100644
    util::throw_on_error<core::Error>(
      util::write_fd(fd, text_to_send.data(), text_to_send.length()),
      FMT("Failed to write to fd {}: ", fd));
-diff --git a/src/ccache/core/common.hpp b/src/ccache/core/common.hpp
-index b565e504..6930709b 100644
 --- a/src/ccache/core/common.hpp
 +++ b/src/ccache/core/common.hpp
-@@ -52,10 +52,9 @@ std::filesystem::path make_relative_path(const Context& ctx,
+@@ -52,10 +52,9 @@
  std::string rewrite_stderr_to_absolute_paths(std::string_view text);
  
  // Send `text` to file descriptor `fd` (typically stdout or stderr, which
@@ -411,6 +408,3 @@ index b565e504..6930709b 100644
  void send_to_console(const Context& ctx, std::string_view text, int fd);
  
  // Returns a copy of string with the specified ANSI CSI sequences removed.
--- 
-2.54.0.windows.1
-

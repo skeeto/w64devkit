@@ -19,11 +19,9 @@ outside the active console code page from becoming mojibake when they
 pass through ccache. The conversion strategy is based on GCC's MinGW
 console writer in gcc/pretty-print.cc.
 ---
- src/ccache/core/common.cpp | 108 +++++++++++++++++++++++++++++++++++++
+ src/ccache/core/common.cpp |  108 +++++++++++++++++++++++++++++++++++++++++++++
  1 file changed, 108 insertions(+)
 
-diff --git a/src/ccache/core/common.cpp b/src/ccache/core/common.cpp
-index 4692a28f..8fd13abc 100644
 --- a/src/ccache/core/common.cpp
 +++ b/src/ccache/core/common.cpp
 @@ -28,8 +28,11 @@
@@ -38,7 +36,7 @@ index 4692a28f..8fd13abc 100644
  
  using IncludeDelimiter = util::Tokenizer::IncludeDelimiter;
  
-@@ -175,6 +178,87 @@ parse_erase_line_mode(std::string_view parameters)
+@@ -175,6 +178,87 @@
    }
    return mode;
  }
@@ -126,7 +124,7 @@ index 4692a28f..8fd13abc 100644
  #endif
  
  // Search for the first match of the following regular expression:
-@@ -213,6 +297,26 @@ find_first_ansi_csi_seq(std::string_view string)
+@@ -213,6 +297,26 @@
  void
  write_console_data(int fd, std::string_view data)
  {
@@ -153,7 +151,7 @@ index 4692a28f..8fd13abc 100644
    util::throw_on_error<core::Error>(
      util::write_fd(fd, data.data(), data.length()),
      FMT("Failed to write to fd {}: ", fd));
-@@ -447,9 +551,13 @@ send_to_console(const Context& ctx, std::string_view text, int fd)
+@@ -447,9 +551,13 @@
    }
  #endif
  
@@ -167,6 +165,3 @@ index 4692a28f..8fd13abc 100644
  }
  
  std::string
--- 
-2.54.0.windows.1
-
