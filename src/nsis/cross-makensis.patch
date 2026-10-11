@@ -15,37 +15,51 @@ accept a plain libz.a alongside the import-lib variants in ZLIB_W32
 lookup so makensis can static-link zlib like the rest of w64devkit, and
 skip the Source/Tests SConscript.
 
+---
+ SCons/Config/gnu  |    2 ++
+ Source/build.cpp  |    8 ++++++--
+ Source/SConscript |    9 ++++-----
+ SConstruct        |   15 ++++-----------
+ 4 files changed, 16 insertions(+), 18 deletions(-)
+
 --- a/SCons/Config/gnu
 +++ b/SCons/Config/gnu
 @@ -122,6 +122,8 @@
  ### makensis environment
-
+ 
  makensis_env = tdefenv.Clone()
 +cross_env(makensis_env)
 +makensis_env.Append(CXXFLAGS = ['-std=gnu++14'])
-
+ 
  makensis_env.Append(CPPPATH = ['#$BUILD_CONFIG'])
  
 --- a/Source/build.cpp
 +++ b/Source/build.cpp
-@@ -3744,3 +3744,5 @@
+@@ -3742,7 +3742,9 @@
+     }
+   };
    size_t io[] = { false, (size_t) path, pathcap }, cb;
 -  TinyGrowBuf inputbuf((IGrowBuf::size_type) (cb = FIELD_OFFSET(PROMPT_FILEPATH_DATA, Path[pathcap])));
 +  TinyGrowBuf inputbuf((IGrowBuf::size_type) (cb =
 +      FIELD_OFFSET(PROMPT_FILEPATH_DATA, Path)
 +      + pathcap * sizeof(((PROMPT_FILEPATH_DATA*)0)->Path[0])));
    PROMPT_FILEPATH_DATA *p = (PROMPT_FILEPATH_DATA*) inputbuf.get();
-@@ -4189,3 +4191,5 @@
+   p->Platform = (sizeof(void*) * 8) | sizeof(TCHAR), p->Reserved = 0;
+   _tcscpy(p->Path, path);
+@@ -4187,7 +4189,9 @@
+ 
+ CEXEBuild::postbuild_cmd* CEXEBuild::postbuild_cmd::make(const TCHAR *cmdstr, int cmpop, int cmpval)
  {
 -  postbuild_cmd *p = (postbuild_cmd*) (new BYTE[FIELD_OFFSET(postbuild_cmd, cmd[_tcsclen(cmdstr)+!0])]);
 +  postbuild_cmd *p = (postbuild_cmd*) (new BYTE[
 +      FIELD_OFFSET(postbuild_cmd, cmd)
 +      + (_tcsclen(cmdstr)+1) * sizeof(((postbuild_cmd*)0)->cmd[0])]);
    p->next = NULL, _tcscpy(p->cmd, cmdstr);
-
+   p->cmpop = cmpop, p->cmpval = cmpval;
+   return p;
 --- a/Source/SConscript
 +++ b/Source/SConscript
-@@ -65,12 +65,11 @@
+@@ -65,13 +65,12 @@
  
  ##### Use available libraries
  
@@ -65,13 +79,16 @@ skip the Source/Tests SConscript.
  
 --- a/SConstruct
 +++ b/SConstruct
-@@ -541,4 +541,4 @@
+@@ -540,7 +540,7 @@
+ 		)
  	))
  	# Search for import library of zlib for mingw or VisualC
 -	for importlib in ['libzdll.a', 'libz.dll.a', 'zdll.lib']:
 +	for importlib in ['libzdll.a', 'libz.dll.a', 'libz.a', 'zdll.lib']:
  		defenv['ZLIB_W32_LIB'] = os.path.dirname(str(
-@@ -929,19 +929,12 @@
+ 			defenv.FindFile(importlib, 
+ 				[
+@@ -929,20 +929,13 @@
  #######  Tests                                                     ###
  ######################################################################
  
@@ -82,7 +99,7 @@ skip the Source/Tests SConscript.
  
  build_dir = '$BUILD_PREFIX/tests'
  exports = {'env' : test_env.Clone()}
--
+ 
 -defenv.SConscript(
 -	dirs = 'Source/Tests',
 -	duplicate = False,
@@ -91,6 +108,7 @@ skip the Source/Tests SConscript.
 -)
 -
 -defenv.Ignore('$BUILD_PREFIX', '$BUILD_PREFIX/tests')
- 
+-
  # test scripts
  
+ test_scripts_env = defenv.Clone(ENV = os.environ) # env needed for some scripts

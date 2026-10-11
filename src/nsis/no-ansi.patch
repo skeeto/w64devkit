@@ -9,6 +9,10 @@ target, and a script requesting "Target x86-ansi" fails cleanly with
 multilib kit's secondary x86 stub set Unicode-only and identical in
 shape to the amd64 set.
 
+---
+ SConstruct |    7 -------
+ 1 file changed, 7 deletions(-)
+
 --- a/SConstruct
 +++ b/SConstruct
 @@ -695,11 +695,6 @@

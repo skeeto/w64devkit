@@ -26,13 +26,6 @@ Always start from a freshly unpacked tree. Quilt records applied patches
 in `.pc/`, and a tree reused with a different `QUILT_PATCHES` acts on the
 queue recorded there.
 
-Some components get scripted edits in the Dockerfile before their queue
-is pushed. Repeat any that touch a patched file, or a refresh records
-them in the patch. Currently that is NSIS, whose `Source/build.cpp` ships
-with CRLF line endings:
-
-    $ sed -i 's/\r$//' Source/build.cpp
-
 ## Updating a component
 
 When a component's version changes, refresh its entire queue against the

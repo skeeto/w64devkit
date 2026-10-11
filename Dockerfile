@@ -145,8 +145,8 @@ RUN 7z x tugz-amalgams-$TUGZ_VERSION.zip \
  && mv tugz-amalgams-$TUGZ_VERSION tugz
 
 FROM base AS dl-quilt
-ARG QUILT_VERSION=0.69.2 \
-    QUILT_SHA256=dad74cd1021f83e5ab1ce72febd474bf5ccc9c3429949e91caae15e03505cc8c
+ARG QUILT_VERSION=0.69.3 \
+    QUILT_SHA256=893973b92ca541d85b86a389a1ba43528ca48ec40e2b19b127c3660a4ffcfaed
 WORKDIR /dl
 ADD --checksum=sha256:$QUILT_SHA256 \
     https://github.com/skeeto/quilt.cpp/releases/download/v$QUILT_VERSION/quilt-$QUILT_VERSION.tar.gz ./
@@ -1021,10 +1021,7 @@ FROM cross AS build-nsis
 COPY --from=dl-nsis /dl/nsis /dl/nsis
 COPY src/nsis/ $PREFIX/src/nsis/
 WORKDIR /dl/nsis
-# Source/build.cpp ships with CRLF line endings; everything else in
-# the tree is LF. Strip the carriage returns so our LF patch applies.
-RUN sed -i 's/\r$//' Source/build.cpp \
- && QUILT_PATCHES=$PREFIX/src/nsis quilt push -a \
+RUN QUILT_PATCHES=$PREFIX/src/nsis quilt push -a \
  && rm -rf .pc \
  && scons -j$(nproc) \
         XGCC_W32_PREFIX=$ARCH- \
