@@ -2,8 +2,9 @@
 
 Each subdirectory here is a [quilt][] patch queue for one component: a
 `series` file listing patches in application order, plus the patches. The
-Dockerfile applies each queue to a freshly unpacked source tree. Order
-comes from `series`, never from file names.
+Dockerfile applies each queue to a freshly unpacked source tree using
+[Quilt.cpp][], though the original Quilt works on them too. Order comes
+from `series`, never from file names.
 
 ## Working on a queue
 
@@ -24,6 +25,13 @@ status` afterward.
 Always start from a freshly unpacked tree. Quilt records applied patches
 in `.pc/`, and a tree reused with a different `QUILT_PATCHES` acts on the
 queue recorded there.
+
+Some components get scripted edits in the Dockerfile before their queue
+is pushed. Repeat any that touch a patched file, or a refresh records
+them in the patch. Currently that is NSIS, whose `Source/build.cpp` ships
+with CRLF line endings:
+
+    $ sed -i 's/\r$//' Source/build.cpp
 
 ## Updating a component
 
@@ -56,3 +64,4 @@ The w64devkit distribution includes this directory and `quilt.exe`, so
 the same commands work inside the kit.
 
 [quilt]: https://savannah.nongnu.org/projects/quilt
+[Quilt.cpp]: https://github.com/skeeto/quilt.cpp

@@ -8,7 +8,7 @@ ENV PREFIX=$PREFIX
 
 RUN apt-get update && apt-get install --yes --no-install-recommends \
   build-essential cmake libgmp-dev libmpc-dev libmpfr-dev m4 p7zip-full \
-  python3 quilt scons
+  python3 scons
 
 COPY src/w64devkit.ico src/alias.c $PREFIX/src/
 
@@ -144,6 +144,15 @@ ADD --checksum=sha256:$TUGZ_SHA256 \
 RUN 7z x tugz-amalgams-$TUGZ_VERSION.zip \
  && mv tugz-amalgams-$TUGZ_VERSION tugz
 
+FROM base AS dl-quilt
+ARG QUILT_VERSION=0.69.2 \
+    QUILT_SHA256=dad74cd1021f83e5ab1ce72febd474bf5ccc9c3429949e91caae15e03505cc8c
+WORKDIR /dl
+ADD --checksum=sha256:$QUILT_SHA256 \
+    https://github.com/skeeto/quilt.cpp/releases/download/v$QUILT_VERSION/quilt-$QUILT_VERSION.tar.gz ./
+RUN mkdir quilt \
+ && tar xzf quilt-$QUILT_VERSION.tar.gz -C quilt --strip-components=1
+
 FROM base AS dl-ccache
 ARG CCACHE_VERSION=4.14 \
     CCACHE_SHA256=b093ac5d38204cb4d9f29b0bbd570675aa5a592a78e6675b2c506dbe045234e7 \
@@ -243,7 +252,17 @@ ENV ARCH=i686-w64-mingw32 \
     CMAKE_WINNT_CXX_FLAGS="-O2 -D_WIN32_WINNT=0x0601" \
     NSIS_ARCH=x86
 
+# Quilt.cpp for the build host, which applies every patch queue below.
+# The same build generates the amalgamation for the distributed quilt.exe.
+FROM base AS host-quilt
+COPY --from=dl-quilt /dl/quilt /dl/quilt
+WORKDIR /x-quilt
+RUN cmake -S /dl/quilt -B . -DCMAKE_BUILD_TYPE=Release \
+ && cmake --build . -j$(nproc) --target quilt amalgam \
+ && install -s quilt /usr/local/bin/
+
 FROM variant-${VARIANT} AS cross
+COPY --from=host-quilt /usr/local/bin/quilt /usr/local/bin/
 
 WORKDIR /dl/binutils
 COPY src/binutils/ $PREFIX/src/binutils/
@@ -650,10 +669,10 @@ RUN ./configure \
         $PREFIX/src/uuidgen.c -lmemory
 
 FROM cross AS build-quilt
-COPY src/quilt.cpp $PREFIX/src/
+COPY --from=host-quilt /x-quilt/quilt.cpp /out/src/
 RUN mkdir -p /out/bin \
  && $ARCH-g++ -std=c++20 -O2 -fno-exceptions -s \
-        -o /out/bin/quilt.exe $PREFIX/src/quilt.cpp
+        -o /out/bin/quilt.exe /out/src/quilt.cpp
 
 # Build PDCurses once and reuse it for both gdb and ccmake.
 FROM cross AS build-pdcurses
@@ -1080,6 +1099,7 @@ COPY --from=dl-vim /dl/*.* /source/
 COPY --from=dl-ctags /dl/*.* /source/
 COPY --from=dl-zstd /dl/*.* /source/
 COPY --from=dl-tugz /dl/*.* /source/
+COPY --from=dl-quilt /dl/*.* /source/
 COPY --from=dl-ccache /dl/*.* /source/
 COPY --from=dl-ninja /dl/*.* /source/
 COPY --from=dl-cmake /dl/*.* /source/
