@@ -1,0 +1,26 @@
+--- a/archival/libarchive/Kbuild.src
++++ b/archival/libarchive/Kbuild.src
+@@ -87,7 +87,7 @@
+ lib-$(CONFIG_MODPROBE_SMALL)            += open_transformer.o
+ 
+ lib-$(CONFIG_FEATURE_SEAMLESS_Z)        += open_transformer.o decompress_uncompress.o
+-lib-$(CONFIG_FEATURE_SEAMLESS_GZ)       += open_transformer.o decompress_gunzip.o
++lib-$(CONFIG_FEATURE_SEAMLESS_GZ)       += open_transformer.o decompress_gunzip_external.o
+ lib-$(CONFIG_FEATURE_SEAMLESS_BZ2)      += open_transformer.o decompress_bunzip2.o
+ lib-$(CONFIG_FEATURE_SEAMLESS_LZMA)     += open_transformer.o decompress_unlzma.o
+ lib-$(CONFIG_FEATURE_SEAMLESS_XZ)       += open_transformer.o decompress_unxz.o
+--- /dev/null
++++ b/archival/libarchive/decompress_gunzip_external.c
+@@ -0,0 +1,12 @@
++#include "libbb.h"
++#include "bb_archive.h"
++
++IF_DESKTOP(long long) int FAST_FUNC
++unpack_gz_stream(transformer_state_t *xstate)
++{
++	/* This runs in a forked child. Exec external gunzip. */
++	xmove_fd(xstate->src_fd, STDIN_FILENO);
++	xmove_fd(xstate->dst_fd, STDOUT_FILENO);
++	execlp("gunzip", "gunzip", (char *)0);
++	bb_perror_msg_and_die("can't execute '%s'", "gunzip");
++}

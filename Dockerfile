@@ -135,6 +135,15 @@ ADD --checksum=sha256:$ZSTD_SHA256 \
 RUN mkdir zstd \
  && tar xzf zstd-$ZSTD_VERSION.tar.gz -C zstd --strip-components=1
 
+FROM base AS dl-tugz
+ARG TUGZ_VERSION=1.0.0 \
+    TUGZ_SHA256=c21a61a06c1ab2ccbbf018fcbf8ec8144483021467fe65aeb7206d014b934dca
+WORKDIR /dl
+ADD --checksum=sha256:$TUGZ_SHA256 \
+    https://github.com/skeeto/tugz/releases/download/v$TUGZ_VERSION/tugz-amalgams-$TUGZ_VERSION.zip ./
+RUN 7z x tugz-amalgams-$TUGZ_VERSION.zip \
+ && mv tugz-amalgams-$TUGZ_VERSION tugz
+
 FROM base AS dl-ccache
 ARG CCACHE_VERSION=4.14 \
     CCACHE_SHA256=b093ac5d38204cb4d9f29b0bbd570675aa5a592a78e6675b2c506dbe045234e7 \
@@ -754,16 +763,16 @@ RUN $ARCH-gcc -Oz -fno-asynchronous-unwind-tables -Wl,--gc-sections -s \
  && printf '%s\n' arch ash awk base32 base64 basename bc bunzip2 bzcat \
       bzip2 cal cat chattr chmod cksum clear cmp comm cp cpio crc32 cut date \
       dc dd df diff dirname dos2unix du echo ed egrep env expand expr factor \
-      false fgrep find fold free fsync getopt grep groups gunzip gzip hd \
-      head hexdump httpd iconv id inotifyd install ipcalc jn join kill killall \
+      false fgrep find fold free fsync getopt grep groups hd head hexdump \
+      httpd iconv id inotifyd install ipcalc jn join kill killall \
       lash less ln logname ls lsattr lzcat lzma lzop lzopcat md5sum mkdir \
       mktemp mv nc nl nproc od paste patch pgrep pidof pipe_progress pkill \
       printenv printf ps pwd readlink realpath reset rev rm rmdir sed seq sh \
       sha1sum sha256sum sha3sum sha512sum shred shuf sleep sort split \
       ssl_client stat su sum sync tac tail tar tee test time timeout touch \
       tr true truncate ts ttysize uname uncompress unexpand uniq unix2dos \
-      unlzma unlzop unxz unzip uptime usleep uudecode uuencode watch \
-      wc wget which whoami whois xargs xz xzcat yes zcat \
+      unlzma unlzop unxz uptime usleep uudecode uuencode watch \
+      wc wget which whoami whois xargs xz xzcat yes \
     | xargs -I{} cp alias.exe /out/bin/{}.exe
 
 FROM cross AS build-vim
@@ -826,6 +835,21 @@ RUN make -j$(nproc) -C programs zstd \
  && $ARCH-gcc -DEXE=zstd.exe -DCMD=unzstd \
         -Oz -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
         -o /out/bin/unzstd.exe $PREFIX/src/alias.c -lkernel32
+
+FROM cross AS build-tugz
+COPY --from=dl-tugz /dl/ /dl/
+
+WORKDIR /dl/tugz
+RUN mkdir -p /out/bin \
+ && printf '%s\n' gzip unzip zip \
+    | xargs -I{} -P$(nproc) \
+          $ARCH-gcc -O2 -nostartfiles -s -o /out/bin/{}.exe {}.c -lmemory \
+ && printf '%s\n' gunzip zcat \
+    | xargs -I{} -P$(nproc) \
+          $ARCH-gcc -DEXE=gzip.exe -DCMD={} \
+            -Oz -fno-asynchronous-unwind-tables \
+            -Wl,--gc-sections -s -nostdlib \
+            -o /out/bin/{}.exe $PREFIX/src/alias.c -lkernel32
 
 FROM cross AS build-ccache
 COPY --from=dl-ccache /dl/ /dl/
@@ -1059,6 +1083,7 @@ COPY --from=dl-busybox /dl/*.* /source/
 COPY --from=dl-vim /dl/*.* /source/
 COPY --from=dl-ctags /dl/*.* /source/
 COPY --from=dl-zstd /dl/*.* /source/
+COPY --from=dl-tugz /dl/*.* /source/
 COPY --from=dl-ccache /dl/*.* /source/
 COPY --from=dl-ninja /dl/*.* /source/
 COPY --from=dl-cmake /dl/*.* /source/
@@ -1080,6 +1105,7 @@ COPY --from=build-busybox /out/ $PREFIX/
 COPY --from=build-vim /out/ $PREFIX/
 COPY --from=build-ctags /out/ $PREFIX/
 COPY --from=build-zstd /out/ $PREFIX/
+COPY --from=build-tugz /out/ $PREFIX/
 COPY --from=build-ccache /out/ $PREFIX/
 COPY --from=build-ninja /out/ $PREFIX/
 COPY --from=build-dcmake /out/ $PREFIX/
