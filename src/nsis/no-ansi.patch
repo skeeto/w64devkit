@@ -15,7 +15,7 @@ shape to the amd64 set.
 
 --- a/SConstruct
 +++ b/SConstruct
-@@ -695,11 +695,6 @@
+@@ -697,11 +697,6 @@
  	if defenv['UNICODE']:
  		BuildStub(stub, False, True)
  		BuildStub(stub, True, True)
@@ -27,7 +27,7 @@ shape to the amd64 set.
  
  defenv.DistributeStubs('Source/exehead/uninst.ico',names='uninst')
  
-@@ -782,8 +777,6 @@
+@@ -784,8 +779,6 @@
  	srcpath = 'Contrib/' + plugin
  	build_dir = '$BUILD_PREFIX/' + plugin
  	pvariants = []

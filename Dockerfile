@@ -216,8 +216,8 @@ RUN mkdir aas-sign \
  && tar xzf aas-sign-$AAS_SIGN_VERSION.tar.gz -C aas-sign --strip-components=1
 
 FROM base AS dl-nsis
-ARG NSIS_VERSION=3.12 \
-    NSIS_SHA256=f3ed7a8e4aa2cf4e8cf47d3b563a02559e0cb4934db2662b2f9661b824e2b186
+ARG NSIS_VERSION=3.13 \
+    NSIS_SHA256=a8ffe024602d46b6d766f9e1ce30c324ad2a24daeacd3efc2642d436a0c157ac
 WORKDIR /dl
 ADD --checksum=sha256:$NSIS_SHA256 \
     https://downloads.sourceforge.net/project/nsis/NSIS%203/$NSIS_VERSION/nsis-$NSIS_VERSION-src.tar.bz2 ./

@@ -35,7 +35,7 @@ skip the Source/Tests SConscript.
  
 --- a/Source/build.cpp
 +++ b/Source/build.cpp
-@@ -3742,7 +3742,9 @@
+@@ -3741,7 +3741,9 @@
      }
    };
    size_t io[] = { false, (size_t) path, pathcap }, cb;
@@ -46,7 +46,7 @@ skip the Source/Tests SConscript.
    PROMPT_FILEPATH_DATA *p = (PROMPT_FILEPATH_DATA*) inputbuf.get();
    p->Platform = (sizeof(void*) * 8) | sizeof(TCHAR), p->Reserved = 0;
    _tcscpy(p->Path, path);
-@@ -4187,7 +4189,9 @@
+@@ -4186,7 +4188,9 @@
  
  CEXEBuild::postbuild_cmd* CEXEBuild::postbuild_cmd::make(const TCHAR *cmdstr, int cmpop, int cmpval)
  {
@@ -79,7 +79,7 @@ skip the Source/Tests SConscript.
  
 --- a/SConstruct
 +++ b/SConstruct
-@@ -540,7 +540,7 @@
+@@ -542,7 +542,7 @@
  		)
  	))
  	# Search for import library of zlib for mingw or VisualC
@@ -88,7 +88,7 @@ skip the Source/Tests SConscript.
  		defenv['ZLIB_W32_LIB'] = os.path.dirname(str(
  			defenv.FindFile(importlib, 
  				[
-@@ -929,20 +929,13 @@
+@@ -931,20 +931,13 @@
  #######  Tests                                                     ###
  ######################################################################
  
