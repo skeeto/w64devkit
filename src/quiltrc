@@ -1,0 +1,6 @@
+# Shared quilt settings for the patch queues under src/, so everyone
+# produces identical patches: quilt --quiltrc path/to/src/quiltrc ...
+# See src/README.md.
+QUILT_NO_DIFF_INDEX=1
+QUILT_NO_DIFF_TIMESTAMPS=1
+QUILT_REFRESH_ARGS="-p ab --diffstat"
