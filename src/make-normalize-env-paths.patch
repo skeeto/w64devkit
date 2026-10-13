@@ -1,0 +1,44 @@
+Normalize backslashes in environment-imported variable values
+
+On Windows, environment variables like VULKAN_SDK, LIB, INCLUDE, etc.
+commonly contain backslash-separated paths (e.g. C:\SDK\Include). When
+GNU Make expands these variables into recipe lines and passes them to a
+unixy shell (BusyBox ash, MSYS2 sh, etc.), the shell interprets each
+backslash as an escape character, silently mangling the paths.
+
+Fix this by normalizing backslashes to forward slashes in all variable
+values imported from the Windows environment, immediately after they are
+stored. Forward slashes are accepted by all Windows APIs and all Windows
+compilers, so this transformation is safe regardless of whether the
+shell in use is unixy or cmd.exe.
+
+This mirrors the behavior of BusyBox-w32 ash, which performs the same
+normalization in setwinxp() when it imports variables from the Windows
+environment into the shell's variable table.
+
+--- a/src/main.c
++++ b/src/main.c
+@@ -1535,6 +1535,23 @@
+ 
+         v = define_variable (envp[i], len, ep, o_env, 1);
+ 
++#ifdef WINDOWS32
++        /* Normalize backslashes to forward slashes in all environment-imported
++           variable values.  On Windows, backslashes in environment variables
++           are virtually always path separators, and all Windows APIs accept
++           forward slashes in their place.  Normalizing here ensures that
++           $(VAR) expansions in recipes already contain forward slashes before
++           the shell sees them, mirroring what BusyBox-w32 ash does in
++           setwinxp() when it imports variables from the Windows environment.  */
++        if (v && v->value)
++          {
++            char *vp;
++            for (vp = v->value; *vp != '\0'; ++vp)
++              if (*vp == '\\')
++                *vp = '/';
++          }
++#endif /* WINDOWS32 */
++
+         /* POSIX says the value of SHELL set in the makefile won't change the
+            value of SHELL given to subprocesses.  */
+         if (streq (v->name, "SHELL"))
