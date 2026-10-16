@@ -136,8 +136,8 @@ RUN mkdir zstd \
  && tar xzf zstd-$ZSTD_VERSION.tar.gz -C zstd --strip-components=1
 
 FROM base AS dl-tugz
-ARG TUGZ_VERSION=1.0.0 \
-    TUGZ_SHA256=c21a61a06c1ab2ccbbf018fcbf8ec8144483021467fe65aeb7206d014b934dca
+ARG TUGZ_VERSION=1.1.0 \
+    TUGZ_SHA256=6bc79c91236353e95148dac68223b003e9b00daa6fb1c18d699a84feaeef2b2e
 WORKDIR /dl
 ADD --checksum=sha256:$TUGZ_SHA256 \
     https://github.com/skeeto/tugz/releases/download/v$TUGZ_VERSION/tugz-amalgams-$TUGZ_VERSION.zip ./
@@ -864,7 +864,11 @@ RUN mkdir -p /out/bin \
           $ARCH-gcc -DEXE=gzip.exe -DCMD={} \
             -Oz -fno-asynchronous-unwind-tables \
             -Wl,--gc-sections -s -nostdlib \
-            -o /out/bin/{}.exe $PREFIX/src/alias.c -lkernel32
+            -o /out/bin/{}.exe $PREFIX/src/alias.c -lkernel32 \
+ && $ARCH-gcc -DEXE=unzip.exe -DCMD=zipinfo \
+        -Oz -fno-asynchronous-unwind-tables \
+        -Wl,--gc-sections -s -nostdlib \
+        -o /out/bin/zipinfo.exe $PREFIX/src/alias.c -lkernel32
 
 FROM cross AS build-ccache
 COPY --from=dl-ccache /dl/ /dl/
