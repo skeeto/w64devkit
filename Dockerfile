@@ -235,6 +235,7 @@ ENV ARCH=x86_64-w64-mingw32 \
     GCC_MANIFEST_FLAG="" \
     BUSYBOX_CONFIG=mingw64u_defconfig \
     ZSTD_THREAD_FLAG="" \
+    ZSTD_CLI_FLAGS=-DZSTDCLI_DECOMPRESS_WINDOWLOG=31 \
     CMAKE_WINNT_C_FLAGS="" \
     CMAKE_WINNT_CXX_FLAGS="" \
     NSIS_ARCH=amd64
@@ -248,6 +249,7 @@ ENV ARCH=i686-w64-mingw32 \
     GCC_MANIFEST_FLAG=--disable-win32-utf8-manifest \
     BUSYBOX_CONFIG=mingw32w_defconfig \
     ZSTD_THREAD_FLAG=HAVE_THREAD=0 \
+    ZSTD_CLI_FLAGS="" \
     CMAKE_WINNT_C_FLAGS="-O2 -D_WIN32_WINNT=0x0601" \
     CMAKE_WINNT_CXX_FLAGS="-O2 -D_WIN32_WINNT=0x0601" \
     NSIS_ARCH=x86
@@ -836,6 +838,10 @@ RUN QUILT_PATCHES=$PREFIX/src/ctags quilt push -a \
 
 FROM cross AS build-zstd
 COPY --from=dl-zstd /dl/ /dl/
+COPY src/zstd/ $PREFIX/src/zstd/
+RUN cd /dl/zstd \
+ && QUILT_PATCHES=$PREFIX/src/zstd quilt push -a \
+ && rm -rf .pc
 
 WORKDIR /dl/zstd/lib
 RUN make -j$(nproc) CC=$ARCH-gcc AR=$ARCH-ar CFLAGS="-O2" libzstd.a \
@@ -844,7 +850,8 @@ RUN make -j$(nproc) CC=$ARCH-gcc AR=$ARCH-ar CFLAGS="-O2" libzstd.a \
 
 WORKDIR /dl/zstd
 RUN make -j$(nproc) -C programs zstd \
-        CC=$ARCH-gcc CFLAGS="-O2" LDFLAGS="-s" EXT=.exe $ZSTD_THREAD_FLAG \
+        CC=$ARCH-gcc CFLAGS="-O2 $ZSTD_CLI_FLAGS" LDFLAGS="-s" EXT=.exe \
+        $ZSTD_THREAD_FLAG \
  && mkdir -p /out/bin \
  && cp programs/zstd.exe /out/bin/ \
  && $ARCH-gcc -DEXE=zstd.exe -DCMD=unzstd \

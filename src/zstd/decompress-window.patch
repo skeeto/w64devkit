@@ -1,0 +1,36 @@
+Configurable default decompression window limit
+
+Without -M/--memory or --long, the zstd CLI refuses to decompress frames
+with a window larger than 128MiB (windowLog 27), requiring --long=30 or
+similar for some files in the wild. Add a ZSTDCLI_DECOMPRESS_WINDOWLOG
+build option raising this default for decompression (and --test) only.
+Compression defaults are unchanged, so outputs remain decodable by other
+zstd builds. The value is clamped to ZSTD_WINDOWLOG_MAX.
+
+---
+ programs/zstdcli.c |    7 +++++++
+ 1 file changed, 7 insertions(+)
+
+--- a/programs/zstdcli.c
++++ b/programs/zstdcli.c
+@@ -84,6 +84,9 @@
+ static const int      g_defaultDictCLevel = 3;
+ static const unsigned g_defaultSelectivityLevel = 9;
+ static const unsigned g_defaultMaxWindowLog = 27;
++#ifndef ZSTDCLI_DECOMPRESS_WINDOWLOG
++#  define ZSTDCLI_DECOMPRESS_WINDOWLOG 27
++#endif
+ #define OVERLAP_LOG_DEFAULT 9999
+ #define LDM_PARAM_DEFAULT 9999  /* Default for parameters where 0 is valid */
+ static U32 g_overlapLog = OVERLAP_LOG_DEFAULT;
+@@ -1572,6 +1575,10 @@
+     if (memLimit == 0) {
+         if (compressionParams.windowLog == 0) {
+             memLimit = (U32)1 << g_defaultMaxWindowLog;
++            if (operation == zom_decompress || operation == zom_test) {
++                unsigned const wlog = ZSTDCLI_DECOMPRESS_WINDOWLOG;
++                memLimit = (U32)1 << MIN(wlog, (unsigned)ZSTD_WINDOWLOG_MAX);
++            }
+         } else {
+             memLimit = (U32)1 << (compressionParams.windowLog & 31);
+     }   }
