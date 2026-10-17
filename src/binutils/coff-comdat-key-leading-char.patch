@@ -1,0 +1,36 @@
+Match COFF COMDAT keys between real objects and LTO IR on i386
+
+The linker deduplicates COMDAT sections by key. For a real COFF
+section the key is its COMDAT symbol name, which on i386 PE carries the
+user label prefix (__ZTISt9bad_alloc). For a symbol from an LTO IR
+object, ld creates a placeholder section named after the COMDAT group
+the compiler reported, which is the group name without any prefix
+(_ZTISt9bad_alloc). The two never match, so whenever a symbol is
+defined both by a regular object and by LTO bytecode, ld reports a
+multiple definition instead of keeping one copy. That is every -flto
+link on i686 once libstdc++ carries bytecode, since libsupc++ and the
+CRT are regular objects that define the same typeinfo and template
+instantiations, and it also breaks linking a plain object into an -flto
+program. x86_64 PE has no prefix and is unaffected.
+
+Strip the target's symbol leading char from keys derived from real
+objects so that they match the compiler's group names.
+
+--- a/bfd/coffgen.c
++++ b/bfd/coffgen.c
+@@ -2803,6 +2803,15 @@
+ 	key = name;
+     }
+ 
++  /* LTO IR plugin sections are keyed by the COMDAT group name as the
++     compiler knows it, without the symbol leading char that COMDAT
++     symbols in real objects carry on targets like i386 PE.  Strip it
++     from keys derived from real objects so both kinds match.  */
++  if ((abfd->flags & BFD_PLUGIN) == 0
++      && key[0] != '\0'
++      && key[0] == bfd_get_symbol_leading_char (abfd))
++    key++;
++
+   already_linked_list = bfd_section_already_linked_table_lookup (key);
+   if (!already_linked_list)
+     goto bad;

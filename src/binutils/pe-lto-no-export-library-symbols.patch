@@ -1,0 +1,295 @@
+Don't export library symbols from DLLs built with LTO
+
+By default a DLL exports every global symbol, minus those from the
+standard libraries, startup objects, and (here) any archive under the
+sysroot, which ld filters by the symbol's archive of origin, and minus
+weak symbols, which is what COMDAT template instantiations are. LTO
+defeated all of that: a DLL using std::string exported 704 symbols
+instead of 2, with every one of them pinned against dead-code
+elimination.
+
+The exports came from the placeholder bfds that stand in for claimed
+IR objects. They stay in the input list after LTO, still listing every
+definition the plugin reported as a strong global, and they have no
+archive to be excluded by. Skip them in the export loop; the definitions
+that survive LTO are in the output objects the plugin added, and only
+those count.
+
+That alone would still export what the compiler keeps global, since ld
+tells the plugin that in a DLL link every symbol may be visible from
+outside. Add an emulation hook consulted during symbol resolution, which
+the PE emulations answer with the same auto-export decision, using the
+IR object's original archive member and treating weak or COMDAT
+definitions as unexportable. A library symbol is then reported as not
+visible, so the compiler localizes and prunes it as it would in an
+executable (the test DLL halves in size), and its export name is
+remembered so that auto-export also rejects the ones that survive as
+globals because regular objects reference them. Symbols listed in a
+.def file remain exported, and dllexport attributes are unaffected since
+the compiler honors them regardless of resolution.
+
+--- a/ld/emultempl/emulation.em
++++ b/ld/emultempl/emulation.em
+@@ -37,6 +37,7 @@
+   ${LDEMUL_ACQUIRE_STRINGS_FOR_CTF-NULL},
+   ${LDEMUL_NEW_DYNSYM_FOR_CTF-NULL},
+   ${LDEMUL_PRINT_SYMBOL-NULL},
+-  ${LDEMUL_FIND_START_SYMBOL-NULL}
++  ${LDEMUL_FIND_START_SYMBOL-NULL},
++  ${LDEMUL_LTO_SYMBOL_VISIBLE-NULL}
+ };
+ EOF
+--- a/ld/emultempl/pe.em
++++ b/ld/emultempl/pe.em
+@@ -1463,6 +1463,17 @@
+ #endif
+ }
+ 
++static bool
++gld${EMULATION_NAME}_lto_symbol_visible (bfd *abfd, const char *name,
++					 bool weak)
++{
++#ifdef DLL_SUPPORT
++  return pe_dll_lto_symbol_visible (abfd, name, weak);
++#else
++  return true;
++#endif
++}
++
+ static void
+ gld${EMULATION_NAME}_after_open (void)
+ {
+@@ -2572,6 +2583,7 @@
+ 
+ LDEMUL_AFTER_PARSE=gld${EMULATION_NAME}_after_parse
+ LDEMUL_BEFORE_PLUGIN_ALL_SYMBOLS_READ=gld${EMULATION_NAME}_before_plugin_all_symbols_read
++LDEMUL_LTO_SYMBOL_VISIBLE=gld${EMULATION_NAME}_lto_symbol_visible
+ LDEMUL_AFTER_OPEN=gld${EMULATION_NAME}_after_open
+ LDEMUL_BEFORE_ALLOCATION=gld${EMULATION_NAME}_before_allocation
+ LDEMUL_FINISH=gld${EMULATION_NAME}_finish
+--- a/ld/emultempl/pep.em
++++ b/ld/emultempl/pep.em
+@@ -1471,6 +1471,17 @@
+ #endif
+ }
+ 
++static bool
++gld${EMULATION_NAME}_lto_symbol_visible (bfd *abfd, const char *name,
++					 bool weak)
++{
++#ifdef DLL_SUPPORT
++  return pep_dll_lto_symbol_visible (abfd, name, weak);
++#else
++  return true;
++#endif
++}
++
+ static void
+ gld${EMULATION_NAME}_after_open (void)
+ {
+@@ -2364,6 +2375,7 @@
+ 
+ LDEMUL_AFTER_PARSE=gld${EMULATION_NAME}_after_parse
+ LDEMUL_BEFORE_PLUGIN_ALL_SYMBOLS_READ=gld${EMULATION_NAME}_before_plugin_all_symbols_read
++LDEMUL_LTO_SYMBOL_VISIBLE=gld${EMULATION_NAME}_lto_symbol_visible
+ LDEMUL_AFTER_OPEN=gld${EMULATION_NAME}_after_open
+ LDEMUL_BEFORE_ALLOCATION=gld${EMULATION_NAME}_before_allocation
+ LDEMUL_FINISH=gld${EMULATION_NAME}_finish
+--- a/ld/ldemul.c
++++ b/ld/ldemul.c
+@@ -74,6 +74,14 @@
+     ld_emulation->before_plugin_all_symbols_read ();
+ }
+ 
++bool
++ldemul_lto_symbol_visible (bfd *abfd, const char *name, bool weak)
++{
++  if (ld_emulation->lto_symbol_visible)
++    return ld_emulation->lto_symbol_visible (abfd, name, weak);
++  return true;
++}
++
+ void
+ ldemul_after_open (void)
+ {
+--- a/ld/ldemul.h
++++ b/ld/ldemul.h
+@@ -34,6 +34,8 @@
+   (void);
+ extern void ldemul_before_plugin_all_symbols_read
+   (void);
++extern bool ldemul_lto_symbol_visible
++  (bfd *, const char *, bool);
+ extern void ldemul_after_open
+   (void);
+ extern void ldemul_after_check_relocs
+@@ -265,6 +267,14 @@
+   struct bfd_link_hash_entry * (*find_alt_start_symbol)
+     (struct bfd_sym_chain *entry);
+ 
++  /* Called during LTO symbol resolution for a symbol defined in IR
++     file ABFD (the archive member when it came from one).  WEAK says
++     whether the definition is weak or in a COMDAT group.  Return false
++     if the symbol could never be visible from outside the output, e.g.
++     because it would not be exported from a DLL, so that the compiler
++     may localize it.  */
++  bool (*lto_symbol_visible) (bfd *abfd, const char *name, bool weak);
++
+ } ld_emulation_xfer_type;
+ 
+ typedef enum {
+--- a/ld/pe-dll.c
++++ b/ld/pe-dll.c
+@@ -41,6 +41,7 @@
+ #include "coff/internal.h"
+ #include "../bfd/libcoff.h"
+ #include "deffile.h"
++#include "hashtab.h"
+ 
+ #ifdef pe_use_plus
+ 
+@@ -612,6 +613,50 @@
+   return (startswith (n, "__imp_"));
+ }
+ 
++/* Names of symbols defined in LTO bytecode that auto-export would have
++   rejected had they come from a regular object, typically members of
++   the standard libraries.  Recorded at symbol resolution, when their
++   origin is still known, and consulted when exporting the LTO output,
++   where it is not.  */
++static htab_t lto_unexported;
++
++static int auto_export (bfd *, def_file *, const char *);
++
++/* Called during LTO symbol resolution for NAME, defined in IR file
++   ABFD, weak or in a COMDAT group if WEAK.  Return whether the symbol
++   could be exported from this DLL.  */
++
++bool
++pe_dll_lto_symbol_visible (bfd *abfd, const char *name, bool weak)
++{
++  if (!bfd_link_dll (&link_info))
++    return true;
++
++  if (pe_def_file == NULL)
++    pe_def_file = def_file_empty ();
++
++  /* Export names, in a .def file and in auto_export below, lack the
++     leading underscore that symbols carry on underscored targets.  */
++  if (pe_details->underscored && name[0] == '_')
++    name++;
++  for (int i = 0; i < pe_def_file->num_exports; i++)
++    if (strcmp (pe_def_file->exports[i].name, name) == 0)
++      return true;
++
++  /* Auto-export skips weak symbols, which is what COMDAT template
++     instantiations are in regular objects; after LTO the prevailing
++     copies would come out strong and be exported instead.  */
++  if (!weak && auto_export (abfd, pe_def_file, name))
++    return true;
++
++  if (lto_unexported == NULL)
++    lto_unexported = htab_create_alloc (1024, htab_hash_string,
++					htab_eq_string, NULL,
++					xcalloc, free);
++  *htab_find_slot (lto_unexported, name, INSERT) = (void *) name;
++  return false;
++}
++
+ /* abfd is a bfd containing n (or NULL)
+    It can be used for contextual checks.  */
+ 
+@@ -623,6 +668,12 @@
+   const autofilter_entry_type *afptr;
+   const char * libname = NULL;
+ 
++  /* Symbols in LTO output have lost their origin; use what symbol
++     resolution recorded about them.  */
++  if (abfd && abfd->lto_output && lto_unexported
++      && htab_find (lto_unexported, n) != NULL)
++    return 0;
++
+   if (abfd && abfd->my_archive)
+     libname = lbasename (bfd_get_filename (abfd->my_archive));
+ 
+@@ -818,6 +869,12 @@
+ 	  asymbol **symbols;
+ 	  int nsyms;
+ 
++	  /* An LTO IR placeholder still lists every symbol the plugin
++	     reported, but the definitions that survive LTO are in the
++	     output objects the plugin added, and only those count.  */
++	  if ((b->flags & BFD_PLUGIN) != 0)
++	    continue;
++
+ 	  if (!bfd_generic_link_read_symbols (b))
+ 	    {
+ 	      fatal (_("%P: %pB: could not read symbols: %E\n"), b);
+--- a/ld/pe-dll.h
++++ b/ld/pe-dll.h
+@@ -46,6 +46,8 @@
+   (const char *);
+ extern void pe_dll_add_excludes
+   (const char *, const exclude_type);
++extern bool pe_dll_lto_symbol_visible
++  (bfd *, const char *, bool);
+ extern void pe_dll_generate_def_file
+   (const char *);
+ extern void pe_dll_generate_implib
+--- a/ld/pep-dll.c
++++ b/ld/pep-dll.c
+@@ -53,6 +53,7 @@
+ #define pe_exe_fill_sections        pep_exe_fill_sections
+ #define pe_dll_generate_implib      pep_dll_generate_implib
+ #define pe_dll_add_excludes         pep_dll_add_excludes
++#define pe_dll_lto_symbol_visible   pep_dll_lto_symbol_visible
+ #define pe_bfd_is_dll		    pep_bfd_is_dll
+ #define pe_output_file_set_long_section_names \
+ 				    pep_output_file_set_long_section_names
+--- a/ld/pep-dll.h
++++ b/ld/pep-dll.h
+@@ -45,6 +45,7 @@
+ 
+ extern void pep_dll_id_target  (const char *);
+ extern void pep_dll_add_excludes  (const char *, const exclude_type);
++extern bool pep_dll_lto_symbol_visible  (bfd *, const char *, bool);
+ extern void pep_dll_generate_def_file  (const char *);
+ extern void pep_dll_generate_implib  (def_file *, const char *, struct bfd_link_info *);
+ extern void pep_process_import_defs  (bfd *, struct bfd_link_info *);
+--- a/ld/plugin.c
++++ b/ld/plugin.c
+@@ -30,6 +30,7 @@
+ #include "ldexp.h"
+ #include "ldlang.h"
+ #include "ldfile.h"
++#include "ldemul.h"
+ #include "plugin-api.h"
+ #include "../bfd/plugin.h"
+ #include "plugin.h"
+@@ -880,6 +881,17 @@
+ 
+       if (res == LDPR_PREVAILING_DEF_IRONLY)
+ 	{
++	  /* Let the emulation rule out visibility from outside, e.g. a
++	     symbol that would never be exported from a DLL.  Ask for every
++	     prevailing IR definition, since the emulation may also use the
++	     answer to filter exports after LTO.  */
++	  bool visible
++	    = ldemul_lto_symbol_visible (input->ibfd ? input->ibfd
++					 : input->abfd,
++					 blhe->root.string,
++					 (syms[n].def == LDPK_WEAKDEF
++					  || syms[n].comdat_key != NULL));
++
+ 	  /* We need to know if the sym is referenced from non-IR files.  Or
+ 	     even potentially-referenced, perhaps in a future final link if
+ 	     this is a partial one, perhaps dynamically at load-time if the
+@@ -891,7 +903,7 @@
+ 	    res = LDPR_PREVAILING_DEF;
+ 	  else if (wrap_status == wrapped)
+ 	    res = LDPR_RESOLVED_IR;
+-	  else if (is_visible_from_outside (&syms[n], blhe))
++	  else if (visible && is_visible_from_outside (&syms[n], blhe))
+ 	    res = def_ironly_exp;
+ 	}
+ 

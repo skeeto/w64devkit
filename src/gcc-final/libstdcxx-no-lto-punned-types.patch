@@ -1,0 +1,97 @@
+Keep libsupc++ and ios_init.cc out of LTO bytecode
+
+Two parts of libstdc++ cannot safely be link-time optimized, even
+though the rest of the library is built as fat LTO objects.
+
+libsupc++ is the C++ runtime proper. Compiler-generated code refers to
+some of its entry points in ways the LTO symbol resolution never sees:
+a must-not-throw landing pad calls __cxa_call_terminate, but that call
+is only materialized late, in pass_lower_resx, after whole-program
+analysis has already dropped the apparently unreferenced definition
+from eh_call.o. An -flto link of a program using <thread> or <format>
+then fails with "defined in discarded section". Compile all of
+libsupc++ without LTO, as libgcc is.
+
+ios_init.cc defines cout, cin, and the other standard streams with
+deliberately unrelated types (character arrays sized and aligned like
+the stream classes) to control their construction. That is a textbook
+ODR violation that the compiler can only see across translation units
+with LTO, and -Wodr then reports every one of them on every -flto link
+that uses iostreams. Keep that one file plain as well.
+
+--- a/libstdc++-v3/libsupc++/Makefile.am
++++ b/libstdc++-v3/libsupc++/Makefile.am
+@@ -199,11 +199,17 @@
+ # 2) Need to explicitly set LTCXXCOMPILE so that EXTRA_CXX_FLAGS is
+ # last. (That way, things like -O2 passed down from the toplevel can
+ # be overridden by --enable-debug.)
++#
++# Never compile the C++ runtime to LTO bytecode: compiler-generated code
++# refers to some of its entry points (e.g. __cxa_call_terminate from
++# must-not-throw landing pads) only after whole-program analysis, by
++# which time the linker plugin may have discarded the definition.
+ LTCXXCOMPILE = \
+ 	$(LIBTOOL) --tag CXX --tag disable-shared \
+ 	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
+ 	--mode=compile $(CXX) $(TOPLEVEL_INCLUDES) \
+-	$(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) $(EXTRA_CXX_FLAGS)
++	$(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) $(EXTRA_CXX_FLAGS) \
++	-fno-lto
+ 
+ LTLDFLAGS = $(shell $(SHELL) $(top_srcdir)/../libtool-ldflags $(LDFLAGS))
+ 
+--- a/libstdc++-v3/libsupc++/Makefile.in
++++ b/libstdc++-v3/libsupc++/Makefile.in
+@@ -639,11 +639,17 @@
+ # 2) Need to explicitly set LTCXXCOMPILE so that EXTRA_CXX_FLAGS is
+ # last. (That way, things like -O2 passed down from the toplevel can
+ # be overridden by --enable-debug.)
++#
++# Never compile the C++ runtime to LTO bytecode: compiler-generated code
++# refers to some of its entry points (e.g. __cxa_call_terminate from
++# must-not-throw landing pads) only after whole-program analysis, by
++# which time the linker plugin may have discarded the definition.
+ LTCXXCOMPILE = \
+ 	$(LIBTOOL) --tag CXX --tag disable-shared \
+ 	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
+ 	--mode=compile $(CXX) $(TOPLEVEL_INCLUDES) \
+-	$(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) $(EXTRA_CXX_FLAGS)
++	$(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) $(EXTRA_CXX_FLAGS) \
++	-fno-lto
+ 
+ LTLDFLAGS = $(shell $(SHELL) $(top_srcdir)/../libtool-ldflags $(LDFLAGS))
+ 
+--- a/libstdc++-v3/src/c++98/Makefile.am
++++ b/libstdc++-v3/src/c++98/Makefile.am
+@@ -200,6 +200,14 @@
+ parallel_settings.o: parallel_settings.cc
+ 	$(CXXCOMPILE) $(PARALLEL_FLAGS) -c $<
+ 
++# ios_init.cc deliberately defines the standard streams with types
++# unrelated to their declarations, so keep it out of LTO bytecode, where
++# -Wodr would report them on every link.
++ios_init.lo: ios_init.cc
++	$(LTCXXCOMPILE) -fno-lto -c $<
++ios_init.o: ios_init.cc
++	$(CXXCOMPILE) -fno-lto -c $<
++
+ # AM_CXXFLAGS needs to be in each subdirectory so that it can be
+ # modified in a per-library or per-sub-library way.  Need to manually
+ # set this option because CONFIG_CXXFLAGS has to be after
+--- a/libstdc++-v3/src/c++98/Makefile.in
++++ b/libstdc++-v3/src/c++98/Makefile.in
+@@ -913,6 +913,14 @@
+ parallel_settings.o: parallel_settings.cc
+ 	$(CXXCOMPILE) $(PARALLEL_FLAGS) -c $<
+ 
++# ios_init.cc deliberately defines the standard streams with types
++# unrelated to their declarations, so keep it out of LTO bytecode, where
++# -Wodr would report them on every link.
++ios_init.lo: ios_init.cc
++	$(LTCXXCOMPILE) -fno-lto -c $<
++ios_init.o: ios_init.cc
++	$(CXXCOMPILE) -fno-lto -c $<
++
+ # Tell versions [3.59,3.63) of GNU make to not export all variables.
+ # Otherwise a system limit (for SysV at least) may be exceeded.
+ .NOEXPORT:
