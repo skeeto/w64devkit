@@ -233,6 +233,7 @@ ENV ARCH=x86_64-w64-mingw32 \
     CRT_LIB32=enable \
     CRT_LIB64=enable \
     GCC_MANIFEST_FLAG="" \
+    LARGE_ADDRESS_FLAG="" \
     BUSYBOX_CONFIG=mingw64u_defconfig \
     ZSTD_THREAD_FLAG="" \
     ZSTD_CLI_FLAGS=-DZSTDCLI_DECOMPRESS_WINDOWLOG=31 \
@@ -247,6 +248,7 @@ ENV ARCH=i686-w64-mingw32 \
     CRT_LIB32=enable \
     CRT_LIB64=disable \
     GCC_MANIFEST_FLAG=--disable-win32-utf8-manifest \
+    LARGE_ADDRESS_FLAG=-Wl,--large-address-aware \
     BUSYBOX_CONFIG=mingw32w_defconfig \
     ZSTD_THREAD_FLAG=HAVE_THREAD=0 \
     ZSTD_CLI_FLAGS="" \
@@ -418,7 +420,7 @@ RUN /dl/binutils/configure \
         --disable-nls \
         --with-static-standard-libraries \
         CFLAGS="-O2" \
-        LDFLAGS="-s" \
+        LDFLAGS="-s $LARGE_ADDRESS_FLAG" \
  && make MAKEINFO=true tooldir=$PREFIX -j$(nproc) \
  && make MAKEINFO=true tooldir=$PREFIX install \
  && rm $PREFIX/bin/dllwrap.exe $PREFIX/bin/elfedit.exe $PREFIX/bin/readelf.exe
@@ -571,7 +573,7 @@ RUN (cd /dl/gcc \
         LDFLAGS_FOR_TARGET="-s" \
         CFLAGS="-O2" \
         CXXFLAGS="-O2" \
-        LDFLAGS="-s" \
+        LDFLAGS="-s $LARGE_ADDRESS_FLAG" \
  && make -j$(nproc) \
  && make install \
  && rm -f $PREFIX/bin/ld.bfd.exe \
@@ -727,7 +729,7 @@ RUN (cd /dl/gdb \
         --enable-tui \
         CFLAGS="-std=gnu17 -O2 -D__MINGW_USE_VC2005_COMPAT -DPDC_WIDE -I/deps/include" \
         CXXFLAGS="-O2 -D__MINGW_USE_VC2005_COMPAT -DPDC_WIDE -I/deps/include" \
-        LDFLAGS="-s -L/deps/lib" \
+        LDFLAGS="-s -L/deps/lib $LARGE_ADDRESS_FLAG" \
  && make MAKEINFO=true -j$(nproc) \
  && mkdir -p /out/bin \
  && cp gdb/.libs/gdb.exe gdbserver/gdbserver.exe /out/bin/
@@ -850,7 +852,8 @@ RUN make -j$(nproc) CC=$ARCH-gcc AR=$ARCH-ar CFLAGS="-O2" libzstd.a \
 
 WORKDIR /dl/zstd
 RUN make -j$(nproc) -C programs zstd \
-        CC=$ARCH-gcc CFLAGS="-O2 $ZSTD_CLI_FLAGS" LDFLAGS="-s" EXT=.exe \
+        CC=$ARCH-gcc CFLAGS="-O2 $ZSTD_CLI_FLAGS" \
+        LDFLAGS="-s $LARGE_ADDRESS_FLAG" EXT=.exe \
         $ZSTD_THREAD_FLAG \
  && mkdir -p /out/bin \
  && cp programs/zstd.exe /out/bin/ \
@@ -865,7 +868,8 @@ WORKDIR /dl/tugz
 RUN mkdir -p /out/bin \
  && printf '%s\n' gzip unzip zip \
     | xargs -I{} -P$(nproc) \
-          $ARCH-gcc -O2 -nostartfiles -s -o /out/bin/{}.exe {}.c -lmemory \
+          $ARCH-gcc -O2 -nostartfiles -s $LARGE_ADDRESS_FLAG \
+            -o /out/bin/{}.exe {}.c -lmemory \
  && printf '%s\n' gunzip zcat \
     | xargs -I{} -P$(nproc) \
           $ARCH-gcc -DEXE=gzip.exe -DCMD={} \
