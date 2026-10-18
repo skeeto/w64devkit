@@ -1,0 +1,43 @@
+Keep long long locals 8-byte aligned on i686 Windows. GCC 16 lowered
+the default preferred stack boundary for 32-bit cygming targets to 4
+bytes. With a 4-byte boundary, the i386 back end lowers the alignment
+of long long locals to 4 bytes to avoid dynamic stack realignment, both
+when laying out declarations (ix86_local_alignment) and when deciding
+whether a frame needs realignment (ix86_minimum_alignment). That is
+valid for the System V i386 ABI, where long long has 4-byte ABI
+alignment, but these targets default to -malign-double, so
+_Alignof(long long) is 8. Lowering then places objects below their
+type's alignment, and -fsanitize=alignment traps on them:
+
+    void store(long long *p) { *p = 1; }
+    void f(void) { long long x; store(&x); }  // &x % 8 == 4
+
+Doubles and address-taken long long parameters are already realigned;
+this treats long long locals the same way whenever -malign-double is in
+effect. Spill slots that are not visible to the program are realigned
+too, but the cost is small: on zstd and xxHash at -O2, about 0.6% more
+instructions.
+
+--- a/gcc/config/i386/i386.cc
++++ b/gcc/config/i386/i386.cc
+@@ -18763,7 +18763,7 @@
+   /* Don't do dynamic stack realignment for long long objects with
+      -mpreferred-stack-boundary=2.  */
+   if (may_lower
+-      && !TARGET_64BIT
++      && !TARGET_64BIT && !TARGET_ALIGN_DOUBLE
+       && align == 64
+       && ix86_preferred_stack_boundary < 64
+       && (mode == DImode || (type && TYPE_MODE (type) == DImode))
+@@ -18873,7 +18873,10 @@
+       decl = NULL;
+     }
+ 
+-  if (TARGET_64BIT || align != 64 || ix86_preferred_stack_boundary >= 64)
++  /* With -malign-double the ABI alignment of long long is 64 bits, so
++     it cannot be lowered (see x86_field_alignment).  */
++  if (TARGET_64BIT || TARGET_ALIGN_DOUBLE
++      || align != 64 || ix86_preferred_stack_boundary >= 64)
+     return align;
+ 
+   /* Don't do dynamic stack realignment for long long objects with
