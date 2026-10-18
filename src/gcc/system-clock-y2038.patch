@@ -1,0 +1,54 @@
+libstdc++: read system_clock directly from Windows
+
+On mingw-w64 libstdc++ implements system_clock::now() with gettimeofday,
+whose timeval has a long tv_sec. long is 32 bits on Windows, including
+x86_64, so system_clock overflows in January 2038 no matter how time_t is
+configured. steady_clock is derived from system_clock on this target and
+fails along with it.
+
+Read the time with GetSystemTimePreciseAsFileTime when available,
+falling back to GetSystemTimeAsFileTime on older systems, the same
+choice mingw-w64 makes for gettimeofday.
+
+--- a/libstdc++-v3/src/c++11/chrono.cc
++++ b/libstdc++-v3/src/c++11/chrono.cc
+@@ -37,6 +37,11 @@
+ #include <sys/syscall.h>
+ #endif
+ 
++#if defined(_WIN32) && !defined(__CYGWIN__)
++#define WIN32_LEAN_AND_MEAN
++#include <windows.h>
++#endif
++
+ namespace std _GLIBCXX_VISIBILITY(default)
+ {
+ _GLIBCXX_BEGIN_NAMESPACE_VERSION
+@@ -50,7 +55,26 @@
+     system_clock::time_point
+     system_clock::now() noexcept
+     {
+-#ifdef _GLIBCXX_USE_CLOCK_REALTIME
++#if defined(_WIN32) && !defined(__CYGWIN__)
++      // gettimeofday's timeval has a 32-bit tv_sec (long) on Windows,
++      // which overflows in 2038, so read the system time directly.
++      // GetSystemTimePreciseAsFileTime requires Windows 8.
++      using get_time_t = void (WINAPI *)(LPFILETIME);
++      static const get_time_t get_time = [] {
++	FARPROC proc = GetProcAddress(GetModuleHandleW(L"kernel32.dll"),
++				      "GetSystemTimePreciseAsFileTime");
++	return proc
++	  ? reinterpret_cast<get_time_t>(reinterpret_cast<void (*)()>(proc))
++	  : GetSystemTimeAsFileTime;
++      }();
++      FILETIME ft;
++      get_time(&ft);
++      // 100ns intervals since 1601-01-01, the Unix epoch being
++      // 11644473600 seconds later.
++      long long ticks = (long long)ft.dwHighDateTime << 32 | ft.dwLowDateTime;
++      ticks -= 116444736000000000LL;
++      return time_point(duration(chrono::nanoseconds(ticks * 100)));
++#elif defined(_GLIBCXX_USE_CLOCK_REALTIME)
+       timespec tp;
+       // -EINVAL, -EFAULT
+ #ifdef _GLIBCXX_USE_CLOCK_GETTIME_SYSCALL
