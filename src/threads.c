@@ -1,7 +1,13 @@
 // C11 threads implementation for w64devkit
 // This is free and unencumbered software released into the public domain.
+#ifdef __i386__
+// Compile the plain functions for 32-bit time_t, and define the 64-bit
+// time_t variants explicitly at the end. See threads.h.
+#  define _USE_32BIT_TIME_T
+#endif
 #include <threads.h>
 #include <time.h>
+#include <sys/timeb.h>
 
 typedef __UINTPTR_TYPE__ uz;
 typedef __INT32_TYPE__   i32;
@@ -81,19 +87,24 @@ thrd_t thrd_current()
     return (thrd_t){0, GetCurrentThreadId()};
 }
 
-int thrd_sleep(const struct timespec *d, struct timespec *r)
+static void sleep_for(i64 sec, i64 nsec)
 {
     // Convert to milliseconds with overflow detection. If the duration
     // doesn't fit in i32 (or the math overflows), degrade to an infinite
     // sleep — no real program will run long enough to notice the difference.
     i64 ms;
     i32 timeout = -1;
-    if (!__builtin_mul_overflow((i64)d->tv_sec, (i64)1000, &ms) &&
-        !__builtin_add_overflow(ms, (i64)((d->tv_nsec + 999999)/1000000), &ms)) {
+    if (!__builtin_mul_overflow(sec, (i64)1000, &ms) &&
+        !__builtin_add_overflow(ms, (nsec + 999999)/1000000, &ms)) {
         if (ms < 0)           ms = 0;
         if (ms <= 0x7fffffff) timeout = (i32)ms;
     }
     Sleep(timeout);
+}
+
+int thrd_sleep(const struct timespec *d, struct timespec *r)
+{
+    sleep_for(d->tv_sec, d->tv_nsec);
     if (r) {
         r->tv_sec  = 0;
         r->tv_nsec = 0;
@@ -204,7 +215,7 @@ int cnd_wait(cnd_t *c, mtx_t *m)
     return thrd_success;
 }
 
-int cnd_timedwait(cnd_t *c, mtx_t *m, const struct timespec *abs)
+static int timedwait(cnd_t *c, mtx_t *m, i64 sec, i64 nsec)
 {
     // FILETIME is 100ns ticks since 1601-01-01 UTC.
     // Unix epoch (1970-01-01) is 11644473600 seconds later:
@@ -216,8 +227,8 @@ int cnd_timedwait(cnd_t *c, mtx_t *m, const struct timespec *abs)
     GetSystemTimeAsFileTime(&now);
     i64 abs_ft;
     i32 timeout = -1;
-    if (!__builtin_mul_overflow((i64)abs->tv_sec, (i64)10000000, &abs_ft) &&
-        !__builtin_add_overflow(abs_ft, (i64)(abs->tv_nsec/100), &abs_ft) &&
+    if (!__builtin_mul_overflow(sec, (i64)10000000, &abs_ft) &&
+        !__builtin_add_overflow(abs_ft, nsec/100, &abs_ft) &&
         !__builtin_add_overflow(abs_ft, (i64)116444736000000000, &abs_ft)) {
         i64 diff = abs_ft - (i64)now;
         i64 ms   = diff <= 0 ? 0 : diff/10000;
@@ -227,6 +238,11 @@ int cnd_timedwait(cnd_t *c, mtx_t *m, const struct timespec *abs)
         return thrd_timedout;
     }
     return thrd_success;
+}
+
+int cnd_timedwait(cnd_t *c, mtx_t *m, const struct timespec *abs)
+{
+    return timedwait(c, m, abs->tv_sec, abs->tv_nsec);
 }
 
 void cnd_destroy(cnd_t *)
@@ -255,3 +271,25 @@ void tss_delete(tss_t key)
 {
     FlsFree(key.__);
 }
+
+#ifdef __i386__
+int thrd_sleep64(const struct _timespec64 *d, struct _timespec64 *r)
+{
+    sleep_for(d->tv_sec, d->tv_nsec);
+    if (r) {
+        r->tv_sec  = 0;
+        r->tv_nsec = 0;
+    }
+    return 0;
+}
+
+int mtx_timedlock64(mtx_t *, const struct _timespec64 *)
+{
+    __builtin_trap();
+}
+
+int cnd_timedwait64(cnd_t *c, mtx_t *m, const struct _timespec64 *abs)
+{
+    return timedwait(c, m, abs->tv_sec, abs->tv_nsec);
+}
+#endif
