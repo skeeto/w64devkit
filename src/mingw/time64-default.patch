@@ -1,0 +1,22 @@
+headers: default to 64-bit time_t on x86 msvcrt
+
+On i686 with msvcrt, mingw-w64 defaults to a 32-bit time_t, so ordinary
+programs built today stop working in January 2038. Default to 64-bit
+time_t instead, as UCRT and MSVC already do. The 64-bit time functions
+come from libmsvcrt-os.a emulation on top of XP-era imports, so this
+does not raise the minimum Windows version.
+
+Programs can still request 32-bit time_t with _TIME_BITS=32 or by
+defining _USE_32BIT_TIME_T. __MINGW_USE_VC2005_COMPAT is now redundant.
+
+--- a/mingw-w64-headers/crt/_mingw.h.in
++++ b/mingw-w64-headers/crt/_mingw.h.in
+@@ -394,7 +394,7 @@
+
+ #ifndef __WIDL__
+
+-#if defined (_WIN32) && !defined (_WIN64) && !defined (__MINGW_USE_VC2005_COMPAT) && !defined (_UCRT) && !(defined (_TIME_BITS) && _TIME_BITS == 64)
++#if defined (_WIN32) && !defined (_WIN64) && !defined (_UCRT) && defined (_TIME_BITS) && _TIME_BITS == 32
+ #ifndef _USE_32BIT_TIME_T
+ #define _USE_32BIT_TIME_T
+ #endif
