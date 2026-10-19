@@ -154,6 +154,21 @@ jobs:
           VERSION=${GITHUB_REF_NAME#v}
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
+      # Checkout leaves a lightweight tag, so re-fetch the annotated tag
+      # to read its message. The body omits the "Release vX.Y.Z" subject
+      # and the signature. Do this before the slow builds to fail early.
+      - name: Release notes from the tag
+        run: |
+          git fetch --force origin \
+              "refs/tags/$GITHUB_REF_NAME:refs/tags/$GITHUB_REF_NAME"
+          git tag -l --format='%(contents:body)' "$GITHUB_REF_NAME" \
+              >"$RUNNER_TEMP/notes.md"
+          if ! grep -q '[^[:space:]]' "$RUNNER_TEMP/notes.md"; then
+              echo "::error::tag $GITHUB_REF_NAME has no message body"
+              exit 1
+          fi
+          cat "$RUNNER_TEMP/notes.md"
+
       - name: Build signed image (x64)
         uses: docker/build-push-action@v7
         with:
@@ -216,6 +231,7 @@ jobs:
           gh release create "$GITHUB_REF_NAME" \
             --repo "$GITHUB_REPOSITORY" \
             --title "$VERSION" \
+            --notes-file "$RUNNER_TEMP/notes.md" \
             "${FLAGS[@]}" \
             w64devkit-*.7z.exe \
             source.tar
