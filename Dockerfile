@@ -1210,6 +1210,8 @@ RUN printf "id ICON \"$PREFIX/src/w64devkit.ico\"" >w64devkit.rc \
         -Oz -fno-asynchronous-unwind-tables -fno-builtin -Wl,--gc-sections \
         -s -nostdlib -o $PREFIX/bin/make2compdb.exe $PREFIX/src/make2compdb.c \
         -lkernel32 -lshell32 -lmemory \
+ && $ARCH-gcc -nostartfiles -O2 -s -o $PREFIX/bin/nroff.exe \
+        $PREFIX/src/nroff.c -lmemory \
  && sed -i s/'\<ARCH\>'/$ARCH/g $PREFIX/etc/profile \
  && mkdir -p $PREFIX/lib/pkgconfig \
  && cp /dl/mingw/COPYING.MinGW-w64-runtime/COPYING.MinGW-w64-runtime.txt \

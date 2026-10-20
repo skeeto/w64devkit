@@ -215,6 +215,10 @@ libraries have paths containing spaces.
   debugger, like using Windows' F12 debugger hotkey. Especially useful for
   console subsystem programs.
 
+* `nroff`: formats man(7) and mdoc(7) manual pages, including tbl tables,
+  for the terminal. A small, self-contained stand-in for groff behind
+  `man`, closely matching its layout. Use `-w` to check your own pages.
+
 ## Notes
 
 `$HOME` can be set through the adjacent `w64devkit.ini` configuration, and
