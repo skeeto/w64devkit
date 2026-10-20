@@ -160,6 +160,9 @@ w64devkit's capabilities. In rough order of importance:
 * [C Standards][doc-std-c] and [C++ Standards][doc-std-cpp] (drafts), for
   figuring out how corner cases are intended to work.
 
+* [The Open Group Base Specifications][sus]: Official specifications for
+  unix utilities and functions, particularly the shell command language.
+
 * [Intel Intrinsics Guide][doc-intr] (interactive HTML), a great resource
   when working with SIMD intrinsics. (Search for "Download" on the left.)
 
@@ -293,6 +296,7 @@ binaries.
 [nsis]: https://nsis.sourceforge.io/
 [san2]: https://groups.google.com/forum/#!topic/address-sanitizer/q0e5EBVKZT4
 [san]: http://mingw-w64.org/doku.php/contribute#sanitizers_asan_tsan_usan
+[sus]: https://pubs.opengroup.org/onlinepubs/9799919799/download/
 [vim]: https://www.vim.org/
 [w64]: http://mingw-w64.org/
 [w64devkit]: https://github.com/skeeto/w64devkit
