@@ -129,9 +129,19 @@ later, does not implement recursive or timed locks, and just like MSVC,
 this handle to join or detach will trap. Also like MSVC, `mtx_t` and
 `cnd_t` support zero-initialization and their destructors are no-ops.
 
+## Manual pages
+
+w64devkit includes manual pages for its commands: GCC, Binutils, GDB,
+Make, CMake, Ccache, ctags, Vim, the BusyBox utilities, and w64devkit's
+own tools. Read them with `man`, e.g. `man gcc` or `man 7 cmake-commands`,
+including for prefixed names like `x86_64-w64-mingw32-ld`. Pages are
+formatted by w64devkit's own `nroff`, which also displays pages that are
+not installed: `man ./page.1`. Set `MANPATH` to add directories of your
+own pages, organized like `share/man`.
+
 ## Recommended downloadable, offline documentation
 
-With a few exceptions, such as Vim's built-in documentation (`:help`),
+Beyond its manual pages and Vim's built-in documentation (`:help`),
 w64devkit does not include documentation. However, you need not forgo
 offline documentation alongside your offline development tools. This is a
 list of recommended, no-cost, downloadable documentation complementing
@@ -158,9 +168,6 @@ w64devkit's capabilities. In rough order of importance:
 * [GNU Binutils manuals][doc-ld] (PDF, HTML), particularly `ld` and `as`.
 
 * [GDB manual][doc-gdb] (PDF)
-
-* [BusyBox man pages][doc-bb] (TXT), though everything here is also
-  available via `-h` option inside w64devkit.
 
 * [Intel Software Developer Manuals][doc-intel] (PDF), for referencing x86
   instructions, when either studying compiler output with `objdump` or
@@ -264,7 +271,6 @@ binaries.
 [dcmake]: https://github.com/skeeto/dcmake
 [ctags]: https://github.com/universal-ctags/ctags
 [debugbreak]: https://nullprogram.com/blog/2022/07/31/
-[doc-bb]: https://busybox.net/downloads/BusyBox.txt
 [doc-cpp]: https://en.cppreference.com/w/Cppreference:Archives
 [doc-gcc]: https://gcc.gnu.org/onlinedocs/
 [doc-gdb]: https://sourceware.org/gdb/current/onlinedocs/gdb.pdf

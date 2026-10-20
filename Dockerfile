@@ -124,7 +124,8 @@ ADD --checksum=sha256:$CTAGS_SHA256 \
     https://github.com/universal-ctags/ctags/archive/refs/tags/v$CTAGS_VERSION.tar.gz \
     ctags-$CTAGS_VERSION.tar.gz
 RUN mkdir ctags \
- && tar xzf ctags-$CTAGS_VERSION.tar.gz -C ctags --strip-components=1
+ && tar xzf ctags-$CTAGS_VERSION.tar.gz -C ctags --strip-components=1 \
+ && echo $CTAGS_VERSION >ctags/.version
 
 FROM base AS dl-zstd
 ARG ZSTD_VERSION=1.5.7 \
@@ -175,6 +176,7 @@ ADD --checksum=sha256:$XXHASH_SHA256 \
     xxHash-$XXHASH_VERSION.tar.gz
 RUN mkdir ccache \
  && tar xJf ccache-$CCACHE_VERSION.tar.xz -C ccache --strip-components=1 \
+ && echo $CCACHE_VERSION >ccache/.version \
  && mkdir xxhash \
  && tar xzf xxHash-$XXHASH_VERSION.tar.gz -C xxhash --strip-components=1
 
@@ -757,8 +759,11 @@ RUN (cd /dl/gdb \
         CXXFLAGS="-O2 -D__MINGW_USE_VC2005_COMPAT -DPDC_WIDE -I/deps/include" \
         LDFLAGS="-s -L/deps/lib $LARGE_ADDRESS_FLAG" \
  && make MAKEINFO=true -j$(nproc) \
- && mkdir -p /out/bin \
- && cp gdb/.libs/gdb.exe gdbserver/gdbserver.exe /out/bin/
+ && mkdir -p /out/bin /out/share/man/man1 /out/share/man/man5 \
+ && cp gdb/.libs/gdb.exe gdbserver/gdbserver.exe /out/bin/ \
+ && cp /dl/gdb/gdb/doc/gdb.1 /dl/gdb/gdb/doc/gdbserver.1 \
+       /out/share/man/man1/ \
+ && cp /dl/gdb/gdb/doc/gdbinit.5 /out/share/man/man5/
 
 FROM cross AS build-make
 COPY --from=dl-make /dl/ /dl/
@@ -774,8 +779,9 @@ RUN (cd /dl/make \
         CFLAGS="-std=gnu17 -O2" \
         LDFLAGS="-s" \
  && make -j$(nproc) \
- && mkdir -p /out/bin \
+ && mkdir -p /out/bin /out/share/man/man1 \
  && cp make.exe /out/bin/ \
+ && cp /dl/make/doc/make.1 /out/share/man/man1/ \
  && $ARCH-gcc -DEXE=make.exe -DCMD=make \
         -Oz -fno-asynchronous-unwind-tables \
         -Wl,--gc-sections -s -nostdlib \
@@ -881,8 +887,9 @@ RUN make -j$(nproc) -C programs zstd \
         CC=$ARCH-gcc CFLAGS="-O2 $ZSTD_CLI_FLAGS" \
         LDFLAGS="-s $LARGE_ADDRESS_FLAG" EXT=.exe \
         $ZSTD_THREAD_FLAG \
- && mkdir -p /out/bin \
+ && mkdir -p /out/bin /out/share/man/man1 \
  && cp programs/zstd.exe /out/bin/ \
+ && cp programs/zstd.1 /out/share/man/man1/ \
  && $ARCH-gcc -DEXE=zstd.exe -DCMD=unzstd \
         -Oz -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
         -o /out/bin/unzstd.exe $PREFIX/src/alias.c -lkernel32
@@ -1131,6 +1138,36 @@ RUN if [ "$GCC_MULTILIB" = enable ]; then \
             install-stubs install-plugins ; \
     fi
 
+# Manual pages that need documentation tools to generate: ctags (docutils),
+# CMake (Sphinx), and ccache (asciidoctor). The tools stay in this stage.
+FROM base AS docs
+RUN apt-get update \
+ && apt-get install --yes --no-install-recommends \
+      asciidoctor python3-docutils python3-sphinx \
+ && rm -rf /var/lib/apt/lists/*
+COPY --from=dl-ctags /dl/ctags /dl/ctags
+COPY --from=dl-cmake /dl/cmake /dl/cmake
+COPY --from=dl-ccache /dl/ccache /dl/ccache
+RUN mkdir -p /out/share/man/man1 /out/share/man/man5 /out/share/man/man7 \
+ && version=$(cat /dl/ctags/.version) \
+ && for f in /dl/ctags/man/*.rst.in; do \
+        page=$(basename $f .rst.in) \
+     && case $page in readtags.1) continue;; esac \
+     && rst2man --syntax-highlight=none $f \
+        | sed -e s/@CTAGS_NAME_EXECUTABLE@/ctags/g \
+              -e s/@ETAGS_NAME_EXECUTABLE@/etags/g \
+              -e s/@VERSION@/$version/g \
+        >/out/share/man/man${page##*.}/$page ; \
+    done
+RUN VERBOSE=1 cmake -S /dl/cmake/Utilities/Sphinx -B /x-cmake-doc -DSPHINX_MAN=ON \
+ && VERBOSE=1 cmake --build /x-cmake-doc \
+ && rm /x-cmake-doc/man/cmake-gui.1 \
+ && cp /x-cmake-doc/man/*.1 /out/share/man/man1/ \
+ && cp /x-cmake-doc/man/*.7 /out/share/man/man7/
+WORKDIR /dl/ccache
+RUN bash doc/scripts/generate-manpage asciidoctor '' doc/ccache-doc.css \
+        $(cat .version) doc/manual.adoc /out/share/man/man1/ccache.1
+
 # Collect source tarballs
 FROM base AS source
 COPY --from=dl-cross /dl/*.* /source/
@@ -1174,12 +1211,19 @@ COPY --from=build-cmake /out$PREFIX/ $PREFIX/
 COPY --from=build-7z /dl/7z/7z.sfx /7z/
 COPY --from=build-nsis /out$PREFIX/ $PREFIX/
 COPY --from=build-aas-sign-w32 /out$PREFIX/ $PREFIX/
+COPY --from=docs /out/ $PREFIX/
 
 COPY src $PREFIX/src
 COPY etc $PREFIX/etc
 
 WORKDIR /
-RUN rm -rf $PREFIX/share/man/ $PREFIX/share/info/ $PREFIX/share/gcc-*
+# Binutils installs pages for its ELF tools, which are removed above, and
+# some installs leave empty section directories (man3).
+RUN rm -rf $PREFIX/share/info/ $PREFIX/share/gcc-* \
+ && rm $PREFIX/share/man/man1/readelf.1 $PREFIX/share/man/man1/elfedit.1 \
+ && find $PREFIX/share/man -type d -empty -delete
+# Hand-written pages, and alias stubs replacing installed copies (g++.1)
+COPY man/man1/ $PREFIX/share/man/man1/
 COPY README.md Dockerfile w64devkit.ini $PREFIX/
 RUN printf "id ICON \"$PREFIX/src/w64devkit.ico\"" >w64devkit.rc \
  && $ARCH-windres -o w64devkit.o w64devkit.rc \
@@ -1212,6 +1256,10 @@ RUN printf "id ICON \"$PREFIX/src/w64devkit.ico\"" >w64devkit.rc \
         -lkernel32 -lshell32 -lmemory \
  && $ARCH-gcc -nostartfiles -O2 -s -o $PREFIX/bin/nroff.exe \
         $PREFIX/src/nroff.c -lmemory \
+ && printf '.so man1/gcc.1\n' \
+        >$PREFIX/share/man/man1/gcc-$($ARCH-gcc -dumpversion).1 \
+ && ! grep -L -e '^\.TH' -e '^\.Dd' -e '^\.so ' $PREFIX/share/man/man*/* \
+      | grep . \
  && sed -i s/'\<ARCH\>'/$ARCH/g $PREFIX/etc/profile \
  && mkdir -p $PREFIX/lib/pkgconfig \
  && cp /dl/mingw/COPYING.MinGW-w64-runtime/COPYING.MinGW-w64-runtime.txt \
