@@ -145,8 +145,8 @@ RUN mkdir tugz \
  && tar xzf tugz-$TUGZ_VERSION.tar.gz -C tugz --strip-components=1
 
 FROM base AS dl-quilt
-ARG QUILT_VERSION=0.69.3 \
-    QUILT_SHA256=893973b92ca541d85b86a389a1ba43528ca48ec40e2b19b127c3660a4ffcfaed
+ARG QUILT_VERSION=0.69.4 \
+    QUILT_SHA256=21fd1d0a9710850cdde64f9fc5c8ebc42b7e3a34458bdf84dc04d9042d696541
 WORKDIR /dl
 ADD --checksum=sha256:$QUILT_SHA256 \
     https://github.com/skeeto/quilt.cpp/releases/download/v$QUILT_VERSION/quilt-$QUILT_VERSION.tar.gz ./
@@ -674,6 +674,7 @@ RUN ./configure \
 
 FROM cross AS build-quilt
 COPY --from=host-quilt /x-quilt/quilt.cpp /out/src/
+COPY --from=dl-quilt /dl/quilt/docs/quilt.1 /out/share/man/man1/
 RUN mkdir -p /out/bin \
  && $ARCH-g++ -std=c++20 -O2 -fno-exceptions -s \
         -o /out/bin/quilt.exe /out/src/quilt.cpp
