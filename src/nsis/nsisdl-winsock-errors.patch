@@ -1,0 +1,85 @@
+Compare NSISdl socket errors against Winsock codes
+
+NSISdl checks WSAGetLastError() against EINPROGRESS and EWOULDBLOCK,
+which netinc.h defines as WSAEWOULDBLOCK only when they are not already
+defined. With mingw-w64, windows.h reaches errno.h, which defines them
+as the CRT's POSIX codes, 112 and 140, so the fallbacks never apply and
+no comparison can match a Winsock error such as WSAEWOULDBLOCK (10035).
+A non-blocking connect() reports WSAEWOULDBLOCK while it proceeds, so
+every NSISdl::download failed at once with "connecting to host". Past
+connect(), a recv() with no data yet likewise closed the connection, so
+fixing connect() alone only turns that into "download incomplete".
+
+Compare against WSAEWOULDBLOCK directly in all five places, and drop
+the fallbacks so the CRT values cannot creep back in. EINPROGRESS maps
+to WSAEWOULDBLOCK on purpose, as upstream intended: in Winsock,
+WSAEINPROGRESS means a blocking call is already running, and connect()
+does not report it for a non-blocking socket.
+
+---
+ Contrib/NSISdl/connection.cpp |   10 +++++-----
+ Contrib/NSISdl/netinc.h       |    6 ------
+ 2 files changed, 5 insertions(+), 11 deletions(-)
+
+--- a/Contrib/NSISdl/connection.cpp
++++ b/Contrib/NSISdl/connection.cpp
+@@ -137,7 +137,7 @@
+       {
+         m_state=STATE_CONNECTED;
+       }
+-      else if (ERRNO!=EINPROGRESS)
++      else if (ERRNO!=WSAEWOULDBLOCK)
+       {
+         m_errorstr="connecting to host";
+         m_state=STATE_ERROR;
+@@ -181,7 +181,7 @@
+         if (len > 0)
+         {
+           int res=::send(m_socket,m_send_buffer+m_send_pos,len,0);
+-          if (res==-1 && ERRNO != EWOULDBLOCK)
++          if (res==-1 && ERRNO != WSAEWOULDBLOCK)
+           {            
+ //            m_state=STATE_CLOSED;
+ //            return;
+@@ -203,7 +203,7 @@
+             if (len > m_send_len) len=m_send_len;
+             if (len > bytes_allowed_to_send) len=bytes_allowed_to_send;
+             int res=::send(m_socket,m_send_buffer+m_send_pos,len,0);
+-            if (res==-1 && ERRNO != EWOULDBLOCK)
++            if (res==-1 && ERRNO != WSAEWOULDBLOCK)
+             {
+ //              m_state=STATE_CLOSED;
+             }
+@@ -225,7 +225,7 @@
+         if (len>0)
+         {
+           int res=::recv(m_socket,m_recv_buffer+m_recv_pos,len,0);
+-          if (res == 0 || (res < 0 && ERRNO != EWOULDBLOCK))
++          if (res == 0 || (res < 0 && ERRNO != WSAEWOULDBLOCK))
+           {        
+             m_state=STATE_CLOSED;
+             break;
+@@ -248,7 +248,7 @@
+             if (len > 0)
+             {
+               int res=::recv(m_socket,m_recv_buffer+m_recv_pos,len,0);
+-              if (res == 0 || (res < 0 && ERRNO != EWOULDBLOCK))
++              if (res == 0 || (res < 0 && ERRNO != WSAEWOULDBLOCK))
+               {        
+                 m_state=STATE_CLOSED;
+                 break;
+--- a/Contrib/NSISdl/netinc.h
++++ b/Contrib/NSISdl/netinc.h
+@@ -17,12 +17,6 @@
+ #define strcasecmp(x,y) stricmp(x,y)
+ #define ERRNO (WSAGetLastError())
+ #define SET_SOCK_BLOCK(s,block) { unsigned long __i=block?0:1; ioctlsocket(s,FIONBIO,&__i); }
+-#ifndef EWOULDBLOCK
+-#define EWOULDBLOCK WSAEWOULDBLOCK
+-#endif
+-#ifndef EINPROGRESS
+-#define EINPROGRESS WSAEWOULDBLOCK
+-#endif
+ #define memset mini_memset
+ #define memcpy mini_memcpy
+ // Jim Park: For Unicode support, we need to distinguish whether we are working on
