@@ -1,0 +1,206 @@
+Make man work in w64devkit: find pages in <bindir>/../share/man after
+$MANPATH, format them with the kit's nroff next to busybox.exe (still
+overridable with DEFINE nroff), and page with less -R. Pass -Tutf8 only
+when the ANSI code page is UTF-8. When stdout is not a terminal, write
+the formatter's plain output directly instead of piping through col,
+which does not exist, and copy cat pages as they are.
+
+Run the formatter in the manpath element, or in the user's directory for
+an explicit path, so that .so requests in page bodies resolve. Look up
+x86_64-w64-mingw32-NAME and i686-w64-mingw32-NAME as NAME when there is
+no page under the full name. Accept backslashes in absolute paths, and
+CRLF in .so stubs.
+
+---
+ miscutils/man.c |   90 +++++++++++++++++++++++++++++++++++++-------------------
+ 1 file changed, 60 insertions(+), 30 deletions(-)
+
+--- a/miscutils/man.c
++++ b/miscutils/man.c
+@@ -56,21 +56,37 @@
+ */
+ 
+ struct globals {
+-	const char *col;
+-	const char *tbl;
+ 	const char *nroff;
+ 	const char *pager;
++	const char *dir;
+ } FIX_ALIASING;
+ #define G (*(struct globals*)bb_common_bufsiz1)
+ #define INIT_G() do { \
+ 	setup_common_bufsiz(); \
+-	G.col = "col"; \
+-	G.tbl = "tbl"; \
+-	/* Removed -Tlatin1. Assuming system nroff has suitable default */ \
+-	G.nroff = "nroff -mandoc"; \
+-	G.pager = ENABLE_LESS ? "less" : "more"; \
++	G.nroff = xasprintf("%s -mandoc", sh_quote(exe_relative_path("nroff"))); \
++	G.pager = ENABLE_LESS ? "less -R" : "more"; \
+ } while (0)
+ 
++/* Quote for sh -c: wrap in '...' and turn each ' into '\'' */
++static char *sh_quote(const char *s)
++{
++	char *r = xmalloc(4 * strlen(s) + 3);
++	char *p = r;
++
++	*p++ = '\'';
++	for (; *s; s++) {
++		if (*s == '\'') {
++			memcpy(p, "'\\''", 4);
++			p += 4;
++		} else {
++			*p++ = *s;
++		}
++	}
++	*p++ = '\'';
++	*p = '\0';
++	return r;
++}
++
+ static int show_manpage(char *man_filename, int man, int level);
+ 
+ static int run_man_pipe(char *man_filename, int man, int level)
+@@ -116,6 +132,7 @@
+ 		 */
+ 		*strchrnul(line, '\n') = '\0';
+ 		linkname = skip_whitespace(line + 4);
++		trim(linkname); /* CRLF stubs */
+ //testcase:
+ // cd /usr/share/man/man2
+ // man ./path_resolution.2.gz
+@@ -163,13 +180,20 @@
+ 		/* "2>&1" is added so that nroff errors are shown in pager too.
+ 		 * Otherwise it may show just empty screen.
+ 		 */
+-		cmd = xasprintf("%s | %s -rLL=%un -rLT=%un 2>&1 | %s",
+-				G.tbl, G.nroff, w, w,
+-				G.pager);
+-	} else {
++		cmd = xasprintf("%s -T%s -rLL=%un -rLT=%un%s%s",
++				G.nroff, GetACP() == CP_UTF8 ? "utf8" : "ascii", w, w,
++				G.pager ? " 2>&1 | " : "", G.pager ? G.pager : "");
++	} else if (G.pager) {
+ 		cmd = xstrdup(G.pager);
++	} else {
++		bb_copyfd_eof(STDIN_FILENO, STDOUT_FILENO);
++		return 1;
+ 	}
++	/* Run in the manpath element so that .so in the page body resolves */
++	if (G.dir)
++		chdir(G.dir);
+ 	system(cmd);
++	chdir_system_drive();
+ 	free(cmd);
+ 	return 1;
+ }
+@@ -273,8 +297,7 @@
+ 	char *token[2];
+ #if ENABLE_PLATFORM_MINGW32
+ 	char **ptr;
+-	char *relpath;
+-	const char *mpl[] = { "/usr/man", "/usr/share/man", NULL, NULL };
++	char *relpath, *cwd;
+ #endif
+ 
+ 	INIT_G();
+@@ -285,8 +308,9 @@
+ 	/* add system drive prefix to filenames, if necessary */
+ 	for (ptr = argv; *ptr; ++ptr) {
+ 		if (strchr(*ptr, '/') || strchr(*ptr, '\\'))
+-			*ptr = xabsolute_path(*ptr);
++			*ptr = bs_to_slash(xabsolute_path(*ptr));
+ 	}
++	cwd = xrealloc_getcwd_or_warn(NULL);
+ 	chdir_system_drive();
+ #endif
+ 
+@@ -309,8 +333,6 @@
+ 		if (!token[1])
+ 			continue;
+ 		if (strcmp("DEFINE", token[0]) == 0) {
+-			G.col   = if_redefined(G.col  , "col",   token[1]);
+-			G.tbl   = if_redefined(G.tbl  , "tbl",   token[1]);
+ 			G.nroff = if_redefined(G.nroff, "nroff", token[1]);
+ 			G.pager = if_redefined(G.pager, "pager", token[1]);
+ 		} else
+@@ -328,15 +350,9 @@
+ 
+ #if ENABLE_PLATFORM_MINGW32
+ 	/* allow man pages to be stored relative to the executable */
+-	relpath = exe_relative_path("man");
+-
+-	if (!man_path_list) {
+-		mpl[2] = relpath;
+-		man_path_list = (char**)mpl;
+-	}
+-	else {
+-		man_path_list = add_MANPATH(man_path_list, &count_mp, relpath);
+-	}
++	relpath = exe_relative_path("../share/man");
++	man_path_list = add_MANPATH(man_path_list, &count_mp,
++			xmalloc_realpath(relpath) ?: relpath);
+ #else
+ 	if (!man_path_list) {
+ 		static const char *const mpl[] ALIGN_PTR = { "/usr/man", "/usr/share/man", NULL };
+@@ -356,7 +372,10 @@
+ 
+ 	if (!isatty(STDOUT_FILENO)) {
+ 		putenv((char*)"GROFF_NO_SGR=1");
+-		G.pager = xasprintf("%s -b -p -x", G.col);
++		G.pager = NULL;
++	} else if (!getenv("LESS")) {
++		/* so that a plain PAGER=less shows emphasis too */
++		putenv((char*)"LESS=R");
+ 	}
+ 
+ 	/* is 1st ARG a SECTION? */
+@@ -371,9 +390,12 @@
+ 		const char *cur_path;
+ 		int cur_mp;
+ 		int found = 0;
++		char *name = *argv;
+ 
+-		if (strchr(*argv, '/')) {
+-			found = show_manpage(*argv, /*man:*/ 1, 0);
++ retry:
++		if (strchr(name, '/')) {
++			G.dir = cwd;
++			found = show_manpage(name, /*man:*/ 1, 0);
+ 			goto check_found;
+ 		}
+ 
+@@ -383,7 +405,8 @@
+ 			const char *cur_sect = sec_list;
+ 
+ 			/* is MANPAGE of the form NAME.SECTION? */
+-			char *sect_ext = strrchr(*argv, '.');
++			char *sect_ext = strrchr(name, '.');
++			G.dir = cur_path;
+ 			if (sect_ext && is_section_name(conf_sec_list, sect_ext + 1)) {
+ 				*sect_ext = '\0';
+ 				cur_sect = sect_ext + 1;
+@@ -402,7 +425,7 @@
+ 							cur_path,
+ 							"cat\0man" + (cat0man1 * 4),
+ 							sect_len, cur_sect,
+-							*argv,
++							name,
+ 							sect_len, cur_sect);
+ 					found_here = show_manpage(man_filename, cat0man1, 0);
+ 					found |= found_here;
+@@ -421,6 +444,13 @@
+ 		}
+  check_found:
+ 		if (!found) {
++			/* x86_64-w64-mingw32-gcc -> gcc */
++			static const char triplet[] ALIGN1 = "-w64-mingw32-";
++			char *p = strstr(name, triplet);
++			if (p && p[sizeof(triplet)-1] && !strchr(name, '/')) {
++				name = p + sizeof(triplet) - 1;
++				goto retry;
++			}
+ 			bb_error_msg("no manual entry for '%s'", *argv);
+ 			not_found = 1;
+ 		}

@@ -6,3 +6,5 @@ zstd.patch
 mkdtemp.patch
 history-limit.patch
 gzip.patch
+man.patch
+less-raw-sgr.patch

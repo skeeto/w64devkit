@@ -810,7 +810,7 @@ RUN $ARCH-gcc -Oz -fno-asynchronous-unwind-tables -Wl,--gc-sections -s \
       dc dd df diff dirname dos2unix du echo ed egrep env expand expr factor \
       false fgrep find fold free fsync getopt grep groups hd head hexdump \
       httpd iconv id inotifyd install ipcalc jn join kill killall \
-      lash less ln logname ls lsattr lzcat lzma lzop lzopcat md5sum mkdir \
+      lash less ln logname ls lsattr lzcat lzma lzop lzopcat man md5sum mkdir \
       mktemp mv nc nl nproc od paste patch pgrep pidof pipe_progress pkill \
       printenv printf ps pwd readlink realpath reset rev rm rmdir sed seq sh \
       sha1sum sha256sum sha3sum sha512sum shred shuf sleep sort split \
