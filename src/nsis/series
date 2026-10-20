@@ -1,3 +1,4 @@
 cross-makensis.patch
 no-ansi.patch
 nsisdl-winsock-errors.patch
+size.patch

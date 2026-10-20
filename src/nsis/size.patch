@@ -1,0 +1,50 @@
+Discard unreferenced sections from NSIS stubs and plugins
+
+Every installer carries a stub, and the GCC-built stubs were ~117 KB
+(x86) and ~133 KB (x64). Most of that is unused GUIDs: for
+IID_IShellLinkW and IID_IPersistFile the stub pulls in two large
+members of mingw-w64's libuuid.a, around 4,000 GUIDs and property keys
+in all. Nearly all are selectany definitions in their own .rdata$NAME
+sections, so -Wl,--gc-sections discards the unreferenced ones, bringing
+stubs to ~51-53 KB on both architectures. Plugins get it too, for ~9 KB
+total.
+
+-ffunction-sections gains nothing in the stubs, which have almost no
+dead code, and only adds per-function padding. On x64 it would also
+leave a bogus zero-length .pdata entry for each function it removes.
+On x86 it lets the plugins drop unused pluginapi helpers, ~20 KB over
+all plugins. x64 plugins only grow, because the default linker script
+keeps all .pdata, which references every function.
+
+Do not add -fno-asynchronous-unwind-tables. On x86 there are no unwind
+tables anyway (SJLJ), and on x64 it strips the stubs of unwind data
+while they still host plugin code and call back into it: a plugin's
+catch around a callback, or an unhandled-exception filter, would no
+longer be reached. Nor -fdata-sections: GCC's mingw section naming puts
+zero-initialized objects in .data$NAME, turning the stubs' large .bss
+buffers into file data, megabytes in the bzip2 stub.
+
+---
+ SCons/Config/gnu |    4 ++++
+ 1 file changed, 4 insertions(+)
+
+--- a/SCons/Config/gnu
++++ b/SCons/Config/gnu
+@@ -101,6 +101,7 @@
+ 
+ if not defenv['DEBUG']:
+ 	stub_env.Append(CCFLAGS = ['-Os'])                # optimize for size
++	stub_env.Append(LINKFLAGS = ['-Wl,--gc-sections']) # discard unreferenced sections
+ stub_env.Append(CCFLAGS = ['-Wall'])                # all warnings
+ stub_env.Append(CCFLAGS = ['-xc'])                  # force compile as c
+ stub_env.Append(CCFLAGS = ['-fno-strict-aliasing']) # not safe for strict aliasing
+@@ -147,6 +148,9 @@
+ 
+ if not defenv['DEBUG']:
+ 	plugin_env.Append(CCFLAGS = ['-Os'])              # optimize for size
++	plugin_env.Append(LINKFLAGS = ['-Wl,--gc-sections']) # discard unreferenced sections
++	if defenv['TARGET_ARCH'] == 'x86':                # amd64 .pdata keeps every function
++		plugin_env.Append(CCFLAGS = ['-ffunction-sections']) # let gc drop unused functions
+ plugin_env.Append(CCFLAGS = ['-Wall'])              # level 3 warnings
+ plugin_env.Append(CCFLAGS = ['-fno-strict-aliasing']) # not safe for strict aliasing
+ 
