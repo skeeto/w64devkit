@@ -153,6 +153,15 @@ ADD --checksum=sha256:$QUILT_SHA256 \
 RUN mkdir quilt \
  && tar xzf quilt-$QUILT_VERSION.tar.gz -C quilt --strip-components=1
 
+FROM base AS dl-u-config
+ARG U_CONFIG_VERSION=0.35.0 \
+    U_CONFIG_SHA256=2e42eb04ae1a5c6a3b02f9d7ef126895e24e35825b0d2690345806b21205d250
+WORKDIR /dl
+ADD --checksum=sha256:$U_CONFIG_SHA256 \
+    https://github.com/skeeto/u-config/releases/download/v$U_CONFIG_VERSION/u-config-$U_CONFIG_VERSION.tar.gz ./
+RUN mkdir u-config \
+ && tar xzf u-config-$U_CONFIG_VERSION.tar.gz -C u-config --strip-components=1
+
 FROM base AS dl-ccache
 ARG CCACHE_VERSION=4.14.1 \
     CCACHE_SHA256=29f10de481ac2c41c91bfabead63d803bd2fe823e09752aade5b0b8704cc4f30 \
@@ -679,6 +688,22 @@ RUN mkdir -p /out/bin \
  && $ARCH-g++ -std=c++20 -O2 -fno-exceptions -s \
         -o /out/bin/quilt.exe /out/src/quilt.cpp
 
+FROM cross AS build-u-config
+COPY --from=dl-u-config /dl/ /dl/
+
+WORKDIR /dl/u-config
+RUN make amalgamation \
+ && mkdir -p /out/bin /out/src /out/share/man/man1 \
+ && cp pkg-config.c /out/src/ \
+ && cp u-config.1 /out/share/man/man1/ \
+ && $ARCH-gcc \
+        -Oz -fno-asynchronous-unwind-tables -fno-builtin -Wl,--gc-sections \
+        -s -nostdlib -o /out/bin/pkg-config.exe /out/src/pkg-config.c \
+        -lkernel32 \
+ && $ARCH-gcc -DEXE=pkg-config.exe -DCMD=pkg-config \
+        -Oz -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
+        -o /out/bin/$ARCH-pkg-config.exe $PREFIX/src/alias.c -lkernel32
+
 # Build PDCurses once and reuse it for both gdb and ccmake.
 FROM cross AS build-pdcurses
 COPY --from=dl-pdcurses /dl/pdcurses /dl/pdcurses
@@ -1116,6 +1141,7 @@ COPY --from=dl-ctags /dl/*.* /source/
 COPY --from=dl-zstd /dl/*.* /source/
 COPY --from=dl-tugz /dl/*.* /source/
 COPY --from=dl-quilt /dl/*.* /source/
+COPY --from=dl-u-config /dl/*.* /source/
 COPY --from=dl-ccache /dl/*.* /source/
 COPY --from=dl-ninja /dl/*.* /source/
 COPY --from=dl-cmake /dl/*.* /source/
@@ -1131,6 +1157,7 @@ ARG VERSION
 
 COPY --from=build-gendef /out/ $PREFIX/
 COPY --from=build-quilt /out/ $PREFIX/
+COPY --from=build-u-config /out/ $PREFIX/
 COPY --from=build-gdb /out/ $PREFIX/
 COPY --from=build-make /out/ $PREFIX/
 COPY --from=build-busybox /out/ $PREFIX/
@@ -1163,10 +1190,6 @@ RUN printf "id ICON \"$PREFIX/src/w64devkit.ico\"" >w64devkit.rc \
         -o $PREFIX/bin/debugbreak.exe $PREFIX/src/debugbreak.c \
         -lkernel32 \
  && $ARCH-gcc \
-        -Oz -fno-asynchronous-unwind-tables -fno-builtin -Wl,--gc-sections \
-        -s -nostdlib -o $PREFIX/bin/pkg-config.exe $PREFIX/src/pkg-config.c \
-        -lkernel32 \
- && $ARCH-gcc \
         -O2 -fno-asynchronous-unwind-tables -fno-builtin -Wl,--gc-sections \
         -s -nostdlib -o $PREFIX/bin/vc++filt.exe $PREFIX/src/vc++filt.c \
         -lkernel32 -lshell32 -ldbghelp \
@@ -1178,9 +1201,6 @@ RUN printf "id ICON \"$PREFIX/src/w64devkit.ico\"" >w64devkit.rc \
         -Oz -fno-asynchronous-unwind-tables -fno-builtin -Wl,--gc-sections \
         -s -nostdlib -o $PREFIX/bin/recycle.exe $PREFIX/src/recycle.c \
         -lkernel32 -lshell32 -lmemory \
- && $ARCH-gcc -DEXE=pkg-config.exe -DCMD=pkg-config \
-        -Oz -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
-        -o $PREFIX/bin/$ARCH-pkg-config.exe $PREFIX/src/alias.c -lkernel32 \
  && $ARCH-gcc -DEXE=../share/nsis/bin/makensis.exe -DCMD=makensis \
         -Oz -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
         -o $PREFIX/bin/makensis.exe $PREFIX/src/alias.c -lkernel32 \

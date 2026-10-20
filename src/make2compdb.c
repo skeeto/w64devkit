@@ -208,9 +208,9 @@ static Arena arena_init(isize capacity, byte memory[static capacity])
     return a;
 }
 
-// Modified from Christopher Wellons pkg-config.c [1]
+// Modified from Christopher Wellons u-config [1]
 //
-// [1] https://github.com/skeeto/w64devkit/blob/master/src/pkg-config.c
+// [1] https://github.com/skeeto/u-config/blob/master/src/u-config.c
 //     Licence: The Unlicense
 static byte *arena_alloc(Arena *a, isize count, isize size, isize align)
 {
@@ -629,9 +629,9 @@ static Str_Pair str_reverse_cut_any(Str s, Str char_list)
     }
 }
 
-// Taken from Christopher Wellons pkg-config.c [1]
+// Taken from Christopher Wellons u-config [1]
 //
-// [1] https://github.com/skeeto/w64devkit/blob/master/src/pkg-config.c
+// [1] https://github.com/skeeto/u-config/blob/master/src/u-config.c
 //     Licence: Unlicense
 static u32 str_hash(Str s)
 {
@@ -4088,9 +4088,9 @@ static Str16 str16_drop_head(Str16 s, isize offset_from_the_start)
 
 // :: Unicode
 // Unicode operations
-// Modified from Christopher Wellons pkg-config.c [1]
+// Modified from Christopher Wellons u-config [1]
 //
-// [1] https://github.com/skeeto/w64devkit/blob/master/src/pkg-config.c
+// [1] https://github.com/skeeto/u-config/blob/master/main_windows.c
 //     Licence: Unlicense
 enum : u32 {
     // U+FFFD (�) is used to replace an unknown, unrecognised, or unrepresentable character.
