@@ -198,8 +198,8 @@ RUN mkdir cmake \
  && tar xzf cmake-$CMAKE_VERSION.tar.gz -C cmake --strip-components=1
 
 FROM base AS dl-dcmake
-ARG DCMAKE_VERSION=1.7.1 \
-    DCMAKE_SHA256=9d7388088cd03fa7d47e287809f86eee28f02fa6f57bbffa2b556f70dcd8adf9
+ARG DCMAKE_VERSION=1.7.2 \
+    DCMAKE_SHA256=12f963d29c74d0b1e1f6d79a18b2b9a9797de89ced2ee94651d61abe974d757d
 WORKDIR /dl
 ADD --checksum=sha256:$DCMAKE_SHA256 \
     https://github.com/skeeto/dcmake/releases/download/v$DCMAKE_VERSION/dcmake-$DCMAKE_VERSION.tar.gz ./
@@ -991,8 +991,9 @@ RUN cmake -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_EXE_LINKER_FLAGS="-s" \
         /dl/dcmake \
  && make -j$(nproc) \
- && mkdir -p /out/bin \
- && cp dcmake.exe /out/bin/
+ && mkdir -p /out/bin /out/share/man/man1 \
+ && cp dcmake.exe /out/bin/ \
+ && cp /dl/dcmake/docs/dcmake.1 /out/share/man/man1/
 
 FROM cross AS build-cmake
 COPY --from=dl-cmake /dl/ /dl/
