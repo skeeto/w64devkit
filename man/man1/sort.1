@@ -1,0 +1,585 @@
+.TH SORT 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+sort \- sort lines of text
+.SH SYNOPSIS
+.B sort
+.RI [ options ]
+.RI [ file ...]
+.SH DESCRIPTION
+.B sort
+reads the lines of every
+.IR file ,
+sorts them together, and writes them on standard output.
+With
+.BR \-c ,
+it writes nothing, and only checks whether the input is sorted.
+.PP
+With no
+.IR file ,
+or for a
+.I file
+named
+.BR \- ,
+.B sort
+reads standard input.
+It reads all of its input into memory before it writes anything.
+If a
+.I file
+cannot be opened,
+.B sort
+stops at that file, and writes nothing.
+.PP
+A line ends at an LF.
+A CR directly before the LF is removed, so CRLF input gives LF output.
+A NUL byte also ends a line, and is not written.
+The last line of a file need not end in an LF.
+Every output line ends in an LF.
+With
+.BR \-z ,
+lines end at NUL bytes instead, and LF and CR are ordinary characters.
+.SS Comparison
+Unless a sort type option says otherwise, two lines are compared byte by
+byte, as unsigned values.
+The locale does not matter.
+Uppercase letters sort before lowercase letters, and UTF-8 text sorts in
+code point order.
+.PP
+At most one of
+.BR \-n ,
+.BR \-g ,
+.BR \-h ,
+.BR \-M ,
+and
+.B \-V
+may be given, to compare numbers, month names, or versions instead.
+Two of them make the first comparison fail with the message
+.BR "unknown sort type" .
+The options
+.BR \-b ,
+.BR \-d ,
+.BR \-f ,
+.BR \-i ,
+and
+.B \-r
+change what is compared, or the direction.
+.SS Keys
+By default the whole line is compared.
+Each
+.B \-k
+option instead compares part of the line, called a key.
+The keys are compared in the order given, and the first difference
+decides.
+.PP
+Without
+.BR \-t ,
+runs of white space separate fields, and the white space before a field
+belongs to it.
+A key that starts at field 2 therefore starts with the blanks before
+it, unless
+.B b
+skips them.
+White space is a space, TAB, LF, VT, FF, or CR.
+With
+.BR \-t ,
+each occurrence of the separator ends a field, and belongs to neither
+neighbor.
+Fields can then be empty.
+.PP
+The argument of
+.B \-k
+is
+.PP
+.RS 4
+.EX
+\fIstart\fR[\fB.\fIoffset\fR][\fIopts\fR][\fB,\fIend\fR[\fB.\fIoffset\fR][\fIopts\fR]]
+.EE
+.RE
+.PP
+where each number is a decimal integer greater than 0, and offsets
+count bytes.
+.TP
+\fIstart\fR[\fB.\fIoffset\fR]
+The field where the key starts, numbered from 1.
+With an
+.IR offset ,
+the key starts at that character of the field, counted from 1 after any
+blanks skipped by
+.BR b .
+A start past the end of the line gives an empty key.
+.TP
+\fIend\fR[\fB.\fIoffset\fR]
+The last field of the key, which is included whole.
+Without a comma, the key runs to the end of the line.
+Unlike in POSIX and GNU
+.BR sort ,
+an
+.I offset
+after
+.I end
+is a character position counted from the start of the line, not of the
+field.
+The key ends after that character, even if it lies in another field,
+and keeps any white space at its end, even with
+.B b
+or
+.BR \-b .
+A key that would end before it starts is empty.
+.TP
+.I opts
+Any of
+.BR n ,
+.BR g ,
+.BR h ,
+.BR M ,
+.BR b ,
+.BR r ,
+.BR d ,
+.BR f ,
+and
+.BR i ,
+which act as the options of the same names, on this key only.
+They apply to the whole key, whichever number they follow, except that
+.B b
+after
+.I start
+ignores white space at the start of the key, and
+.B b
+after
+.I end
+ignores it at the end.
+.B V
+is not allowed.
+.PP
+A key with
+.I opts
+uses only those, and none of the options that apply to the whole line.
+A key without
+.I opts
+uses all of them.
+.SS Equal lines
+When all the keys of two lines compare equal, the whole lines are
+compared as bytes, and
+.B \-r
+reverses that comparison too.
+The output is then the same whatever the order of the input.
+.B \-s
+turns this off: equal lines keep their input order, even with
+.BR \-r .
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-nr ,
+and may follow the
+.I file
+operands.
+An option's argument may be attached, as in
+.BR \-k2,2n ,
+or be the next argument.
+.B \-\-
+ends the options.
+There are no long options.
+.B \-o
+and
+.B \-t
+may each be given once, and giving one again is a usage error.
+.TP
+.BI "\-o " file
+Write the output to
+.IR file ,
+which is created or truncated after all the input has been read, so
+.I file
+can also be an input.
+A
+.I file
+named
+.B \-
+is a file of that name, while
+.I /dev/stdout
+is standard output.
+.B \-c
+does not create it.
+.TP
+.B \-c
+Check the input and write nothing.
+If it is sorted, exit with status 0.
+Otherwise print
+.BI "Check line " N
+on standard error and exit with status 1, where
+.I N
+is the number of the line that is followed by a line that should come
+before it.
+Only the first such line is reported.
+Lines are numbered from 1 across all the files.
+Lines with equal keys must be in the order described under
+.BR "Equal lines" ,
+even with
+.BR \-u .
+With
+.BR \-u ,
+identical adjacent lines are also out of order.
+.TP
+.B \-b
+Ignore white space at the start and at the end of each key.
+.TP
+.B \-f
+Fold lowercase ASCII letters to uppercase before comparing, so that, for
+example, an underscore sorts after the letters.
+.TP
+.B \-i
+Compare only the printable ASCII characters, 0x20 to 0x7e.
+All others, such as TABs and non-ASCII bytes, are ignored.
+.TP
+.B \-d
+Dictionary order: compare only ASCII letters, digits, and white space.
+Every other character, including each byte of non-ASCII text, is ignored.
+.TP
+.B \-n
+Compare by numeric value.
+The number is read from the start of the key as C
+.B atof
+reads it: optional white space, a sign, decimal digits with an optional
+point, and an optional exponent such as
+.BR e3 .
+A key with no number is 0.
+Hexadecimal numbers,
+.BR inf ,
+and
+.B nan
+are not recognized, and count as 0.
+.TP
+.B \-g
+General numeric: like
+.BR \-n ,
+but the number is read as C
+.B strtod
+reads it, so hexadecimal numbers such as
+.BR 0x1f ,
+.BR inf ,
+and
+.B nan
+are recognized.
+Keys with no number are equal and sort first, then NaNs, then
+.BR \-inf ,
+then numbers, then
+.BR inf .
+.TP
+.B \-h
+Human-readable numbers: like
+.BR \-g ,
+but a suffix directly after the number is compared first.
+The suffixes in increasing order are none,
+.B k
+or
+.BR K ,
+then
+.BR M ,
+.BR G ,
+.BR T ,
+.BR P ,
+.BR E ,
+.BR Z ,
+and
+.BR Y .
+Only
+.B k
+may be lowercase, and any other text after the number counts as no
+suffix.
+Keys with different suffixes are ordered by suffix alone, whatever the
+numbers, so
+.B 1500
+sorts before
+.BR 1K ,
+and
+.B 2000K
+before
+.BR 1M .
+.TP
+.B \-M
+Compare by month.
+The key must start with an English month name, abbreviated or in full, in
+any case, after any white space.
+Only that start is read, so
+.B Mar
+and
+.B March 5
+are both March.
+Keys that do not start with a month name are equal, and sort before
+January.
+.TP
+.B \-V
+Compare as version strings: runs of digits are compared by numeric value,
+so
+.B a9
+sorts before
+.BR a10 .
+The comparison is musl's
+.BR strverscmp .
+It is not allowed in a
+.B \-k
+option, but applies to keys without
+.IR opts .
+.TP
+.BI "\-t " char
+Use
+.I char
+as the field separator for
+.B \-k
+keys.
+It must be exactly one byte, or
+.B sort
+prints
+.B bad \-t parameter
+and exits.
+It has no effect without
+.BR \-k .
+.TP
+.BI "\-k " key
+Add a sort key, described under
+.BR Keys .
+May be repeated.
+A malformed key is an error.
+A number that is missing or 0 gives
+.BR "bad field specification" ,
+a character that is not an option letter gives
+.BR "unknown key option" ,
+and an option letter that keys do not allow, such as
+.B V
+or
+.BR u ,
+gives
+.BR "unknown sort type" .
+.TP
+.B \-r
+Reverse the sort order.
+This applies to keys without
+.IR opts ,
+and to the comparison of equal lines.
+A key with
+.I opts
+is reversed only by an
+.B r
+among them.
+.TP
+.B \-s
+Stable: do not compare equal lines as bytes, so they keep their input
+order, with or without
+.BR \-r .
+.TP
+.B \-u
+Write only the first line of each run of lines with equal keys.
+The comparison of equal lines is not used to decide equality, so with
+options such as
+.BR \-f ,
+.BR \-n ,
+or
+.BR \-k ,
+lines that differ can be dropped.
+The line kept is the first in sorted order: with
+.BR \-s ,
+the first in the input, and otherwise the smallest as bytes, or the
+largest with
+.BR \-r .
+.TP
+.B \-z
+Lines end at a NUL byte in the input and the output, not at an LF.
+An LF or CR inside a line is data, and no CR is removed.
+.TP
+\fB\-m\fR, \fB\-S\fR \fIsize\fR, \fB\-T\fR \fIdir\fR
+Accepted and ignored.
+There is no merging, and
+.B sort
+never uses temporary files.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the arguments are expanded, as needed when run from
+.BR cmd.exe .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+arguments as the shell expanded them.
+.TP
+.B POSIXLY_CORRECT
+If set, the first
+.I file
+operand ends the options, so that later arguments such as
+.B \-r
+are file names.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+The order of the output does not depend on them.
+If the first of these that is set has the value
+.BR C ,
+output to a console is not converted, and the console interprets the
+bytes in its own code page.
+.PP
+Variables that affect every busybox applet are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success, or with
+.BR \-c ,
+the input is sorted.
+.TP
+.B 1
+With
+.BR \-c ,
+the input is not sorted.
+.TP
+.B 2
+An error: a usage error, such as an unknown option, a missing argument,
+or a repeated
+.B \-o
+or
+.BR \-t ;
+a bad
+.B \-t
+or
+.BR \-k ;
+more than one sort type; an input file that could not be opened or is a
+directory; an output file that could not be opened; a failure writing
+standard output; or memory that ran out.
+.TP
+.B 141
+Standard output is a pipe whose reader has exited.
+.PP
+Errors are reported on standard error, beginning with
+.BR sort: .
+A usage error also prints the usage message.
+.SH EXAMPLES
+Sort a file:
+.PP
+.RS 4
+.EX
+$ sort names.txt
+.EE
+.RE
+.PP
+List the largest numbers first:
+.PP
+.RS 4
+.EX
+$ sort \-rn sizes.txt
+.EE
+.RE
+.PP
+Sort a comma-separated file by its third column as a number, and then by
+its first column as text:
+.PP
+.RS 4
+.EX
+$ sort \-t, \-k3,3n \-k1,1 data.csv
+.EE
+.RE
+.PP
+Sort a file in place:
+.PP
+.RS 4
+.EX
+$ sort \-o list.txt list.txt
+.EE
+.RE
+.PP
+Rank the words in a file by how often they occur:
+.PP
+.RS 4
+.EX
+$ sort words.txt | uniq \-c | sort \-rn
+.EE
+.RE
+.PP
+List the sizes of files and directories, smallest first:
+.PP
+.RS 4
+.EX
+$ du \-sh * | sort \-h
+.EE
+.RE
+.PP
+Sort file names that may contain any character, as NUL-terminated
+strings:
+.PP
+.RS 4
+.EX
+$ find . \-name \(aq*.c\(aq \-print0 | sort \-z | xargs \-0 wc \-l
+.EE
+.RE
+.PP
+Check that a file is sorted, as
+.BR comm (1)
+and
+.BR join (1)
+need:
+.PP
+.RS 4
+.EX
+$ sort \-c list.txt && echo sorted
+.EE
+.RE
+.SH NOTES
+Differences from GNU
+.BR sort :
+.IP \(bu 2
+Lines are compared as bytes in every locale.
+.BR \-f ,
+.BR \-d ,
+.BR \-i ,
+and
+.B \-M
+know only ASCII and English.
+.IP \(bu 2
+There are no long options.
+Options not listed above, such as
+.B \-C
+and
+.BR \-R ,
+are invalid.
+.IP \(bu 2
+The character offset in the end of a key counts from the start of the
+line, not of the field, and may not be 0.
+.IP \(bu 2
+.B \-n
+reads exponents, which GNU
+.B sort
+leaves to
+.BR \-g .
+.IP \(bu 2
+.B \-c
+prints only a line number, which is that of the first line of the pair
+that is out of order.
+.IP \(bu 2
+The sort is done in memory with no temporary files, so the input must
+fit in memory.
+.PP
+Do not combine
+.B \-c
+with
+.BR \-s .
+When two lines have equal keys,
+.B \-c
+then reads position data that is stored only when sorting, and can
+report sorted input as unsorted.
+.PP
+Output lines end with LF, not CRLF.
+A UTF-8 byte order mark is not removed, and is part of the first line of
+its file.
+.PP
+Each
+.I file
+may be a Windows path, with a drive letter and either kind of slash, or a
+busybox-w32 device name such as
+.IR /dev/null .
+On Windows 10 version 1903 or later, file names may contain any Unicode
+characters, and on older systems only those of the system code page.
+.SH SEE ALSO
+.BR busybox (1),
+.BR comm (1),
+.BR cut (1),
+.BR join (1),
+.BR uniq (1)

@@ -1,0 +1,88 @@
+.TH ARCH 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+arch \- print the processor architecture
+.SH SYNOPSIS
+.B arch
+.RB [ \-\-help ]
+.SH DESCRIPTION
+.B arch
+prints the name of the processor architecture that busybox runs as,
+followed by a newline, on standard output.
+It is the same as
+.BR "uname\ \-m" .
+The 64-bit kit prints
+.BR x86_64 ,
+and the 32-bit kit prints
+.BR i686 .
+.PP
+The name comes from the Windows
+.B GetSystemInfo
+function, which reports the architecture of the calling process, not the
+machine's native one.
+So on 64-bit Windows the 32-bit kit, which runs under WOW64, prints
+.BR i686 ,
+and on ARM64 Windows the 64-bit kit, which runs under x64 emulation,
+prints
+.BR x86_64 .
+.SH OPTIONS
+.B arch
+has one option, and ignores its arguments, including unknown options and
+operands, unless the first is
+.BR \-\-help .
+.TP
+.B \-\-help
+When it is the first argument, print a usage message on standard output
+and exit with status 0, ignoring the other arguments.
+In any other position it is ignored.
+.SH ENVIRONMENT
+.B arch
+reads no environment variables of its own.
+Variables that affect every busybox applet are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+Standard output could not be written, as when it is closed or is a pipe
+whose reader has exited.
+A message is printed on standard error.
+.SH EXAMPLES
+Print the architecture:
+.PP
+.RS 4
+.EX
+$ arch
+x86_64
+.EE
+.RE
+.PP
+Create a build directory named after the architecture:
+.PP
+.RS 4
+.EX
+$ mkdir \-p build/$(arch)
+.EE
+.RE
+.SH NOTES
+Unlike GNU
+.BR arch ,
+it has no
+.B \-\-version
+option, and it ignores operands and unknown options instead of rejecting
+them.
+.PP
+The output line ends with LF, not CRLF.
+.PP
+The kit's
+.B sh
+runs
+.B arch
+inside the shell process, without starting a new one, except where the
+shell needs a separate process anyway, as for a command substitution or
+a pipeline.
+.SH SEE ALSO
+.BR busybox (1),
+.BR sh (1),
+.BR uname (1)

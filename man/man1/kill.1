@@ -1,0 +1,371 @@
+.TH KILL 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+kill \- send a signal to processes
+.SH SYNOPSIS
+.B kill
+.RB [ \-s
+.I signal
+.RB "| " \-\c
+.IR signal ]
+.IR pid ...
+.br
+.B kill \-l
+.RI [ signal ...]
+.SH DESCRIPTION
+.B kill
+sends a signal, by default
+.BR TERM ,
+to each process whose ID it is given.
+With
+.BR \-l ,
+it lists signals instead and sends nothing.
+Windows has no signals, so they are emulated; see
+.BR NOTES .
+.PP
+Each
+.I pid
+is a decimal Windows process ID, as listed by
+.BR ps (1).
+A positive
+.I pid
+signals that process only.
+Zero, or a negative number
+.B \-\c
+.IR n ,
+signals every descendant of a process and then the process itself:
+the process running
+.B kill
+for 0, and process
+.I n
+otherwise.
+The descendants are the children, grandchildren, and so on, found
+through the parent process IDs of the processes running when
+.B kill
+looks.
+If any of them cannot be signaled, the operand fails and is reported
+with its own
+.IR pid ,
+but the others are still signaled.
+.PP
+An operand may hold several PIDs separated by single spaces.
+An empty operand is ignored.
+.PP
+.B kill
+writes nothing on success.
+It reports each failure on standard error and goes on to the next
+operand:
+.PP
+.RS 4
+.EX
+kill: can\(aqt kill pid 1234: Invalid argument
+kill: invalid number \(aqabc\(aq
+.EE
+.RE
+.SS Signals
+A signal is a name or a number.
+A name is case-insensitive and may begin with
+.BR SIG ,
+as in
+.BR sigterm .
+A number is decimal.
+The signals are:
+.PP
+.RS 4
+.EX
+ 0  EXIT    4  ILL     11  SEGV    22  ABRT
+ 1  HUP     8  FPE     13  PIPE
+ 2  INT     9  KILL    15  TERM
+ 3  QUIT
+.EE
+.RE
+.PP
+Any other number from 0 to 22 is accepted, but sending it fails with
+.BR "Invalid argument" .
+So does an empty name, or
+.B SIG
+alone, which is taken as 5.
+Other names, such as
+.BR USR1 ,
+.BR ALRM ,
+.BR STOP ,
+and
+.BR CONT ,
+and numbers above 22 are errors, and nothing is sent.
+Every signal except 0 ends the target process.
+They differ only in the exit code the process gets, and in how
+.B KILL
+is delivered; see
+.BR NOTES .
+Signal 0 sends nothing, but fails if the process cannot be signaled, so
+it tests for a process.
+.SH OPTIONS
+Options are recognized only at the start of the arguments, and cannot be
+grouped.
+Everything after them is an operand, even if it begins with
+.BR \- ,
+so a negative
+.I pid
+may follow a signal option.
+.TP
+.B \-l
+List signals and send nothing.
+It must be the first argument.
+With no operands, write one line per signal, without
+.BR EXIT :
+its number right-aligned to width 2, then
+.BR ) ,
+a space, and its name.
+.IP
+For each operand, write the name if it is a number, or the number if it
+is a name.
+A number is first reduced modulo 128, so that an exit status of
+.RI "128 + " n
+gives the name of signal
+.IR n ,
+and a result with no name is written as a number.
+An operand that is not a signal is reported, and ends the list with
+status 1.
+.TP
+.BI "\-s " signal
+Send
+.I signal
+instead of
+.BR TERM .
+The same as
+.BI \- signal\fR.
+.TP
+.BI \- signal
+Send
+.I signal
+instead of
+.BR TERM .
+.I signal
+is a name or a number, as described in
+.BR Signals .
+.TP
+.B \-\-
+As the first argument, end the options and send
+.BR TERM ,
+so that the first
+.I pid
+may be negative.
+After a signal option it is an operand, which is not a valid PID.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument, and not by the built-in
+.B kill
+of the kit's shell.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the operands are expanded, as needed when run from
+.BR cmd.exe .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+operands as the shell expanded them.
+.PP
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Every signal was sent, or the list was written.
+.TP
+.B 1
+A usage error, such as an unknown signal or no operands, or exactly one
+failure.
+.TP
+.B >1
+The number of failures: each operand that is not a valid PID, and each
+PID that could not be signaled.
+The status is this count modulo 256, so 256 failures give 0.
+.SH EXAMPLES
+Ask a process to end:
+.PP
+.RS 4
+.EX
+$ kill 1234
+.EE
+.RE
+.PP
+End a process without letting it clean up:
+.PP
+.RS 4
+.EX
+$ kill \-KILL 1234
+.EE
+.RE
+.PP
+Test whether a process exists and can be signaled:
+.PP
+.RS 4
+.EX
+$ kill \-0 1234 && echo running
+.EE
+.RE
+.PP
+End a process and all its descendants, using the negative form of its
+ID.
+The
+.B \-\-
+is needed only when no signal option precedes the ID:
+.PP
+.RS 4
+.EX
+$ kill \-\- \-1234
+$ kill \-KILL \-1234
+.EE
+.RE
+.PP
+End a background job of the shell:
+.PP
+.RS 4
+.EX
+$ kill %1
+.EE
+.RE
+.PP
+Name the signal that ended a command, given its exit status:
+.PP
+.RS 4
+.EX
+$ kill \-l 143
+TERM
+.EE
+.RE
+.PP
+List the signals:
+.PP
+.RS 4
+.EX
+$ kill \-l
+ 1) HUP
+ 2) INT
+ 3) QUIT
+ 4) ILL
+ 8) FPE
+ 9) KILL
+11) SEGV
+13) PIPE
+15) TERM
+22) ABRT
+.EE
+.RE
+.SH NOTES
+.B KILL
+calls
+.BR TerminateProcess ,
+which gives the process no chance to clean up.
+Any other signal except 0 makes the process call
+.B ExitProcess
+from a thread that
+.B kill
+injects into it.
+No signal handler runs in either case, and
+.B INT
+does not send Ctrl+C: it ends the process like
+.BR TERM .
+.PP
+The exit code of a signaled process is the signal number shifted left
+24 bits, such as
+.B 0x0F000000
+for
+.BR TERM ,
+which the kit's shell reports as 128 plus the signal number, so
+.B $?\&
+is 143 for a process ended by
+.BR TERM .
+.PP
+A signal is delivered asynchronously.
+The command returns once it has created the thread, and does not report
+a failure to create it, so the process may exit a moment later, or not
+at all.
+Injecting a thread works only when
+.B kill
+and the target are both 32-bit or both 64-bit.
+Otherwise every signal except
+.BR KILL ,
+including 0, fails.
+.PP
+The reason after
+.B can\(aqt kill pid
+is
+.B Invalid argument
+for a process that does not exist or has already exited, or for a
+number with no name, and
+.B Permission denied
+for a process that cannot be opened with the access needed, such as a
+system process, or that has the other bitness.
+.PP
+Windows reuses process IDs, so a process whose parent has exited is
+taken for a child of any later process that gets the parent's ID.
+If reused IDs make a process its own ancestor, a negative
+.I pid
+or 0 whose descendants include it makes
+.B kill
+run without end.
+.PP
+Differences from the usual Unix command:
+.IP \(bu 2
+There are no process groups, so a negative
+.I pid
+selects descendants, and there is no PID
+.B \-1
+for all processes.
+.IP \(bu 2
+Only the signals listed above exist, with no job control signals such
+as
+.B STOP
+and
+.BR CONT .
+.IP \(bu 2
+Numbers follow the Windows C runtime:
+.B ABRT
+is 22, not 6, and 6 cannot be sent.
+.IP \(bu 2
+There are no
+.B \-n
+or
+.B \-L
+options.
+.IP \(bu 2
+The exit status counts failures.
+.PP
+In the kit's shell
+.B kill
+is a built-in that runs this same code inside the shell's process, so
+.B kill 0
+ends the shell itself and everything it started.
+Its messages begin with the name of the shell instead of
+.BR kill: .
+It also accepts job specifications such as
+.B %1
+in place of PIDs, and signals each running process of the job and all
+of their descendants.
+An unknown job is a shell error with status 2.
+.PP
+For a command run in the background,
+.B $!\&
+is the ID of a shell process, which runs the program as its child
+unless the program is a busybox applet that runs inside it.
+Then
+.B kill $!\&
+ends only that shell and leaves the program running, but
+.B kill %1
+and
+.B kill \-\- \-$!\&
+end both.
+.SH SEE ALSO
+.BR busybox (1),
+.BR killall (1),
+.BR pgrep (1),
+.BR pidof (1),
+.BR pkill (1),
+.BR ps (1),
+.BR sh (1)

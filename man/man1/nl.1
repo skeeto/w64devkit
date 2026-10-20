@@ -1,0 +1,328 @@
+.TH NL 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+nl \- number the lines of files
+.SH SYNOPSIS
+.B nl
+.RB [ \-p ]
+.RB [ \-b
+.IR style ]
+.RB [ \-i
+.IR incr ]
+.RB [ \-s
+.IR sep ]
+.RB [ \-v
+.IR start ]
+.RB [ \-w
+.IR width ]
+.RI [ file ...]
+.SH DESCRIPTION
+.B nl
+writes each
+.I file
+to standard output, adding a line number to the start of each line that
+it numbers.
+With no
+.I file
+operands, or for a
+.I file
+named
+.BR \- ,
+it reads standard input.
+A
+.I file
+that cannot be opened is reported on standard error and skipped, and the
+remaining files are still written.
+.PP
+A numbered line is its number in decimal, right-aligned in a field of at
+least
+.I width
+columns, then the separator, then the line.
+A line that is not numbered gets spaces in place of the number and
+separator, as many as the field width plus the length of the separator
+in bytes.
+A line that is not numbered does not advance the count.
+.PP
+By default only nonempty lines are numbered.
+The first number is 1, and each numbered line adds 1 to the next number.
+The count continues from one file to the next.
+.B \-b
+chooses the lines to number, and
+.B \-v
+and
+.B \-i
+change the first number and the step.
+.SS Lines
+A line ends at an LF.
+A CR just before the LF is removed, so CR LF line endings are accepted.
+A NUL byte also ends a line and is removed, and an LF right after it
+then makes an empty line of its own.
+Every line is written with a final LF, including a last line that has
+none.
+.PP
+A line is empty when nothing is left of it after this.
+A line that holds only CR LF is empty, and one that holds only spaces or
+tabs is not.
+A CR anywhere else, such as at the end of a file with no final LF, is
+kept.
+Each line is held in memory whole.
+.SS Numbers
+Numbers are unsigned 32-bit decimal values that wrap around to 0 after
+4294967295.
+The
+.I width
+is a minimum, and a longer number is written in full.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-pba ,
+and may follow
+.I file
+operands, unless
+.B POSIXLY_CORRECT
+is set.
+An option's argument may be attached, as in
+.BR \-w3 ,
+or be the next argument.
+A long option may be abbreviated to any unambiguous prefix, and takes
+its argument after
+.B =
+or as the next argument.
+.B \-\-
+ends the options.
+If an option is given more than once, the last one applies.
+.PP
+The arguments of
+.BR \-i ,
+.BR \-v ,
+and
+.B \-w
+are decimal numbers from 0 to 2147483647, with no sign, space, or
+prefix.
+Leading zeros are allowed, and the number is still decimal.
+A value from 2147483648 to 4294967295 is reported as
+.BR "not in 0..2147483647 range" ,
+and any other bad argument, including a larger number, as
+.BR "invalid number" .
+Both errors exit with status 1.
+.TP
+\fB\-b\fR \fIstyle\fR, \fB\-\-body\-numbering\fR=\fIstyle\fR
+Choose the lines to number by the first character of
+.IR style :
+.B a
+for all lines,
+.B t
+for nonempty lines, and
+.B n
+for none.
+Any other first character, or an empty
+.IR style ,
+numbers no lines, like
+.BR n .
+The rest of
+.I style
+is ignored, so the GNU form
+.BI p regexp
+is not supported and numbers no lines.
+The default is
+.BR t .
+.TP
+\fB\-i\fR \fIincr\fR, \fB\-\-line\-increment\fR=\fIincr\fR
+Add
+.I incr
+to the number after each numbered line.
+The default is 1.
+With 0, every numbered line has the same number.
+.TP
+.BR \-p ", " \-\-no\-renumber
+Accepted for compatibility and ignored.
+.TP
+\fB\-s\fR \fIsep\fR, \fB\-\-number\-separator\fR=\fIsep\fR
+Write
+.I sep
+after the number, instead of a tab.
+It may be empty or several characters long.
+Its length in bytes, not in display columns, sets the spaces written for
+a line that is not numbered.
+.TP
+\fB\-v\fR \fIstart\fR, \fB\-\-starting\-line\-number\fR=\fIstart\fR
+Give the first numbered line the number
+.IR start ,
+instead of 1.
+.TP
+\fB\-w\fR \fIwidth\fR, \fB\-\-number\-width\fR=\fIwidth\fR
+Right-align numbers in a field of at least
+.I width
+columns, instead of 6.
+With 0, numbers have no padding.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit.
+It is recognized only as the first argument.
+.PP
+An unknown option, or a missing option argument, prints the usage
+message on standard error and exits with status 1.
+.SH ENVIRONMENT
+.TP
+.B POSIXLY_CORRECT
+When set, the first
+.I file
+operand ends the options, so that later arguments such as
+.B \-w
+are file names.
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the arguments, including option arguments, are expanded
+against file names when
+.B nl
+starts, as needed when it is run from
+.BR cmd.exe .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+arguments as the shell expanded them.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+output to a console is not converted, as described in
+.BR busybox (1).
+.PP
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+An invalid option or number, a
+.I file
+could not be opened (a directory is reported as
+.BR "Is a directory" ),
+or standard output could not be written.
+.TP
+.B 141
+Standard output is a pipe whose reader closed it while
+.B nl
+was still writing.
+If the closed pipe is found only by the final flush at exit, as with
+output shorter than the output buffer, the status is 1 instead.
+.SH EXAMPLES
+Number the nonempty lines of a file:
+.PP
+.RS 4
+.EX
+$ nl notes.txt
+.EE
+.RE
+.PP
+Number every line, including empty ones, in a field of 3 columns, with a
+colon as the separator:
+.PP
+.RS 4
+.EX
+$ printf \(aqone\en\entwo\en\(aq | nl \-ba \-w3 \-s:
+  1:one
+  2:
+  3:two
+.EE
+.RE
+.PP
+Number from 100 in steps of 10, separated by a space:
+.PP
+.RS 4
+.EX
+$ printf \(aqone\entwo\en\(aq | nl \-ba \-v 100 \-i 10 \-s \(aq \(aq
+   100 one
+   110 two
+.EE
+.RE
+.PP
+Find where a word occurs, with line numbers:
+.PP
+.RS 4
+.EX
+$ nl \-ba main.c | grep TODO
+.EE
+.RE
+.PP
+Number each file separately, since the count restarts at each run:
+.PP
+.RS 4
+.EX
+$ for f in *.txt; do nl \-ba "$f"; done
+.EE
+.RE
+.SH NOTES
+Differences from GNU nl:
+.IP \(bu 2
+Only
+.BR \-b ,
+.BR \-i ,
+.BR \-p ,
+.BR \-s ,
+.BR \-v ,
+and
+.BR \-w ,
+with their long forms, are accepted.
+There are no
+.BR \-d ,
+.BR \-f ,
+.BR \-h ,
+.BR \-l ,
+or
+.BR \-n ,
+so there are no logical pages, no header or footer numbering, no
+joining of empty lines, and no other number format.
+A delimiter line such as
+.B \e:\e:\e:
+is an ordinary line.
+.IP \(bu 2
+.B \-b
+recognizes only
+.BR a ,
+.BR t ,
+and
+.BR n .
+.IP \(bu 2
+.B \-p
+does nothing.
+.IP \(bu 2
+.B \-v
+and
+.B \-i
+do not accept a negative number.
+.IP \(bu 2
+A CR before an LF is removed, and a NUL byte ends a line, as described
+under
+.BR Lines .
+.PP
+Standard input and output are binary, with no CR LF translation by the C
+runtime.
+It is
+.B nl
+itself that removes the CR of a CR LF line ending, so output lines end
+with a bare LF.
+Filter the output through
+.BR unix2dos (1)
+to make them CR LF.
+.PP
+File names may use drive letters and backslashes.
+They may contain any Unicode characters on Windows 10 version 1903 and
+later, and are limited to the system code page on earlier versions.
+The device names that busybox accepts, such as
+.IR /dev/null ,
+work as operands; see
+.BR busybox (1).
+.PP
+When standard output is a console, text is converted for display from
+the ANSI code page, which is UTF-8 on Windows 10 version 1903 and later.
+Escape sequences in the input, such as those for color, take effect.
+.SH SEE ALSO
+.BR busybox (1),
+.BR cat (1),
+.BR grep (1),
+.BR unix2dos (1)

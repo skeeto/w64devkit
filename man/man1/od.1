@@ -1,0 +1,671 @@
+.TH OD 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+od \- dump files in octal and other formats
+.SH SYNOPSIS
+.B od
+.RI [ options ]
+.RI [ file ...]
+.br
+.B od \-\-traditional
+.RI [ options ]
+.RI [ file ]
+.RI [ offset
+.RI [ label ]]
+.SH DESCRIPTION
+.B od
+writes the bytes of its input to standard output as numbers or
+characters, in one or more formats.
+With no format options, it writes 2-byte words in octal.
+With no
+.I file
+operands, or for a
+.I file
+named
+.BR \- ,
+it reads standard input.
+The files form a single input: addresses run on from one file to the
+next, and
+.BR \-j ,
+.BR \-N ,
+and
+.B \-S
+apply to the whole.
+A file that cannot be opened is reported on standard error and skipped,
+and the others are still written.
+.SS Output
+The input is read in blocks, 16 bytes by default; see
+.BR \-w .
+Each block is written as a line: its address, then its values, each
+preceded by a space.
+The address is the number of input bytes before the block, counting the
+bytes skipped by
+.BR \-j .
+It has at least 7 octal digits.
+After the last block, the address just past the end of the input is
+written on a line of its own.
+.B \-A
+changes the radix of the addresses, or omits them.
+.PP
+A value of more than one byte is read in the machine's byte order,
+which is little-endian, so in hexadecimal the bytes of a word appear
+reversed.
+The last block may be short.
+It is completed with zero bytes to a whole number of values.
+.PP
+Unless
+.B \-v
+is given, a block identical to the one before it is not written.
+A run of identical blocks is written as its first block followed by a
+line holding only
+.BR * .
+.PP
+With several formats, each block is written once for each format, one
+line per format.
+Only the first line has the address, and the others begin with spaces in
+its place.
+The formats are written in a fixed order, not the order given:
+.BR \-a ;
+.BR \-b ;
+.BR \-c ;
+.BR \-d ;
+.BR \-D ;
+.BR \-f ;
+.B \-h
+or
+.BR \-x ;
+.B \-H
+or
+.BR \-X ;
+.BR \-i ,
+.BR \-I ,
+.BR \-l ,
+or
+.BR \-L ;
+.B \-o
+or
+.BR \-B ;
+.BR \-O ;
+the
+.B \-t
+types, in the order given; and
+.BR \-s .
+.SS Type specifiers
+The argument of
+.B \-t
+is made of type specifiers.
+A specifier is a type letter, an optional size, and an optional
+.BR z .
+Each value is written after a space, in a field as wide as the largest
+value of its type and size: octal and hexadecimal values are padded with
+zeros, and decimal values with spaces.
+.TP
+.BR d ", " o ", " u ", " x
+An integer in signed decimal, octal, unsigned decimal, or hexadecimal.
+The size is
+.B C
+for 1 byte,
+.B S
+for 2,
+.B I
+for 4,
+.B L
+for 4 as well, since a Windows
+.B long
+has 4 bytes, or the number 1, 2, 4, or 8.
+The default is 4.
+.TP
+.B f
+A floating-point number in exponent notation, with 7 digits after the
+point for 4-byte values and 15 for 8-byte values.
+The size is
+.B F
+for 4 bytes, a
+.BR float ;
+.B D
+for 8, a
+.BR double ;
+.B L
+for a
+.BR "long double" ,
+16 bytes on x64 and 12 on x86; or one of those numbers.
+The default is 8.
+See
+.B NOTES
+about
+.BR "long double" .
+.TP
+.B a
+A named character, 4 columns wide.
+The byte is taken modulo 128.
+Printable characters other than space are written as themselves.
+Space is
+.BR sp ,
+0x7f is
+.BR del ,
+and each control character is its lowercase ASCII name, such as
+.BR nul ,
+.BR bel ,
+or
+.BR esc ,
+except that LF is
+.BR nl .
+.TP
+.B c
+A character, 4 columns wide.
+Printable ASCII, 0x20 to 0x7e, is written as itself.
+NUL, BEL, BS, FF, LF, CR, tab, and VT are written as
+.BR \e0 ,
+.BR \ea ,
+.BR \eb ,
+.BR \ef ,
+.BR \en ,
+.BR \er ,
+.BR \et ,
+and
+.BR \ev .
+Any other byte is written as 3 octal digits.
+.PP
+The types
+.B a
+and
+.B c
+take no size.
+A
+.B z
+after a specifier adds to the end of each of its lines the bytes of the
+block as text between
+.B >
+and
+.BR < ,
+with a period for each byte that is not printable ASCII.
+.PP
+Several specifiers may follow one another in a
+.B \-t
+argument, as in
+.BR dCdS ,
+but a numeric size must end the argument.
+A letter after it, such as the
+.B z
+in
+.B x1z
+or the second
+.B d
+in
+.BR d2d2 ,
+gives a misleading error about a 4294967295-byte type.
+Give the size as a letter, as in
+.BR xCz ,
+or give
+.B \-t
+again.
+.SS Traditional syntax
+Without
+.BR \-\-traditional ,
+every operand is a file.
+With it, at most one file may be given, and the operands can also be an
+offset, which is the number of bytes to skip and replaces any
+.BR \-j ,
+and after an offset a label.
+.PP
+An offset is octal, or decimal when it contains a period, or
+hexadecimal when it starts with
+.B 0x
+or
+.BR 0X .
+The period ends the number, and anything after it is ignored.
+A leading
+.B +
+is ignored.
+A
+.B b
+or
+.B B
+at the end of an octal or decimal number multiplies it by 512 or 1024,
+as in
+.B 1b
+or
+.BR 2b. ;
+in a hexadecimal number they are digits.
+.PP
+One operand is an offset or a file.
+Two operands are an offset and a label, or a file and an offset.
+Three are a file, an offset, and a label.
+Anything else is an error.
+Where an offset may appear, an operand that starts with a digit, after
+any
+.BR + ,
+is taken as one, so
+.B od \-\-traditional 1.txt
+skips 1 byte of standard input, and a malformed offset such as
+.B 1file
+is an error.
+.PP
+The label, written like an offset, is the address to show for the first
+byte written.
+Each address is then followed by the label address in parentheses.
+With
+.BR "\-A n" ,
+only an address in parentheses is written, and it is the plain address,
+not the label address.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-bx ,
+and may follow the
+.I file
+operands.
+An option's argument may be attached, as in
+.BR \-N16 ,
+or be the next argument.
+The argument of a long option may follow an
+.B =
+or be the next argument.
+The exceptions are
+.BR \-w ,
+.BR \-\-width ,
+and
+.BR \-\-strings ,
+whose argument is optional and must be attached, as in
+.B \-w8
+or
+.BR \-\-strings=8 .
+Long options may be abbreviated to a unique prefix.
+.B \-\-
+ends the options.
+.PP
+The arguments of
+.BR \-j ,
+.BR \-N ,
+and
+.B \-S
+are numbers in decimal, hexadecimal with a
+.B 0x
+prefix, or octal with a leading
+.BR 0 .
+A lowercase
+.BR b ,
+.BR k ,
+or
+.B m
+after the number multiplies it by 512, 1024, or 1048576.
+A sign is not allowed.
+.TP
+.B \-a
+Same as
+.BR "\-t a" .
+.TP
+.B \-b
+Same as
+.BR "\-t oC" :
+octal bytes.
+.TP
+.B \-c
+Same as
+.BR "\-t c" .
+.TP
+.B \-d
+Same as
+.BR "\-t u2" :
+unsigned decimal 2-byte words.
+.TP
+.B \-D
+Same as
+.BR "\-t u4" .
+.TP
+.B \-f
+Same as
+.BR "\-t fF" :
+4-byte floating point.
+.TP
+.BR \-h ", " \-x
+Same as
+.BR "\-t x2" :
+hexadecimal 2-byte words.
+.TP
+.BR \-H ", " \-X
+Same as
+.BR "\-t x4" .
+.TP
+.BR \-i ", " \-I ", " \-l ", " \-L
+Same as
+.BR "\-t d4" :
+signed decimal 4-byte integers.
+All four are the same here; see
+.BR NOTES .
+.TP
+.BR \-o ", " \-B
+Same as
+.BR "\-t o2" :
+octal 2-byte words.
+This is the default when no format is given.
+.TP
+.B \-O
+Same as
+.BR "\-t o4" .
+.TP
+.BR \-v ", " \-\-output\-duplicates
+Write every block, including those identical to the one before.
+.TP
+.B \-s
+Same as
+.BR "\-t d2" :
+signed decimal 2-byte words.
+.TP
+\fB\-t\fR \fItype\fR, \fB\-\-format=\fR\fItype\fR
+Add the format or formats that
+.I type
+describes; see
+.BR "Type specifiers" .
+May be repeated.
+An invalid
+.I type
+is an error.
+.TP
+\fB\-A\fR \fIradix\fR, \fB\-\-address\-radix=\fR\fIradix\fR
+Write addresses in the radix named by the first character of
+.IR radix :
+.B d
+for decimal, with at least 7 digits;
+.B o
+for octal, with at least 7 digits, the default;
+.B x
+for hexadecimal, with at least 6 lowercase digits;
+or
+.B n
+for none, which also omits the final address.
+Any other character is an error, but an empty
+.I radix
+is accepted and garbles the addresses.
+.TP
+\fB\-N\fR \fIbytes\fR, \fB\-\-read\-bytes=\fR\fIbytes\fR
+Read at most
+.I bytes
+bytes of input, counted after the
+.B \-j
+skip.
+Less is read if the input ends first.
+If the skip and
+.I bytes
+together overflow 63 bits, it is an error.
+.TP
+\fB\-j\fR \fIbytes\fR, \fB\-\-skip\-bytes=\fR\fIbytes\fR
+Skip
+.I bytes
+bytes of input before writing.
+Within regular files the skip seeks, and a regular file wholly within it
+is not read; other input is read and discarded.
+A skip past the end of the combined input is an error, and nothing is
+written.
+A skip of 2 GiB or more into a regular file goes wrong; see
+.BR NOTES .
+.TP
+\fB\-S\fR \fIlength\fR, \fB\-\-strings\fR[\fB=\fR\fIlength\fR]
+Write strings instead of values.
+A string is a run of at least
+.I length
+printable ASCII characters, 0x20 to 0x7e, ended by a NUL byte.
+The default
+.I length
+is 3.
+Each string is written on a line of its own, after its address and a
+space, and no final address is written.
+Any other byte, such as a tab, ends a run without a string, and so does
+the end of the input.
+Formats are checked but not otherwise used.
+The argument of
+.B \-S
+is required.
+.TP
+\fB\-w\fR[\fIbytes\fR], \fB\-\-width\fR[\fB=\fR\fIbytes\fR]
+Write
+.I bytes
+bytes of input per line, in decimal.
+Without a number, the width is 32.
+Without
+.BR \-w ,
+it is 16, or the least common multiple of the value sizes when that
+does not divide 16, as with a 12-byte
+.B long double
+on x86.
+The width must be a positive multiple of the size of every value.
+If it is not,
+.B od
+warns
+.B invalid width
+on standard error and uses the least common multiple of the sizes
+instead.
+.TP
+.B \-\-traditional
+Accept the operands described under
+.BR "Traditional syntax" .
+.TP
+.B \-\-help
+As the first argument, print a usage message on standard output and
+exit.
+.SH ENVIRONMENT
+.TP
+.B POSIXLY_CORRECT
+When set, the first
+.I file
+operand ends the options, so that later arguments such as
+.B \-c
+are file names.
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the operands are expanded, as needed when run from
+.BR cmd.exe .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+operands as the shell expanded them.
+.PP
+Variables that affect every busybox applet are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+An invalid option, number, address radix, type, or operand; a skip past
+the end of the input; a failed seek; a read or write error; or a file
+that could not be opened.
+.TP
+.B 141
+Standard output is a pipe that was closed before all output was written.
+.PP
+A file that cannot be opened or read is reported, and
+.B od
+goes on with the next file.
+A failed seek, described in
+.BR NOTES ,
+is not reported, and
+.B od
+goes on from the start of the file.
+Either way the exit status is 1.
+The other errors stop
+.B od
+at once.
+.SH EXAMPLES
+Dump a file in the default format.
+Each word is read little-endian, so the bytes 0x48 0x65 of
+.B He
+appear as 062510:
+.PP
+.RS 4
+.EX
+$ od hello.txt
+0000000 062510 066154 026157 073440 071157 062154 005041
+0000016
+.EE
+.RE
+.PP
+Write the bytes in hexadecimal, with no addresses:
+.PP
+.RS 4
+.EX
+$ od \-An \-tx1 hello.txt
+ 48 65 6c 6c 6f 2c 20 77 6f 72 6c 64 21 0a
+.EE
+.RE
+.PP
+Write hexadecimal addresses, hexadecimal bytes, and the bytes as text,
+8 bytes per line:
+.PP
+.RS 4
+.EX
+$ od \-Ax \-t xCz \-w8 hello.txt
+000000 48 65 6c 6c 6f 2c 20 77  >Hello, w<
+000008 6f 72 6c 64 21 0a        >orld!.<
+00000e
+.EE
+.RE
+.PP
+Print the 4-byte value at offset 0x3c of an EXE, the offset of its PE
+header:
+.PP
+.RS 4
+.EX
+$ od \-An \-tu4 \-j 0x3c \-N 4 xxd.exe
+        128
+.EE
+.RE
+.PP
+List the strings of at least 8 characters in a program, with their
+addresses in hexadecimal:
+.PP
+.RS 4
+.EX
+$ od \-Ax \-S 8 program.exe
+.EE
+.RE
+.PP
+Read 4-byte floating-point numbers:
+.PP
+.RS 4
+.EX
+$ printf \(aq\e0\e0\e200\e077\(aq | od \-An \-tfF
+  1.0000000e+000
+.EE
+.RE
+.PP
+Skip the first 7 bytes with the obsolete operand syntax, in which the
+offset is octal:
+.PP
+.RS 4
+.EX
+$ od \-\-traditional \-tx1 hello.txt 7
+0000007 77 6f 72 6c 64 21 0a
+0000016
+.EE
+.RE
+.SH NOTES
+Unlike
+.B od
+on 64-bit Unix systems,
+.BR \-I ,
+.BR \-l ,
+.BR \-L ,
+and the size
+.B L
+are 4 bytes, the size of a Windows
+.BR long ,
+so they match
+.B \-i
+and
+.BR "\-t d4" .
+Use the size 8 for 8-byte integers, as in
+.BR "\-t d8" .
+.PP
+The obsolete operands that POSIX describes are accepted only with
+.BR \-\-traditional .
+.PP
+Floating-point numbers are formatted by the Microsoft C runtime, so
+exponents have three digits, as in
+.BR 1.0000000e+000 ,
+and infinities and NaNs are written in forms such as
+.B 1.#INF000e+000
+and
+.BR 1.#QNAN00e+000 .
+That runtime cannot format a
+.BR "long double" ,
+so the types
+.B fL
+and
+.B f16
+(or
+.B f12
+on x86) write wrong values.
+Use
+.B fD
+for doubles.
+.PP
+With
+.B \-A n
+and more than one format, the lines after the first for each block are
+indented by an arbitrary number of columns, because the width of the
+missing address is read from past the end of a table.
+.PP
+With
+.BR \-S ,
+a string cut off by the limit of
+.B \-N
+is written, but with an address one less than its own.
+.PP
+With
+.B \-N
+and no
+.BR \-S ,
+input is read without buffering, so a program that shares standard input
+with
+.B od
+continues where
+.B od
+stopped.
+.PP
+Addresses, and the numbers given to
+.B \-j
+and
+.BR \-N ,
+are 64-bit, but a skip that reaches 2 GiB or more into a regular file
+seeks with only the low 32 bits of the offset, as a signed number.
+When those bits are negative the seek fails, and
+.B od
+dumps from the start of the file and exits with status 1, without a
+message; otherwise it dumps from the wrong place.
+Either way the addresses show the requested skip.
+A pipe is skipped by reading, so
+.B cat
+.I file
+.B | od \-j
+.I bytes
+works.
+.PP
+Input from files and pipes is read as bytes: a CR LF is not translated,
+and Ctrl-Z does not end the input.
+Output lines end with LF.
+.PP
+File names may use drive letters and either kind of slash.
+They may contain any Unicode characters on Windows 10 version 1903 and
+later, and are limited to the system code page on earlier versions.
+The names
+.IR /dev/null ,
+.IR /dev/zero ,
+.IR /dev/urandom ,
+.IR /dev/stdin ,
+.IR /dev/tty ,
+and
+.I /dev/fd/N
+work as input files, but after reading
+.IR /dev/fd/0 ,
+.B od
+fails with
+.B "standard input: Bad file descriptor"
+and exits with status 1.
+A directory fails with
+.BR "Is a directory" .
+.SH SEE ALSO
+.BR busybox (1),
+.BR hexdump (1),
+.BR xxd (1)

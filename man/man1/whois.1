@@ -1,0 +1,347 @@
+.TH WHOIS 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+whois \- ask a whois server about a domain name
+.SH SYNOPSIS
+.B whois
+.RB [ \-i ]
+.RB [ \-h
+.IR server ]
+.RB [ \-p
+.IR port ]
+.IR name ...
+.SH DESCRIPTION
+.B whois
+asks a whois server about each
+.IR name ,
+in order, and writes the replies to standard output.
+It starts at
+.BR whois.iana.org ,
+or at the server given with
+.BR \-h .
+When a reply names another server to ask,
+.B whois
+asks that server too, and by default shows only the last reply.
+.PP
+The names are meant to be domain names; see
+.BR NOTES .
+.SS Queries
+.B whois
+connects to the server over TCP, sends the
+.I name
+as given followed by CR LF, and reads the reply until the server closes
+the connection.
+A read error, such as a reset connection, ends the reply the same way,
+with no message.
+Each
+.I name
+is a separate query.
+.PP
+A reply is expected to contain a line that begins with
+.B domain:
+or
+.BR "domain name:" ,
+ignoring case and leading white space.
+If it contains none,
+.B whois
+connects to the same server again and sends
+.B domain
+and a space before the name.
+This happens at most once per server, and the first reply is discarded.
+.SS Redirects
+Following a line that begins with
+.B domain:
+or
+.BR "domain name:" ,
+the first line that begins with
+.B whois server:
+or
+.BR whois: ,
+ignoring case and leading white space, names the next server.
+The server is the rest of that line, without white space around it and in
+lowercase, and may carry a port as described for
+.BR \-h .
+.PP
+An empty server is followed too.
+IANA gives one for a top-level domain with no whois server.
+Windows resolves the empty name to an address of the local computer, so
+the query usually fails with
+.BR "can\(aqt connect to remote host" ,
+and without
+.B \-i
+no reply is shown.
+.PP
+.B whois
+asks the new server about the same name on port 43, whatever
+.B \-p
+says.
+A line that names the server just asked, compared as text, is ignored,
+and its reply is shown.
+Other lines, such as
+.BR "Registrar WHOIS Server:" ,
+are not followed.
+There is no limit to the number of redirects, so servers that name each
+other make
+.B whois
+loop until it is interrupted.
+.SS Output
+For each query,
+.B whois
+writes these lines to standard output:
+.TP
+\fB[Querying \fIhost\fB:\fIport\fB \(aq\fIname\fB\(aq]\fR
+Before it connects.
+.I host
+is the server as given, and
+.I port
+is the
+.B \-p
+port, or 43.
+A port in
+.I host
+overrides it, but both are shown.
+.I name
+is what is sent, without the CR LF, so a second query shows the
+.B domain
+prefix.
+.TP
+\fB[Redirected to \fIhost\fB]\fR
+When the reply names another server.
+.TP
+\fB[\fIhost\fB]\fR
+Followed by the text of the reply, with
+.I host
+as in the first line.
+The text of a reply that names another server is not shown, except with
+.BR \-i .
+.PP
+Each line of the reply text ends with LF.
+A line ends at its first CR or LF, so text after a CR inside a line is
+lost.
+A line of 2046 bytes or more is broken after every 2046 bytes, each piece
+ended with LF, so a line of exactly 2046 bytes is followed by an empty one.
+A last line with no line end gets one.
+.PP
+.B whois
+stops reading a reply after the line that brings it to 32768 bytes or
+more, closes the connection, and drops the rest.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-ih ,
+and the argument of
+.B \-h
+or
+.B \-p
+may be attached or be the next argument.
+.B \-\-
+ends the options.
+Options may follow the operands unless
+.B POSIXLY_CORRECT
+is set.
+There are no long options.
+.B \-h
+names a server and does not print help.
+.TP
+.B \-i
+Show the reply of every server asked, each after its own
+.BI [ host ]
+line, instead of only the last.
+.TP
+.BI "\-h " server
+Ask
+.I server
+first, instead of
+.BR whois.iana.org .
+It is a name, an IPv4 address, or an IPv6 address.
+A port may follow a name or IPv4 address after a colon, as in
+.BR example.com:4343 ,
+or an IPv6 address in brackets, as in
+.BR [::1]:4343 ,
+and overrides
+.BR \-p .
+An IPv6 address with more than one colon is never split this way.
+A port must be a number from 0 to 65535.
+.TP
+.BI "\-p " port
+Connect to
+.I port
+on the first server.
+The default is 43.
+It is a number from 0 to 2147483647, and only its low 16 bits are used:
+65536 is port 0 and 70000 is port 4464.
+It is not used for servers named by redirects.
+A service name is not accepted.
+.PP
+An unknown option or a missing option argument prints a message and the
+usage on standard error.
+A missing
+.I name
+prints only the usage, and an invalid
+.B \-p
+value prints only a message.
+Each exits with status 1.
+When the first argument is
+.BR \-\-help ,
+the usage is printed on standard output instead, and the exit status
+is 0.
+.SH ENVIRONMENT
+.TP
+.B POSIXLY_CORRECT
+When set, the first operand ends the options, so a later
+.B \-i
+is taken as a name.
+The C library's option parser reads it.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+output to a console is not converted, as described in
+.BR NOTES ,
+and the console interprets the bytes in its own code page.
+.PP
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Every name was queried, whether or not the server knew it, or the usage
+was requested with
+.BR \-\-help .
+.TP
+.B 1
+An invalid command line; a server that could not be resolved or whose
+port is invalid; or a connection that could not be made.
+The message is on standard error, prefixed with
+.BR whois: .
+Output already written stays, and the names after the failing query are
+not asked about.
+.TP
+.B 141
+Writing to standard output failed because it is a pipe that was closed.
+Output to a pipe is buffered in 4 KiB blocks, and a failed write of the
+last block, at exit, is ignored, so a closed pipe gives status 0 when the
+output fits in one block.
+.SH EXAMPLES
+Look up a domain, and show how the query reached the registry:
+.PP
+.RS 4
+.EX
+$ whois kernel.org | head \-n 4
+[Querying whois.iana.org:43 \(aqkernel.org\(aq]
+[Redirected to whois.publicinterestregistry.org]
+[Querying whois.publicinterestregistry.org:43 \(aqkernel.org\(aq]
+[whois.publicinterestregistry.org]
+.EE
+.RE
+.PP
+Show every server's reply, but only the bracketed lines:
+.PP
+.RS 4
+.EX
+$ whois \-i kernel.org | grep \(aq^\e[\(aq
+[Querying whois.iana.org:43 \(aqkernel.org\(aq]
+[whois.iana.org]
+[Redirected to whois.publicinterestregistry.org]
+[Querying whois.publicinterestregistry.org:43 \(aqkernel.org\(aq]
+[whois.publicinterestregistry.org]
+.EE
+.RE
+.PP
+Ask a registry directly instead of starting at IANA:
+.PP
+.RS 4
+.EX
+$ whois \-h whois.verisign\-grs.com example.com
+.EE
+.RE
+.PP
+Ask a server on another port, giving the port with the server:
+.PP
+.RS 4
+.EX
+$ whois \-h \(aq[::1]:4343\(aq example.com
+.EE
+.RE
+.PP
+There is no timeout.
+Give up after 20 seconds with
+.BR timeout :
+.PP
+.RS 4
+.EX
+$ timeout 20 whois example.com
+.EE
+.RE
+.PP
+Look up an IP address, which
+.B whois
+cannot do, by sending the query with
+.BR nc .
+The
+.B sleep
+holds the input open, since without it the reply is often cut short:
+.PP
+.RS 4
+.EX
+$ { printf \(aq8.8.8.8\er\en\(aq; sleep 5; } | nc whois.arin.net 43
+.EE
+.RE
+.SH NOTES
+Differences from other whois clients:
+.IP \(bu 2
+The only options are
+.BR \-i ,
+.BR \-h ,
+and
+.BR \-p .
+There is none to stop redirects or to skip the second query.
+.IP \(bu 2
+Only a reply with a
+.B domain:
+or
+.B domain name:
+line is followed to another server.
+.PP
+A name that is not a domain name, such as an IP address or an AS
+number, normally gets a reply with no such line.
+Then the second query, with
+.B domain
+before the name, is sent, and only its reply, usually an error, is shown.
+Send such queries with
+.BR nc (1)
+instead, as shown in
+.BR EXAMPLES .
+.PP
+.B whois
+uses TCP port 43 and sends the query unencrypted.
+There is no proxy support.
+There is no timeout except the one Windows applies to making a
+connection, and
+.B whois
+waits for the server to close the connection.
+.PP
+Windows resolves server names, as for
+.BR nc (1).
+When a name has several addresses,
+.B whois
+tries only one: the first IPv4 address, or else the first address.
+Redirect targets are resolved the same way.
+.PP
+Socket failures are reported without the Windows reason, as in
+.BR "whois: can\(aqt connect to remote host (127.0.0.1)" .
+The address is shown only for IPv4.
+A server name that fails to resolve, or that is malformed, is reported as
+\fBwhois: bad address \(aq\fIserver\fB\(aq\fR,
+and an invalid port in it as
+\fBwhois: bad port \(aq\fIport\fB\(aq\fR.
+.PP
+When standard output is a console, the reply is converted for display
+from the ANSI code page, which is UTF-8 on Windows 10 version 1903 and
+later.
+Escape sequences in a reply, such as those for color, take effect, and
+busybox emulates them on consoles without virtual terminal support.
+.SH SEE ALSO
+.BR busybox (1),
+.BR nc (1),
+.BR timeout (1)

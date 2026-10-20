@@ -1,0 +1,520 @@
+.TH MAN 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.SH NAME
+man \- display manual pages
+.SH SYNOPSIS
+.B man
+.RB [ \-aw ]
+.RI [ section ]
+\fIpage\fR[\fB.\fIsection\fR]...
+.br
+.B man
+.RB [ \-aw ]
+.IR file ...
+.SH DESCRIPTION
+.B man
+shows manual pages.
+For each operand it finds a page, formats it with
+.BR nroff (1),
+and displays the result through a pager.
+It is an applet of
+.BR busybox (1).
+.PP
+An operand that contains a slash or a backslash is a
+.IR file ,
+which
+.B man
+formats as a page without searching.
+Any other operand is the name of a
+.IR page ,
+which
+.B man
+looks for in the manual directories.
+A page is written in man(7) or mdoc(7) macros, and may be compressed.
+.SS Finding pages
+A manual directory holds page sources in subdirectories named
+.BR man1 ,
+.BR man2 ,
+and so on, and may hold preformatted text pages in
+.BR cat1 ,
+.BR cat2 ,
+and so on.
+The page
+.B xxd
+in section 1 is the file
+.I man1/xxd.1
+in a manual directory, or
+.IR cat1/xxd.1 :
+the section is part of both the directory name and the file name.
+.PP
+.B man
+searches these manual directories, in order:
+.IP 1. 4
+The elements of the
+.B MANPATH
+environment variable, separated by semicolons.
+.IP 2. 4
+The directories named by the
+.B MANPATH
+and
+.B MANDATORY_MANPATH
+lines of the configuration file.
+.IP 3. 4
+The kit's own pages, in
+.I ../share/man
+relative to the directory that holds
+.IR busybox.exe .
+.PP
+Empty elements, and elements spelled the same as an earlier one, are
+ignored.
+A relative element is relative to the root of the system drive, not to
+the current directory.
+.PP
+In each directory,
+.B man
+tries the sections in turn, and in each section a
+.B cat
+page before a
+.B man
+page.
+The sections are
+.BR 0p:1:1p:2:3:3p:4:5:6:7:8:9 ,
+or the list in the
+.B MANSECT
+line of the configuration file.
+.B man
+displays the first page it finds, and then goes on to the next operand.
+A cat page hides the man page of its section.
+.PP
+If the first operand is a section and another operand follows, only
+that section is searched, for every operand.
+A section here is any text whose first occurrence in the list of
+sections ends at a colon or at the end of the list.
+That includes a run such as
+.BR 2:3 ,
+which searches both, and the tail of a section:
+.B man p foo
+searches only section
+.BR p ,
+for
+.IR manp/foo.p .
+.B 0
+is not a section, because it first occurs in
+.BR 0p .
+A
+.I page
+that ends in a dot and a section, as in
+.BR printf.3 ,
+is searched for in that section only, which takes precedence.
+.PP
+When no page is found, and the name contains
+.BR \-w64\-mingw32\- ,
+.B man
+looks again for the part of the name after it, so that
+.B x86_64\-w64\-mingw32\-gcc
+finds
+.BR gcc (1).
+.SS Links
+A man page file, not a cat page, of at most 300 bytes whose first line is
+.BR .so ,
+a space, and a name is a link.
+Later lines are ignored.
+.B man
+shows the page it names instead.
+A name without a slash is relative to the directory that holds the link.
+A name with a slash, such as
+.IR man1/grep.1 ,
+is relative to the directory above that one.
+Trailing white space, including a carriage return, is ignored.
+After 10 links in a chain,
+.B man
+formats the next link file as a page, and
+.B nroff
+follows its
+.B .so
+request.
+When the target cannot be found, nothing is displayed, and the operand
+counts as found.
+.PP
+A
+.B .so
+request inside a longer page is handled by
+.BR nroff .
+It resolves relative to the manual directory the page was found in, or
+to the current directory for a
+.IR file .
+.SS Formatting and display
+To show a page,
+.B man
+runs the
+.B nroff
+that is next to
+.IR busybox.exe ,
+in the manual directory where it found the page, or in the current
+directory for a
+.IR file .
+The page is its standard input, and its options are
+.BR \-mandoc ,
+.BI \-T charset\fR,
+.BI \-rLL= w n\fR,
+and
+.BI \-rLT= w n\fR.
+Its output and error messages go to the pager.
+.PP
+The
+.I charset
+is
+.B utf8
+when the ANSI code page of the process is UTF-8, and
+.B ascii
+otherwise.
+The line length
+.I w
+is the width of the display less 2, or the width itself when that is
+10 or less.
+The width is that of the console window of standard output, or else of
+standard error.
+When
+.B COLUMNS
+is set, its value is the width instead, or 80 if its numeric value is
+not from 2 to 29999.
+Without a console and without
+.BR COLUMNS ,
+the width is 80.
+.PP
+A cat page is not formatted: it goes to the pager as it is.
+.PP
+The pager is
+.BR "less \-R" ,
+unless the configuration file, or
+.B MANPAGER
+or
+.BR PAGER ,
+names another one.
+It is run by
+.BR sh ,
+so it may be a command line with arguments.
+When standard output is a console and
+.B LESS
+is not set,
+.B man
+sets it to
+.B R
+for the pager, so that a plain
+.B less
+shows bold and underlined text too.
+.PP
+When standard output is not a console, there is no pager.
+.B man
+sets
+.B GROFF_NO_SGR
+to
+.BR 1 ,
+so that
+.B nroff
+writes plain text with no escape sequences, and writes the pages one
+after another to standard output.
+.SS Configuration file
+.B man
+reads the first of
+.IR /etc/man.config ,
+.IR /etc/man.conf ,
+and
+.I /etc/man_db.conf
+that exists, in the root of the system drive.
+The kit installs none.
+A line holds a keyword and the rest of the line as its value.
+A
+.B #
+starts a comment, a backslash at the end of a line continues it, and
+other lines are ignored.
+The keywords are:
+.TP
+.BI "MANPATH " directories
+Add manual directories, separated by semicolons.
+.B MANDATORY_MANPATH
+is a synonym.
+.TP
+.BI "MANSECT " sections
+Replace the sections to search, as a colon-separated list.
+.TP
+.BI "DEFINE nroff " command
+Replace the formatter, which is otherwise the kit's
+.B nroff
+with
+.BR \-mandoc .
+.B man
+appends the
+.B \-T
+and
+.B \-r
+options to
+.IR command .
+.TP
+.BI "DEFINE pager " command
+Replace the pager.
+.B MANPAGER
+and
+.B PAGER
+still override it.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-aw ,
+and must come before the operands.
+.B \-\-
+ends them.
+.TP
+.B \-a
+Display every page found, in the order found, instead of only the first.
+.TP
+.B \-w
+Print the path of each page file found, one per line, and do not
+display it.
+The path of a compressed page ends in its compression suffix, and that
+of a link is the link file's own.
+.TP
+.B \-\-help
+As the first argument, print a usage message on standard output and
+exit with status 0.
+.SH ENVIRONMENT
+Variables that apply to every applet, such as
+.BR BB_OVERRIDE_APPLETS ,
+are described in
+.BR busybox (1).
+.TP
+.B BB_SYSTEMROOT
+A drive, such as
+.BR D: ,
+to use instead of the system drive.
+.B man
+makes the root of that drive its working directory before it searches,
+which is why relative
+.B MANPATH
+elements, and
+.I /etc
+for the configuration file, are found there.
+.TP
+.B COLUMNS
+The display width; see
+.BR "Formatting and display" .
+.TP
+.B GROFF_NO_SGR
+Set to
+.B 1
+for
+.B nroff
+when standard output is not a console.
+.TP
+.B LESS
+Set to
+.B R
+when it is not set and standard output is a console.
+.TP
+.B MANPAGER
+The pager, run by
+.BR sh .
+It overrides the configuration file, and takes precedence over
+.BR PAGER .
+A set but empty
+.B MANPAGER
+or
+.B PAGER
+still counts, and then nothing is displayed.
+.TP
+.B MANPATH
+Manual directories to search first, separated by semicolons.
+.TP
+.B PAGER
+The pager, when
+.B MANPAGER
+is not set.
+.TP
+.B PATH
+Where
+.B sh
+finds a pager that is not an applet, and where
+.B man
+finds the decompressors
+.B gunzip
+and
+.BR unzstd .
+.SH EXIT STATUS
+.TP
+.B 0
+Every operand was found.
+.TP
+.B 1
+Some operand was not found, a relative
+.I file
+does not exist,
+.B gunzip
+or
+.B unzstd
+is needed but not found, or the command line is invalid.
+.PP
+A page that is not found is reported on standard error as
+.PP
+.RS 4
+.EX
+man: no manual entry for \(aq\fIname\fR\(aq
+.EE
+.RE
+.PP
+and the remaining operands are still processed.
+Errors in
+.BR nroff ,
+the pager, or a decompressor do not change the status.
+.SH EXAMPLES
+Read a page, and a page from section 5:
+.PP
+.RS 4
+.EX
+$ man gcc
+$ man 5 gdbinit
+.EE
+.RE
+.PP
+Find out where a page is kept:
+.PP
+.RS 4
+.EX
+$ man \-w gcc
+C:/w64devkit/share/man/man1/gcc.1
+.EE
+.RE
+.PP
+Read the page for a tool by its prefixed name:
+.PP
+.RS 4
+.EX
+$ man x86_64\-w64\-mingw32\-ld
+.EE
+.RE
+.PP
+Read a page that is not installed:
+.PP
+.RS 4
+.EX
+$ man ./mytool.1
+.EE
+.RE
+.PP
+Look in two more directories of pages first:
+.PP
+.RS 4
+.EX
+$ MANPATH=\(aqD:/docs/man;D:/more/man\(aq man mytool
+.EE
+.RE
+.PP
+Save a page as plain text, formatted for a 100-column display:
+.PP
+.RS 4
+.EX
+$ COLUMNS=100 man gcc >gcc.txt
+.EE
+.RE
+.SH NOTES
+Differences from the
+.B man
+of Unix systems:
+.IP \(bu 2
+The only options are
+.B \-a
+and
+.BR \-w .
+There is no search by keyword.
+.IP \(bu 2
+Manual directories are separated by semicolons, since colons occur in
+drive letters.
+.IP \(bu 2
+Formatting is done by the kit's
+.BR nroff (1)
+alone, not by a pipeline of groff, tbl, and col.
+.IP \(bu 2
+Page names are matched by the file system, which usually does not
+distinguish case on Windows, so
+.B man GCC
+shows the page for
+.BR gcc .
+.PP
+A file operand may use slashes or backslashes.
+A drive letter with no slash after it, as in
+.IR c:doc/page.1 ,
+starts from the current directory of that drive.
+A file operand that does not begin with a drive letter and a slash, or
+with a UNC prefix, is made absolute first, which fails if it does not
+exist.
+.B man
+then stops at once, before it processes any operand, with status 1 and
+the message
+.PP
+.RS 4
+.EX
+man: can\(aqt open \(aq\fIfile\fR\(aq: \fIreason\fR
+.EE
+.RE
+.PP
+A missing file that begins with a drive letter and a slash, or with a
+UNC prefix, is reported as a page that is not found.
+.PP
+Pages may be compressed.
+For each page file,
+.B man
+tries the name with
+.BR .lzma ,
+.BR .xz ,
+.BR .bz2 ,
+and
+.B .gz
+appended, in that order, before the name itself.
+A file is decompressed whatever its name when its first bytes identify
+gzip, compress, bzip2, xz, or zstd data, and a name ending in
+.B .lzma
+is enough for lzma.
+The decompressors are programs run by name:
+.BR bunzip2 ,
+.BR unxz ,
+.BR unlzma ,
+and
+.B uncompress
+are applets, and
+.B gunzip
+and
+.B unzstd
+come from
+.BR PATH ;
+see
+.BR gzip (1)
+and
+.BR zstd (1).
+When a page needs one of them and it is not on
+.BR PATH ,
+.B man
+stops at once with status 1.
+.PP
+.B man
+reads a man page file of 300 bytes or fewer within its own process to
+look for a link, and for gzip and zstd data that fails: the decompressor
+reports an error, and
+.B man
+exits at once with status 0, without showing the page or processing
+later operands.
+.PP
+The width comes from the console window, not the screen buffer.
+Escape sequences for bold and underlined text pass through
+.BR "less \-R" ;
+see
+.BR less (1).
+The busybox manifest asks Windows for a UTF-8 code page, which takes
+effect on Windows 10 version 1903 and later.
+On older systems, such as Windows XP,
+.B man
+passes
+.BR \-Tascii .
+.SH SEE ALSO
+.BR busybox (1),
+.BR gzip (1),
+.BR less (1),
+.BR nroff (1),
+.BR sh (1),
+.BR zstd (1)

@@ -1,0 +1,186 @@
+.TH BASE32 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+base32 \- encode or decode data in base32
+.SH SYNOPSIS
+.B base32
+.RB [ \-di ]
+.RB [ \-w
+.IR cols ]
+.RI [ file ]
+.SH DESCRIPTION
+.B base32
+encodes
+.I file
+in base32, as defined by RFC 4648, or with
+.B \-d
+decodes it, and writes the result to standard output.
+With no
+.IR file ,
+or when it is
+.BR \- ,
+it reads standard input.
+.PP
+Encoding turns each 5 octets into 8 characters from the alphabet
+.B A
+to
+.B Z
+and
+.B 2
+to
+.BR 7 ,
+and pads the last group to 8 characters with
+.BR = .
+The output is broken into lines of 76 characters, the last of which may
+be shorter, and each line ends with a newline.
+Empty input produces no output.
+.PP
+Decoding accepts letters in either case.
+Whitespace, control characters, and other characters outside the
+alphabet are ignored, so line breaks and spaces may appear anywhere.
+Padding is required.
+When the input ends inside a group of 8 characters,
+.B base32
+writes the octets of the complete groups, reports
+.BR "truncated input" ,
+and exits with status 1.
+Decoding continues after padding, so encodings joined with line breaks
+between them decode as one.
+.SH OPTIONS
+Options may be grouped and may follow
+.IR file .
+The argument of
+.B \-w
+may be attached, as in
+.BR \-w0 ,
+or be the next argument.
+.B \-\-
+ends the options.
+.TP
+.B \-d
+Decode instead of encode.
+.TP
+.B \-i
+Accepted for compatibility and ignored.
+Decoding always ignores characters outside the alphabet.
+.TP
+.BI "\-w " cols
+Break encoded output into lines of
+.I cols
+characters instead of 76.
+A
+.I cols
+of 0 writes no line breaks at all, not even a final newline.
+.I cols
+is a decimal number up to 2147483647.
+Ignored when decoding.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit.
+It is recognized only as the first argument.
+.SH ENVIRONMENT
+.TP
+.B POSIXLY_CORRECT
+When set, options must come before
+.IR file .
+.PP
+Variables that affect every busybox applet are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+Invalid option or
+.IR cols ,
+more than one
+.IR file ,
+.I file
+could not be opened or read, truncated input when decoding, or a write
+error.
+.TP
+.B 141
+Standard output is a pipe whose reader exited before
+.B base32
+finished writing.
+When this is first detected as the output is flushed at exit, the
+status is 1 instead.
+.SH EXAMPLES
+Encode a string:
+.PP
+.RS 4
+.EX
+$ printf hello | base32
+NBSWY3DP
+.EE
+.RE
+.PP
+Decode a key written in groups, and show it in hex:
+.PP
+.RS 4
+.EX
+$ echo \(aqJBSW Y3DP EHPK 3PXP\(aq | base32 \-d | xxd \-p
+48656c6c6f21deadbeef
+.EE
+.RE
+.PP
+Generate a random 160-bit secret:
+.PP
+.RS 4
+.EX
+$ head \-c 20 /dev/urandom | base32
+.EE
+.RE
+.PP
+Encode a file on a single line:
+.PP
+.RS 4
+.EX
+$ base32 \-w0 key.bin >key.txt
+.EE
+.RE
+.SH NOTES
+Differences from GNU
+.BR base32 :
+.IP \(bu 2
+There are no long options, such as
+.B \-\-decode
+or
+.BR \-\-wrap .
+.IP \(bu 2
+Decoding accepts lowercase letters.
+.IP \(bu 2
+Decoding ignores characters outside the alphabet even without
+.BR \-i .
+.PP
+Decoding works through the input in pieces that end at a character with
+code 32 (space) or less, or after 80 characters, which causes two bugs:
+.IP \(bu 2
+A character outside the alphabet with a code above 32, inside a group of
+8 that continues into the next piece, shifts the decoding, which
+corrupts the output or ends in truncated input.
+.IP \(bu 2
+Data after padding in the last piece is reported as truncated input,
+as in
+.B MZXW6===MZXW6===
+with no final newline.
+.PP
+Standard input and output are binary.
+Encoded lines end with LF, and carriage returns in encoded input are
+ignored, so CRLF line endings decode correctly.
+Decoded octets reach a file or pipe unchanged, but when standard output
+is a console they pass through the busybox-w32 console layer as text:
+escape sequences take effect, non-ASCII bytes may be converted, and NUL
+bytes cut the output short.
+.PP
+.I file
+may be a Windows path, with a drive letter and either kind of slash, or
+a device name such as
+.IR /dev/null ;
+see
+.BR busybox (1).
+.SH SEE ALSO
+.BR base64 (1),
+.BR busybox (1),
+.BR uuencode (1),
+.BR xxd (1)

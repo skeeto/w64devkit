@@ -1,0 +1,444 @@
+.TH LN 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.SH NAME
+ln \- make hard links or symbolic links
+.SH SYNOPSIS
+.B ln
+.RI [ options ]
+.I target link
+.br
+.B ln
+.RI [ options ]
+.IR target ...\&
+.I directory
+.br
+.B ln
+.RI [ options ]
+.I target
+.SH DESCRIPTION
+.B ln
+makes a link named
+.I link
+to
+.IR target .
+By default the link is a hard link, another name for the same file.
+With
+.BR \-s ,
+it is a symbolic link, a small file that holds a path to
+.IR target .
+This
+.B ln
+is the
+.BR busybox (1)
+applet, which has fewer options than GNU
+.BR ln ;
+see
+.BR NOTES .
+.SS Operands
+With one operand,
+.B ln
+makes the link in the current directory, named after the last component
+of
+.IR target ,
+so that
+.B ln ../lib/util.h
+makes
+.IR util.h .
+That name is then treated as the
+.I link
+operand below, so if a directory of that name exists, the link is made
+inside it.
+.PP
+With more operands, the last is
+.IR link .
+If it is an existing directory, or a symbolic link or junction to one,
+each
+.I target
+is linked into it, under the last component of the
+.IR target .
+Otherwise
+.I link
+is the new name, and only one
+.I target
+is expected.
+.B ln
+does not check this: it links each
+.I target
+to the same name in turn.
+The first makes the link, and each other fails with
+.BR "File exists" .
+With
+.BR \-f ,
+each replaces the one before, so the last wins.
+.PP
+The last component of a
+.I target
+is found after removing trailing slashes and backslashes.
+A name that is already taken is an error, unless
+.B \-f
+or
+.B \-b
+is given.
+Each
+.I target
+is processed on its own: an error is reported, and the remaining
+targets are still linked.
+.SS Hard links
+.I target
+must exist, though a symbolic link whose own target is missing counts as
+existing.
+It cannot be a directory.
+The file system must support hard links, and
+.I link
+must be on the same volume.
+All names of a file share its contents and attributes, such as read-only.
+.SS Symbolic links
+With
+.BR \-s ,
+.I target
+need not exist.
+It is stored as written, except that slashes become backslashes.
+Windows resolves a relative
+.I target
+from the directory that holds
+.IR link ,
+not from the current directory, so
+.B ln \-s src/a.c build
+makes
+.I build/a.c
+point to
+.IR build/src/a.c .
+.PP
+Windows has file links and directory links.
+.B ln
+makes a directory link when
+.I target
+is an existing directory at that moment, looked up where Windows will
+resolve it, and a file link otherwise, even if
+.I target
+does not exist yet.
+Windows does not follow a file link as a directory, so make the link
+again after creating the directory.
+.SS Output
+.B ln
+writes nothing, except with
+.BR \-v .
+It reports each failure to make a link on standard error as
+.PP
+.RS 4
+.EX
+ln: \fIname\fR: \fIreason\fR
+.EE
+.RE
+.PP
+where
+.I name
+is the link that could not be made, or a hard link
+.I target
+that does not exist.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-sf ,
+and may follow operands, unless
+.B POSIXLY_CORRECT
+is set.
+The argument of
+.B \-S
+may be attached, as in
+.BR \-S.bak ,
+or be the next argument.
+.B \-\-
+ends the options.
+There are no long options.
+.TP
+.B \-s
+Make symbolic links instead of hard links.
+Windows allows this only in Developer Mode or with the privilege to
+create symbolic links; see
+.BR NOTES .
+.TP
+.B \-f
+Delete an existing
+.I link
+first.
+A read-only file is deleted too, after its read-only attribute is
+cleared, which every hard link to the file shares.
+A failure to delete is not reported, and the new link then fails if the
+name is still taken.
+.IP
+The deletion comes before the new link is made, so the old
+.I link
+is lost if that fails, as it does when symbolic links are not permitted.
+.B ln
+does not check that
+.I link
+and
+.I target
+are the same file, so
+.B ln \-f x x
+deletes
+.IR x .
+For a hard link, a
+.I target
+that does not exist is found first, and nothing is deleted.
+.TP
+.B \-n
+When
+.I link
+is a symbolic link or junction to a directory, treat it as an ordinary
+name instead of linking into the directory.
+With
+.BR \-f ,
+the symbolic link or junction itself is deleted and replaced, and the
+directory is left alone.
+This has no effect when
+.I link
+is itself a directory.
+.B \-T
+implies it.
+.TP
+.B \-b
+Before making the link, rename an existing
+.I link
+to its name followed by a suffix, which is
+.B ~
+unless
+.B \-S
+gives another.
+An existing file with the backup name is replaced.
+If
+.I link
+does not exist, nothing is renamed and that is not an error.
+Any other failure to rename is reported, and the
+.I target
+is skipped.
+Overrides
+.BR \-f .
+.TP
+.BI "\-S " suffix
+Use
+.I suffix
+instead of
+.B ~
+for the name of a backup.
+This does not make backups by itself.
+.TP
+.B \-T
+Treat
+.I link
+as the name of the link, never as a directory to link into.
+A symbolic link or junction to a directory is not followed, as with
+.BR \-n ,
+so it counts as an existing name.
+A real directory is an error, and so are more than two operands.
+.TP
+.B \-v
+Write
+.BI \(aq link "\(aq \-> \(aq" target \(aq
+on standard output for each link before it is made, so links that then
+fail are written too.
+.TP
+.B \-\-help
+As the first argument only, write a usage message on standard output
+and exit with status 0.
+The message lists a
+.B \-t
+option, which
+.B ln
+does not accept.
+.SH ENVIRONMENT
+.TP
+.B BB_CRITICAL_ERROR_DIALOGS
+When it is
+.BR 1 ,
+Windows shows its critical-error dialogs, such as for a drive with no
+disk in it, instead of the operation failing with an error.
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the arguments are expanded when busybox starts, for a caller
+such as
+.B cmd.exe
+that does not expand them.
+When it is unset, busybox sets it to
+.B 0
+for the programs it starts, so commands run from the kit's shell get the
+shell's expansion only.
+.TP
+.B POSIXLY_CORRECT
+If set, the first operand ends the options.
+.PP
+Messages written to a console also depend on
+.BR BB_SKIP_ANSI_EMULATION ,
+.BR BB_TERMINAL_MODE ,
+.BR CONEMUPID ,
+.BR LANG ,
+.BR LC_ALL ,
+and
+.BR LC_CTYPE ,
+as for every busybox applet; see
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Every link was made.
+.TP
+.B 1
+An invalid command line, with a usage message on standard error, an
+error with
+.BR \-T ,
+or any link that could not be made.
+.SH EXAMPLES
+Keep a second name for a file:
+.PP
+.RS 4
+.EX
+$ ln data.txt backup.txt
+.EE
+.RE
+.PP
+Link two programs into a directory, listing each link:
+.PP
+.RS 4
+.EX
+$ ln \-v a.exe b.exe bin
+\(aqbin/a.exe\(aq \-> \(aqa.exe\(aq
+\(aqbin/b.exe\(aq \-> \(aqb.exe\(aq
+.EE
+.RE
+.PP
+Link a header into the current directory:
+.PP
+.RS 4
+.EX
+$ ln ../common/util.h
+.EE
+.RE
+.PP
+Make a symbolic link.
+The target is relative to the directory that holds the link:
+.PP
+.RS 4
+.EX
+$ ln \-s ../lib/libfoo.dll bin/libfoo.dll
+.EE
+.RE
+.PP
+Point a symbolic link to a different directory, replacing the link
+instead of linking into its old target:
+.PP
+.RS 4
+.EX
+$ ln \-sfn gcc\-15 current
+.EE
+.RE
+.PP
+Replace a file with a link to another, keeping the old file as
+.IR app.cfg.bak :
+.PP
+.RS 4
+.EX
+$ ln \-b \-S .bak app.new app.cfg
+.EE
+.RE
+.SH NOTES
+Differences from GNU
+.BR ln :
+.IP \(bu 2
+Long options, such as
+.BR \-\-backup ,
+and the options
+.BR \-d ,
+.BR \-F ,
+.BR \-i ,
+.BR \-L ,
+.BR \-P ,
+.BR \-r ,
+and
+.B \-t
+are invalid.
+.IP \(bu 2
+The same file is not detected.
+.B ln \-f x x
+deletes
+.IR x ,
+and so does
+.B ln \-f x
+with one operand.
+.B ln \-b x x
+renames
+.I x
+to
+.IR x~ ,
+and then fails.
+Windows file names are not case sensitive by default, so
+.B ln \-f x X
+also deletes
+.IR x .
+.IP \(bu 2
+Several targets are not checked to have a directory as
+.IR link ;
+see
+.BR Operands .
+.IP \(bu 2
+.B \-v
+writes each line before the link is made.
+.PP
+Hard links need no privilege, but a directory cannot be hard linked:
+that fails with
+.BR "Permission denied" .
+Creating a symbolic link needs Developer Mode or the privilege to create
+symbolic links, which an elevated administrator has, and otherwise fails
+with
+.BR "Permission denied" .
+Windows XP has no symbolic links, so there
+.B \-s
+always fails.
+With
+.B \-f
+or
+.BR \-b ,
+the old link is then already deleted or renamed.
+.PP
+A junction, as made by
+.BR jn (1),
+is followed like a symbolic link to decide whether
+.I link
+is a directory, and
+.B \-n
+and
+.B \-T
+treat it as an ordinary name.
+.B ln
+cannot make junctions.
+.PP
+Paths may have drive letters and backslashes.
+Names in a directory are joined with a slash, so
+.B ln \-v x \(aqdir\e\(aq
+writes
+.BR \(aqdir\e/x\(aq .
+A name made from a
+.I target
+is what follows its last slash, backslash, or drive prefix.
+A bare drive such as
+.I c:
+names the current directory of that drive, so
+.B ln x c:
+makes
+.IR c:x .
+Names may contain any Unicode character on Windows 10 version 1903 and
+later, and are limited to the system code page on earlier versions.
+A full path of 260 or more characters, counting the current directory
+for a relative path, fails.
+.PP
+From
+.BR cmd.exe ,
+.B ln
+expands wildcards in its arguments itself; see
+.BR BB_GLOBBING .
+.SH SEE ALSO
+.BR busybox (1),
+.BR cp (1),
+.BR jn (1),
+.BR ls (1),
+.BR readlink (1)

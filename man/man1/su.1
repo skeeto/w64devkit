@@ -1,0 +1,406 @@
+.TH SU 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+su \- run a shell with elevated privileges
+.SH SYNOPSIS
+.B su
+.RB [ \-tW ]
+.RB [ \-N " | " \-s
+.IR shell ]
+.RB [[ \-\- ]
+.B root
+.RI [ argument ...]]
+.br
+.B su
+.RB [ \-tW ]
+.RB [ \-N " | " \-s
+.IR shell ]
+.B \-c
+.I command
+.RB [[ \-\- ]
+.B root
+.RI [ arg0
+.RI [ argument ...]]]
+.SH DESCRIPTION
+.B su
+starts a shell with administrator rights, in a new console window.
+Unless
+.B su
+is already elevated, Windows shows its User Account Control (UAC)
+prompt, and when the prompt is accepted the shell runs elevated.
+Elevation is all that
+.B su
+does: it does not switch users, ask for a password, or read a user
+database; see
+.BR NOTES .
+This
+.B su
+is a busybox applet; see
+.BR busybox (1).
+.PP
+By default the shell is the kit's
+.BR sh (1),
+run from the
+.I busybox.exe
+that is running
+.BR su .
+Its window is titled
+.BR "BusyBox ash (Admin)" ,
+and it starts in the current directory of
+.BR su .
+.B \-s
+chooses another program.
+.PP
+The first operand, if there is one, names the user and must be
+.BR root .
+The other operands are passed to the shell as its arguments.
+With no
+.B \-c
+and no arguments, the shell is interactive.
+With arguments but no
+.BR \-c ,
+the first is a script for the default shell to run.
+With
+.BR \-c ,
+the shell runs
+.I command
+and exits, and the first argument is the name of the command, which is
+.B $0
+in
+.BR sh (1).
+.PP
+.B su
+reads no standard input, and writes to standard output only for
+.BR \-\-help .
+The elevated shell is a separate process in a console window of its own,
+so
+.B su
+can neither feed it input nor collect its output.
+Unless
+.B \-W
+or
+.B \-t
+is given,
+.B su
+exits as soon as Windows has started the shell.
+The window closes when the shell exits, so the output of a command given
+with
+.B \-c
+is lost unless
+.B \-N
+is given.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-tW ,
+and may follow operands unless
+.B POSIXLY_CORRECT
+is set.
+.B \-\-
+ends the options, so that arguments for the shell can begin with a dash.
+An unknown option, an option without its argument, or both
+.B \-N
+and
+.B \-s
+is a usage error:
+.B su
+prints a usage message on standard error and exits with status 1.
+.TP
+.BI "\-c " command
+Run
+.I command
+in the shell, which then exits with the status of the command.
+The shell is given
+.B \-c
+.IR command ,
+or
+.B /c
+.I command
+when the name of its file is
+.B cmd.exe
+in any case.
+Operands after the user name follow
+.I command
+as arguments.
+.TP
+.BI "\-s " shell
+Run
+.I shell
+instead of
+.BR "busybox ash" .
+.I shell
+is the path of a program, with forward slashes or backslashes.
+It is not searched for in
+.BR PATH :
+a name without a directory is looked for in the current directory.
+If that is not an executable file, the suffixes
+.BR .com ,
+.BR .exe ,
+.BR .sh ,
+.BR .bat ,
+and
+.B .cmd
+are tried in that order, unless the name already ends with one of them
+or with a period.
+When no executable file is found,
+.B su
+exits with status 1.
+.IP
+The shell gets only the command, if any, and the operands.
+It gets no window title, and
+.B su
+passes no starting directory.
+Incompatible with
+.BR \-N .
+.TP
+.B \-N
+Do not close the console window when the shell exits.
+Before it exits, the shell prints
+.B Press any key to exit...\&
+and waits for a key, unless it ends by running a command with its
+.B exec
+builtin.
+Incompatible with
+.BR \-s .
+.TP
+.B \-t
+Test mode: do not elevate.
+The shell is an ordinary process that shares the console, standard
+handles, and environment of
+.BR su ,
+and is given no window title.
+Any user name is accepted and ignored, and the test for dropped
+privilege described in
+.B NOTES
+is skipped.
+Implies
+.BR \-W .
+.TP
+.B \-W
+Wait for the shell to exit, and exit with its status; see
+.BR "EXIT STATUS" .
+.TP
+.B \-\-help
+As the first argument, print a usage message on standard output and exit
+with status 0.
+Any further arguments are ignored.
+.SH ENVIRONMENT
+.B su
+reads no environment variables of its own, but code that it shares
+reads these:
+.TP
+.B POSIXLY_CORRECT
+The C library's option parser reads it.
+When it is set, even to an empty value, options are recognized only
+before the first operand, and later ones are passed to the shell.
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the operands are expanded, as needed when run from
+.BR cmd.exe .
+A busybox process started with it unset sets it to
+.B 0
+for its children.
+.PP
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+The variables that the shell reads are described in
+.BR sh (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Without
+.B \-W
+or
+.BR \-t ,
+the shell was started.
+With them, the shell exited with status 0.
+.TP
+.B 1
+A usage error, a user name other than
+.BR root ,
+a
+.B \-s
+program that was not found, or a failure to start the shell.
+With
+.B \-W
+or
+.BR \-t ,
+also a status of 1 from the shell, and a failure to read its status.
+.TP
+.B 2
+The privilege of
+.B su
+was dropped and cannot be restored.
+The shell is not started.
+.PP
+Errors are reported on standard error as
+.PP
+.RS 4
+.EX
+su: unknown user \(aq\fIname\fR\(aq
+su: \fIshell\fR: Not found
+su: unable to restore privilege
+.EE
+.RE
+.PP
+A failure to start the shell has no message from
+.BR su ,
+as when the UAC prompt is declined, although Windows may show its own.
+.PP
+With
+.B \-W
+or
+.BR \-t ,
+the exit status of
+.B su
+is that of the shell, any value from 0 to 255, converted like that of
+any program that busybox waits for.
+A shell that ended as if by a signal has status 128 plus the signal
+number, such as 139 for an access violation and 130 for Ctrl+C.
+Otherwise the status is the low byte of the Windows exit code, or 255
+for a code that is a nonzero multiple of 256.
+Such a code above 255 is also reported on standard error as
+.PP
+.RS 4
+.EX
+su: \fImessage\fR Error 0x\fIcode\fR
+.EE
+.RE
+.PP
+with the code in hexadecimal, after the Windows description of it when
+there is one.
+.SH EXAMPLES
+Open an elevated shell:
+.PP
+.RS 4
+.EX
+$ su
+.EE
+.RE
+.PP
+Run a command in an elevated window, and keep the window open to read
+its output:
+.PP
+.RS 4
+.EX
+$ su \-N \-c \(aqfsutil dirty query C:\(aq
+.EE
+.RE
+.PP
+Copy a file into a protected directory, and wait for the result.
+The operand after
+.B root
+is the file name, which is
+.B $0
+in the command:
+.PP
+.RS 4
+.EX
+$ su \-W \-c \(aqcp "$0" "C:/Program Files/tool/"\(aq root tool.exe
+.EE
+.RE
+.PP
+Try a command line without elevating, to see how the shell receives its
+arguments:
+.PP
+.RS 4
+.EX
+$ su \-t \-c \(aqecho "$0: $1"\(aq root first second
+first: second
+.EE
+.RE
+.PP
+Open an elevated
+.BR cmd.exe ,
+whose path Windows puts in
+.BR COMSPEC :
+.PP
+.RS 4
+.EX
+$ su \-s "$COMSPEC"
+.EE
+.RE
+.SH NOTES
+Differences from the Unix
+.BR su :
+.IP \(bu 2
+There is one user,
+.BR root ,
+which is how busybox names an elevated process.
+.BR id (1)
+prints
+.B uid=0(root)
+in the elevated shell.
+.IP \(bu 2
+Nothing is switched, and
+.B su
+asks for no password.
+Windows decides what the UAC prompt asks and which account the shell
+runs as.
+.IP \(bu 2
+There is no login shell, and none of the Unix options such as
+.BR \-l ,
+.BR \-m ,
+and
+.BR \-p .
+.B "su \-"
+fails with an unknown user.
+.IP \(bu 2
+The elevated shell does not share the console of
+.BR su ,
+so nothing can be piped to it or from it.
+Use
+.B \-W
+for its status, and files for its data.
+.PP
+The default shell is the running busybox executable, started with the
+arguments
+.BR "\-\-busybox ash" ,
+.B \-t
+.I title
+unless in test mode,
+.B \-d
+.IR directory ,
+then
+.B \-N
+and
+.B \-c
+.I command
+as given, and the operands; see
+.BR sh (1).
+The directory is the current directory of
+.BR su ,
+resolved to its real path first, because a drive mapped to a network
+share may not be available once the privilege is raised.
+With
+.BR \-s ,
+no directory is passed, and Windows may start a program that lives in a
+system directory, such as
+.BR cmd.exe ,
+in that directory.
+.PP
+.B su
+quotes each argument by the rules of the Microsoft C runtime, which the
+default shell follows.
+A shell that parses its command line differently may see them
+differently.
+.PP
+The privilege of a process can be dropped by the busybox applets
+.BR drop ,
+.BR cdrop ,
+or
+.BR pdrop ,
+which have no launchers; see
+.BR busybox (1).
+Windows still reports such a process as elevated, so it would start the
+shell without raising the privilege, and
+.B su
+gives up with status 2.
+.B \-t
+skips this test.
+.SH SEE ALSO
+.BR busybox (1),
+.BR id (1),
+.BR sh (1)

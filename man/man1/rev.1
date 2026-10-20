@@ -1,0 +1,208 @@
+.TH REV 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+rev \- reverse the characters of each line
+.SH SYNOPSIS
+.B rev
+.RI [ file ...]
+.SH DESCRIPTION
+.B rev
+copies each
+.I file
+to standard output, with the characters of every line in reverse order.
+With no
+.I file
+operands, or for a
+.I file
+named
+.BR \- ,
+it reads standard input.
+A
+.I file
+that cannot be opened is reported on standard error and skipped, and the
+remaining files are still read.
+.PP
+A line ends at an LF, and a lone CR is an ordinary character.
+The line ending is not reversed: the LF stays at the end of its line,
+and so does one CR directly before it.
+The last line of a file may have no LF.
+It is written without one, so it runs into the first line of the next
+file, and a CR that ends it stays in place too.
+.SS Characters
+In UTF-8 mode, described under
+.BR ENVIRONMENT ,
+a line is decoded as UTF-8, reversed one code point at a time, and
+encoded again.
+Combining characters are not treated specially, so a combining mark that
+followed its base character comes before it in the output, where it
+combines with the character that precedes it.
+A line that contains a sequence the decoder rejects is written unchanged:
+a byte from 0x80 to 0xBF that does not continue a character, a byte from
+0xC0 to 0xFF without enough such bytes after it, or an overlong form of
+an ASCII character.
+Other invalid sequences, such as encoded surrogates and values above
+U+10FFFF, are reversed as single characters, and an overlong form of
+any other character is rewritten in its shortest form.
+.PP
+Outside UTF-8 mode, each byte is a character.
+The bytes of a multibyte UTF-8 character are then reversed too, and the
+output is not valid UTF-8.
+.SH OPTIONS
+.B rev
+has no options other than
+.BR \-\-help .
+An argument that starts with a dash is an option wherever it appears,
+even after the
+.I file
+operands, except
+.BR \- ,
+which is standard input.
+.B \-\-
+ends the options, so a file whose name starts with a dash follows it or
+is given with a leading
+.BR ./ .
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument.
+.PP
+Any other option prints an error and the usage message on standard error
+and exits with status 1.
+.SH ENVIRONMENT
+.TP
+.B POSIXLY_CORRECT
+When set, the first
+.I file
+operand ends the options, so that a later argument such as
+.B \-\-help
+is a file name.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+The first of these that is set decides whether UTF-8 mode is on.
+When its value is exactly
+.BR C ,
+UTF-8 mode is off.
+Otherwise UTF-8 mode is on when the ANSI code page is UTF-8, which it
+is on Windows 10 version 1903 and later, and off when it is not.
+The value
+.B C
+also turns off the conversion of console output described in
+.BR busybox (1).
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the operands are expanded when
+.B rev
+starts, as needed when it is run from
+.BR cmd.exe .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+operands as the shell expanded them.
+.PP
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+An unknown option, a
+.I file
+could not be opened (a directory is reported as
+.BR "Is a directory" ),
+memory ran out, or standard output could not be written when
+.B rev
+flushed it at exit.
+.TP
+.B 141
+Standard output is a pipe that was closed before
+.B rev
+finished writing to it.
+Output to a pipe is buffered, so when the closed pipe is first noticed
+by the final flush, as when all the output fits in the buffer,
+.B rev
+reports an error and exits with status 1 instead.
+.SH EXAMPLES
+Reverse a line:
+.PP
+.RS 4
+.EX
+$ echo hello | rev
+olleh
+.EE
+.RE
+.PP
+Reverse each line of a file:
+.PP
+.RS 4
+.EX
+$ rev notes.txt >notes.rev
+.EE
+.RE
+.PP
+Print the last dot-separated field of a name, by reversing it, cutting
+the first field, and reversing that:
+.PP
+.RS 4
+.EX
+$ echo archive.tar.gz | rev | cut \-d. \-f1 | rev
+gz
+.EE
+.RE
+.PP
+Mirror a file, reversing both the order of its lines and the characters
+in each:
+.PP
+.RS 4
+.EX
+$ tac notes.txt | rev
+.EE
+.RE
+.SH NOTES
+Files and standard streams are binary, with no CRLF translation, so a
+file with CRLF line endings is read and written as it is.
+Keeping the CR with the LF is specific to Windows: on Unix, busybox
+reverses that CR with the rest of the line.
+Output to a console is converted to the console's code page, as
+described in
+.BR busybox (1).
+.PP
+A NUL byte ends the text of its line: the NUL and the rest of the line,
+including its line ending, are discarded.
+The text before the NUL is reversed and written with no line ending, so
+it runs into the next line.
+This holds in and out of UTF-8 mode.
+.PP
+A read error ends a file as if it had reached its end, with no message.
+.PP
+A last line with no LF is lost, with no message, when its length in
+bytes is 255, 351, 459, 580, 716, or a later length at which
+.B rev
+enlarges its line buffer, unless an earlier line, in this or a previous
+file, was at least as long.
+.PP
+Each line is held in memory whole, and in UTF-8 mode also as a decoded
+copy of four bytes per byte.
+The length of a line is kept in an
+.BR int ,
+so a line of 2 GiB or more is not supported.
+.PP
+Options of other implementations, such as the
+.B \-0
+of util-linux, are errors.
+.PP
+File names may contain any Unicode characters on Windows 10 version 1903
+and later, may use backslashes, and may start with a drive letter.
+The device names that busybox accepts, such as
+.IR /dev/null ,
+work as operands; see
+.BR busybox (1).
+.SH SEE ALSO
+.BR busybox (1),
+.BR dos2unix (1),
+.BR iconv (1),
+.BR tac (1)

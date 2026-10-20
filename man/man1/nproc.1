@@ -1,0 +1,131 @@
+.TH NPROC 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+nproc \- print the number of processors available
+.SH SYNOPSIS
+.B nproc
+.RB [ \-\-all ]
+.RB [ \-\-ignore=\c
+.IR N ]
+.SH DESCRIPTION
+.B nproc
+prints the number of logical processors available to it, as a decimal
+number on a line of its own on standard output.
+The number is never less than 1.
+Operands are ignored.
+.PP
+The count is the number of bits set in the process affinity mask, which
+is the set of processors the process may run on.
+An unrestricted mask holds every processor in the system, within the
+limits given in NOTES.
+A process inherits its mask from its parent, so it can be restricted, for
+example by
+.B start /affinity
+in
+.BR cmd.exe .
+Only the affinity mask is consulted.
+.SH OPTIONS
+There are no short options.
+Long options may be abbreviated to any unique prefix, so
+.B \-\-al
+means
+.BR \-\-all ,
+and
+.B \-\-ig=1
+means
+.BR \-\-ignore=1 .
+Options may follow operands, unless
+.B POSIXLY_CORRECT
+is set.
+.B \-\-
+ends the options.
+.TP
+.B \-\-all
+Count the processors in the system instead of those available to the
+process.
+This uses the system affinity mask in place of the process mask, so a
+restricted process still counts every processor.
+.B \-\-ignore
+still applies.
+.TP
+.BI \-\-ignore= N
+Subtract
+.I N
+from the count, but never go below 1.
+.I N
+is a nonnegative decimal integer no greater than 2147483647.
+The argument may also be the next command line argument.
+If the option is repeated, the last one applies.
+.TP
+.B \-\-help
+When it is the first argument, print a usage message on standard output
+and exit with status 0, ignoring the other arguments.
+In any other position it is an unknown option.
+.SH ENVIRONMENT
+.TP
+.B POSIXLY_CORRECT
+Read by the C library's option parser.
+When set, option parsing stops at the first operand, so options after it
+are treated as operands and ignored.
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+An unknown option, a missing or invalid argument to
+.BR \-\-ignore ,
+or an argument given to
+.BR \-\-all .
+A message is written to standard error, followed by a usage message
+unless the cause is an invalid
+.B \-\-ignore
+number.
+.SH EXAMPLES
+Run
+.B make
+with one job per processor:
+.PP
+.RS 4
+.EX
+$ make \-j"$(nproc)"
+.EE
+.RE
+.PP
+Leave one processor free for other work:
+.PP
+.RS 4
+.EX
+$ make \-j"$(nproc \-\-ignore=1)"
+.EE
+.RE
+.PP
+Count the processors of a process restricted to the first two:
+.PP
+.RS 4
+.EX
+$ cmd /c start /affinity 3 /b /wait nproc
+2
+.EE
+.RE
+.SH NOTES
+Differences from GNU
+.BR nproc :
+there is no
+.BR \-\-version ,
+the
+.B OMP_NUM_THREADS
+and
+.B OMP_THREAD_LIMIT
+variables are not read, and extra operands are ignored rather than
+rejected.
+.PP
+The affinity mask is one machine word and covers one processor group, so
+a 64-bit build counts at most 64 processors, and a 32-bit build at most
+32.
+On a system with more than 64 processors, Windows reports the mask of a
+single processor group, or an empty mask when the process has threads in
+several groups.
+If the mask is empty or cannot be read, the count is 1.
+.SH SEE ALSO
+.BR busybox (1),
+.BR make (1)

@@ -1,0 +1,318 @@
+.TH NC 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+nc \- copy data to and from a TCP connection
+.SH SYNOPSIS
+.B nc
+.I host
+.RI [ port ]
+.br
+.B nc \-l
+.RB [ \-p
+.IR port ]
+.RI [ addr ]
+.SH DESCRIPTION
+.B nc
+connects its standard input and standard output to a TCP connection.
+Without
+.BR \-l ,
+it connects to
+.I host
+at
+.IR port .
+With
+.BR \-l ,
+it waits for one connection to arrive.
+Either way, it sends what it reads from standard input to the connection,
+and writes what it reads from the connection to standard output.
+.PP
+It speaks TCP over IPv4 and IPv6, and nothing else.
+There is no UDP, and no way to run a program on the connection.
+.SS Connecting
+.I host
+is a name, a dotted IPv4 address, or an IPv6 address.
+Windows resolves a name.
+When it has several addresses,
+.B nc
+tries only one: the first IPv4 address, or else the first address.
+.PP
+.I port
+is a number from 0 to 65535, or a service name; see
+.BR NOTES .
+A port may instead follow the host after a colon, as in
+.BR example.com:80 ,
+and then it overrides the
+.I port
+operand.
+This port must be a number.
+An IPv6 address with more than one colon is never split this way, so give
+it a port in brackets, as in
+.BR [::1]:80 .
+With no port at all,
+.B nc
+tries port 0, and the connection fails.
+.SS Listening
+With
+.BR \-l ,
+.B nc
+binds a socket, accepts the first connection from any peer, and closes
+the listening socket.
+It prints nothing when the connection arrives.
+.PP
+.I addr
+is the local address to bind.
+It must be numeric: a name is an error.
+Without it,
+.B nc
+listens on all addresses, IPv4 and IPv6 alike.
+With an IPv4 address it accepts IPv4 connections only, and with an IPv6
+address, IPv6 only.
+To accept only connections from the local machine, give
+.B 127.0.0.1
+or
+.BR ::1 .
+As with a host, a port may follow the address, as in
+.B 127.0.0.1:8000
+or
+.BR [::1]:8000 ,
+and overrides
+.BR \-p .
+.SS Relaying
+Once connected,
+.B nc
+waits until standard input or the connection has data, reads up to 1024
+bytes, and writes them to the other side before it reads again.
+Data to and from files and pipes is not translated; for consoles, see
+.BR NOTES .
+.PP
+When standard input reaches the end of the file,
+.B nc
+shuts down the sending direction of the connection, so the peer sees end
+of file, and keeps copying what the peer sends.
+A failed read from standard input is treated the same way, without a
+message.
+.PP
+When a read from the connection returns end of file or fails,
+.B nc
+exits with status 0.
+This happens as soon as the peer closes the connection or shuts down its
+sending direction, even if standard input has more data.
+That data is lost.
+Whatever the peer sent before is written first.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-lp ,
+and the argument of
+.B \-p
+may be attached or be the next argument.
+.B \-\-
+ends the options, and so does the first operand: an option after it is
+taken as an operand.
+.TP
+.B \-l
+Listen for one connection instead of connecting.
+The number of times
+.B \-l
+is given is the backlog of the listening socket.
+With
+.BR \-l ,
+at most one operand is allowed, and without it, one or two.
+.TP
+.BI "\-p " port
+With
+.BR \-l ,
+listen on local port
+.IR port ,
+a number from 0 to 65535 or a service name.
+The default is 0, which has Windows choose a free port.
+.B nc
+does not report which.
+Without
+.BR \-l ,
+.B \-p
+is accepted and ignored: the local port of an outgoing connection is
+always chosen by Windows.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit.
+It is recognized only as the first argument.
+.PP
+Any other option, a missing option argument, or the wrong number of
+operands prints the usage on standard error and exits with status 1.
+.SH ENVIRONMENT
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+output to a console is not converted, as described in
+.BR NOTES ,
+and the console interprets the bytes in its own code page.
+.PP
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+The connection ended or a read from it failed, or the usage was
+requested with
+.BR \-\-help .
+.TP
+.B 1
+An invalid command line, a host or port that could not be understood, a
+socket that could not be created, bound, or listened on, a connection
+that could not be made or accepted, or an error writing to the
+connection or to standard output.
+The message is on standard error, prefixed with
+.BR nc: .
+.TP
+.B 141
+Standard output is a pipe that was closed before all output was written.
+.SH EXAMPLES
+Chat across the loopback interface.
+In one window, listen:
+.PP
+.RS 4
+.EX
+$ nc \-l \-p 8000 127.0.0.1
+.EE
+.RE
+.PP
+In another, connect.
+Each line typed in either window appears in the other:
+.PP
+.RS 4
+.EX
+$ nc 127.0.0.1 8000
+.EE
+.RE
+.PP
+Copy a file to another machine.
+On the receiver, at a console, listen and write to a file:
+.PP
+.RS 4
+.EX
+$ nc \-l \-p 9000 >data.bin
+.EE
+.RE
+.PP
+On the sender, send the file.
+Both commands exit when it has been sent:
+.PP
+.RS 4
+.EX
+$ nc 192.168.1.5 9000 <data.bin
+.EE
+.RE
+.PP
+Answer one HTTP request with a fixed page.
+The request is written to the terminal:
+.PP
+.RS 4
+.EX
+$ printf \(aqHTTP/1.0 200 OK\er\en\er\enhi\en\(aq | nc \-l \-p 8000 127.0.0.1
+.EE
+.RE
+.PP
+Connect to an IPv6 address, giving the port with it:
+.PP
+.RS 4
+.EX
+$ nc \(aq[::1]:8000\(aq
+.EE
+.RE
+.PP
+There is no timeout option.
+Stop after 10 seconds with
+.BR timeout :
+.PP
+.RS 4
+.EX
+$ timeout 10 nc 192.168.1.5 9000 <data.bin
+.EE
+.RE
+.SH NOTES
+Differences from other versions of netcat:
+.IP \(bu 2
+The only options are
+.BR \-l ,
+.BR \-p ,
+and
+.BR \-\-help .
+There are none for UDP, timeouts, scanning, verbose output, a source
+address, or running a program.
+.IP \(bu 2
+Options must come before the operands.
+.IP \(bu 2
+In listen mode the operand is a local address, not a port.
+.B nc \-l 8000
+takes
+.B 8000
+as an address and fails with
+.BR "nc: bind" .
+Give the port with
+.BR \-p .
+.IP \(bu 2
+Nothing is printed when a connection is made or accepted.
+.PP
+A service name is looked up in
+.IR /etc/services ,
+which busybox takes to be
+.I \eetc\eservices
+in the root of the current drive.
+Windows does not normally have such a file, so use port numbers.
+.PP
+Socket failures are reported without the Windows reason, as in
+.B nc: bind
+and
+.BR "nc: can't connect to remote host (127.0.0.1)" .
+The address is shown only for IPv4.
+A failed write to the connection, as when the peer has gone, prints
+.BR "nc: write error: Invalid argument" ,
+a misleading reason.
+.PP
+The listening socket sets
+.BR SO_REUSEADDR ,
+which on Windows lets sockets share a port.
+A second
+.B nc
+can listen on a port that another
+.B nc
+is listening on without an error, and Windows decides which of them
+receives a connection.
+.PP
+The sending direction of the connection is shut down as soon as standard
+input ends.
+When standard input is already at end of file, as with
+.BR </dev/null ,
+this happens at once, and the
+.B nc
+at the other end then exits, which can cut off data still being sent to
+it.
+Run a receiving
+.B nc
+at a console, or give it input that does not end.
+.PP
+Standard input and output are binary, so bytes such as CR LF, Ctrl-Z, and
+NUL pass through files and pipes unchanged.
+A console delivers a line to
+.B nc
+when you press Enter, with a CR LF line ending.
+.B nc
+reads the console a line at a time, so data from the peer is not shown
+while you are typing a line.
+To end the input, type Ctrl-Z at the start of a line and press Enter.
+.PP
+When standard output is a console, received text is converted for display
+from the ANSI code page, which is UTF-8 on Windows 10 version 1903 and
+later.
+Escape sequences, such as those for color, take effect, and busybox
+emulates them on consoles without virtual terminal support.
+A block of data that contains a NUL byte is written unconverted.
+.PP
+There is no connection timeout other than the one Windows applies.
+.SH SEE ALSO
+.BR busybox (1),
+.BR sh (1),
+.BR timeout (1),
+.BR wget (1)

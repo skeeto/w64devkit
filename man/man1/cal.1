@@ -1,0 +1,205 @@
+.TH CAL 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+cal \- display a calendar
+.SH SYNOPSIS
+.B cal
+.RB [ \-jmy ]
+.RI [[ month ]
+.IR year ]
+.SH DESCRIPTION
+.B cal
+prints a calendar of one month, or of a whole year, on standard output.
+With no operands, it prints the current month, or with
+.B \-y
+the current year.
+With one operand, it prints the whole
+.IR year .
+With two, it prints
+.I month
+of
+.IR year .
+A single operand is always a year:
+.B cal 9
+prints the year 9, not September, and
+.B cal 26
+the year 26, not 2026.
+.PP
+.I month
+is a number from 1 to 12, and
+.I year
+a number from 1 to 9999.
+Both are decimal, and may have leading zeros but no sign, spaces, or
+other characters.
+Month names are not accepted.
+.PP
+Dates up to 2 September 1752 are in the Julian calendar, and later dates
+in the Gregorian calendar, following the change in Great Britain and its
+colonies, so September 1752 has no 3rd to 13th.
+Through 1752 every fourth year is a leap year.
+From 1753 on, a year divisible by 100 is a leap year only when it is also
+divisible by 400.
+The Julian calendar extends back to the year 1.
+.SS Output format
+A month is a heading with the month name and the year, centered, then a
+line of two-letter weekday names, then six week rows.
+Each day is a number right-aligned in a field 2 characters wide, or 3
+with
+.BR \-j ,
+and one space separates the fields.
+Weeks start on Sunday, or on Monday with
+.BR \-m .
+A week row with no days in it is printed as a line of spaces rather than
+omitted, so a month is always 8 lines.
+.PP
+A year is the year number, centered, then an empty line, then the months
+side by side, three to a row, or two with
+.BR \-j .
+Each row of months starts with a line of their names, each centered over
+its month, and a line of weekday names, followed by six week rows.
+Nothing separates one row of months from the next except a last week row
+with no days in it.
+A year is always 34 lines, or 50 with
+.BR \-j .
+.PP
+Month and weekday names are always in English.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-jy ,
+and may follow the operands unless
+.B POSIXLY_CORRECT
+is set.
+.B \-\-
+ends the options.
+.TP
+.B \-j
+Number each day by its day of the year, from 1 to 366, instead of its day
+of the month.
+The usage message calls these Julian dates.
+.TP
+.B \-m
+Start weeks on Monday instead of Sunday.
+.TP
+.B \-y
+Print the whole year: the current year with no operands, or
+.IR year .
+A
+.I month
+operand is ignored, and is not checked.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit.
+It is recognized only as the first argument.
+.SH ENVIRONMENT
+.TP
+.B TZ
+The time zone that determines the current month and year, used only when
+no
+.I year
+is given.
+The format is that of the Microsoft C runtime: a three-letter zone name,
+the hours to add to local time to give UTC, optionally followed by
+minutes and seconds after colons, and an optional three-letter daylight
+saving zone name, as in
+.BR EST5EDT .
+When it is unset or empty, the Windows time zone setting applies.
+.TP
+.B POSIXLY_CORRECT
+When set, options must come before the operands.
+.PP
+Variables that affect every busybox applet are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+An invalid option or more than two operands, with a usage message on
+standard error; a
+.I month
+or
+.I year
+that is not a number or is out of range; or an error writing standard
+output.
+.SH EXAMPLES
+Show August 2026 with weeks starting on Monday:
+.PP
+.RS 4
+.EX
+$ cal \-m 8 2026
+    August 2026
+Mo Tu We Th Fr Sa Su
+                1  2
+ 3  4  5  6  7  8  9
+10 11 12 13 14 15 16
+17 18 19 20 21 22 23
+24 25 26 27 28 29 30
+31
+.EE
+.RE
+.PP
+Show the whole of the current year, then of 2027:
+.PP
+.RS 4
+.EX
+$ cal \-y
+$ cal 2027
+.EE
+.RE
+.PP
+Show the day of the year of each day in March 2026:
+.PP
+.RS 4
+.EX
+$ cal \-j 3 2026
+.EE
+.RE
+.PP
+Show the change to the Gregorian calendar:
+.PP
+.RS 4
+.EX
+$ cal 9 1752
+   September 1752
+Su Mo Tu We Th Fr Sa
+       1  2 14 15 16
+17 18 19 20 21 22 23
+24 25 26 27 28 29 30
+\&
+\&
+\&
+.EE
+.RE
+.SH NOTES
+Differences from the util-linux
+.B cal
+common on Linux:
+.IP \(bu 2
+Only
+.BR \-j ,
+.BR \-m ,
+and
+.B \-y
+are accepted, and
+.B \-\-help
+is the only long option.
+.IP \(bu 2
+The current day is not highlighted.
+.IP \(bu 2
+.I month
+must be a number.
+.PP
+In BSD
+.BR cal ,
+.B \-m
+selects a month instead.
+.PP
+With
+.BR \-j ,
+the days of 1752 after 2 September are numbered as if the 11 dropped
+days existed, so 14 September is day 258 and 31 December is day 366.
+.PP
+Lines end with LF, not CRLF.
+.SH SEE ALSO
+.BR busybox (1),
+.BR date (1)

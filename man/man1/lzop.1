@@ -1,0 +1,305 @@
+.TH LZOP 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+lzop, unlzop, lzopcat \- compress or expand files in lzop format
+.SH SYNOPSIS
+.B lzop
+.RB [ \-cdfkqtUv123456CF ]
+.RI [ file ...]
+.br
+.B unlzop
+.RB [ \-cfkqtUvF ]
+.RI [ file ...]
+.br
+.B lzopcat
+.RB [ \-ftF ]
+.RI [ file ...]
+.SH DESCRIPTION
+.B lzop
+compresses each
+.I file
+with the LZO1X algorithm, or with
+.B \-d
+decompresses it.
+.B unlzop
+is
+.BR "lzop \-d" ,
+and
+.B lzopcat
+is
+.BR "lzop \-dc" .
+All three accept the same options.
+.PP
+When compressing, the output file is
+.I file
+with
+.B .lzo
+appended, even when it already ends in
+.BR .lzo .
+When decompressing, a final
+.B .lzo
+is removed, and any other name gets
+.B .out
+appended.
+The input file is kept unless
+.B \-U
+is given.
+An existing output file is an error unless
+.B \-f
+is given.
+The output file gets the permissions of the input file, and the current
+time as its modification time.
+.PP
+With no
+.I file
+operands, or for a
+.I file
+named
+.BR \- ,
+.B lzop
+reads standard input and writes standard output.
+It refuses to read from a console, even when compressing, unless
+.B \-f
+is given.
+.PP
+Data is compressed in blocks of 256 KiB, and a block that does not
+shrink is stored uncompressed.
+Each block carries an Adler-32 checksum of its uncompressed data, which
+is verified when decompressing.
+The header records no file name, permissions, or time, and these fields
+are ignored in files from other lzop programs.
+Decompression accepts files compressed at any level, and also verifies
+CRC-32 checksums.
+.PP
+Only the first compressed stream in a file is read, and anything after
+it is silently ignored.
+A concatenation of
+.B .lzo
+files, such as the output of
+.B "lzop \-c"
+with several files, expands to the first file only.
+With
+.BR \-U ,
+the input file is still deleted, and the rest of its data is lost.
+.SS Diagnostics
+Invalid input is reported with one of these messages:
+.TP
+.B bad magic number
+The input is not in lzop format.
+.TP
+.BI "header_error " n
+The header is invalid or unsupported.
+2 means a header checksum mismatch;
+3, a format older than lzop 0.94, or a bad extra field;
+\-1, 14, and 15, an unknown method or level;
+16, a file that requires lzop later than 1.01 or uses a filter;
+and \-13, reserved flags set.
+.TP
+.BR "corrupted data" ", " "checksum error"
+A block is damaged.
+.TP
+.B short read
+The input ends early, or reading it fails.
+.TP
+.B this file is a split lzop file
+Split files are not supported.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-dc ,
+and may follow the
+.I file
+operands.
+.B \-\-
+ends the options.
+There are no long options.
+Level options have no effect when decompressing.
+.TP
+.B \-1
+Compress with the LZO1X-1(15) method.
+.TP
+.BR \-2 " to " \-6
+Compress with the LZO1X-1 method, the default.
+These levels are identical.
+.TP
+.BR \-7 ", " \-8 ", " \-9
+Fail with the message
+.BR "high compression not compiled in" .
+The output file, if any, has already been created, and is left empty.
+With
+.BR \-f ,
+an existing output file has already been deleted.
+.TP
+.B \-d
+Decompress.
+.TP
+.B \-c
+Write to standard output.
+The output for several files is concatenated.
+Input files are never deleted.
+.TP
+.B \-f
+Replace existing output files, including read-only ones, and allow
+reading from a console.
+.TP
+.B \-U
+Delete each input file, including a read-only one, after processing it
+successfully.
+Ignored with
+.B \-c
+or
+.BR \-t .
+.TP
+.B \-k
+Keep input files.
+This is the default, and it overrides
+.B \-U
+wherever it appears.
+.TP
+.B \-t
+Test: process each input and discard the output, creating and deleting
+no files.
+With
+.BR \-d ,
+this checks that the files decompress and that their checksums match.
+Without
+.BR \-d ,
+.B "lzop \-t"
+compresses and discards the result.
+.TP
+.B \-v
+After writing each output file, print
+\fIfile\fB: \fIN\fB% \- replaced with \fIoutput\fR
+on standard error.
+The percentage is meaningless, and the message appears even when the
+input is kept.
+Nothing is printed with
+.B \-c
+or
+.BR \-t ,
+or for standard input.
+.TP
+.B \-q
+Accepted and ignored.
+.TP
+.B \-F
+When compressing, store no block checksums, so
+.B \-C
+has no effect.
+When decompressing, do not verify block checksums.
+The header checksum is always stored and verified.
+.TP
+.B \-C
+Also store an Adler-32 checksum of each compressed block, which is
+verified when decompressing unless
+.B \-F
+is given.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit.
+Recognized only as the first argument.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the command line are expanded at startup, for callers such
+as
+.B cmd.exe
+that do not expand them.
+A busybox program started without this variable sets it to
+.BR 0 ,
+so the commands it runs do not expand their arguments again.
+.TP
+.B BB_UMASK
+An octal file mode creation mask applied at startup.
+If it includes the owner write bit,
+.BR 0200 ,
+output files are created read-only.
+.TP
+.B POSIXLY_CORRECT
+When set, the first
+.I file
+operand ends the options.
+.PP
+Variables that affect every busybox applet are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+An invalid option, or an error with any file.
+.PP
+A file that cannot be opened, or whose output file cannot be created,
+is reported and skipped, and the remaining files are still processed.
+Any other error, such as invalid input, a level from 7 to 9, or a write
+error, stops
+.B lzop
+at once.
+The incomplete output file is left in place, and the input file is not
+deleted.
+When compressing, a read error is taken as the end of the input, and is
+not reported: the output is cut short, the status is 0, and with
+.B \-U
+the input file is deleted.
+.SH EXAMPLES
+Compress a file, keeping the original:
+.PP
+.RS 4
+.EX
+$ lzop data.bin
+.EE
+.RE
+.PP
+Expand it, overwriting the existing
+.IR data.bin :
+.PP
+.RS 4
+.EX
+$ unlzop \-f data.bin.lzo
+.EE
+.RE
+.PP
+Check a set of compressed files:
+.PP
+.RS 4
+.EX
+$ lzop \-dt *.lzo
+.EE
+.RE
+.PP
+Archive a directory, and extract it again:
+.PP
+.RS 4
+.EX
+$ tar cf \- src | lzop >src.tar.lzo
+$ lzopcat src.tar.lzo | tar xf \-
+.EE
+.RE
+.SH NOTES
+This
+.B lzop
+is derived from the original lzop and reads and writes the same format,
+but it has fewer options, no levels above 6, and stores no file names,
+permissions, or times.
+.PP
+Data is read and written in binary mode, with no newline translation.
+Compressed data is written to a console without complaint.
+.PP
+The
+.B .lzo
+suffix is case-sensitive, so
+.I DATA.LZO
+expands to
+.IR DATA.LZO.out .
+The output of a read-only file is read-only.
+.PP
+When decompressing, blocks larger than 64 MiB are rejected as corrupted
+data.
+.SH SEE ALSO
+.BR busybox (1),
+.BR bzip2 (1),
+.BR gzip (1),
+.BR tar (1),
+.BR xz (1),
+.BR zstd (1)

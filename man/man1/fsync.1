@@ -1,0 +1,202 @@
+.TH FSYNC 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+fsync \- request that files be flushed to disk
+.SH SYNOPSIS
+.B fsync
+.RB [ \-d ]
+.IR file ...
+.SH DESCRIPTION
+.B fsync
+opens each
+.I file
+read-only, requests that its buffered data be written to disk, and
+closes it, in the order given.
+A
+.I file
+that cannot be opened is reported on standard error and skipped, and the
+remaining files are still processed.
+Nothing is written to standard output.
+.PP
+On Windows, a file opened read-only cannot be flushed.
+The request fails with an access error, which
+.B fsync
+treats as success, so naming a file flushes nothing.
+See
+.B NOTES
+for a way to flush.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-dd ,
+and may follow
+.I file
+operands.
+.B \-\-
+ends the options.
+.TP
+.B \-d
+Avoid syncing metadata, by calling
+.B fdatasync
+instead of
+.BR fsync .
+This build has no
+.B fdatasync
+and calls
+.B fsync
+either way, so
+.B \-d
+changes nothing.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument.
+.SH ENVIRONMENT
+.TP
+.B BB_CRITICAL_ERROR_DIALOGS
+When it is
+.BR 1 ,
+Windows may show a critical-error dialog for a
+.I file
+on a drive with no disk in it.
+Otherwise busybox suppresses the dialog, and the file fails to open.
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the operands are expanded, as needed when run from
+.BR cmd.exe .
+A pattern that matches nothing is left as it is, and fails to open with
+.BR "Invalid argument" .
+A busybox process started with the variable unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+operands as the shell expanded them.
+.TP
+.B POSIXLY_CORRECT
+When set, the first
+.I file
+operand ends the options, so that a later
+.B \-d
+is a file name.
+.PP
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Every
+.I file
+was opened and processed.
+.TP
+.B 1
+An invalid option, no
+.I file
+operand, or a
+.I file
+that could not be opened or flushed.
+.PP
+A usage message for an invalid option or a missing operand is written to
+standard error.
+A file that cannot be opened is reported on standard error as
+.PP
+.RS 4
+.EX
+fsync: can\(aqt open \(aq\fIfile\fR\(aq: \fIreason\fR
+.EE
+.RE
+.PP
+and one that cannot be flushed as
+.PP
+.RS 4
+.EX
+fsync: \fIfile\fR: \fIreason\fR
+.EE
+.RE
+.SH EXAMPLES
+Flush a file through a handle that the shell opens for appending, which,
+unlike one that
+.B fsync
+opens itself, has write access:
+.PP
+.RS 4
+.EX
+$ fsync /dev/stdout >>data.db
+.EE
+.RE
+.PP
+A file that cannot be opened is reported, and the exit status is 1:
+.PP
+.RS 4
+.EX
+$ fsync data.db missing.db; echo $?
+fsync: can\(aqt open \(aqmissing.db\(aq: No such file or directory
+1
+.EE
+.RE
+.PP
+Copy a file and flush the copy.
+Unlike
+.BR fsync ,
+.B dd
+flushes through the handle it wrote with:
+.PP
+.RS 4
+.EX
+$ dd if=in.bin of=out.bin conv=fsync
+.EE
+.RE
+.SH NOTES
+For a named file, opening it for reading is all that
+.B fsync
+does.
+Windows allows
+.B FlushFileBuffers
+only on a handle with write access, and
+.B fsync
+opens each file read-only.
+The flush fails with an access-denied error, which busybox's emulation
+of the C function
+.B fsync
+deliberately reports as success.
+The exit status therefore shows only that each file could be opened for
+reading.
+.PP
+To get data to disk, flush through a handle with write access.
+.B dd\ conv=fsync
+does so for its output file.
+.I /dev/stdout
+and
+.I /dev/fd/N
+reuse an open descriptor, with its access rights, so the shell's
+redirection in the first example under
+.B EXAMPLES
+gives
+.B fsync
+a handle it can flush.
+.PP
+A directory operand fails with
+.BR "Permission denied" .
+.PP
+File names may use drive letters and backslashes.
+They may contain any Unicode characters on Windows 10 version 1903 and
+later, and are limited to the system code page on earlier versions.
+The device names
+.IR /dev/null ,
+.IR /dev/tty ,
+.IR /dev/zero ,
+and
+.I /dev/urandom
+are accepted, and succeed.
+.IR /dev/stdin ,
+.IR /dev/stdout ,
+.IR /dev/stderr ,
+and
+.I /dev/fd/N
+name open descriptors, and one that is open for writing to a console
+fails with
+.BR "Invalid argument" .
+.SH SEE ALSO
+.BR busybox (1),
+.BR dd (1),
+.BR sync (1)

@@ -1,0 +1,945 @@
+.TH DC 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+dc \- reverse-Polish arbitrary-precision calculator
+.SH SYNOPSIS
+.B dc
+.RB [ \-x ]
+.RB [ \-e
+.IR script ]...
+.RB [ \-f
+.IR file ]...
+.RI [ file ...]
+.SH DESCRIPTION
+.B dc
+runs commands written in reverse-Polish notation on a stack of
+arbitrary-precision decimal numbers and strings.
+Numbers and strings are pushed on the stack, and most other commands pop
+their operands and push their results.
+Only the print commands write to standard output.
+.PP
+This is the busybox
+.B dc
+applet, which shares its number code with
+.BR bc (1).
+It accepts the GNU extensions
+.B ~
+and
+.BR | ,
+the FreeBSD extensions
+.BR ( ,
+.BR { ,
+.BR G ,
+and
+.BR N ,
+and, with
+.BR \-x ,
+extended register names.
+Some commands behave unexpectedly; see
+.BR NOTES .
+.PP
+.B dc
+runs each
+.B \-e
+script and
+.B \-f
+file in the order given, then each
+.I file
+operand.
+With none of these, or with only
+.BR \-x ,
+it reads standard input instead.
+A
+.I file
+named
+.B \-
+is a file of that name; standard input is
+.IR /dev/stdin .
+The stack, the registers, and the scale and bases carry over from one
+input to the next.
+.B dc
+reads its input a line at a time, and runs each command as soon as it
+has read the start of the next one.
+It stops at the end of the last input or when a quit command exits.
+.PP
+When standard input is a console,
+.B dc
+is interactive.
+It prints no banner and no prompt, and reads lines with line editing and
+history as in
+.BR sh (1),
+but with no completion.
+After an error in a typed line,
+.B dc
+discards the rest of the line and the stack, keeps the registers, and
+reads the next line.
+Ctrl-C at the prompt ends
+.BR dc ,
+as does Ctrl-D on an empty line.
+Ctrl-C while a typed command is running stops it, prints
+.BR "interrupted execution" ,
+and reads the next line.
+.PP
+A console on standard input also changes how scripts and files run.
+An error in a
+.I file
+operand clears the stack and skips the rest of that file, and
+.B dc
+goes on with the next one.
+An error in a
+.B \-e
+script or a
+.B \-f
+file still ends
+.B dc
+with status 1.
+Ctrl-C while a script or file runs ends
+.BR dc .
+.PP
+When standard input is not a console, the first error ends
+.B dc
+with status 1.
+.SS Syntax
+Whitespace may separate any two commands, and is needed only where two
+numbers would otherwise run together, and before an extended register
+name.
+A
+.B #
+starts a comment that runs to the end of the line.
+.PP
+A number is a run of the digits
+.B 0
+to
+.B 9
+and
+.B A
+to
+.BR F ,
+with at most one decimal point.
+The letters must be uppercase, since lowercase letters are commands.
+A second decimal point starts a new number, so
+.B 1.2.3
+is
+.B 1.2
+followed by
+.BR .3 .
+A backslash directly followed by a newline inside a number is skipped,
+so
+.B dc
+reads back the long numbers it prints.
+A number starts with
+.B _
+to be negative, as in
+.BR _5 ;
+.B \-
+is only the subtraction command.
+.PP
+A digit counts as its own value when it is the only digit after any
+leading zeros, so
+.B A
+and
+.B 0A
+are 10 in any input base.
+In a longer number, a digit not less than the input base counts as one
+less than the base, so with input base 10,
+.B FF
+is 99.
+.PP
+A number is converted from its digits the first time a command uses it,
+not when it is pushed.
+A change of input base therefore changes the value of numbers pushed
+earlier that no command has used yet, so
+.B FF 16 i p
+prints 255, not 99.
+.PP
+A string is the text between
+.B [
+and
+.BR ] ,
+which may span lines and may contain nested pairs of brackets.
+It has no escape sequences, so it cannot contain an unbalanced bracket.
+A string is also a macro, which
+.B x
+and the conditional commands run as commands.
+.PP
+Any character that is not whitespace, a digit, part of a string, or a
+command is an error.
+.SS Registers
+The commands
+.BR s ,
+.BR l ,
+.BR S ,
+.BR L ,
+.BR : ,
+.BR ; ,
+and the conditionals are followed by a register name.
+The name is a single character, any character, even a space or a digit:
+in
+.BR "s a" ,
+the register is named by the space, and
+.B a
+is a command.
+.PP
+With
+.BR \-x ,
+a command that is followed by whitespace other than a newline skips it
+and takes the following run of lowercase letters, digits, and
+underscores as the name,
+as in
+.B "s total"
+and
+.BR "l total" .
+A command followed directly by a character still takes that character,
+so with
+.BR \-x ,
+.B sa
+is the register
+.BR a .
+.PP
+A register holds a stack of values, each a number or a string.
+A register that was never set holds the number 0.
+Arrays are separate from registers, so an array and a register may share
+a name.
+.SS Arithmetic
+The binary commands pop the top number as
+.I b
+and the next as
+.IR a ,
+and push the result of
+.I a
+operated on by
+.IR b .
+.TP
+.B +
+Push the sum.
+.TP
+.B \-
+Push the difference,
+.I a
+minus
+.IR b .
+.TP
+.B *
+Push the product.
+.TP
+.B /
+Push the quotient.
+.TP
+.B %
+Push the remainder,
+.I a
+minus the product of
+.I b
+and the quotient from
+.BR / .
+.TP
+.B ~
+Push the quotient, then the remainder, so that the remainder is on top.
+.TP
+.B ^
+Push
+.I a
+raised to the power
+.IR b .
+.I b
+must be an integer; a fractional part is accepted only if all its digits
+are zero.
+A negative
+.I b
+gives the reciprocal of the power.
+.TP
+.B |
+Pop three numbers,
+.IR a ,
+.IR b ,
+and the modulus
+.I m
+on top, and push
+.I a
+raised to
+.I b
+modulo
+.IR m .
+All three must be integers with a scale of 0, so
+.B 2.0
+is rejected.
+The exponent must not be negative, and the modulus must not be zero.
+.TP
+.B v
+Pop one number and push its square root.
+A negative number is an error.
+.PP
+Results are truncated, not rounded.
+The scale, set by
+.BR k ,
+is the number of digits after the point that
+.B /
+and
+.BR ~ ,
+and a negative power, keep.
+A remainder, as from
+.B %
+or
+.BR ~ ,
+keeps the larger of the scale plus the scale of
+.I b
+and the scale of
+.IR a .
+Sums and differences keep every digit.
+A product keeps the smaller of the sum of the operands' scales and the
+largest of the scale and the operands' scales.
+A power with a non-negative exponent
+.I n
+keeps the smaller of
+.I n
+times the scale of
+.I a
+and the larger of the scale and the scale of
+.IR a .
+A square root keeps the larger of the scale and the scale of its
+operand.
+.SS Stack
+.TP
+.B c
+Empty the stack.
+.TP
+.B d
+Push a copy of the top value.
+.TP
+.B r
+Swap the top two values.
+.TP
+.B R
+Pop and discard the top value.
+.TP
+.B z
+Push the number of values on the stack, counted before the push.
+.SS "Registers and arrays"
+.TP
+.BI s r
+Pop a value and store it in register
+.IR r ,
+replacing the register's top value.
+.TP
+.BI l r
+Push a copy of register
+.IR r 's
+top value.
+.TP
+.BI S r
+Pop a value and push it on register
+.IR r 's
+own stack.
+A string is pushed there but also stays on the main stack.
+.TP
+.BI L r
+Pop the top value of register
+.IR r 's
+stack and push it on the main stack.
+A register's stack never becomes empty, so it is an error unless
+.B S
+has pushed more values on the register than
+.B L
+has popped.
+.TP
+.BI : r
+Pop an index
+.I i
+and a value, and store the value as element
+.I i
+of array
+.IR r .
+The value must be a number.
+.TP
+.BI ; r
+Pop an index
+.I i
+and push element
+.I i
+of array
+.IR r .
+Elements that were never stored are 0.
+What is pushed refers to the element instead of holding its value, so
+a later store to that element changes it.
+.PP
+An index is a non-negative integer no greater than 2147483647.
+Any fractional part is dropped.
+.SS "Macros and conditionals"
+.TP
+.B x
+Pop a value.
+If it is a string, run it as commands.
+A number is left on the stack and nothing runs.
+.TP
+\fB<\fIr\fR, \fB>\fIr\fR, \fB=\fIr\fR, \fB!<\fIr\fR, \fB!>\fIr\fR, \fB!=\fIr\fR
+Pop two numbers, and run the string in register
+.I r
+as a macro if the top number compares to the second as the operator says:
+less, greater, equal, not less, not greater, or not equal.
+For example,
+.B 3 5 >a
+runs register
+.B a
+because 5 is greater than 3.
+The register is not examined when the test fails.
+It is an error if it is run and its top value is not a string.
+.IP
+The register may be followed by
+.B e
+and a second register, as in
+.BR "3 5 >a eb" ,
+whose macro runs when the test fails.
+The
+.B e
+must be on the same line, though whitespace may come before it.
+.TP
+.B (
+Pop two numbers and push 1 if the top is less than the second, else 0.
+.TP
+.B {
+Pop two numbers and push 1 if the top is less than or equal to the
+second, else 0.
+.TP
+.B G
+Pop two numbers and push 1 if they are equal, else 0.
+.TP
+.B N
+Pop one number and push 1 if it is zero, else 0.
+.TP
+.B ?\&
+Read a line from standard input and run it as commands.
+When the script itself is standard input, that is the next line of the
+script.
+At the end of input it runs nothing.
+.TP
+.B q
+Exit
+.B dc
+if at most one macro is running.
+Otherwise stop the two innermost running macros.
+.TP
+.B Q
+Pop a number
+.I n
+and stop the
+.I n
+innermost running macros.
+If
+.I n
+is one more than the number running,
+.B dc
+exits.
+A larger
+.I n
+is an error, and 0 does nothing.
+.SS "Scale and bases"
+.TP
+.B k
+Pop a number and make it the scale, from 0 to 4294967295.
+The default is 0.
+.TP
+.B K
+Push the scale.
+.TP
+.B i
+Pop a number and make it the input base, from 2 to 36.
+The default is 10.
+.TP
+.B I
+Push the input base.
+.TP
+.B o
+Pop a number and make it the output base, from 2 to 999.
+The default is 10.
+.TP
+.B O
+Push the output base.
+.PP
+These commands drop any fractional part of the number.
+.SS Printing
+A number is printed in the output base, with a leading
+.B \-
+if negative and with no zero before the point.
+With an output base above 16, each digit is a decimal number padded with
+zeros to the width of the largest digit, and preceded by a space, or by
+the point for the first digit after it.
+Output bases 16 and below use the digits
+.B 0
+to
+.B 9
+and
+.B A
+to
+.BR F .
+.TP
+.B p
+Print the top value followed by LF, without popping it.
+In a string, the sequences
+.BR \en ,
+.BR \ea ,
+.BR \eb ,
+.BR \ef ,
+.BR \er ,
+and
+.B \et
+stand for the control characters, and
+.B \ee
+and
+.B \e\e
+for a single backslash.
+A backslash before any other character is printed with it.
+An empty string prints a NUL byte before the LF.
+.TP
+.B n
+The same as
+.BR p .
+.TP
+.B f
+Print every value from the top down, as
+.B p
+does.
+.TP
+.B P
+Print the top value with no LF, without popping it.
+A string is written as it is, without translating backslashes, and an
+empty string writes nothing.
+A number is written as the bytes of its integer part in base 256, most
+significant first, followed by its fractional part as further base 256
+digits; 0 is one NUL byte.
+A negative number is an error.
+.TP
+.B a
+Pop a value and push a one-byte string: for a number, the remainder of
+its integer part divided by 256, which must not be negative, and for a
+string, its first byte.
+A zero byte gives an empty string instead.
+.TP
+.B Z
+Pop a value and push its length: for a number, its count of digits,
+not counting zeros before the first nonzero digit and at least 1, and
+for a string, its length in bytes.
+.TP
+.B X
+Pop a number and push its scale, the count of digits after the point.
+A string is an error.
+.SS Errors
+An error is reported on standard error as
+.PP
+.RS 4
+.EX
+dc: \fImessage\fR
+.EE
+.RE
+.PP
+or, for input from a
+.B \-f
+file or a
+.I file
+operand, as
+.PP
+.RS 4
+.EX
+dc: \fIfile\fR:\fIline\fR: \fImessage\fR
+.EE
+.RE
+.PP
+where
+.I line
+counts from 1.
+A message may end with
+.BI "at '" text '
+for the rest of the line from the faulty command.
+A file that cannot be opened is reported as
+.PP
+.RS 4
+.EX
+dc: can\(aqt open \(aq\fIfile\fR\(aq: \fIreason\fR
+.EE
+.RE
+.PP
+The other messages are as follows.
+.TP
+.B stack has too few elements
+A command needs more values than the stack holds.
+.TP
+.B variable is wrong type
+A command was given a string where it needs a number, or the reverse,
+or a string was stored in an array.
+.TP
+.BI "bad character '" c '
+The character is not a command.
+.TP
+.B bad token
+A command is in the wrong place, such as an
+.B e
+with no conditional before it, or a
+.B _
+that is not followed by a number.
+.TP
+.B unterminated string
+A
+.B [
+has no closing
+.BR ] .
+.TP
+.B divide by zero
+The divisor of
+.BR / ,
+.BR % ,
+or
+.BR ~ ,
+or the modulus of
+.BR | ,
+is zero.
+.TP
+.B not an integer
+The exponent of
+.B ^
+has a nonzero fractional part, or an operand of
+.B |
+has a scale other than 0.
+.TP
+.B negative number
+A negative value where one is not allowed: the square root, the
+exponent of
+.BR | ,
+the values for
+.BR k ,
+.BR i ,
+.BR o ,
+and
+.BR Q ,
+an array index, and the operands of
+.B a
+and
+.BR P .
+.TP
+.B overflow
+A value is too large for 32 bits, as for
+.BR k ,
+.BR Q ,
+or the exponent of
+.BR ^ .
+.TP
+.B array too long; must be [1,2147483647]
+An array index is too large.
+.TP
+.B bad ibase; must be [2,16]
+The value for
+.B i
+is out of range.
+The upper limit is 36, not 16 as the message says.
+.TP
+.B bad obase; must be [2,999]
+The value for
+.B o
+is out of range.
+.TP
+.BI "illegal character 0x" NN
+The input has a byte that is not text; see
+.BR NOTES .
+.TP
+.BI "file '" name "' is not text"
+With a console on standard input,
+.B dc
+reports each such byte on a line of a file, then ends with this message.
+.TP
+.BR "input error" ", " "output error"
+Reading or writing failed, for the reason that follows.
+.TP
+.B out of memory
+Memory ran out, as a very large array index does.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-xe ,
+and an option's argument may be attached, as in
+.BR \-e1p ,
+or be the next argument.
+.B \-\-
+ends the options, and so does the first operand, so in
+.B dc a.dc \-x
+the
+.B \-x
+is a file name.
+.B dc
+runs each
+.B \-e
+and
+.B \-f
+as soon as it reads it.
+.TP
+.B \-x
+Allow extended register names; see
+.BR Registers .
+It applies to the scripts and files after it.
+.TP
+.BI "\-e " script
+Run
+.I script
+as commands.
+It may contain newlines.
+A command cannot continue from one script to the next.
+.TP
+.BI "\-f " file
+Run the commands in
+.IR file .
+An error opening it ends
+.B dc
+with status 1.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit.
+It is recognized only as the first argument.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+the C runtime replaces each argument containing wildcards with the names
+of the files it matches, if any, even when the argument is quoted.
+From
+.BR cmd.exe ,
+a script argument such as
+.B *
+may become a list of files.
+When it is unset, busybox sets it to
+.B 0
+for its child processes, so commands run from the busybox shell, which
+expands wildcards itself, receive their arguments as given.
+.TP
+.B COLUMNS
+The console width for line editing, instead of the console's actual
+width.
+.TP
+.B DC_LINE_LENGTH
+A printed number is broken into lines of at most this many characters,
+each but the last ending in a backslash.
+The default is 70, so a full line has 69 digits and a backslash.
+The value 0, or a value over 2147483647, disables breaking.
+The value 1, a value over 4294967295, and anything that is not an
+unsigned decimal number select the default.
+.PP
+Variables that affect every busybox applet are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+The input ended, or a quit command ran.
+.TP
+.B 1
+An invalid option, a file that cannot be opened, an error in the
+commands, input that is not text, a read or write error, or running out
+of memory.
+.PP
+With a console on standard input, errors in the commands of typed lines,
+or of a
+.I file
+operand other than the last, do not change the status.
+.SH EXAMPLES
+Evaluate an expression:
+.PP
+.RS 4
+.EX
+$ dc \-e \(aq2 3 + 4 * p\(aq
+20
+.EE
+.RE
+.PP
+Divide to 10 decimal places:
+.PP
+.RS 4
+.EX
+$ dc \-e \(aq10k 22 7 / p\(aq
+3.1428571428
+.EE
+.RE
+.PP
+Read commands from a pipe:
+.PP
+.RS 4
+.EX
+$ echo \(aq72 9 / 8 * p\(aq | dc
+64
+.EE
+.RE
+.PP
+Convert 255 to hexadecimal, and back:
+.PP
+.RS 4
+.EX
+$ dc \-e \(aq16 o 255 p\(aq
+FF
+$ dc \-e \(aq16 i FF p\(aq
+255
+.EE
+.RE
+.PP
+Compute 20! with a recursive macro in register
+.BR f :
+.PP
+.RS 4
+.EX
+$ dc \-e \(aq[d1\-d1<f*]sf 20 lfx p\(aq
+2432902008176640000
+.EE
+.RE
+.PP
+Run a script file that counts from 1 to 5:
+.PP
+.RS 4
+.EX
+$ cat >count.dc <<\(aqEOF\(aq
+# Print 1 to 5.
+[li p li 1 + si li 6 >a]sa
+1 si lax
+EOF
+$ dc count.dc
+1
+2
+3
+4
+5
+.EE
+.RE
+.PP
+Say whether 7 is even or odd:
+.PP
+.RS 4
+.EX
+$ dc \-e \(aq[[even]p]sa [[odd]p]sb 7 2 % 0 =a eb\(aq
+odd
+.EE
+.RE
+.PP
+Use a long register name:
+.PP
+.RS 4
+.EX
+$ dc \-x \-e \(aq5 s count l count p\(aq
+5
+.EE
+.RE
+.PP
+Compute 4 to the 13th power modulo 497:
+.PP
+.RS 4
+.EX
+$ dc \-e \(aq4 13 497 | p\(aq
+445
+.EE
+.RE
+.PP
+Print a string followed by an LF (10):
+.PP
+.RS 4
+.EX
+$ dc \-e \(aq[hello, world]P 10P\(aq
+hello, world
+.EE
+.RE
+.SH NOTES
+Behavior that may surprise a user of another dc:
+.IP \(bu 2
+.B n
+is the same as
+.BR p :
+it prints a newline and leaves the value on the stack, where the usual
+command pops the value and prints no newline.
+.IP \(bu 2
+.B p
+and
+.B f
+translate backslash sequences in a string and print an empty string as
+a NUL byte.
+.B P
+does neither.
+.IP \(bu 2
+.B P
+does not pop the value, rejects a negative number, and writes the
+fractional part of a number.
+.IP \(bu 2
+.B S
+leaves a string on the main stack as well.
+.IP \(bu 2
+Arrays hold numbers only, and the value that
+.B ;
+pushes follows later stores to its element.
+.IP \(bu 2
+A register's stack never becomes empty, and
+.B L
+cannot pop its last value, so
+.B La
+after
+.B 5 sa
+is an error.
+.IP \(bu 2
+The input base may be up to 36, though the error message says 16, and
+only the digits
+.B 0
+to
+.B F
+can be written.
+.IP \(bu 2
+Strings have no escapes, and FreeBSD's backslash escapes for brackets
+are not implemented.
+.IP \(bu 2
+There is no shell escape
+.RB ( ! ),
+and the FreeBSD commands
+.B J
+and
+.B M
+are not implemented.
+.PP
+Scale, exponents, and the count for
+.B Q
+are 32-bit values on Windows, so the largest is 4294967295.
+An array takes memory up to its largest index, so a large index can
+exhaust memory.
+A macro that ends by calling itself is not turned into a loop: every call
+level uses memory until the macro returns.
+.PP
+Files and standard input must be ASCII text.
+Any byte other than tab, carriage return, newline, and printable ASCII
+is an error, including UTF-8 in comments and strings, except that NUL
+bytes are ignored.
+A script given with
+.B \-e
+is not checked.
+A carriage return is whitespace, so CRLF line endings work, except after
+a backslash that continues a number.
+A carriage return inside a string stays in it.
+Output lines end with LF, and
+.B P
+writes bytes unchanged to a file or pipe.
+.PP
+The characters that
+.B p
+prints for strings count toward the line length of the next number
+printed, because the LF that
+.B p
+adds after a string does not restart the count.
+That number is therefore broken early, or not at all once the count
+reaches the line length.
+.B P
+does not count the characters of a string.
+.PP
+Interactive mode requires a Windows console.
+In a terminal that connects programs through pipes, such as mintty,
+.B dc
+behaves as with redirected input: no line editing, and the first error
+ends it.
+The history holds up to 16384 lines and is not saved.
+.PP
+.I file
+operands may use drive letters and backslashes, and messages show them
+as given.
+The names
+.IR /dev/stdin ,
+.IR /dev/fd/N ,
+and
+.I /dev/null
+work as on Unix.
+.SH SEE ALSO
+.BR bc (1),
+.BR busybox (1),
+.BR sh (1)

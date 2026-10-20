@@ -1,0 +1,488 @@
+.TH INSTALL 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.SH NAME
+install \- copy files and set their mode, or create directories
+.SH SYNOPSIS
+.B install
+.RI [ options ]
+.I source dest
+.br
+.B install
+.RI [ options ]
+.IR source ...\&
+.I directory
+.br
+.B install
+.RI [ options ]
+.BI "\-t " directory
+.IR source ...\&
+.br
+.B install \-d
+.RI [ options ]
+.IR directory ...\&
+.SH DESCRIPTION
+.B install
+copies files and sets the mode of each copy, or with
+.B \-d
+creates directories.
+It is the
+.BR busybox (1)
+applet, which has fewer options than GNU
+.BR install ;
+see
+.BR NOTES .
+.SS Operands
+With
+.BR \-d ,
+every operand is a directory to create.
+With
+.BR \-t ,
+every operand is a
+.I source
+and is copied into
+.IR directory .
+Otherwise the last operand is
+.IR dest ,
+and at least one
+.I source
+must precede it.
+With too few operands,
+.B install
+prints a usage message on standard error and exits with status 1.
+.PP
+When
+.I dest
+is an existing directory, each
+.I source
+is copied into it, named after the last component of the source, the
+part after the last
+.BR / ,
+.BR \e ,
+or
+.BR : .
+Otherwise
+.I source
+is copied to
+.I dest
+itself.
+.B install
+does not check that several sources have a directory to go into:
+each copy then replaces the one before it, no error is reported, and
+only the last source remains.
+.PP
+There is no option to copy a directory.
+A
+.I source
+that is a directory is reported as omitted, and the exit status is 1.
+.SS What is copied
+A regular file is copied, and a symbolic link as a source is followed.
+Only its data is copied, byte for byte.
+The copy has the current time as its modification time unless
+.B \-p
+is given, and its read-only attribute is set from the mode, not from the
+source; see
+.BR \-m .
+.PP
+A source of
+.B \-
+is a file of that name, not standard input.
+The device names listed in
+.BR busybox (1)
+are read as devices, so
+.I /dev/null
+gives an empty file and
+.I /dev/stdin
+copies standard input.
+Such a copy keeps the current time even with
+.BR \-p ,
+and
+.B \-v
+does not list it.
+.SS Existing destinations
+.B install
+never writes into an existing destination file.
+It creates the destination as a new file, and when the name is taken it
+deletes the old file, even a read-only one, and creates it again.
+So other hard links to the old file keep its contents, and a symbolic
+link at the destination is replaced rather than followed.
+A file that cannot be deleted, such as a running program, is not
+replaced, and the copy fails with
+.BR "File exists" ,
+but a read-only one is left writable.
+.PP
+It is an error for a destination to be the same file as its source.
+.B install
+compares the volume and file index, so names that differ only in case,
+names that reach the file by different routes, and hard links to one
+file are all detected, and nothing is changed.
+.SS Attributes
+After copying each file,
+.B install
+runs
+.B strip
+if
+.B \-s
+is given, and then sets the mode.
+The mode is always set, to 0755 unless
+.B \-m
+gives another.
+So the copy is writable even when its source is read-only.
+Directories made by
+.B \-d
+get the same mode.
+.SS Output
+.B install
+reports each error on standard error as
+.BI "install: " message
+and goes on with the remaining operands.
+The exit status is then 1.
+Only
+.B \-v
+and
+.B \-\-help
+write to standard output.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-pm444 ,
+and may follow operands, unless
+.B POSIXLY_CORRECT
+is set.
+The argument of a short option may be attached, as in
+.BR \-m444 ,
+or be the next argument.
+A long option may be abbreviated to any unambiguous prefix, and takes
+its argument after
+.B =
+or as the next argument.
+.B \-\-
+ends the options.
+.TP
+.B \-c
+Accepted and ignored.
+Copying is the default.
+.TP
+.BR \-d ", " \-\-directory
+Create each operand as a directory, with any missing parent
+directories, instead of copying files.
+A directory that exists is not an error.
+Incompatible with
+.B \-s
+and
+.BR \-t ,
+and
+.B \-D
+has no effect with it.
+.TP
+.B \-D
+Before copying, create the missing parent directories of
+.IR dest .
+With
+.BR \-t ,
+create
+.I directory
+and its missing parents instead.
+Failure to create them is reported, and then the copy fails on its own.
+.TP
+.BR \-s ", " \-\-strip
+After copying each file, run
+.B strip \-p
+on it.
+.B strip
+is found by searching
+.BR PATH ,
+and is not an applet.
+It fails when
+.B BB_UMASK
+has the owner write bit set.
+If it cannot be run, or exits with a nonzero status,
+.B install
+reports
+.B install: strip
+on standard error, followed by a reason when there is one, and the exit
+status is 1.
+The copy is kept, and the mode is still set.
+Incompatible with
+.BR \-d .
+.TP
+.BR \-p ", " \-\-preserve\-timestamps
+Set the access and modification times of each copy to the source's
+modification time, in whole seconds.
+A failure to do so is reported, but does not change the exit status.
+With
+.BR \-s ,
+.B strip
+is asked to keep the times.
+.TP
+\fB\-o\fR \fIowner\fR, \fB\-\-owner\fR=\fIowner\fR
+Accepted for compatibility, but ownership is never changed.
+The
+.I owner
+must be a number, the name
+.BR root ,
+or the name of the current user, written with underscores in place of
+spaces.
+Any other name is reported as
+.BR "unknown user" ,
+and
+.B install
+exits with status 1 before it copies anything.
+.TP
+\fB\-g\fR \fIgroup\fR, \fB\-\-group\fR=\fIgroup\fR
+Accepted for compatibility, but the group is never changed.
+The
+.I group
+must be a number.
+Any name, even
+.BR root ,
+is reported as
+.BR "unknown group" ,
+and
+.B install
+exits with status 1 before it copies anything.
+.TP
+\fB\-m\fR \fImode\fR, \fB\-\-mode\fR=\fImode\fR
+Set the mode of each file or directory to
+.I mode
+instead of 0755.
+The mode is an octal number from 0 to 7777, or a symbolic mode as in
+.BR chmod (1)
+that modifies 0755.
+Only the owner write bit, 0200, has an effect: when it is clear the file
+is made read-only, and otherwise writable.
+A directory is never made read-only.
+A mode that cannot be parsed is not reported, and leaves the file
+writable.
+A symbolic mode with no
+.BR u ,
+.BR g ,
+.BR o ,
+or
+.B a
+before its operator is limited by the umask; see
+.BR BB_UMASK .
+.TP
+\fB\-t\fR \fIdirectory\fR, \fB\-\-target\-directory\fR=\fIdirectory\fR
+Copy every operand into
+.IR directory .
+It is not created unless
+.B \-D
+is given.
+Incompatible with
+.BR \-d .
+.TP
+.BR \-v ", " \-\-verbose
+Write
+.BI \(aq source "\(aq \-> \(aq" dest \(aq
+on standard output for each file copied, and
+.BI "created directory: \(aq" path \(aq
+for each directory created by
+.B \-d
+or
+.BR \-D ,
+including each missing parent.
+An intermediate directory is written with a trailing slash.
+.TP
+.B \-b
+Accepted and ignored.
+No backup is made.
+.TP
+.B \-\-help
+As the first argument only, write a usage message on standard output
+and exit with status 0.
+The message omits the long options,
+.BR \-b ,
+and
+.BR \-v .
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the arguments are expanded when busybox starts, for a caller
+such as
+.B cmd.exe
+that does not expand them.
+When it is unset, busybox sets it to
+.B 0
+for the programs it starts, so commands run from the kit's shell get the
+shell's expansion only.
+.TP
+.B BB_UMASK
+An octal file mode creation mask, applied before
+.B install
+runs.
+With the owner write bit,
+.BR 0200 ,
+set, each copy is created read-only until its mode is set, so
+.B strip
+cannot rewrite it and
+.B \-s
+fails.
+The mask also limits a symbolic
+.B \-m
+mode with no
+.BR u ,
+.BR g ,
+.BR o ,
+or
+.B a
+before its operator, such as
+.BR =rw :
+it adds or removes only bits that the mask leaves clear.
+With
+.B 0200
+set, for example,
+.B \-m\ =rw
+makes the file read-only, and
+.B \-m\ \-w
+leaves it writable.
+.TP
+.B PATH
+Where
+.B \-s
+looks for
+.BR strip .
+An empty element stands for the current directory.
+.TP
+.B POSIXLY_CORRECT
+If set, the first operand ends the options.
+.PP
+Messages written to a console also depend on
+.BR BB_SKIP_ANSI_EMULATION ,
+.BR BB_TERMINAL_MODE ,
+.BR LANG ,
+.BR LC_ALL ,
+and
+.BR LC_CTYPE ,
+and Windows error dialogs on
+.BR BB_CRITICAL_ERROR_DIALOGS ,
+as for every busybox applet; see
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+An invalid command line, with a usage message on standard error; an
+unknown user or group; or any operand that could not be copied,
+stripped, or given its mode.
+.SH EXAMPLES
+Install a program, creating the directory it goes in, and strip it:
+.PP
+.RS 4
+.EX
+$ install \-D \-s hello.exe out/bin/hello.exe
+.EE
+.RE
+.PP
+Create several directories:
+.PP
+.RS 4
+.EX
+$ install \-d out/bin out/lib out/include
+.EE
+.RE
+.PP
+Install libraries into a directory, keeping their times and listing
+each copy:
+.PP
+.RS 4
+.EX
+$ install \-pv \-t out/lib libfoo.a libbar.a
+\(aqlibfoo.a\(aq \-> \(aqout/lib/libfoo.a\(aq
+\(aqlibbar.a\(aq \-> \(aqout/lib/libbar.a\(aq
+.EE
+.RE
+.PP
+Install headers as read-only files:
+.PP
+.RS 4
+.EX
+$ install \-m 444 foo.h bar.h out/include
+.EE
+.RE
+.PP
+Install a program into a Windows directory:
+.PP
+.RS 4
+.EX
+$ install hello.exe c:/tools
+.EE
+.RE
+.SH NOTES
+Differences from GNU
+.BR install :
+.IP \(bu 2
+Ownership is never changed.
+.B \-o
+and
+.B \-g
+only check that their argument is acceptable.
+.IP \(bu 2
+The mode sets only the read-only attribute of a file.
+A file is executable on Windows by its name or contents, not by its
+mode; see
+.BR busybox (1).
+.IP \(bu 2
+An existing destination is deleted and created again, rather than
+overwritten in place, and no backup is made.
+.IP \(bu 2
+Several sources with a
+.I dest
+that is not a directory are not an error: each replaces the one before.
+.IP \(bu 2
+A
+.B \-m
+mode that does not parse is not an error.
+.IP \(bu 2
+.B \-v
+is accepted although the usage message omits it.
+.IP \(bu 2
+Options not listed above, such as
+.BR \-C ,
+.BR \-S ,
+.BR \-T ,
+.BR \-Z ,
+.BR \-\-backup ,
+.BR \-\-compare ,
+.BR \-\-suffix ,
+and
+.BR \-\-no\-target\-directory ,
+are invalid.
+.PP
+Only a file's data, and with
+.B \-p
+its modification time, are copied.
+Alternate data streams, such as the
+.B Zone.Identifier
+stream that marks downloaded files, other attributes, such as hidden,
+and security descriptors are not: a new file or directory gets the
+permissions it inherits from its parent directory.
+.PP
+Paths may have drive letters and backslashes.
+Names in a directory are joined with
+.BR / ,
+so
+.B install x \(aqc:\etools\(aq
+installs to
+.IR c:\etools/x .
+A bare drive such as
+.I c:
+names the current directory of that drive, so
+.B install x c:
+installs to
+.IR c:x .
+Names may contain any Unicode character on Windows 10 version 1903 and
+later; see
+.BR busybox (1).
+.PP
+From
+.BR cmd.exe ,
+.B install
+expands wildcards in its arguments itself; see
+.BR BB_GLOBBING .
+.SH SEE ALSO
+.BR busybox (1),
+.BR chmod (1),
+.BR cp (1),
+.BR mkdir (1)

@@ -1,0 +1,171 @@
+.TH CRC32 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+crc32 \- compute CRC-32 checksums
+.SH SYNOPSIS
+.B crc32
+.RI [ file ...]
+.SH DESCRIPTION
+.B crc32
+prints the CRC-32 of each
+.IR file .
+With no
+.I file
+operands, or for a
+.I file
+named
+.BR \- ,
+it reads standard input.
+.PP
+The CRC is the one used by gzip, zip, and PNG, and stored in their files:
+the reflected polynomial 0xEDB88320, with an initial value and a final
+exclusive or of 0xFFFFFFFF.
+The CRC-32 of the 9 bytes
+.B 123456789
+is
+.BR cbf43926 .
+.PP
+Each output line is the CRC as 8 lowercase hex digits, a space, and the
+file name as given on the command line.
+With no
+.I file
+operands, the line is the CRC alone.
+.PP
+A file that cannot be opened is reported on standard error, and the
+remaining files are still processed.
+An error reading a file ends the command at once.
+Standard input is closed once it has been read, so naming it a second
+time is a read error.
+.SH OPTIONS
+.B crc32
+takes no options other than
+.BR \-\-help .
+Any other argument that begins with
+.BR \- ,
+except
+.B \-
+and
+.BR \-\- ,
+is an invalid option, even after a
+.IR file ,
+unless
+.B POSIXLY_CORRECT
+is set.
+.B \-\-
+ends the options, so that later arguments are file names.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit.
+It is recognized only as the first argument.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the operands are expanded, as needed when run from
+.BR cmd.exe .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+operands as the shell expanded them.
+.TP
+.B POSIXLY_CORRECT
+If set, the first operand ends the options, so later arguments that
+begin with
+.B \-
+are file names.
+.PP
+Variables that busybox-w32 reads in every applet, such as those that
+control console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+An option was invalid, a file could not be opened or read, or standard
+output could not be written.
+.TP
+.B 141
+Standard output is a pipe whose reader has exited, and a write failed
+before the end of the output.
+Output is buffered, and when only the final write at exit fails, as
+with short output, the status is 1.
+.SH EXAMPLES
+Print the CRC-32 of a file:
+.PP
+.RS 4
+.EX
+$ crc32 hello.txt
+363a3020 hello.txt
+.EE
+.RE
+.PP
+Print the CRC-32 of standard input:
+.PP
+.RS 4
+.EX
+$ printf 123456789 | crc32
+cbf43926
+.EE
+.RE
+.PP
+Print the CRC-32 of a file in a zip archive, to compare it with the
+file on disk:
+.PP
+.RS 4
+.EX
+$ unzip \-p hello.zip hello.txt | crc32
+363a3020
+.EE
+.RE
+.PP
+Show the CRC-32 and size stored at the end of a gzip file:
+.PP
+.RS 4
+.EX
+$ tail \-c 8 hello.txt.gz | od \-An \-tx4
+ 363a3020 00000006
+.EE
+.RE
+.SH NOTES
+There is no standard
+.B crc32
+command.
+POSIX
+.B cksum
+computes a different CRC, which also covers the file length, and prints
+it in decimal, so its values do not match those of
+.BR crc32 .
+.PP
+The usage message shows
+.I file
+as required, but it is optional.
+.PP
+Files and standard input are read in binary mode, so the CRC of a file
+matches its CRC on other systems.
+Output lines end with LF, not CRLF.
+.PP
+.I file
+may be a Windows path, with a drive letter and either kind of slash, or
+a busybox-w32 device name such as
+.I /dev/null
+or
+.IR /dev/stdin .
+The name is printed as given, backslashes included.
+.I /dev/stdin
+does not close standard input, unlike
+.BR \- ,
+and cannot be opened after a
+.B \-
+operand.
+A directory operand cannot be opened, and fails with
+.BR "Permission denied" .
+On Windows 10 version 1903 or later, file names may contain any Unicode
+characters, and on older systems only those of the system code page.
+.SH SEE ALSO
+.BR busybox (1),
+.BR cksum (1),
+.BR gzip (1),
+.BR md5sum (1),
+.BR unzip (1)

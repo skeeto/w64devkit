@@ -1,0 +1,211 @@
+.TH COMM 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+comm \- compare two sorted files line by line
+.SH SYNOPSIS
+.B comm
+.RB [ \-123 ]
+.I file1
+.I file2
+.SH DESCRIPTION
+.B comm
+compares two files whose lines are sorted, and writes three columns:
+lines only in
+.IR file1 ,
+lines only in
+.IR file2 ,
+and lines in both.
+Either file may be
+.BR \- ,
+for standard input.
+.PP
+.B comm
+reads a line from each file and compares the two as bytes.
+If they are equal, it writes the line in the third column and reads the
+next line of both files.
+Otherwise it writes the lesser line in the column of its file and reads
+the next line of that file only.
+When one file ends, the rest of the other is written in its column.
+Repeated lines pair off one to one: a line that appears three times in
+.I file1
+and once in
+.I file2
+is written once in the third column and twice in the first.
+.PP
+The result is correct only when both files are sorted in byte order, as
+.B sort
+with no options sorts them.
+Input out of order is not detected.
+Lines in both files may then be reported as unique, with no message and
+exit status 0.
+.PP
+Each output line is an input line preceded by one tab for each column to
+its left that is not suppressed.
+Without options, a line in the second column starts with one tab, and a
+line in the third column with two.
+Output follows the merged order of the input.
+.PP
+A line ends at a newline, and the last line of a file need not have one.
+A carriage return directly before the newline is removed, so files with
+CRLF and LF line endings compare equal.
+A NUL byte also ends a line, and is not written.
+Every output line ends with LF.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-12 ,
+and may follow the operands, unless
+.B POSIXLY_CORRECT
+is set.
+.B \-\-
+ends the options.
+With all three options,
+.B comm
+writes nothing.
+.TP
+.B \-1
+Suppress the first column: lines only in
+.IR file1 .
+.TP
+.B \-2
+Suppress the second column: lines only in
+.IR file2 .
+.TP
+.B \-3
+Suppress the third column: lines in both files.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the operands are expanded, as needed when run from
+.BR cmd.exe .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+operands as the shell expanded them.
+.TP
+.B POSIXLY_CORRECT
+If set, the first operand ends the options.
+.PP
+Variables that busybox-w32 reads in every applet, such as those that
+control console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success, whether or not the files have lines in common.
+.TP
+.B 1
+Invalid command line, such as an unknown option or other than two
+operands, with a usage message on standard error; a file could not be
+opened; or memory ran out.
+.TP
+.B 141
+A write to standard output failed because it is a pipe whose reader
+has exited.
+.SH EXAMPLES
+Show the three columns:
+.PP
+.RS 4
+.EX
+$ cat a.txt
+apple
+banana
+cherry
+$ cat b.txt
+banana
+cherry
+fig
+$ comm a.txt b.txt
+apple
+		banana
+		cherry
+	fig
+.EE
+.RE
+.PP
+Print the lines in both files:
+.PP
+.RS 4
+.EX
+$ comm \-12 a.txt b.txt
+banana
+cherry
+.EE
+.RE
+.PP
+Print the lines only in the first file:
+.PP
+.RS 4
+.EX
+$ comm \-23 old.txt new.txt
+.EE
+.RE
+.PP
+Print the lines only in the second of two unsorted lists, sorting both
+first and passing the second on standard input:
+.PP
+.RS 4
+.EX
+$ sort old.txt >old.sorted
+$ sort new.txt | comm \-13 old.sorted \-
+.EE
+.RE
+.SH NOTES
+Differences from GNU comm:
+.IP \(bu 2
+Input order is never checked.
+GNU comm reports unsorted input by default, and then exits with status 1.
+.IP \(bu 2
+Lines are compared as bytes, not in the collation order of the locale.
+.IP \(bu 2
+The only long option is
+.BR \-\-help :
+there is no
+.BR \-\-check\-order ,
+.BR \-\-nocheck\-order ,
+.BR \-\-output\-delimiter ,
+or
+.BR \-\-total ,
+and no
+.BR \-z .
+.IP \(bu 2
+A carriage return before a newline is removed, and a NUL byte ends a
+line.
+.PP
+Because lines are compared as bytes, both files must use the same
+encoding, and a byte order mark at the start of a file is part of its
+first line.
+Lines may be of any length.
+A read error ends a file silently.
+.PP
+Errors writing standard output, other than a pipe whose reader has
+exited, are ignored.
+Output still buffered when
+.B comm
+finishes is written at exit without any check, so a failure there leaves
+the exit status 0.
+.PP
+Both operands may be
+.BR \- ,
+but the two files then read from the same standard input, and the
+result is meaningless.
+.PP
+.I file1
+and
+.I file2
+may be Windows paths, with a drive letter and either kind of slash, or a
+busybox-w32 device name such as
+.IR /dev/null .
+On Windows 10 version 1903 or later, file names may contain any Unicode
+characters, and on older systems only those of the system code page.
+.SH SEE ALSO
+.BR busybox (1),
+.BR cmp (1),
+.BR diff (1),
+.BR join (1),
+.BR sort (1),
+.BR uniq (1)

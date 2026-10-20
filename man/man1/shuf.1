@@ -1,0 +1,366 @@
+.TH SHUF 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+shuf \- write the lines of its input in random order
+.SH SYNOPSIS
+.B shuf
+.RB [ \-z ]
+.RB [ \-n
+.IR count ]
+.RB [ \-o
+.IR outfile ]
+.RI [ infile ]
+.br
+.B shuf \-e
+.RB [ \-z ]
+.RB [ \-n
+.IR count ]
+.RB [ \-o
+.IR outfile ]
+.RI [ arg ...]
+.br
+.B shuf \-i
+.IR low \- high
+.RB [ \-z ]
+.RB [ \-n
+.IR count ]
+.RB [ \-o
+.IR outfile ]
+.SH DESCRIPTION
+.B shuf
+reads lines, puts them in random order, and writes them.
+The lines come from
+.IR infile ,
+or from standard input when there is no
+.I infile
+or it is
+.BR \- .
+With
+.BR \-e ,
+they are the
+.I arg
+operands instead, and with
+.BR \-i ,
+the integers from
+.I low
+to
+.IR high .
+.PP
+With
+.BR \-n ,
+.B shuf
+writes at most
+.I count
+lines, chosen at random, with no input line chosen twice.
+.PP
+All the input is read before any output is written.
+A line ends at an LF or at a NUL byte, and the terminator is removed
+from the line, as is a CR before an LF.
+The last line needs no terminator, and an empty line is a line.
+Empty input has no lines and produces no output.
+.PP
+Each output line is followed by an LF, or by a NUL with
+.BR \-z ,
+including the last.
+With
+.BR \-i ,
+the lines are numbers in decimal without leading zeros.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-zn3 ,
+and may follow operands.
+An option's argument may be attached, as in
+.BR \-n3 ,
+or be the next argument.
+.B \-\-
+ends the options.
+A repeated option takes the last value.
+.TP
+.BI "\-n " count
+Write at most
+.I count
+lines.
+The default is all of them.
+.I count
+is a decimal number from 0 to 4294967295, with no sign, space, or
+suffix.
+.TP
+.BI "\-o " outfile
+Write to
+.I outfile
+instead of standard output.
+It is created if it does not exist and truncated if it does, after the
+input has been read and shuffled, so it may name
+.I infile
+to shuffle a file in place.
+It is created even when nothing is written, but not when an earlier
+error ends the command.
+A name of
+.B \-
+creates a file of that name, and does not mean standard output.
+.TP
+.B \-z
+Terminate each output line with a NUL byte instead of an LF.
+The input is read as described in
+.BR DESCRIPTION ,
+whether or not
+.B \-z
+is given.
+.TP
+.B \-e
+Take the lines from the
+.I arg
+operands, one line each, and read no input.
+An operand that begins with
+.BR \- ,
+other than
+.B \-
+itself, is taken as an option unless
+.B \-\-
+comes first.
+With no operands there are no lines.
+Incompatible with
+.BR \-i .
+.TP
+.BI "\-i " low \- high
+Take the lines from the integers
+.I low
+through
+.IR high ,
+inclusive.
+Each of the two is a decimal number from 0 to 18446744073709551615, of
+digits only, with no sign, space, suffix, or
+.B 0x
+prefix.
+A range that is malformed, has
+.I high
+below
+.IR low ,
+or holds too many numbers is an error.
+A range holds at most 4294967295 numbers, or 1073741823 in the 32-bit
+kit.
+No other operand is allowed.
+The whole range is held in memory, 8 bytes per number (4 in the 32-bit
+kit), even when
+.B \-n
+selects a few.
+Incompatible with
+.BR \-e .
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the arguments are expanded when
+.B shuf
+starts, as needed when run from
+.BR cmd.exe .
+This includes the
+.I arg
+operands of
+.BR \-e .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+arguments as the shell expanded them.
+.TP
+.B BB_UMASK
+When it has the owner write bit,
+.BR 200 ,
+the file that
+.B \-o
+creates is read-only, so a later
+.B shuf \-o
+cannot replace it.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+output to a console is not converted from the ANSI code page, and the
+console interprets the bytes in its own code page.
+.TP
+.B POSIXLY_CORRECT
+When set, the C library ends option parsing at the first argument that
+is not an option, so later arguments such as
+.B \-n
+are operands.
+.PP
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+Error.
+An unknown option, a missing option argument, both
+.B \-e
+and
+.BR \-i ,
+or operands that do not fit the form, namely a second
+.I infile
+or any operand with
+.BR \-i ,
+write a usage message on standard error.
+Any other error, such as an invalid
+.I count
+or range, an
+.I infile
+or
+.I outfile
+that cannot be opened, or a failure writing output, is reported on
+standard error in one line that begins with
+.BR shuf: .
+.TP
+.B 141
+Standard output is a pipe that was closed before all output was written.
+Output is written in 4096-byte blocks, and a closed pipe found when the
+last block is written at exit, as when the output is 4096 bytes or less,
+is instead an error with status 1.
+.SH EXAMPLES
+Shuffle the lines of a file:
+.PP
+.RS 4
+.EX
+$ shuf playlist.txt
+.EE
+.RE
+.PP
+Choose one line at random:
+.PP
+.RS 4
+.EX
+$ shuf \-n 1 quotes.txt
+.EE
+.RE
+.PP
+Roll a six-sided die:
+.PP
+.RS 4
+.EX
+$ shuf \-i 1\-6 \-n 1
+.EE
+.RE
+.PP
+Choose three of the words given as arguments:
+.PP
+.RS 4
+.EX
+$ shuf \-e red green blue amber \-n 3
+.EE
+.RE
+.PP
+Shuffle a file in place:
+.PP
+.RS 4
+.EX
+$ shuf \-o playlist.txt playlist.txt
+.EE
+.RE
+.PP
+List ten files chosen at random.
+The NUL terminators keep names that contain spaces intact:
+.PP
+.RS 4
+.EX
+$ find . \-name \(aq*.png\(aq \-print0 | shuf \-z \-n 10 | xargs \-0 ls \-l
+.EE
+.RE
+.SH NOTES
+Differences from GNU
+.BR shuf :
+.IP \(bu 2
+There are no long options other than
+.BR \-\-help ,
+no
+.BR \-\-version ,
+and no
+.B \-r
+or
+.BR \-\-random\-source .
+.IP \(bu 2
+Input lines end at an LF or a NUL, with or without
+.BR \-z ,
+which changes only the output.
+GNU
+.B shuf
+ends input lines only at an LF, or with
+.B \-z
+only at a NUL.
+.IP \(bu 2
+The numbers for
+.B \-n
+and
+.B \-i
+may not have a leading sign or space, which GNU
+.B shuf
+accepts.
+.PP
+The shuffle is a Fisher-Yates shuffle driven by the C library's
+.BR rand ,
+seeded from the system time in microseconds.
+It is not suitable for security use, and it cannot be seeded or
+repeated.
+Each swap partner is chosen as a random value modulo the number of lines
+left.
+The value has 15 bits while at most 32767 lines are left, and 30 bits
+otherwise, so the choice is not uniform.
+For example, from 20000 lines,
+.B shuf \-n 1
+picks each of the first 12768 twice as often as each of the others, and
+from more than 1073741824 lines it never picks a line past that number.
+.PP
+All the lines are held in memory, each with a pointer, so an input that
+never ends never produces output, and a very large one fails with an
+out-of-memory error.
+.PP
+The output has LF line endings, and a CR before an LF is removed from
+each line, so
+.B shuf
+converts text with Windows line endings to Unix line endings.
+A lone CR is not a line break.
+Except on a console, other bytes, including Ctrl-Z, pass through
+unchanged.
+To end input typed at a console, type Ctrl-Z at the start of a line and
+press Enter.
+Output to a console has no
+.B \-z
+terminators, so the lines run together.
+.PP
+File names may use drive letters and backslashes.
+They may contain any Unicode characters on Windows 10 version 1903 and
+later, and are limited to the system code page on earlier versions.
+The device names
+.I /dev/null
+and
+.I /dev/stdin
+work for
+.IR infile ,
+and
+.I /dev/null
+and
+.I /dev/stdout
+for
+.IR outfile .
+A directory as
+.I infile
+fails with
+.BR "Is a directory" .
+.PP
+When standard output is a console, text is converted for display from
+the ANSI code page, which is UTF-8 on Windows 10 version 1903 and later,
+as described in
+.BR busybox (1).
+.SH SEE ALSO
+.BR busybox (1),
+.BR find (1),
+.BR head (1),
+.BR seq (1),
+.BR sort (1),
+.BR xargs (1)

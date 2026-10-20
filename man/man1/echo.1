@@ -1,0 +1,340 @@
+.TH ECHO 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+echo \- write arguments to standard output
+.SH SYNOPSIS
+.B echo
+.RB [ \-neE ]
+.RI [ arg ...]
+.SH DESCRIPTION
+.B echo
+writes its arguments to standard output, separated by single spaces and
+followed by a newline.
+With no arguments it writes only the newline.
+It reads no input.
+.PP
+Arguments are written byte for byte.
+In particular, a backslash is an ordinary character unless
+.B \-e
+is given.
+.PP
+The kit's shell has
+.B echo
+as a builtin that runs this same code, so scripts see the behavior
+described here; see
+.BR sh (1).
+Outside the shell, the
+.I echo.exe
+launcher runs the
+.B busybox
+applet; see
+.BR busybox (1).
+.SS Escape sequences
+With
+.BR \-e ,
+a backslash in an argument starts an escape sequence, which is replaced
+as follows.
+.TP
+.B \ea
+Alert (BEL, 0x07).
+.TP
+.B \eb
+Backspace (0x08).
+.TP
+.B \ec
+Stop: write nothing more, not even the newline.
+Output from before it is kept, but the rest of this argument and all
+later arguments are dropped.
+.TP
+.B \ee
+Escape (0x1B).
+.TP
+.B \ef
+Form feed (0x0C).
+.TP
+.B \en
+Line feed (0x0A).
+.TP
+.B \er
+Carriage return (0x0D).
+.TP
+.B \et
+Tab (0x09).
+.TP
+.B \ev
+Vertical tab (0x0B).
+.TP
+.B \e\e
+Backslash.
+.TP
+\fB\e0\fInnn\fR, \fB\e\fInnn\fR
+The octet whose octal value is
+.IR nnn .
+Either a
+.B \e0
+and up to three octal digits, or one to three octal digits the first of
+which is 1 to 7.
+A value above 255 ends the sequence before the digit that would exceed
+it, so
+.B \e400
+is a space (octal 40) followed by
+.BR 0 .
+A
+.B \e0
+that is not followed by an octal digit is a NUL octet.
+.TP
+.BI \ex HH
+The octet whose hexadecimal value is
+.IR HH ,
+one or two digits in either case.
+A
+.B \ex
+not followed by a hexadecimal digit is written as is.
+.PP
+A backslash followed by any other character, or ending an argument, is
+written as is, and the character after it is then read normally.
+So
+.B \eE
+and
+.B \eu0041
+are written unchanged.
+.SH OPTIONS
+Options are recognized only at the start of the arguments, and may be
+grouped, as in
+.BR \-ne .
+An argument is an option only if it is a dash followed by one or more of
+the letters
+.BR n ,
+.BR e ,
+and
+.BR E .
+The first argument that is not, such as
+.BR \-\- ,
+a lone
+.BR \- ,
+.BR \-x ,
+or
+.BR \-nx ,
+ends the options: it and all later arguments are written as ordinary
+arguments.
+Neither
+.B \-\-
+nor
+.B \-\-help
+is special: they are written like any other argument.
+.TP
+.B \-n
+Do not write the trailing newline.
+.TP
+.B \-e
+Interpret backslash escape sequences, as described under
+.BR "Escape sequences" .
+.TP
+.B \-E
+Do not interpret backslash escape sequences.
+This is the default.
+It does not cancel an earlier
+.BR \-e :
+both
+.B "echo \-e \-E"
+and
+.B "echo \-E \-e"
+interpret escapes.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the arguments are expanded, as needed when run from
+.BR cmd.exe .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+arguments as the shell expanded them.
+.TP
+.BR BB_TERMINAL_MODE ", " BB_SKIP_ANSI_EMULATION
+When standard output is a console, decide whether the console or busybox
+interprets the escape sequences in the output, such as for color.
+See
+.BR busybox (1).
+.TP
+.B CONEMUPID
+When it is set and neither of the above is, busybox uses terminal mode
+0: it turns virtual terminal output off and emulates escape sequences
+itself.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+output to a console is not converted, as described in
+.BR NOTES ,
+and the console interprets the bytes in its own code page.
+.PP
+Variables that affect every busybox applet are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+Standard output could not be written.
+A message such as
+.B "echo: write error: Bad file descriptor"
+is written to standard error.
+In the shell's builtin the message begins with the shell's name, such as
+.BR sh: ,
+instead.
+.TP
+.B 141
+Standard output is a pipe that was closed before the output was written.
+In the shell's builtin, the shell process running it exits with this status.
+.SH EXAMPLES
+Write a line:
+.PP
+.RS 4
+.EX
+$ echo hello world
+hello world
+.EE
+.RE
+.PP
+Write a prompt, leaving the cursor on the same line:
+.PP
+.RS 4
+.EX
+$ echo \-n \(aqContinue? \(aq
+.EE
+.RE
+.PP
+Without
+.BR \-e ,
+backslashes are written as is:
+.PP
+.RS 4
+.EX
+$ echo \(aqone\entwo\(aq
+one\entwo
+$ echo \-e \(aqone\entwo\(aq
+one
+two
+.EE
+.RE
+.PP
+Write a file with CR LF line endings:
+.PP
+.RS 4
+.EX
+$ echo \-e \(aqfirst\er\(aq >dos.txt
+$ echo \-e \(aqsecond\er\(aq >>dos.txt
+.EE
+.RE
+.PP
+Write a word in red on a console:
+.PP
+.RS 4
+.EX
+$ echo \-e \(aq\ee[31mred\ee[0m\(aq
+.EE
+.RE
+.PP
+Write a string that
+.B echo
+would take as an option, using
+.BR printf (1)
+instead:
+.PP
+.RS 4
+.EX
+$ printf \(aq%s\en\(aq \-n
+\-n
+.EE
+.RE
+.SH NOTES
+Differences from GNU
+.B echo
+and bash:
+.IP \(bu 2
+A later
+.B \-E
+does not turn off an earlier
+.BR \-e .
+.IP \(bu 2
+An octal value above 255 ends the escape sequence early instead of
+wrapping modulo 256.
+.IP \(bu 2
+As in GNU
+.B echo
+but not bash, an octal escape may omit the leading zero:
+.B \e101
+is
+.BR A .
+.IP \(bu 2
+The bash escapes
+.BR \eE ,
+.BR \eu ,
+and
+.B \eU
+are not recognized.
+.IP \(bu 2
+Unlike GNU
+.BR echo ,
+there are no
+.B \-\-help
+or
+.B \-\-version
+options.
+.PP
+Standard output is binary, so the newline is a bare LF.
+To end a line with CR LF, use
+.B \-e
+and
+.BR \er .
+.PP
+In
+.BR cmd.exe ,
+.B echo
+is a built-in command that runs instead of the applet, and in PowerShell
+it is an alias for
+.BR Write-Output .
+Run
+.B echo.exe
+or
+.B busybox echo
+there.
+Since the C runtime then expands wildcards, even in quoted arguments,
+.B echo.exe *.c
+lists the matching files; set
+.B BB_GLOBBING
+to
+.B 0
+to prevent that.
+.PP
+With
+.BR \-e ,
+a backslash in a Windows path is an escape: in
+.BR C:\etemp ,
+.B \et
+is a tab.
+Write such paths with forward slashes, or leave out
+.BR \-e .
+In the kit's shell, quote such an argument in single quotes: unquoted,
+the shell removes the backslash before
+.B echo
+sees it.
+.PP
+Arguments may contain any Unicode character on Windows 10 version 1903
+and later, and are limited to the system code page on earlier versions.
+When standard output is a console, the output is converted for display
+from the ANSI code page, which is UTF-8 on Windows 10 version 1903 and
+later.
+Escape sequences, such as those for color, take effect, and busybox
+emulates them on consoles without virtual terminal support.
+The whole output is one block, so on a console a NUL octet in it, such
+as from
+.BR \e0 ,
+makes busybox write all of it unconverted and without escape sequence
+emulation.
+.SH SEE ALSO
+.BR busybox (1),
+.BR printf (1),
+.BR sh (1)

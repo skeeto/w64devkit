@@ -1,0 +1,367 @@
+.TH CHMOD 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.SH NAME
+chmod \- change file permissions
+.SH SYNOPSIS
+.B chmod
+.RB [ \-Rcvf ]
+.I mode
+.IR file ...
+.SH DESCRIPTION
+.B chmod
+changes the permissions of each
+.I file
+according to
+.IR mode .
+On Windows this sets or clears the read-only attribute; see
+.BR Windows ,
+below.
+.PP
+Files are processed in order.
+A file that cannot be found or changed is reported on standard error,
+and the remaining files are still processed.
+.SS Modes
+A
+.I mode
+is octal or symbolic.
+.PP
+An octal
+.I mode
+is a number from 0 to 7777, written with octal digits only, that
+replaces the whole mode.
+It is the sum of 4000 for set-user-ID, 2000 for set-group-ID, 1000 for
+sticky, and read 4, write 2, and execute 1, times 100 for the owner, 10
+for the group, and 1 for others.
+An octal
+.I mode
+cannot be combined with symbolic clauses.
+.PP
+A symbolic
+.I mode
+is a list of clauses separated by commas, applied in turn to the file's
+current mode.
+A clause is zero or more class letters,
+.B u
+for the owner,
+.B g
+for the group,
+.B o
+for others, and
+.B a
+for all three, then one or more operations, as in
+.BR u+r\-x .
+An operation is an operator followed by zero or more permission letters,
+or by a single class letter.
+The operators are:
+.TP
+.B +
+Add the permissions to the named classes.
+.TP
+.B \-
+Remove the permissions from the named classes.
+.TP
+.B =
+Clear all permissions of the named classes, then add the given ones.
+.PP
+The permission letters are:
+.TP
+.B r
+Read.
+.TP
+.B w
+Write.
+.TP
+.B x
+Execute.
+.TP
+.B X
+Execute, but only if the file is a directory or has some execute bit
+set, counting changes made earlier in the
+.IR mode .
+.TP
+.B s
+Set-user-ID with
+.BR u ,
+set-group-ID with
+.BR g ,
+and both with
+.B a
+or no class letters.
+.TP
+.B t
+Sticky, only with
+.B a
+or no class letters.
+.PP
+A class letter
+.BR u ,
+.BR g ,
+or
+.B o
+after the operator stands for the read, write, and execute permissions
+that class has at that point, as in
+.BR g=u .
+.PP
+With no class letters, a clause acts as with
+.BR a ,
+except that it neither adds nor removes the bits set in the umask,
+though
+.B =
+still clears them.
+See
+.BR BB_UMASK .
+An empty clause, or an empty
+.IR mode ,
+changes nothing.
+Any other text, such as a class letter at the end of the
+.IR mode ,
+makes the
+.I mode
+invalid.
+.SS Windows
+Windows files have no Unix mode.
+busybox-w32 derives one for each file from its attributes, name, and
+contents, as shown by
+.BR "ls \-l" ,
+and a symbolic
+.I mode
+is applied to that.
+Of the resulting mode,
+.B chmod
+uses only the owner write bit, 200.
+If it is clear,
+.B chmod
+sets the read-only attribute of
+.IR file ,
+and if it is set,
+.B chmod
+clears it.
+The other bits are discarded, and other attributes are unchanged.
+So
+.BR u\-w ,
+.BR a\-w ,
+and
+.B 444
+make a file read-only,
+.BR u+w ,
+.BR a+w ,
+and
+.B 644
+make it writable, and
+.B +x
+and
+.B go\-w
+change nothing.
+.PP
+In the derived mode, a directory has every read, write, and execute bit
+set.
+Any other file has every read bit, every write bit unless it is
+read-only, and every execute bit if it is named with a
+.BR .com ,
+.BR .exe ,
+.BR .sh ,
+.BR .bat ,
+or
+.B .cmd
+suffix, in any case, or if its contents begin with
+.B #!\&
+or are a Windows program other than a DLL.
+Group and other write bits that are set in the umask are clear.
+.B chmod
+cannot change the execute bits.
+.PP
+A directory never becomes read-only: whatever the
+.IR mode ,
+.B chmod
+clears the read-only attribute of every directory it processes.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-Rv ,
+and may follow the operands unless
+.B POSIXLY_CORRECT
+is set.
+A
+.I mode
+that begins with a dash, such as
+.BR \-w ,
+is taken as the
+.IR mode ,
+not as options.
+.B \-\-
+ends the options, for a
+.I file
+whose name begins with a dash.
+.TP
+.B \-R
+Recurse: change each
+.I file
+that is a directory, then everything below it.
+Symbolic links and junctions found inside are skipped, and one named as
+a
+.I file
+is not descended into.
+A directory whose mode cannot be changed is not descended into.
+.TP
+.B \-c
+For each file whose mode changes, print a line on standard output:
+.RS
+.PP
+.EX
+mode of \(aq\fIfile\fR\(aq changed to \fIoctal\fR (\fIperms\fR)
+.EE
+.RE
+.IP
+where
+.I octal
+is the new mode as 4 octal digits and
+.I perms
+is its 9 permission characters, as in the
+.B ls \-l
+format.
+.TP
+.B \-v
+Print that line for every file, whether or not its mode changes.
+.TP
+.B \-f
+Do not report a file whose mode cannot be changed.
+A file that does not exist, a directory that cannot be read, and, with
+.BR \-R ,
+a directory whose mode cannot be changed are still reported.
+The exit status is unaffected.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit.
+It is recognized only as the first argument.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the operands are expanded, as needed when run from
+.BR cmd.exe .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+operands as the shell expanded them.
+.TP
+.B BB_UMASK
+The umask, in octal, for clauses with no class letters and for the
+derived mode.
+The kit's
+.B sh
+sets and exports it in its
+.B umask
+builtin.
+When it is unset, the umask is 0002.
+.TP
+.B POSIXLY_CORRECT
+If set, the first operand ends the options.
+.PP
+Variables that busybox-w32 reads in every applet, such as those that
+control console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+Invalid command line, with a usage message on standard error; an invalid
+.IR mode ;
+or a file could not be found or changed.
+An invalid
+.I mode
+is reported at the first
+.I file
+that exists, and
+.B chmod
+stops there, before changing anything.
+.SH EXAMPLES
+Make a file read-only, reporting the change:
+.PP
+.RS 4
+.EX
+$ chmod \-v a\-w config.h
+mode of \(aqconfig.h\(aq changed to 0444 (r\-\-r\-\-r\-\-)
+.EE
+.RE
+.PP
+Make it writable again:
+.PP
+.RS 4
+.EX
+$ chmod u+w config.h
+.EE
+.RE
+.PP
+Make every file in a tree writable, as after copying it from read-only
+media:
+.PP
+.RS 4
+.EX
+$ chmod \-R u+w project
+.EE
+.RE
+.PP
+Make the C sources in a tree read-only:
+.PP
+.RS 4
+.EX
+$ find src \-name \(aq*.[ch]\(aq \-exec chmod 444 {} +
+.EE
+.RE
+.SH NOTES
+Differences from GNU chmod:
+.IP \(bu 2
+There are no long options except
+.BR \-\-help ,
+and so no
+.B \-\-reference
+or
+.BR \-\-preserve\-root .
+.IP \(bu 2
+.B \-v
+reports every file as changed, even when its mode is unchanged.
+.PP
+.B chmod
+does not change a file's owner or its access control list, which is what
+usually controls access on Windows.
+.PP
+.B \-c
+and
+.B \-v
+report the mode computed from the derived one, not what is stored, so
+.B "chmod \-c u+x notes.txt"
+reports a change that has no effect, and a directory is reported with
+the mode given even though it stays writable.
+.PP
+Scripts that run
+.B chmod +x
+succeed and change nothing, and a file that begins with
+.B #!\&
+is already executable.
+.PP
+.BR lsattr (1)
+shows the read-only attribute itself, including that of a directory.
+To set the read-only attribute of a directory, or the hidden, system,
+and other attributes, use
+.BR chattr (1).
+.PP
+Output lines end with LF, not CRLF.
+.I file
+may use a drive letter and either kind of slash.
+A bare drive such as
+.I c:
+names the current directory of that drive, and with
+.B \-R
+the files below it are reported as
+.IR c:name .
+On Windows 10 version 1903 or later, file names may contain any Unicode
+characters, and on older systems only those of the system code page.
+.SH SEE ALSO
+.BR busybox (1),
+.BR chattr (1),
+.BR find (1),
+.BR ls (1),
+.BR lsattr (1),
+.BR sh (1),
+.BR stat (1)

@@ -1,0 +1,411 @@
+.TH DU 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.SH NAME
+du \- report the disk space used by files and directories
+.SH SYNOPSIS
+.B du
+.RB [ \-abchHklLmsx ]
+.RB [ \-d
+.IR N ]
+.RI [ file ...]
+.SH DESCRIPTION
+.B du
+prints the disk space used by each
+.I file
+and, for a directory, by everything below it.
+With no
+.IR file ,
+it reports on the current directory.
+This
+.B du
+is the busybox applet; see
+.BR busybox (1).
+.PP
+Each line of output is a size, a tab, and a name.
+The name of a
+.I file
+is as given.
+The name of an entry below a directory is the directory's name, a
+.BR / ,
+and the entry's name, with no second
+.B /
+when the directory's name already ends in one, and none after a bare
+drive such as
+.BR c: .
+A directory's line comes after the lines of the entries below it, which
+appear in the order Windows lists them.
+.PP
+There is a line for each
+.IR file ,
+and for each directory below one.
+.B \-a
+adds a line for each other file, and
+.B \-d
+and
+.B \-s
+remove lines.
+A directory's size includes everything below it, whether or not that
+has a line of its own.
+.PP
+The size of a file is an estimate of the space allocated to it, described
+under
+.BR NOTES ,
+not the length of its data.
+A size counts units of 1024 bytes, or of 512 bytes when
+.B POSIXLY_CORRECT
+is set.
+.BR \-b ,
+.BR \-h ,
+.BR \-k ,
+and
+.B \-m
+change the unit or the size.
+.SS What is counted
+.IP \(bu 2
+A file with several hard links is counted once, under the first of its
+names that
+.B du
+reaches.
+Its other names add nothing and get no line, even with
+.BR \-a .
+.IP \(bu 2
+A directory that
+.B du
+has already reached is skipped: it is not counted and gets no line.
+So
+.B "du a a/b"
+prints the same as
+.BR "du a" ,
+and
+.B "du a/b a"
+prints the lines for
+.B a/b
+and then those for
+.BR a ,
+whose size leaves out
+.BR a/b .
+.IP \(bu 2
+A symbolic link counts as itself, and
+.B du
+does not enter a linked directory, unless
+.B \-H
+or
+.B \-L
+says to follow it.
+.PP
+.B \-l
+turns off the first two rules.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-sh ,
+and may follow the operands unless
+.B POSIXLY_CORRECT
+is set.
+.B \-\-
+ends the options.
+The argument of
+.B \-d
+may be attached, as in
+.BR \-d1 ,
+or be the next argument.
+There are no long options.
+Of
+.B \-H
+and
+.BR \-L ,
+of
+.BR \-h ,
+.BR \-k ,
+and
+.BR \-m ,
+and of
+.B \-d
+and
+.BR \-s ,
+the one given last applies.
+.TP
+.B \-a
+Print a line for each file, not only for each directory.
+Ignored with
+.BR \-s .
+.TP
+.B \-b
+Print apparent sizes: the length of each file in bytes, not the space
+allocated.
+Without
+.BR \-h ,
+.BR \-k ,
+or
+.BR \-m ,
+sizes are in bytes, and with
+.B \-k
+or
+.B \-m
+they are rounded to the nearest unit.
+A symbolic link counts the length of its target's name.
+.TP
+.B \-L
+Follow all symbolic links.
+A link counts as what it points to, and a link to a directory is
+entered.
+A link whose target cannot be examined is an error.
+A directory reached again through a link is skipped, so a link that
+points to its own directory does not loop.
+With
+.B \-l
+it does, until the path is too long to examine, which is an error.
+.TP
+.B \-H
+Follow symbolic links named as operands.
+Once one is followed, links below it are followed too, as with
+.BR \-L .
+This applies to each operand separately.
+.TP
+.BI "\-d " N
+Print a line only for an entry at most
+.I N
+levels below an operand.
+.I N
+is a decimal integer from 0 to 2147483647.
+.B \-d 0
+prints only the operands, and
+.B \-d 1
+adds the entries directly in them.
+Sizes still include everything below.
+.TP
+.B \-c
+After all operands, print a line named
+.B total
+with the sum of the operands' sizes.
+Anything skipped as already counted is not in the sum.
+.TP
+.B \-l
+Count and print a file once for each of its hard links, and do not skip
+a directory that has been reached before.
+.TP
+.B \-s
+Print only a line for each operand.
+This is the same as
+.BR "\-d 0" .
+.TP
+.B \-x
+Skip any entry on a different volume from the operand it is below: it
+is not counted and gets no line.
+Volumes are told apart by serial number, and a link is on the volume
+that holds the link, not the one that holds its target.
+So with
+.BR \-L ,
+a link to a directory on another volume gets a line, but nothing in
+that directory is counted, even when the link is an operand.
+.TP
+.B \-h
+Print sizes as a number with one decimal place and the suffix
+.BR K ,
+.BR M ,
+.BR G ,
+.BR T ,
+.BR P ,
+or
+.B E
+for the largest power of 1024 that fits, as in
+.BR 1.4M .
+A size under 1024 bytes, possible only with
+.BR \-b ,
+is a plain number of bytes, and a size of 0 is
+.BR 0 .
+.TP
+.B \-m
+Print sizes in units of 1048576 bytes.
+Without
+.BR \-b ,
+a size that is not a whole number of units is rounded up, so a nonzero
+size is at least 1.
+.TP
+.B \-k
+Print sizes in units of 1024 bytes.
+This is the default unless
+.B POSIXLY_CORRECT
+is set, which
+.B \-k
+overrides.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument.
+.SH ENVIRONMENT
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+output to a console is not converted to its code page.
+.TP
+.B POSIXLY_CORRECT
+When set, even to an empty value, the default unit is 512 bytes, and
+the first operand ends the options.
+.PP
+Variables that affect every busybox applet, such as
+.BR BB_GLOBBING ,
+are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+A
+.I file
+or an entry below one could not be examined, a directory could not be
+opened, an option or the argument of
+.B \-d
+was invalid, or standard output could not be written.
+.TP
+.B 141
+Standard output is a pipe that was closed before all output was written.
+A closed pipe found only when
+.B du
+flushes its output at exit gives status 1 instead.
+.PP
+After a failure to examine or open something,
+.B du
+reports it on standard error and carries on.
+A file that cannot be examined is reported as
+.PP
+.RS 4
+.EX
+du: \fIname\fR: \fIreason\fR
+.EE
+.RE
+.PP
+A directory that cannot be opened is reported as
+.PP
+.RS 4
+.EX
+du: can\(aqt open \(aq\fIname\fR\(aq: \fIreason\fR
+.EE
+.RE
+.PP
+and gets no line.
+An invalid option prints a message and the usage on standard error.
+.SH EXAMPLES
+Show the size of each directory directly under
+.IR project :
+.PP
+.RS 4
+.EX
+$ du \-hd 1 project
+3.4M	project/build
+4.0K	project/docs
+60.0K	project/src
+3.4M	project
+.EE
+.RE
+.PP
+Find the largest entries, in KiB:
+.PP
+.RS 4
+.EX
+$ du \-a project | sort \-rn | head \-4
+3512	project
+3444	project/build
+3324	project/build/obj/main.o
+3324	project/build/obj
+.EE
+.RE
+.PP
+Total several directories:
+.PP
+.RS 4
+.EX
+$ du \-sc project/src project/docs
+60	project/src
+4	project/docs
+64	total
+.EE
+.RE
+.PP
+Add up the lengths of files in bytes:
+.PP
+.RS 4
+.EX
+$ du \-bc project/src/*.c
+48000	project/src/main.c
+9500	project/src/util.c
+57500	total
+.EE
+.RE
+.SH NOTES
+The size of a file is its length rounded up to a multiple of 4096
+bytes, the cluster size that
+.B du
+assumes whatever the volume uses.
+An empty file is 0.
+A compressed or sparse NTFS file counts the space it occupies on disk
+instead of its length, rounded the same way, which can be much less.
+A directory counts the length Windows reports for it, which is 0 for a
+small NTFS directory but not for one with many entries.
+.B \-b
+counts lengths instead.
+.PP
+.B du
+treats a symbolic link, a junction, a volume mount point, and an app
+execution alias alike, as a symbolic link.
+One that is not followed counts as 4096 bytes, or with
+.B \-b
+the length of its target's name.
+.PP
+Paths may use
+.B /
+or
+.BR \e ,
+but
+.B du
+adds
+.B /
+after a name that ends in a backslash, so the entries of
+.B dir\e
+are named
+.BR dir\e/sub .
+A drive-relative path such as
+.B c:dir
+works, and its entries are named
+.BR c:dir/sub .
+A bare drive such as
+.B c:
+is the current directory of that drive, and its entries are named
+.BR c:sub .
+A full path of 260 characters or more is reported as not found.
+.PP
+When started from
+.BR cmd.exe ,
+.B du
+expands wildcards in its operands; see
+.BR busybox (1).
+.PP
+Differences from GNU
+.BR du :
+.IP \(bu 2
+There are no long options, such as
+.BR \-\-max\-depth ,
+and no
+.BR \-0 ,
+.BR \-B ,
+.BR \-D ,
+.BR \-P ,
+.BR \-S ,
+.BR \-t ,
+or
+.BR \-X .
+.IP \(bu 2
+.B \-a
+is ignored with
+.BR \-s ,
+where GNU
+.B du
+rejects the combination.
+.IP \(bu 2
+Lines end with LF, not CRLF.
+.SH SEE ALSO
+.BR busybox (1),
+.BR df (1),
+.BR find (1),
+.BR ls (1)

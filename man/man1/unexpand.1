@@ -1,0 +1,284 @@
+.TH UNEXPAND 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+unexpand \- convert spaces to tabs
+.SH SYNOPSIS
+.B unexpand
+.RB [ \-af ]
+.RB [ \-t
+.IR N ]
+.RI [ file ...]
+.SH DESCRIPTION
+.B unexpand
+copies files to standard output, replacing runs of spaces with tabs
+that reach the same columns.
+Tab stops are every 8 columns, or every
+.I N
+columns with
+.BR \-t .
+It reads each
+.I file
+in order, and reads standard input when there are no
+.I file
+operands, or for a
+.I file
+named
+.BR \- .
+.BR expand (1)
+converts in the other direction.
+.PP
+A blank is a space or a tab.
+Other white space, such as a carriage return, a form feed, or a no-break
+space, is ordinary text.
+A run of blanks is replaced by one tab for each tab stop that it reaches
+or passes, followed by the spaces that reach its last column.
+Within a run, a space advances one column and a tab advances to the
+next tab stop, so a run may mix them.
+A run that reaches no tab stop is copied as spaces, and a single space
+is converted when it ends on a tab stop.
+.PP
+By default, only the first run of blanks in each line is converted: the
+leading blanks of a line that starts with a blank, or else the blanks
+that follow the first word of the line.
+The rest of the line is copied unchanged, including any tabs.
+With
+.B \-a
+or
+.BR \-t ,
+every run in the line is converted, unless
+.B \-f
+is also given.
+.PP
+Columns count from the start of the line.
+Text is measured in columns, not bytes.
+In UTF-8 text, a wide character such as an ideograph is 2 columns, a
+combining character is 0, and an invalid sequence is 1.
+In single-byte text, every byte is 1 column; see
+.BR ENVIRONMENT .
+Every control character is 1 column, including backspace, carriage
+return, and escape.
+Backspace does not move the column back, and the bytes of an escape
+sequence count.
+.PP
+A line ends at a newline, which is copied, or at a NUL byte, which is
+deleted.
+After a NUL byte the count starts over, as if a new line began there.
+Line endings are not converted, and a last line without a newline gets
+none.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-at4 ,
+and the argument of
+.B \-t
+may be attached, as in
+.BR \-t4 ,
+or be the next argument.
+Long options may be abbreviated to a unique prefix, and the argument of
+.B \-\-tabs
+may follow
+.B =
+or be the next argument.
+Options may follow operands, unless
+.B POSIXLY_CORRECT
+is set.
+.B \-\-
+ends the options.
+.TP
+.BR \-a ", " \-\-all
+Convert every run of blanks in each line, not only the first.
+Implied by
+.BR \-t ,
+unless
+.B \-f
+is given.
+.TP
+.BR \-f ", " \-\-first\-only
+Convert only the first run of blanks in each line, as described under
+.BR DESCRIPTION .
+This is the default.
+It overrides
+.B \-a
+and
+.BR \-t ,
+wherever they appear on the command line.
+.TP
+\fB\-t\fR \fIN\fR, \fB\-\-tabs=\fIN\fR
+Set tab stops every
+.I N
+columns.
+The default is 8.
+.I N
+is a decimal integer from 1 to 4294967295, with no sign, prefix, or
+suffix, and a leading zero does not make it octal.
+It is a single number, not a list.
+Any other value is reported as
+.B invalid number
+or
+.BR "not in 1..4294967295 range" ,
+with exit status 1, before any input is read.
+Giving
+.B \-t
+also gives
+.BR \-a ,
+and
+.B \-f
+overrides both.
+If
+.B \-t
+is repeated, the last one applies.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument.
+.PP
+An unknown option, or a missing option argument, prints the usage
+message on standard error and exits with status 1.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the operands are expanded when
+.B unexpand
+starts, as needed when it is run from
+.BR cmd.exe .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+operands as the shell expanded them.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+The first of these that is set, even to an empty value, decides how text
+is measured.
+If its value is
+.BR C ,
+text is single bytes, each 1 column, and output to a console is not
+converted.
+Otherwise text is UTF-8 when the ANSI code page is UTF-8, and single
+bytes when it is not.
+.TP
+.B POSIXLY_CORRECT
+If set, the first operand ends the options.
+.PP
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+A usage error, such as an unknown option, a missing option argument, or
+an invalid
+.BR \-t ;
+a
+.I file
+that could not be opened or read, including a directory; a failure
+writing standard output; or running out of memory.
+.TP
+.B 141
+Standard output is a pipe whose reader has exited.
+.PP
+Errors are reported on standard error, beginning with
+.BR unexpand: ,
+though an option error may begin with the program's path instead.
+The remaining files are still processed after one cannot be opened or
+read.
+.SH EXAMPLES
+Convert the leading spaces of a line to tabs:
+.PP
+.RS 4
+.EX
+$ printf \(aq        x\en\(aq | unexpand | cat \-A
+^Ix$
+.EE
+.RE
+.PP
+Convert every run of blanks, here with tab stops every 4 columns:
+.PP
+.RS 4
+.EX
+$ printf \(aqa   b   c\en\(aq | unexpand \-t 4 | cat \-A
+a^Ib^Ic$
+.EE
+.RE
+.PP
+Convert only the first run in each line, or every run:
+.PP
+.RS 4
+.EX
+$ printf \(aq        a        b\en\(aq | unexpand | cat \-A
+^Ia        b$
+$ printf \(aq        a        b\en\(aq | unexpand \-a | cat \-A
+^Ia^I b$
+.EE
+.RE
+.PP
+Convert indentation to tabs at 4-column stops, writing a new file.
+In a line that does not start with a blank, the blanks after the first
+word are converted instead:
+.PP
+.RS 4
+.EX
+$ unexpand \-f \-t 4 main.c >main.new
+.EE
+.RE
+.PP
+Make the blanks of a file consistent by expanding every tab and then
+converting every run:
+.PP
+.RS 4
+.EX
+$ expand notes.txt | unexpand \-a >notes.new
+.EE
+.RE
+.SH NOTES
+Differences from GNU unexpand:
+.IP \(bu 2
+.B \-t
+takes one number, not a list of tab stops.
+.IP \(bu 2
+There is no
+.BI \- N
+form of
+.BR \-t ,
+and there is no
+.BR \-\-version .
+.IP \(bu 2
+By default, the first run of blanks after the first word of a line that
+does not start with a blank is converted too.
+GNU unexpand converts only leading blanks, which is also what the usage
+message of this one claims.
+.IP \(bu 2
+A single space that ends on a tab stop becomes a tab.
+GNU unexpand keeps it when a non-blank follows.
+.IP \(bu 2
+NUL bytes are deleted.
+GNU unexpand keeps them.
+.PP
+A run of blanks that would be converted is lost, spaces and tabs alike,
+when it ends in a tab followed by a NUL byte or by the end of a file
+with no final newline.
+.PP
+Files and standard streams are binary, with no CRLF translation.
+A carriage return is not a blank, so blanks before the carriage return
+of a CRLF line are converted like blanks before any other character.
+.PP
+The ANSI code page of busybox is UTF-8 on Windows 10 version 1903 and
+later, so there text is UTF-8 unless a locale variable says otherwise,
+and file names may contain any Unicode characters.
+On older systems it is the system code page.
+When standard output is a console, text is converted for display from
+the ANSI code page, and escape sequences in the input, such as those for
+color, take effect.
+.PP
+Each
+.I file
+may be a Windows path, with a drive letter and either kind of slash, or
+a busybox-w32 device name such as
+.IR /dev/null .
+.SH SEE ALSO
+.BR busybox (1),
+.BR cat (1),
+.BR expand (1)

@@ -1,0 +1,966 @@
+.TH HTTPD 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+httpd \- serve files and CGI programs over HTTP
+.SH SYNOPSIS
+.B httpd
+.RB [ \-fv ]
+.RB [ \-c
+.IR file ]
+.RB [ \-h
+.IR home ]
+.RB [ \-p
+.RI [ ip :] port ]
+.RB [ \-r
+.IR realm ]
+.br
+.B httpd \-d
+.I string
+.br
+.B httpd \-e
+.I string
+.SH DESCRIPTION
+.B httpd
+is a small web server.
+It answers HTTP requests with the files below a home directory and with
+the output of CGI programs.
+Each connection carries one request, and the server closes it after the
+reply.
+.PP
+Without
+.BR \-f ,
+.B httpd
+starts a copy of itself detached from the console, and the original
+exits at once.
+The server changes to the home directory, which is the directory it was
+started in unless
+.B \-h
+or an
+.B H
+line in the configuration file names another.
+It listens on port 80 unless
+.B \-p
+names another.
+.PP
+With
+.B \-d
+or
+.BR \-e ,
+.B httpd
+does not serve.
+It writes the decoded or encoded
+.I string
+to standard output, with no newline added, and exits.
+These options are for shell scripts that handle CGI input.
+.SS Requests
+A request line is a method, a path that begins with a slash, and a
+version that begins with
+.BR HTTP/ ,
+separated by single spaces.
+Anything else is answered with
+.BR 400 ,
+except that an empty line, or none, closes the connection without a
+reply.
+The rest of the version is not checked, and replies are always
+.BR HTTP/1.1 .
+.PP
+Methods are case-sensitive.
+.B GET
+and
+.B HEAD
+serve files, and both send the body.
+.B POST
+is accepted only for CGI programs, and a
+.B POST
+for a file is answered with
+.BR 501 .
+Any other method is answered with
+.BR 400 .
+.PP
+The path is the text before the first
+.BR ? .
+It is percent-decoded, and then cleaned: repeated slashes and
+.B .\&
+components are removed, and a
+.B ..\&
+component removes the one before it.
+A
+.B ..\&
+that would climb above the root, or a malformed escape, is answered with
+.BR 400 ,
+and an escaped slash or NUL is answered with
+.BR 404 .
+The text after the first
+.B ?\&
+is the query string, which is never decoded.
+The cleaned path names a file below the home directory;
+.B NOTES
+says what that does not guarantee.
+.PP
+A header line of 8192 bytes or more, or one with a control character
+other than a tab, is answered with
+.BR 400 .
+Headers that total 32768 bytes or more are answered with
+.BR 413 .
+A client that sends nothing for 30 seconds while the headers are read is
+answered with
+.BR 408 ,
+and one that stops reading a reply for 60 seconds is dropped.
+Headers other than those described here are ignored, except that CGI
+programs receive them.
+.SS Files
+A path that names a directory, without a final slash, is answered with
+.B 302
+and a
+.B Location
+of the decoded path with a slash added, keeping the query string.
+A path with a final slash names the index file of the directory,
+.I index.html
+unless an
+.B I
+line says otherwise.
+If that file does not exist but
+.I cgi\-bin/index.cgi
+is executable, that program runs in its place, and the requested path is
+in its
+.BR REQUEST_URI ;
+otherwise the answer is
+.BR 404 .
+.B httpd
+never makes a directory listing.
+.PP
+A file is sent with the headers
+.BR Date ,
+.BR "Connection: close" ,
+.BR Content\-type ,
+.BR Accept\-Ranges ,
+.BR Last\-Modified ,
+.BR ETag ,
+and
+.BR Content\-Length .
+Dates are in GMT.
+The
+.B Content\-type
+comes from the suffix of the path, the text from its last dot.
+Suffixes match case-sensitively, first against this built-in table and
+then against the type lines of the configuration file, which win.
+A file with no known suffix is sent without a
+.B Content\-type
+header.
+.PP
+.RS 4
+.EX
+\&.txt .h .c .cc .cpp   text/plain
+\&.htm .html            text/html
+\&.jpg .jpeg            image/jpeg
+\&.gif                  image/gif
+\&.png                  image/png
+\&.svg                  image/svg+xml
+\&.css                  text/css
+\&.js                   application/javascript
+\&.wav                  audio/wav
+\&.avi                  video/x\-msvideo
+\&.qt .mov              video/quicktime
+\&.mpe .mpeg            video/mpeg
+\&.mid .midi            audio/midi
+\&.mp3                  audio/mpeg
+.EE
+.RE
+.PP
+A
+.B Range
+header of the form
+.BI bytes= first \-
+or
+.BI bytes= first \- last
+is answered with
+.B 206
+and the bytes asked for, with
+.I last
+cut back to the end of the file.
+A
+.I last
+of 0 also means the end of the file.
+Any other form, such as a suffix range like
+.BR bytes=\-500 ,
+is ignored, and the whole file is sent.
+.PP
+An
+.B If\-None\-Match
+header that contains the file's
+.B ETag
+is answered with
+.BR 304 .
+The
+.B ETag
+is the modification time in seconds and the size, each in hexadecimal and
+joined by a hyphen, in double quotes.
+.B If\-Modified\-Since
+is ignored.
+.PP
+If the
+.B Accept\-Encoding
+header contains
+.B gzip
+and a file named like the requested one with
+.I .gz
+added exists, it is sent instead, with
+.B Content\-Encoding: gzip
+and its own size, and without range support.
+The
+.B Content\-type
+is still that of the requested name, and the uncompressed file need not
+exist.
+.PP
+An error answer carries a short HTML page, built in or named by an
+.B E
+line, and a
+.B 302
+or
+.B 304
+answer has no body.
+A file that cannot be opened is
+.BR 404 .
+A request for a file named
+.IR httpd.conf ,
+in any directory, is answered with
+.BR 403 .
+.SS CGI programs
+A path that begins with
+.I cgi\-bin/
+runs a program.
+The file must exist and be executable to Windows: it has one of the
+suffixes
+.BR .com ,
+.BR .exe ,
+.BR .sh ,
+.BR .bat ,
+or
+.BR .cmd ,
+or it begins with
+.B #!\&
+or is a Windows program.
+A file that is not executable is sent as an ordinary file by
+.B GET
+and
+.BR HEAD .
+A directory is answered with
+.BR 403 ,
+and a program that is not there or cannot be started with
+.BR 404 .
+Directories below
+.I cgi\-bin
+are allowed, and the path components after the program's name arrive in
+.BR PATH_INFO .
+.PP
+A script runs under the interpreter named on its
+.B #!\&
+line, found as described in
+.BR busybox (1),
+so
+.B #!/bin/sh
+runs the busybox shell.
+Only an interpreter in
+.IR /bin ,
+.IR /usr/bin ,
+.IR /sbin ,
+or
+.I /usr/sbin
+can be an applet or be found in
+.BR PATH :
+.B #!/usr/local/bin/perl
+fails unless that file exists.
+A file whose name ends in
+.B .sh
+and that has no
+.B #!\&
+line runs under
+.BR sh .
+A
+.BI *. ext : interpreter
+line in the configuration file makes any file with that suffix outside
+.I cgi\-bin
+a CGI program as well, run by the interpreter.
+.PP
+The program starts with its own directory as the current directory.
+Its standard input receives the body of a
+.BR POST ,
+and its standard output is the reply.
+Its standard error is that of the server, never the client.
+It inherits the environment of
+.BR httpd ,
+with the variables listed under
+.B ENVIRONMENT
+added.
+A
+.B HEAD
+request runs the program too, and all of its output is sent.
+.PP
+The program writes its headers, a blank line, and the body.
+.B httpd
+adds nothing to them but the status line, chosen from the first bytes of
+the output.
+If the output begins with
+.BR Status: ,
+that header becomes the status line, as in
+.BR "Status: 404 Gone" .
+If it begins with
+.BR Location: ,
+the status is
+.BR 302 .
+If it begins with
+.BR HTTP/1.1 ,
+the output is sent as it is.
+Otherwise the status is
+.BR 200 .
+These are recognized only at the start of the output and spelled exactly
+so.
+The program must write its own
+.B Content\-Type
+and the blank line.
+.SS Configuration file
+At startup, and again for each connection,
+.B httpd
+reads
+.I /etc/httpd.conf
+on the system drive, or the file named by
+.BR \-c .
+If it cannot open
+.IR /etc/httpd.conf ,
+it reads
+.I httpd.conf
+in the home directory instead.
+A
+.B \-c
+file that cannot be opened is an error.
+Changes take effect with the next connection.
+.PP
+Each line is one directive.
+Spaces and tabs are removed from the whole line, including inside paths
+and passwords.
+A
+.B #
+starts a comment that runs to the end of the line.
+Blank lines are ignored.
+A line may end in LF or CR LF.
+A line longer than 159 characters is read as several lines.
+A line that is not a directive is reported on standard error as
+.B config error
+and skipped.
+.PP
+The directives are:
+.TP
+\fBA:\fR\fIaddress\fR
+Allow clients with this IPv4 address.
+.I address
+is one of:
+.RS
+.IP \(bu 2
+.B *
+for every address.
+An
+.B A:*
+line has no effect.
+.IP \(bu 2
+Four numbers with dots, such as
+.BR 10.0.0.7 ,
+for one host.
+.IP \(bu 2
+One to three numbers, such as
+.B 172.20.\&
+or
+.BR 10.10 ,
+for every address that begins with them.
+.IP \(bu 2
+.IB address / bits
+or
+.IB address / mask
+for a network, where
+.I mask
+has four numbers with dots.
+.I address
+must have no bits set outside the mask, or the line never matches.
+.RE
+.IP
+A line whose address cannot be read denies every client, and one whose
+mask cannot be read has no effect.
+An IPv6 client is checked as the address 0.0.0.0, unless it is an
+IPv4-mapped address, which is checked as its IPv4 address.
+.TP
+\fBD:\fR\fIaddress\fR
+Deny clients, with the same addresses as
+.BR A: .
+.B D:*
+denies every client that no rule matched.
+A client that matches any
+.B D
+rule is denied even if it also matches an
+.B A
+rule.
+Only the first character of the
+.BR A ,
+.BR D ,
+.BR H ,
+and
+.B I
+directives counts, and it may be lower case, so
+.B allow:
+and
+.B deny:
+work.
+.TP
+\fBE\fInnn\fB:\fIfile\fR
+Send
+.I file
+as the body of every answer with status
+.IR nnn ,
+instead of the built-in page.
+.I file
+is relative to the home directory, or absolute with a drive letter.
+A leading slash is the root of the current drive, not of the home
+directory.
+The answer carries no
+.B Content\-Length
+and is
+.BR text/html .
+A status that
+.B httpd
+never sends is ignored.
+.TP
+\fBH:\fR\fIdirectory\fR
+Use
+.I directory
+as the home directory, in place of
+.BR \-h .
+Each connection starts in the new home directory and reads the file
+again, so
+.I directory
+and a
+.B \-c
+file must be absolute paths, or every connection is closed without a
+reply.
+.TP
+\fBI:\fR\fIfile\fR
+Use
+.I file
+as the index file of directories, in place of
+.IR index.html .
+.TP
+\fB.\fIext\fB:\fImime\-type\fR
+Send files whose suffix is exactly
+.BI . ext
+with this
+.BR Content\-type .
+Later lines win over earlier ones.
+.TP
+\fB*.\fIext\fB:\fIinterpreter\fR
+Run files with this suffix as CGI programs, by
+.IR interpreter ,
+which receives the file name as its argument.
+The interpreter is started by exactly the name given: nothing adds
+.I .exe
+or searches
+.BR PATH ,
+so write
+.I C:/tools/php/php\-cgi.exe
+rather than
+.BR php .
+Files in
+.I cgi\-bin
+ignore these lines.
+.TP
+\fB/\fIpath\fB:\fIuser\fB:\fIpassword\fR
+Require this user and password, sent with Basic authentication, for
+.I path
+and everything below it.
+A path matches whole components and ignores case.
+Several lines with the same path allow several users.
+When lines with different paths match, only those with the longest path
+count.
+If no line matches a request's path, no password is required.
+The password is plain text, compared as is, and can contain colons.
+A path of
+.B /
+protects the whole server.
+Without a valid password the answer is
+.BR 401 .
+.PP
+The
+.B H
+and
+.B E
+lines are valid only in the first file that is read: the
+.B \-c
+file, or
+.I /etc/httpd.conf
+on the system drive.
+In the fallback
+.I httpd.conf
+of the home directory, and in the files below, they are errors.
+.PP
+A file named
+.I httpd.conf
+in a directory below the home directory is read for each request that
+reaches that directory or one below it, and its lines are merged with
+the others.
+An index line replaces the index file.
+Type, interpreter, and password lines are added to the existing ones,
+with the paths of password lines relative to that directory.
+Its
+.B A
+and
+.B D
+lines replace the IP rules instead, and the client is checked against
+them again; the main file's rules have already been applied, so a
+subdirectory can only narrow access.
+.SS Logging
+Messages go to standard error, with the prefix
+.BR httpd: .
+Configuration errors are always reported.
+With
+.BR \-v ,
+messages about a connection begin with the client's address and port
+instead, as in
+.BR "127.0.0.1:61085: response:200" .
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-fvv ,
+and an argument may be attached, as in
+.BR \-p8080 ,
+or be the next argument.
+.B \-\-
+ends the options.
+Operands are ignored.
+.TP
+.B \-f
+Run in the foreground, and serve until the process is killed.
+Without it,
+.B httpd
+detaches, and cannot report errors or log; see
+.BR NOTES .
+.TP
+.B \-v
+Log to standard error.
+Repeat it for more.
+One
+.B \-v
+logs the status of each reply, two also log each request's method and
+path without the query string, and three also log each connection as it
+opens and closes.
+.TP
+\fB\-p\fR [\fIip\fR:]\fIport\fR
+Listen on
+.I port
+(1 to 65535), on the address
+.I ip
+if one is given.
+A port alone listens on all interfaces over IPv4 and IPv6.
+A number outside that range is read as an IPv4 address instead, so
+.B \-p\ 0
+listens on port 80 of every IPv4 interface.
+An
+.I ip
+is a numeric IPv4 address, or an IPv6 address in brackets, and limits the
+server to that address.
+Host names are not looked up.
+Without a port the port is 80.
+The default is port 80 on all interfaces.
+.TP
+.BI "\-r " realm
+Name the realm in the password prompt.
+The default is
+.BR "Web Server Authentication" .
+.TP
+.BI "\-h " home
+Use
+.I home
+as the home directory.
+The default is the current directory.
+A relative
+.I home
+is used as given, which leaves
+.B SCRIPT_FILENAME
+unset.
+An
+.B H
+line in the configuration file overrides it.
+.TP
+.BI "\-c " file
+Read the configuration from
+.I file
+instead of
+.IR /etc/httpd.conf .
+A relative
+.I file
+is relative to the home directory, since
+.B httpd
+changes to it first.
+.TP
+.BI "\-e " string
+Write
+.I string
+to standard output with every byte that is not an ASCII letter or digit
+replaced by
+.BI &# n ;,
+where
+.I n
+is the byte in decimal, so that the output is safe in an HTML page.
+Non-ASCII characters become one such reference for each byte.
+.TP
+.BI "\-d " string
+Write
+.I string
+to standard output with each
+.BI % XX
+escape replaced by its byte and each
+.B +
+by a space.
+An escape that is not valid is left as it is.
+.TP
+.BI "\-I " fd
+Internal.
+.B httpd
+uses it to start the process that serves one accepted connection, passing
+the socket's descriptor, and, with a descriptor of 0, the process that
+starts a CGI program.
+The server's other options follow it.
+It is not meant to be typed.
+.SH ENVIRONMENT
+.TP
+.B PATH
+Where to look for the interpreter named on the
+.B #!\&
+line of a CGI script, as described in
+.BR busybox (1).
+.TP
+.B BB_SYSTEMROOT
+A drive, such as
+.BR D: ,
+to use instead of the system drive when looking for
+.IR /etc/httpd.conf .
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in arguments are expanded when run from
+.BR cmd.exe ,
+including the strings given to
+.B \-d
+and
+.BR \-e .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so the processes that the server starts for each
+connection do not expand their arguments again.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+output and messages written to a console are not converted from the
+ANSI code page, and the console interprets the bytes in its own code
+page.
+.PP
+Variables that affect every busybox applet are described in
+.BR busybox (1).
+.PP
+For each CGI program,
+.B httpd
+adds these to the environment it inherits:
+.TP
+.B AUTH_TYPE
+.B Basic
+when
+.B REMOTE_USER
+is set.
+.TP
+.B CONTENT_LENGTH
+The length of a
+.BR POST 's
+body, when the request gave a positive
+.BR Content\-Length .
+.TP
+.B CONTENT_TYPE
+The request's
+.B Content\-Type
+header, when it has one.
+.TP
+.B GATEWAY_INTERFACE
+.BR CGI/1.1 .
+.TP
+\fBHTTP_\fR\fINAME\fR
+Each other request header, with its name in capitals and every character
+that is not a letter or digit replaced by an underscore, as in
+.BR HTTP_USER_AGENT .
+A Basic
+.B Authorization
+header, and
+.BR Range ,
+.BR Accept\-Encoding ,
+.BR If\-None\-Match ,
+and a
+.BR POST 's
+.BR Content\-Length ,
+are not passed.
+.TP
+.B PATH_INFO
+The path components after the program's name, with a leading slash, or
+an empty string.
+.TP
+.B QUERY_STRING
+The query string as the client sent it, or an empty string.
+.TP
+.B REMOTE_ADDR
+The client's address.
+An IPv6 address is in brackets, as is an IPv4 client of a server that
+listens on both families.
+.TP
+.B REMOTE_USER
+The user name, when the request matched a password line.
+.TP
+.B REQUEST_METHOD
+.BR GET ,
+.BR HEAD ,
+or
+.BR POST .
+.TP
+.B REQUEST_URI
+The decoded and cleaned path, followed by
+.B ?\&
+and the query string if there was one.
+.TP
+.B SCRIPT_FILENAME
+The home directory joined to
+.BR SCRIPT_NAME ,
+set only when the home directory is not a relative path.
+.TP
+.B SCRIPT_NAME
+The path of the program, without
+.BR PATH_INFO .
+For the directory index program it is
+.IR /cgi\-bin/index.cgi .
+.TP
+.B SERVER_PROTOCOL
+.BR HTTP/1.1 .
+.TP
+.B SERVER_SOFTWARE
+.B busybox httpd/
+and the busybox version.
+.PP
+There is no
+.BR SERVER_NAME ,
+.BR SERVER_PORT ,
+or
+.BR REMOTE_PORT .
+To have a
+.B SERVER_NAME
+in the programs, set it in the environment of
+.BR httpd .
+.SH EXIT STATUS
+.TP
+.B 0
+Success: the string of
+.B \-d
+or
+.B \-e
+was written, or the background server was started.
+.TP
+.B 1
+An invalid option, or a background server that cannot be started.
+With
+.BR \-f ,
+also a home directory that cannot be entered, a
+.B \-c
+file that cannot be opened, or an address that cannot be read or bound.
+.PP
+The foreground server runs until it is killed, unless it cannot start
+the process for a connection, when it exits with status 0.
+.SH EXAMPLES
+Serve the directory
+.I public
+on the loopback interface, in the foreground, logging each request:
+.PP
+.RS 4
+.EX
+$ httpd \-f \-vv \-p 127.0.0.1:8080 \-h public
+.EE
+.RE
+.PP
+Start a server in the background, and later stop every
+.BR httpd :
+.PP
+.RS 4
+.EX
+$ httpd \-p 127.0.0.1:8080 \-h public
+$ pkill httpd
+.EE
+.RE
+.PP
+Allow only this machine and the 192.168.1 network, ask for a password
+under
+.IR /private ,
+and add a type, in the
+.I httpd.conf
+of the home directory:
+.PP
+.RS 4
+.EX
+$ cat >public/httpd.conf <<EOF
+> A:127.0.0.1
+> A:192.168.1.
+> D:*
+> /private:alice:secret
+> .wasm:application/wasm
+> EOF
+.EE
+.RE
+.PP
+Write a CGI program, and call it while a server from the first example
+is running:
+.PP
+.RS 4
+.EX
+$ mkdir public/cgi\-bin
+$ cat >public/cgi\-bin/hello.cgi <<\(aqEOF\(aq
+> #!/bin/sh
+> echo "Content\-Type: text/plain"
+> echo
+> echo "Hello, $REMOTE_ADDR"
+> EOF
+$ wget \-qO \- http://127.0.0.1:8080/cgi\-bin/hello.cgi
+Hello, 127.0.0.1
+.EE
+.RE
+.PP
+Decode a value that came in a query string, and encode text for HTML:
+.PP
+.RS 4
+.EX
+$ name=$(httpd \-d \(aqHello%2C+World%21\(aq)
+$ echo "$name"
+Hello, World!
+$ httpd \-e \(aq<b>&</b>\(aq
+&#60;b&#62;&#38;&#60;&#47;b&#62;
+.EE
+.RE
+.SH NOTES
+Differences from busybox
+.B httpd
+on Unix:
+.IP \(bu 2
+There are no
+.BR \-i ,
+.BR \-M ,
+.BR \-K ,
+.BR \-u ,
+or
+.BR \-m :
+no inetd mode, connection limit, CGI time limit, change of user, or MD5
+passwords.
+A CGI program, and a client sending one a
+.B POST
+body, are never timed out.
+.IP \(bu 2
+Passwords are compared as plain text, so a
+.B *
+is an ordinary character, not a wildcard for system users or passwords.
+.IP \(bu 2
+There are no
+.B P
+reverse proxy lines and no
+.B REMOTE_PORT
+variable.
+.IP \(bu 2
+There is no reload on a signal, since every connection reads the
+configuration.
+.PP
+The server process accepts connections and starts a new busybox process
+for each, with
+.BR \-I ,
+which reads the configuration and serves the request.
+A CGI program is started through another busybox process.
+Nothing limits how many connections are served at once.
+.PP
+In the background, standard input, output, and error of the server are
+the null device.
+Nothing is logged, and a failure such as a bad address or a missing
+.B \-c
+file is not reported: the starting process has already exited with status
+0.
+Use
+.B \-f
+to see them.
+The listening socket allows address reuse, which on Windows lets a second
+server bind a port that is in use.
+.PP
+A reply of
+.B 206
+or
+.B 304
+has the
+.B Content\-type
+.BR text/html ,
+whatever the file is.
+The code means to pass other methods, such as
+.BR PUT ,
+to CGI programs, but this version answers them with
+.BR 400 .
+The built-in
+.B 408
+page says 60 seconds, but the limit is 30.
+.PP
+.B httpd
+is not meant to face untrusted clients.
+It keeps requests inside the home directory only by rejecting
+.B ..\&
+components between forward slashes.
+A backslash, written raw or as
+.BR %5C ,
+is also a separator to Windows, and a path that starts with a drive
+letter, as in
+.IR /C:/data/file.txt ,
+is absolute, so a client can read any file that the user running the
+server can read.
+The checks that compare the request path with a pattern see only forward
+slashes: password lines, subdirectory configuration files, and the
+.I cgi\-bin/
+prefix, which is also case-sensitive although Windows file names are not.
+A request for
+.I /adm\ehome.htm
+is not asked for the password that
+.I /adm/home.htm
+needs, and
+.I /CGI\-BIN/hello.cgi
+sends the source of the program.
+Windows also ignores a final dot in a directory name, a final dot or
+space in a file name, and a
+.B ::$DATA
+suffix, which names the file's contents.
+So
+.I /adm./home.htm
+skips the password,
+.I /cgi\-bin./hello.cgi
+sends the source, and
+.I /httpd.conf.\&
+sends the configuration file, passwords included.
+Passwords cross the network in the clear, and there is no TLS.
+.PP
+The decoded bytes of a URL path are the file name in the ANSI code page,
+which is UTF-8 on Windows 10 version 1903 and later.
+On earlier versions it is the system code page, and a file whose name
+has other characters cannot be served.
+Windows file names are not case-sensitive, so
+.I /A.TXT
+finds
+.IR a.txt .
+The match of suffixes for
+.B Content\-type
+and of the
+.I cgi\-bin/
+prefix are case-sensitive, and the match of
+.I httpd.conf
+and of password paths is not.
+.SH SEE ALSO
+.BR busybox (1),
+.BR nc (1),
+.BR pkill (1),
+.BR sh (1),
+.BR wget (1)

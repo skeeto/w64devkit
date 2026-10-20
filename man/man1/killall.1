@@ -1,0 +1,435 @@
+.TH KILLALL 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+killall \- send a signal to all processes with a given name
+.SH SYNOPSIS
+.B killall
+.RB [ \-q ]
+.RB [ \-\c
+.IR signal ]
+.IR name ...
+.br
+.B killall
+.RB [ \-q ]
+.B \-s
+.I signal
+.IR name ...
+.br
+.B killall
+.RB [ \-q ]
+.B \-\-
+.IR name ...
+.br
+.B killall \-l
+.RI [ signal ...]
+.SH DESCRIPTION
+.B killall
+sends a signal, by default
+.BR TERM ,
+to every running process whose name is one of the
+.I name
+operands.
+It takes the operands in order, and reports each one that matches no
+process.
+It never signals its own process, but a
+.I name
+matched only by that process, such as
+.BR killall ,
+still counts as matched.
+It reads no input.
+With
+.BR \-l ,
+it instead converts signal names to numbers and back, writing the
+results on standard output.
+.PP
+Messages go to standard error.
+A
+.I name
+that matches no process is reported as
+.PP
+.RS 4
+.EX
+killall: \fIname\fR: no process killed
+.EE
+.RE
+.PP
+and a process that could not be signaled as
+.PP
+.RS 4
+.EX
+killall: can\(aqt kill pid \fIpid\fR: \fIreason\fR
+.EE
+.RE
+.PP
+where
+.I reason
+is usually
+.B Permission denied
+or
+.BR "Invalid argument" .
+.PP
+This
+.B killall
+is a busybox applet; see
+.BR busybox (1).
+A
+.I name
+is an exact process name, not a pattern.
+To select processes by pattern, use
+.BR pkill (1).
+For what the signals do on Windows, see
+.BR NOTES .
+.SS Process names
+Only the name of a process is matched, never its path or command line.
+The name is the file name of its executable as Windows reports it,
+including the extension, such as
+.BR explorer.exe .
+The comparison is case-sensitive, although Windows file names are not,
+and the extension is part of the name, so
+.B server
+does not match
+.BR server.exe .
+.PP
+A process running the same build of busybox is named after its applet
+instead, such as
+.B sh
+or
+.BR sleep ,
+unless
+.B killall
+cannot read its memory, as for an elevated process, which leaves it
+.BR busybox.exe .
+A script whose
+.B #!\&
+line names an applet is named after the script file, except that a shell
+script run from the kit's shell is named after the shell, such as
+.BR sh .
+The kit's command launchers, such as
+.B sleep.exe
+and
+.BR killall.exe ,
+appear under their own names, each alongside the busybox process it
+started, so
+.B killall sleep
+signals the busybox process and leaves the launcher to exit with it.
+.PP
+Only the first 15 characters of a long name are compared.
+A process name of 15 or more characters matches any operand that agrees
+with it in its first 15 characters, however the two differ after that,
+so the extension may be left off a name with 15 or more characters
+before it.
+A shorter process name must match the whole operand.
+.PP
+The idle process, with process ID 0 and the name
+.BR "[System\ Process]" ,
+is never selected.
+.SH OPTIONS
+Options are recognized only at the start of the command line.
+First comes
+.BR \-q ,
+if given, and then one of
+.BR \-s ,
+.BI \- signal\fR,
+or
+.BR \-\- .
+.B \-l
+and
+.B \-\-help
+are recognized only as the first argument.
+Every later argument is a
+.IR name ,
+even one that begins with a dash, and options cannot be grouped.
+.TP
+.B \-l
+List or convert signals, then exit without signaling anything.
+With no further arguments, write one signal per line as a number, a
+parenthesis, a space, and a name, such as
+.B "\ 9)\ KILL"
+and
+.BR "15)\ TERM" .
+The list is
+.BR HUP ,
+.BR INT ,
+.BR QUIT ,
+.BR ILL ,
+.BR FPE ,
+.BR KILL ,
+.BR SEGV ,
+.BR PIPE ,
+.BR TERM ,
+and
+.BR ABRT ,
+numbered 1, 2, 3, 4, 8, 9, 11, 13, 15, and 22.
+.IP
+With arguments, write a line for each, converting them in order.
+A name, in any case and with or without a
+.B SIG
+prefix, is converted to its number.
+A decimal number is reduced to its low 7 bits, so that a shell exit
+status of 128 plus a signal number gives that signal's name, and is
+written as that name, or as the reduced number when it has none.
+An argument that is neither stops the conversion with
+.B unknown signal
+and exit status 1, after the lines for earlier arguments.
+.TP
+.B \-q
+Do not report names that match no process, or processes that could not
+be signaled.
+Each still counts toward the exit status.
+.TP
+.BI "\-s " signal
+Send
+.I signal
+instead of
+.BR TERM .
+It must be a separate argument:
+.B \-sTERM
+is rejected as a bad signal name.
+It is otherwise the same as
+.BI \- signal
+below, and the usage message does not list it.
+.TP
+.BI \- signal
+Send
+.I signal
+instead of
+.BR TERM .
+It is a name, in any case and with or without a
+.B SIG
+prefix, or a decimal number from 0 to 22.
+The names are those listed by
+.BR \-l ,
+plus
+.B EXIT
+for 0.
+Any other name or number is rejected with
+.B bad signal name
+and exit status 1, before any process is looked at.
+.IP
+Signal 0 sends nothing, but still fails for a process that could not be
+signaled, so it tests whether each match exists and can be signaled.
+A number from 0 to 22 with no name, such as 21, is accepted but fails
+with
+.B Invalid argument
+for each process it is sent to.
+So does an empty name, or
+.B SIG
+alone, which is taken as 5.
+.TP
+.B \-\-
+Ends the options, so that the first
+.I name
+may begin with a dash.
+It is recognized only in place of a signal.
+After
+.BI \- signal
+or
+.BI "\-s " signal ,
+it is a name.
+.TP
+.B \-\-help
+Print the usage message on standard output and exit with status 0.
+It is recognized only as the first argument.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the operands are expanded as file names before
+.B killall
+sees them, even inside quotes, as needed when run from
+.BR cmd.exe .
+A name is never a pattern, so the effect is only that an operand such as
+.B app*
+is replaced by the names of matching files in the current directory,
+which are then taken as process names.
+A pattern that matches nothing is left as it is.
+A busybox process started with the variable unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+operands as the shell expanded them.
+.PP
+The startup code shared by all applets also reads
+.B BB_CRITICAL_ERROR_DIALOGS
+and
+.BR BB_UMASK ,
+neither of which changes what
+.B killall
+does, and variables such as
+.B BB_TERMINAL_MODE
+for console output; see
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Every
+.I name
+matched a process and each match was signaled, or
+.B \-l
+converted every argument, or
+.B \-\-help
+was given.
+.TP
+.B 1
+An invalid command line: a bad signal name, no
+.IR name ,
+a lone
+.BR \-q ,
+which also prints the usage message on standard error, or an unknown
+signal given to
+.BR \-l .
+.TP
+.I n
+The number of failures, with or without
+.BR \-q :
+one for each
+.I name
+that matches no process, and one for each process that could not be
+signaled.
+A single failure also gives 1.
+Every operand is tried, whatever fails.
+The status is this count modulo 256, so 256 failures give 0.
+.SH EXAMPLES
+Terminate every instance of a program:
+.PP
+.RS 4
+.EX
+$ killall server.exe
+.EE
+.RE
+.PP
+Show the report and the exit status when nothing matches:
+.PP
+.RS 4
+.EX
+$ killall server.exe; echo $?
+killall: server.exe: no process killed
+1
+.EE
+.RE
+.PP
+Stay silent when the program is not running:
+.PP
+.RS 4
+.EX
+$ killall \-q server.exe
+.EE
+.RE
+.PP
+End a program at once, without letting it clean up:
+.PP
+.RS 4
+.EX
+$ killall \-KILL server.exe
+.EE
+.RE
+.PP
+Test, without signaling it, whether a program is running and could be
+signaled:
+.PP
+.RS 4
+.EX
+$ killall \-q \-0 server.exe && echo running
+.EE
+.RE
+.PP
+Convert between signal numbers and names, such as the status 143 that
+the shell reports for a process ended by
+.BR TERM :
+.PP
+.RS 4
+.EX
+$ killall \-l 143
+TERM
+$ killall \-l kill
+9
+.EE
+.RE
+.SH NOTES
+Differences from the psmisc
+.BR killall ,
+and from busybox on Linux:
+.IP \(bu 2
+Only a process's name is matched.
+Busybox on Linux also matches the name a program was started with, and
+the name or full path of its executable.
+.IP \(bu 2
+There are no options to select processes by pattern, owner, or age, or
+to wait for them to exit.
+.IP \(bu 2
+Only the ten signals listed by
+.B \-l
+exist.
+There is no
+.BR USR1 ,
+.BR ALRM ,
+.BR STOP ,
+or
+.BR CONT .
+.IP \(bu 2
+Names include the extension and are case-sensitive.
+.IP \(bu 2
+Failures to signal a process are reported and counted.
+.BR pkill (1)
+ignores them.
+.PP
+An operand is a name, never a path, so one such as
+.I ./server.exe
+or
+.I C:/bin/server.exe
+matches no process.
+The list of processes is read again for each operand, and covers every
+process on the system, including those of other users.
+.PP
+Windows cannot send signals between processes, so
+.B killall
+emulates them.
+.B KILL
+calls
+.BR TerminateProcess ,
+which gives the process no chance to clean up.
+Any other signal except 0 makes the process call
+.B ExitProcess
+from a thread injected into it, so that its DLLs are notified, but no
+signal handler runs and the signal cannot be caught or ignored.
+Either way the process ends at once, with an exit code of the signal
+number shifted left 24 bits, such as
+.B 0x0F000000
+for
+.BR TERM .
+The busybox shell reports that as death by the signal, with status 128
+plus the signal number.
+Only the matched process is signaled, not its children.
+A thread that cannot be created is not reported, so a successful exit
+status does not prove that the process exited.
+.PP
+Injecting a thread works only into a process of the same bitness as
+busybox, 64-bit or 32-bit, so for any other process every signal except
+.BR KILL ,
+including 0, fails with
+.BR "Permission denied" .
+A process that Windows does not let busybox open, such as a system
+process or one of another user, fails the same way.
+.PP
+Only the process running
+.B killall
+is excluded.
+In the kit's shell that is the shell itself, because the shell runs
+.B killall
+without starting a process, so
+.B killall sh
+spares the shell that runs it but signals every other busybox shell.
+A subshell or a pipeline element is a separate process, so there the
+shell it was started from is signaled too.
+Started from
+.B cmd.exe
+through the launcher
+.BR killall.exe ,
+the launcher is a separate process and is not excluded.
+.SH SEE ALSO
+.BR busybox (1),
+.BR kill (1),
+.BR pgrep (1),
+.BR pidof (1),
+.BR pkill (1),
+.BR ps (1),
+.BR sh (1)

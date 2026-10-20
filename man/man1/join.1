@@ -1,0 +1,422 @@
+.TH JOIN 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+join \- join two sorted files on a common field
+.SH SYNOPSIS
+.B join
+.RB [ \-a
+.I fnum
+.RB "| " \-v
+.IR fnum ]...\&
+.RB [ \-e
+.IR str ]
+.RB [ \-o
+.IR list ]
+.RB [ \-t
+.IR sep ]
+.RB [ \-1
+.IR field ]
+.RB [ \-2
+.IR field ]
+.I file1
+.I file2
+.SH DESCRIPTION
+.B join
+combines the lines of two files that have a field in common.
+It writes one line for each pair of a line of
+.I file1
+and a line of
+.I file2
+whose join fields are equal.
+Both files must be sorted on the join field.
+Either file may be
+.BR \- ,
+for standard input, but not both.
+.PP
+The join field is field 1 of each line, unless
+.B \-1
+or
+.B \-2
+chooses another field of
+.I file1
+or
+.IR file2 .
+.SS Fields
+Without
+.BR \-t ,
+blanks, meaning spaces and tabs, separate fields.
+A run of blanks is one separator, and blanks at the start or end of a
+line are ignored, so no field is empty and a blank line has no fields.
+With
+.BR \-t ,
+each occurrence of the separator character ends a field.
+Fields can then be empty, and a line has one more field than it has
+separators.
+A line with fewer fields than the join field number has an empty join
+field, which matches the empty join field of a line in the other file.
+.SS Joining
+.B join
+reads the files in order, and compares the join fields of their current
+lines as byte strings, not by the collation order of a locale.
+Consecutive lines of a file with equal join fields form a group.
+.PP
+When the join fields of two groups are equal,
+.B join
+writes the output described below for every pairing of a line of the
+group of
+.I file1
+with a line of the group of
+.IR file2 :
+for each line of
+.IR file1 ,
+all the lines of
+.IR file2 ,
+in order.
+Groups of 2 and 3 lines give 6 output lines.
+It then goes on to the next group of both files.
+.PP
+Otherwise it goes on to the next group of the file with the lesser join
+field, first writing the lines of the group it leaves as unpaired lines
+if
+.B \-a
+or
+.B \-v
+asks for the unpaired lines of that file.
+When one file ends, the groups left in the other are handled in the same
+way.
+.PP
+The order of the input is not checked.
+Where the files are not sorted, lines that should pair are skipped or
+written as unpaired lines, with no message and exit status 0.
+.SS Output
+Every output line ends with LF.
+Without
+.BR \-o ,
+a joined line is the join field, then the fields of the
+.I file1
+line other than its join field, then those of the
+.I file2
+line, separated by a space or, with
+.BR \-t ,
+by the separator character.
+An unpaired line is written the same way from its own file alone, so its
+join field moves to the front.
+With
+.BR \-o ,
+the fields named by the list are written instead.
+An empty field is written as the
+.B \-e
+string, which is empty by default.
+.SH OPTIONS
+Every option takes an argument, which may be attached, as in
+.BR \-a1 ,
+or be the next argument, so options cannot be grouped.
+Options may follow the operands, unless
+.B POSIXLY_CORRECT
+is set.
+.B \-\-
+ends the options.
+A repeated option replaces its earlier values, except
+.B \-a
+and
+.BR \-v ,
+which accumulate.
+.TP
+.BI "\-a " fnum
+Also write the unpaired lines of file number
+.IR fnum ,
+which is
+.B 1
+or
+.BR 2 ,
+among the joined lines in input order.
+Repeat the option to write the unpaired lines of both files.
+Incompatible with
+.BR \-v .
+.TP
+.BI "\-v " fnum
+Like
+.BR \-a ,
+but write only unpaired lines: the joined lines are not written.
+Incompatible with
+.BR \-a .
+.TP
+.BI "\-e " str
+Write
+.I str
+in place of each empty field.
+This includes an empty join field, and with
+.B \-o
+each listed field that the line does not have.
+Without
+.BR \-o ,
+fields that a line does not have are not written at all.
+The default is the empty string.
+.TP
+.BI "\-o " list
+Write the fields named by
+.I list
+instead of the default output, in the order given, separated like the
+default output.
+The items of
+.I list
+are separated by commas, spaces, or tabs.
+An item is
+.B 0
+for the join field, or
+.BI 1. n
+or
+.BI 2. n
+for field
+.I n
+of the
+.I file1
+or
+.I file2
+line, where
+.I n
+is a decimal number from 1 to 2147483647.
+An item may be repeated.
+A field the line does not have is written as the
+.B \-e
+string, as is every field of the other file in an unpaired line.
+On an unpaired line of
+.IR file2 ,
+.B 0
+is the join field of
+.IR file2 .
+A list with no items is not rejected, and the output is then
+meaningless.
+See
+.B NOTES
+for defects.
+.TP
+.BI "\-t " sep
+Separate fields with the character
+.I sep
+in the input and the output, instead of runs of blanks.
+.I sep
+must be exactly one byte, so the empty string is an error, and so is a
+non-ASCII character where arguments are UTF-8, as on Windows 10 version
+1903 and later.
+It is taken literally, with no backslash escapes.
+Pass a tab as a tab character.
+.TP
+.BI "\-1 " field
+Use field number
+.I field
+of
+.I file1
+as the join field.
+It is a decimal number from 1 to 2147483647.
+The default is 1.
+.TP
+.BI "\-2 " field
+Use field number
+.I field
+of
+.I file2
+as the join field.
+The range and default are those of
+.BR \-1 .
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the arguments, including option arguments, are expanded
+against file names at startup, as needed when run from
+.BR cmd.exe .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+arguments as the shell expanded them.
+.TP
+.B POSIXLY_CORRECT
+If set, the first operand ends the options.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+output to a console is not converted, as described in
+.BR NOTES ,
+and the console interprets the bytes in its own code page.
+.PP
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success, whether or not any line was written.
+.TP
+.B 1
+Invalid command line, such as an unknown option, an invalid option
+argument, both
+.B \-a
+and
+.BR \-v ,
+or other than two operands; a file could not be opened, or is a
+directory; writing the output still buffered at exit failed; or out of
+memory.
+A message or the usage is written to standard error.
+.TP
+.B 141
+A write to standard output failed because it is a pipe whose reader has
+exited.
+When this happens only at exit, while writing the output still buffered,
+the status is 1 instead.
+.SH EXAMPLES
+Join two files on their first field, writing only the keys found in
+both:
+.PP
+.RS 4
+.EX
+$ cat names.txt
+1 alice
+2 bob
+3 carol
+$ cat ages.txt
+1 34
+3 27
+4 51
+$ join names.txt ages.txt
+1 alice 34
+3 carol 27
+.EE
+.RE
+.PP
+Also write the lines of the first file that have no match, with a
+placeholder for the missing age:
+.PP
+.RS 4
+.EX
+$ join \-a 1 \-e unknown \-o 0,1.2,2.2 names.txt ages.txt
+1 alice 34
+2 bob unknown
+3 carol 27
+.EE
+.RE
+.PP
+Write only the lines of the first file that have no match:
+.PP
+.RS 4
+.EX
+$ join \-v 1 names.txt ages.txt
+2 bob
+.EE
+.RE
+.PP
+Join comma-separated files on the second field of the first and the
+first field of the second, sorting the first file on its way in:
+.PP
+.RS 4
+.EX
+$ cat orders.csv
+o1,2,pen
+o2,1,ink
+o3,2,pad
+$ cat customers.csv
+1,alice
+2,bob
+$ sort \-t, \-k2,2 orders.csv | join \-t, \-1 2 \-2 1 \- customers.csv
+1,o2,ink,alice
+2,o1,pen,bob
+2,o3,pad,bob
+.EE
+.RE
+.SH NOTES
+Differences from GNU join:
+.IP \(bu 2
+The only long option is
+.BR \-\-help :
+there is no
+.BR \-\-check\-order ,
+.BR \-\-nocheck\-order ,
+or
+.BR \-\-header ,
+and no
+.BR \-i ,
+.BR \-j ,
+or
+.BR \-z .
+.B \-o
+has no
+.B auto
+form.
+.IP \(bu 2
+The order of the input is never checked.
+.IP \(bu 2
+Join fields are compared as bytes, not in the collation order of the
+locale.
+.IP \(bu 2
+.B \-a
+and
+.B \-v
+cannot be combined.
+.IP \(bu 2
+.B \-t
+takes exactly one byte.
+An empty argument, which makes each line one field in GNU join, is an
+error.
+.PP
+Defects in this version:
+.IP \(bu 2
+With
+.BR \-o ,
+only the first line written for a pairing of two groups, or for a group
+of unpaired lines, follows
+.IR list .
+The other lines of it are empty.
+This happens whenever a join field repeats within a file, so use
+.B \-o
+only on input whose join fields are unique.
+.IP \(bu 2
+With a list whose every item is
+.BR 0 ,
+such as
+.BR "\-o 0" ,
+.B join
+reads past the end of its copy of the list, and some runs write extra
+fields, such as a second copy of the join field.
+.IP \(bu 2
+A group of more than eight lines in one file overruns the buffer that
+holds it, even if the group is never written, and
+.B join
+usually crashes.
+Nine consecutive blank lines form such a group.
+.PP
+Only memory limits the length of a line and the number of fields.
+.PP
+Files are read as binary.
+A CR directly before an LF is removed from each input line, so files with
+CR LF and LF line endings behave alike, and output lines end with LF.
+Any other CR, such as one ending an unterminated last line, is an
+ordinary character.
+A NUL byte ends a line, as LF does, and is not written.
+The last line of a file need not end in a newline.
+A read error ends a file silently.
+.PP
+.I file1
+and
+.I file2
+may be Windows paths, with a drive letter and either kind of slash, or a
+busybox-w32 device name such as
+.IR /dev/null .
+On Windows 10 version 1903 or later, file names and arguments are UTF-8
+and may contain any Unicode characters, and on older systems only those
+of the system code page.
+.B join
+handles text as bytes.
+.PP
+When standard output is a console, text is converted for display from
+the ANSI code page, which is UTF-8 on Windows 10 version 1903 and later.
+.SH SEE ALSO
+.BR busybox (1),
+.BR comm (1),
+.BR paste (1),
+.BR sort (1)

@@ -1,0 +1,358 @@
+.TH MKTEMP 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.SH NAME
+mktemp \- create a temporary file or directory
+.SH SYNOPSIS
+.B mktemp
+.RB [ \-dqtu ]
+.RB [ \-p
+.IR dir ]
+.RB [ \-\-tmpdir [ =\c
+.IR dir ]]
+.RI [ template ]
+.SH DESCRIPTION
+.B mktemp
+creates a temporary file, or with
+.B \-d
+a directory, and prints its name on standard output followed by a
+newline.
+A new file is empty.
+.PP
+The name is
+.I template
+with its trailing
+.B X
+characters replaced to make a name that is not in use.
+The template must end in at least six
+.B X
+characters, and nothing may follow them.
+In a file name, and in any name printed by
+.BR \-u ,
+only the last six are replaced; in a directory name, all of them are.
+The rest of the path is left as it is, and its directory part must
+already exist, except with
+.BR \-u .
+With no
+.IR template ,
+.B mktemp
+acts as if it were given
+.BR "\-t tmp.XXXXXX" .
+.PP
+With
+.BR \-t ,
+.BR \-p ,
+or
+.BR \-\-tmpdir ,
+the template is joined to a base directory by a slash, which is left out
+when the base directory already ends in one.
+Slashes at the start of the template are dropped first.
+The base directory is the last argument given to
+.B \-p
+or
+.BR \-\-tmpdir ,
+else the value of
+.BR TMPDIR ,
+else
+.IR /tmp .
+Without these options the template is used as given, so a template with
+no directory part makes the name in the current directory.
+.PP
+The name printed is the path as built above, so a relative template
+gives a relative name.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-dq ,
+and the argument of
+.B \-p
+may be attached, as in
+.B \-p\c
+.IR dir .
+Options may follow the template, unless
+.B POSIXLY_CORRECT
+is set.
+.B \-\-
+ends the options.
+A long option may be shortened to any unambiguous prefix, such as
+.B \-\-dry
+for
+.BR \-\-dry\-run .
+At most one template is allowed.
+.TP
+.BR \-d ", " \-\-directory
+Create a directory instead of a file.
+It has no effect with
+.BR \-u ,
+which creates nothing.
+.TP
+.BR \-q ", " \-\-quiet
+Print no message when no name can be made, or the file or directory
+cannot be created.
+The exit status is still 1.
+Command line errors are still reported.
+.TP
+.B \-t
+Put the base directory in front of the template.
+.TP
+.BI "\-p " dir
+Use
+.I dir
+as the base directory.
+Implies
+.BR \-t .
+An empty
+.I dir
+makes the template relative to the current directory.
+.TP
+.BR \-u ", " \-\-dry\-run
+Create nothing.
+Print a name that did not exist when it was chosen.
+With
+.BR \-d ,
+the name is made as for a file; see
+.BR NOTES .
+.TP
+\fB\-\-tmpdir\fR[\fB=\fIdir\fR]
+Like
+.BR \-t .
+With
+.BI = dir\fR,
+use
+.I dir
+as the base directory, as
+.B \-p
+does.
+The argument must be attached with
+.BR = :
+a separate word is the template.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument, and any further arguments
+are then ignored.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the arguments are expanded when
+.B mktemp
+starts, as needed when run from
+.BR cmd.exe .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+arguments as the shell expanded them.
+.TP
+.B BB_UMASK
+When it has the owner write bit,
+.BR 200 ,
+the file that
+.B mktemp
+creates is read-only.
+A directory is not affected.
+.TP
+.B POSIXLY_CORRECT
+When set, the C library ends option parsing at the first argument that
+is not an option.
+.TP
+.B TMPDIR
+The default base directory.
+When it is unset, the value of
+.B TMP
+is used, then that of
+.BR TEMP ,
+and Windows normally sets both.
+The first one that is set is used even when it is empty, and an empty
+value gives
+.IR /tmp .
+It is used when
+.BR \-t ,
+.BR \-\-tmpdir ,
+or a missing template calls for a base directory, and
+.B \-p
+or
+.BI \-\-tmpdir= dir
+gives none.
+.PP
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+Error.
+For an invalid command line, meaning an unknown or ambiguous option, a
+missing argument to
+.BR \-p ,
+or more than one template, a usage message is written on standard error.
+When no name can be made, or the file or directory cannot be created, a
+message of the form
+.RB \(dq "mktemp: : " \c
+.IR reason \(dq
+is written on standard error, unless
+.B \-q
+is given.
+For example, the reason is
+.B No such file or directory
+when the directory part of the template does not exist,
+.B Invalid argument
+when the template does not end in six
+.B X
+characters, and
+.B File exists
+when the C library runs out of file names; see
+.BR NOTES .
+.SH EXAMPLES
+Create a temporary file, and keep its name in a variable:
+.PP
+.RS 4
+.EX
+$ f=$(mktemp)
+$ gcc \-E main.c >"$f"
+.EE
+.RE
+.PP
+Make a scratch directory that is removed when the shell exits:
+.PP
+.RS 4
+.EX
+$ dir=$(mktemp \-d)
+$ trap \(aqrm \-rf "$dir"\(aq EXIT
+.EE
+.RE
+.PP
+Make a file in another directory:
+.PP
+.RS 4
+.EX
+$ mktemp \-p build cc.XXXXXX
+build/cc.a14280
+.EE
+.RE
+.PP
+Take another action when the directory cannot be made, here because
+.I work
+does not exist:
+.PP
+.RS 4
+.EX
+$ mktemp \-q \-d work/XXXXXX || echo no work directory
+no work directory
+.EE
+.RE
+.SH NOTES
+Differences from GNU
+.BR mktemp :
+.IP \(bu 2
+The template must end in
+.BR XXXXXX ,
+and nothing may follow it: there is no
+.BR \-\-suffix .
+.IP \(bu 2
+With
+.B \-\-tmpdir
+or
+.BR \-p ,
+a template that starts with a slash is not an error: the slashes are
+dropped.
+.IP \(bu 2
+With
+.BR \-t ,
+the argument of
+.B \-p
+takes precedence over
+.BR TMPDIR ,
+and the template may contain slashes.
+.IP \(bu 2
+An empty argument to
+.B \-p
+or
+.B \-\-tmpdir=
+means the current directory, not the default base directory.
+.PP
+The C library, not
+.BR mktemp ,
+chooses the name.
+For a file, and for any name printed by
+.BR \-u ,
+including with
+.BR \-d ,
+it replaces the six
+.B X
+characters with a lowercase letter and five digits derived from the ID
+of the calling thread, so the names are predictable, not random.
+When that name exists, the letter advances through
+.BR z ,
+and then the attempt fails with
+.BR "File exists" .
+For a directory, each trailing
+.B X
+becomes a random letter or digit.
+.PP
+A file is created after its name is chosen, with no exclusive-create
+check, so another process can create the same name in between, and
+.B mktemp
+then shares the file instead of failing.
+Do not rely on
+.B mktemp
+in a directory that untrusted users can write.
+Neither files nor directories are private: access follows the
+permissions of the containing directory.
+.PP
+A slash is the only separator that
+.B mktemp
+recognizes when it joins the base directory and the template.
+A backslash at the end of the base directory gets a slash after it, and
+a backslash at the start of the template is kept.
+Windows accepts both, so the name can mix separators, as with the usual
+.B TMP
+setting when
+.B mktemp
+runs from
+.BR cmd.exe :
+.PP
+.RS 4
+.EX
+C:\eUsers\eme\eAppData\eLocal\eTemp/tmp.a01276
+.EE
+.RE
+.PP
+The kit's shell changes backslashes to slashes in the environment it
+imports, so under it
+.B TMP
+and
+.B TEMP
+give names with slashes only; see
+.BR sh (1).
+Elsewhere, set
+.B TMPDIR
+to a path with forward slashes to avoid mixed separators.
+A template that starts with a drive letter, such as
+.BR C:/x/XXXXXX ,
+cannot follow a base directory.
+A base directory that is a bare drive, such as
+.IR c: ,
+names the current directory of that drive and gets no slash, as in
+.IR c:tmp.a01276 .
+A template that starts with a slash still gets one after a bare drive,
+so the name is in the root of the drive, as in
+.IR c:/tmp.a01276 .
+.PP
+The default base directory
+.I /tmp
+is not translated.
+It names the directory
+.I \etmp
+on the current drive, and
+.B mktemp
+does not create it.
+.PP
+The name is followed by LF, not CRLF.
+.SH SEE ALSO
+.BR busybox (1),
+.BR mkdir (1),
+.BR rm (1),
+.BR sh (1)

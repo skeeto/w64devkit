@@ -1,0 +1,108 @@
+.TH SYNC 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+sync \- flush the buffers of every drive to disk
+.SH SYNOPSIS
+.B sync
+.SH DESCRIPTION
+.B sync
+asks Windows to write the cached data of every drive to disk.
+It reads no input and writes nothing on standard output.
+.PP
+It visits each drive letter, from A to Z, whose type is fixed,
+removable, CD-ROM, or network and whose volume information can be read,
+so a drive with no disk in it is passed over.
+For each, it opens the volume,
+.IR \e\e.\eX: ,
+for reading and writing, calls
+.B FlushFileBuffers
+on it, and closes it.
+A drive that cannot be opened or flushed is skipped without a message.
+.PP
+.B sync
+takes no operands, and no option but
+.BR \-\-help .
+Any other arguments are ignored after a single warning on standard
+error.
+.SH OPTIONS
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument.
+.SH ENVIRONMENT
+.TP
+.B BB_CRITICAL_ERROR_DIALOGS
+When it is
+.BR 1 ,
+Windows may show a critical-error dialog for a drive with no disk in it
+while
+.B sync
+visits the drives.
+Otherwise busybox suppresses the dialog, and
+.B sync
+skips the drive.
+.PP
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Always, even when arguments were ignored or no drive could be flushed.
+.SH EXAMPLES
+Flush every drive:
+.PP
+.RS 4
+.EX
+$ sync
+.EE
+.RE
+.PP
+Copy a file to a USB drive, then flush:
+.PP
+.RS 4
+.EX
+$ cp release.zip F:/ && sync
+.EE
+.RE
+.PP
+Arguments are ignored, with a warning:
+.PP
+.RS 4
+.EX
+$ sync \-d; echo $?
+sync: ignoring all arguments
+0
+.EE
+.RE
+.SH NOTES
+Unless the process is elevated, that is, running as Administrator,
+Windows usually refuses to open the volume of an internal disk, such as
+the system drive, for writing, though it may allow it for a USB drive.
+.B sync
+ignores the failure, so without elevation it may flush only some drives
+or none, and it still exits with status 0.
+.PP
+Only drive letters are visited.
+Volumes mounted in folders, and network shares without a drive letter,
+are not flushed.
+.PP
+Unlike GNU
+.BR sync ,
+this build has no
+.B \-d
+or
+.B \-f
+option and no
+.I file
+operands, so it cannot flush individual files.
+The
+.B fsync
+applet takes file operands, but opens them read-only, which on Windows
+flushes nothing.
+See
+.BR fsync (1)
+for ways to flush a file.
+.SH SEE ALSO
+.BR busybox (1),
+.BR fsync (1)

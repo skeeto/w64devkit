@@ -1,0 +1,291 @@
+.TH FOLD 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+fold \- wrap input lines to a given width
+.SH SYNOPSIS
+.B fold
+.RB [ \-bs ]
+.RB [ \-w
+.IR width ]
+.RI [ file ...]
+.SH DESCRIPTION
+.B fold
+copies each
+.I file
+to standard output, starting a new line wherever a line would otherwise
+be wider than
+.I width
+columns.
+The default width is 80.
+.PP
+With no
+.I file
+operands, or for a
+.I file
+named
+.BR \- ,
+.B fold
+reads standard input.
+A
+.I file
+that cannot be opened is reported on standard error and skipped, and the
+remaining files are still read.
+.PP
+A line ends at an LF.
+Each file starts at column 0.
+Apart from the LF bytes it adds, the output is the input byte for byte,
+including NUL and CR bytes.
+A last line with no LF is written without one, so it runs into the first
+line of the next file.
+.SS Columns
+Without
+.BR \-b ,
+each byte moves the column, counted from 0, as follows:
+.IP \(bu 2
+A tab moves to the next multiple of 8.
+.IP \(bu 2
+A backspace moves back one column, but not before column 0.
+.IP \(bu 2
+A CR returns to column 0.
+.IP \(bu 2
+Any other byte, including other control characters and NUL, moves
+forward one column.
+.PP
+In UTF-8 mode, described under
+.BR ENVIRONMENT ,
+a byte from 0x80 to 0xBF, which can only continue a UTF-8 character,
+does not move the column.
+Each character is then one column wide, so a break never splits a
+character.
+Wide and combining characters are not treated specially, and the input
+is not checked for being valid UTF-8.
+.PP
+With
+.BR \-b ,
+every byte is one column, including tab, backspace, and CR, and a break
+can split a UTF-8 character.
+.PP
+A byte that would end in a column past
+.I width
+starts a new line instead.
+The first byte of an output line is never moved, so a tab at the start of
+a line stays there even when
+.I width
+is less than 8.
+.SS Breaking at spaces
+Without
+.BR \-s ,
+a line is broken exactly at
+.IR width ,
+which can split a word.
+.PP
+With
+.BR \-s ,
+when a byte would go past
+.IR width ,
+.B fold
+looks for the last blank, a space or tab, among the bytes already on the
+line.
+If there is one, the line ends just after it, and the bytes that followed
+it, plus the new byte, begin the next line.
+Their columns are counted again from column 0.
+If there is no blank, the line is broken at
+.IR width ,
+as without
+.BR \-s .
+Only a space or a tab is a blank: other white space, such as the
+no-break space, is not.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-sw72 ,
+and may follow the
+.I file
+operands.
+An option's argument may be attached, as in
+.BR \-w72 ,
+or be the next argument.
+.B \-\-
+ends the options.
+Long options and the obsolete
+.BI \- width
+form are not accepted.
+.TP
+.B \-b
+Count bytes rather than columns, as described under
+.BR Columns .
+.TP
+.B \-s
+Break at blanks, as described under
+.BR "Breaking at spaces" .
+.TP
+.BI "\-w " width
+Wrap at
+.I width
+columns instead of 80.
+The
+.I width
+is a decimal number from 1 to 10000, with no sign, space, or prefix.
+Leading zeros are allowed, and the number is still decimal.
+A
+.I width
+that is not a number, or does not fit in 32 bits, is reported as
+.BR "invalid number" ,
+and any other value out of range as
+.BR "not in 1..10000 range" ,
+with exit status 1.
+If
+.B \-w
+is given more than once, the last one applies.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit.
+It is recognized only as the first argument.
+.PP
+An unknown option, or a missing option argument, prints the usage
+message on standard error and exits with status 1.
+.SH ENVIRONMENT
+.TP
+.B POSIXLY_CORRECT
+When set, the first
+.I file
+operand ends the options, so that later arguments such as
+.B \-w
+are file names.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+The first of these that is set decides whether UTF-8 mode is on.
+When its value is
+.BR C ,
+UTF-8 mode is off, and every byte except tab, backspace, and CR is one
+column.
+Otherwise UTF-8 mode is on when the ANSI code page is UTF-8, which it
+is on Windows 10 version 1903 and later, and off when it is not.
+The value
+.B C
+also turns off the conversion of console output described in
+.BR busybox (1).
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the arguments are expanded when
+.B fold
+starts, as needed when it is run from
+.BR cmd.exe .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+arguments as the shell expanded them.
+.PP
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+An invalid option or
+.IR width ,
+a
+.I file
+could not be opened (a directory is reported as
+.BR "Is a directory" )
+or read, memory ran out, or standard output could not be written.
+.TP
+.B 141
+Standard output is a pipe that was closed while
+.B fold
+was writing to it.
+Output is buffered, and when the closed pipe is found only by the final
+flush at exit, as with short output, the status is 1 instead.
+.SH EXAMPLES
+Wrap a text file at word boundaries to 72 columns:
+.PP
+.RS 4
+.EX
+$ fold \-s \-w 72 notes.txt >notes.wrapped
+.EE
+.RE
+.PP
+Without
+.BR \-s ,
+words are split at the width:
+.PP
+.RS 4
+.EX
+$ echo The quick brown fox jumps over the lazy dog | fold \-w 18
+The quick brown fo
+x jumps over the l
+azy dog
+.EE
+.RE
+.PP
+Break a long line of hex digits into lines of 64 digits:
+.PP
+.RS 4
+.EX
+$ fold \-b \-w 64 key.hex >key.txt
+.EE
+.RE
+.PP
+List a directory as a block of text wrapped at word boundaries:
+.PP
+.RS 4
+.EX
+$ ls | tr \(aq\en\(aq \(aq \(aq | fold \-s \-w 78
+.EE
+.RE
+.SH NOTES
+With
+.BR \-s ,
+the byte that would go past the width is never itself the blank searched
+for.
+A blank just past the width therefore starts the next line instead of
+ending the current one.
+For example,
+.B "abcd efgh"
+with
+.B "\-s \-w 4"
+becomes
+.BR abcd ,
+a line holding only a space, and
+.BR efgh .
+.PP
+Files and standard streams are binary, with no CRLF translation, and
+breaks are written as a bare LF.
+A CR returns to column 0, so the CR of a CRLF line ending does not count
+toward the width, and a line of exactly
+.I width
+columns followed by CRLF is not broken.
+Wrapping a file with CRLF line endings leaves the original CRLF endings
+and adds LF-only ones.
+Filter the output through
+.BR unix2dos (1)
+to make them all CRLF.
+.PP
+When standard output is a console, a NUL byte hides the rest of its
+output line, usually including the LF.
+.PP
+In UTF-8 mode the column count is in characters, not display cells.
+A console shows an East Asian wide character in two cells, and
+.B fold
+counts it as one.
+.PP
+.B fold
+holds the current output line in memory.
+A line in which CR or backspace bytes keep the column within the width,
+such as a very long overstruck line, is held whole.
+.PP
+File names may contain any Unicode characters on Windows 10 version 1903
+and later, may use backslashes, and may start with a drive letter.
+The device names that busybox accepts, such as
+.IR /dev/null ,
+work as operands; see
+.BR busybox (1).
+.SH SEE ALSO
+.BR busybox (1),
+.BR dos2unix (1),
+.BR expand (1),
+.BR unix2dos (1)

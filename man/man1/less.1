@@ -1,0 +1,680 @@
+.TH LESS 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+less \- view text one screenful at a time
+.SH SYNOPSIS
+.B less
+.RB [ \-EFIMmNRSsX~ ]
+.RI [ file ...]
+.SH DESCRIPTION
+.B less
+shows text on the console one screenful at a time, and lets the user
+scroll through it and search it.
+It shows each
+.IR file ,
+or standard input when there are no
+.I file
+operands.
+This
+.B less
+is an applet of
+.BR busybox ,
+with far fewer options and commands than GNU
+.BR less ;
+see
+.BR NOTES .
+.PP
+The keyboard is read from the console, not from standard input, so
+standard input may be a pipe or a file.
+A
+.I file
+is opened when it is first shown, so a bad name later in the list is
+found only when it is reached.
+.PP
+.B less
+pages only when standard output is a console and the console window is
+at least 20 columns wide and 3 rows high.
+Otherwise it acts as
+.BR cat :
+it copies each
+.IR file ,
+or standard input, to standard output unchanged, ignores all options,
+and treats a
+.I file
+named
+.B \-
+as standard input.
+A file that cannot be opened or copied is reported on standard error,
+and the remaining files are still copied.
+.PP
+When standard output is a console and there are no
+.I file
+operands, standard input must not be a console.
+Otherwise there is nothing to show, and
+.B less
+prints a usage message on standard error and exits with status 1.
+.SS Display
+The window is the console window when
+.B less
+starts; see
+.BR COLUMNS " and " LINES .
+The last row is the prompt, and the rows above it show text.
+A line wider than the window wraps onto further rows, unless
+.B \-S
+is given.
+Input that ends with a newline shows an empty row after its last line.
+Rows after the end of the input show a
+.BR ~ ,
+unless
+.B \-~
+is given.
+Scrolling forward stops once one such row shows.
+.PP
+The prompt is in reverse video, except for a lone colon.
+While the first line of the input is at the top, it is the name of the
+file, or
+.BR "standard input" .
+Otherwise it is a
+.B :
+while more text follows, and
+.B (END)
+once the end of the input is displayed.
+With several files, the name and
+.B (END)
+are followed by
+.BI "(file " i " of " n ) .
+The prompt also shows messages, such as
+.BR "No matches found" .
+.PP
+With
+.B \-M
+or
+.B \-m
+the prompt is longer, as in
+.BR "main.c lines 1-23/100 23%" .
+After the file name come
+.BI "(file " i " of " n )
+when there are several files, the numbers of the first and last lines
+shown, and a slash and the total number of lines when that is known.
+The total is known for a
+.I file
+operand that is a regular file, and for other input once all of it has
+been read.
+The prompt ends with
+.B (END)
+when the end of the input is displayed, followed by
+.B \- next:
+and the next file's name when another file follows.
+Otherwise it ends with the last line shown as a percentage of the total,
+when the total is known.
+.B =
+and
+.B :f
+show this prompt whatever the options.
+.PP
+The input is read as it is needed, enough to fill the window, and more
+as commands scroll or search further.
+Only the first 9999999 rows are kept, and input beyond them is ignored.
+Bytes are shown as follows:
+.IP \(bu 2
+A tab advances to the next multiple of 8 columns.
+.IP \(bu 2
+A CR is discarded, so CRLF line endings show as plain line ends, but it
+still takes a column when a line is wrapped.
+.IP \(bu 2
+A backspace removes the character before it, so text overstruck for
+bold or underline, as in some formatted pages, shows as its last
+character.
+After a tab, at the start of a row, or with
+.B \-R
+after an SGR sequence, it is shown like other control characters.
+.IP \(bu 2
+Any other control character is shown in reverse video as the character
+0x40 above it: NUL as
+.BR @ ,
+ESC as
+.BR [ ,
+and so on.
+DEL is shown as
+.B ?\&
+in the same way.
+.IP \(bu 2
+With
+.BR \-R ,
+an SGR sequence is passed to the console, and takes no columns.
+Any other escape sequence is cut down: its ESC is removed, and for a
+CSI sequence, so are the
+.B [
+and any digits and semicolons after it.
+What remains, such as the final letter, is shown as text.
+.IP \(bu 2
+All other bytes are shown as they are.
+Text is UTF-8, and each character takes one column, if the ANSI code
+page is UTF-8 and the first of
+.BR LC_ALL ,
+.BR LC_CTYPE ,
+and
+.B LANG
+that is set is not
+.BR C .
+Otherwise each byte takes one column.
+.SS Commands
+A command is one key, with no Enter.
+Besides the ASCII keys, only Up, Down, PgUp, PgDn, Home, and End have
+commands.
+Any other key does nothing.
+Control characters other than Enter and Backspace are skipped wherever
+a key is read.
+.PP
+A command that prompts for text shows the prompt on the last row.
+The text is edited only with Backspace, and cannot be longer than fits
+on the row.
+Enter ends it, and Enter on an empty line cancels the command.
+.TP
+.BR j ", " e ", " Enter ", " Down
+Scroll forward one line.
+.TP
+.BR k ", " y ", " Up
+Scroll back one line.
+.TP
+.BR f ", " z ", " Space ", " PgDn
+Scroll forward one window, which is all the rows above the prompt.
+.TP
+.BR b ", " w ", " PgUp
+Scroll back one window.
+.TP
+.B d
+Scroll forward half a window.
+.TP
+.B u
+Scroll back half a window.
+.TP
+.BR g ", " < ", " p ", " % ", " Home
+Go to the first line.
+.TP
+.BR G ", " > ", " End
+Go to the end of the input.
+This reads all the remaining input first.
+.TP
+.BI / regex
+Search forward for the first line after the first line shown that
+matches
+.IR regex ,
+and scroll to put it at the top, as far as the end of the input allows.
+If the input read so far has no such line, more is read until one is
+found or the input ends.
+If no line after it matches, go to the last line that does.
+The prompt gives
+.B No matches found
+when no line matches.
+An empty
+.I regex
+cancels the command and also clears the previous search.
+See
+.BR Searching .
+.TP
+.BI ? regex
+Like
+.BR / ,
+but find the last match at or before the first line shown.
+If there is none, go to the first match after it.
+.TP
+.B n
+Go to the match after the current one.
+.TP
+.B N
+Go to the match before the current one.
+.TP
+.BI m letter
+Mark the first line shown.
+.I letter
+is a letter, A to Z or a to z.
+Fourteen marks can be set.
+After that, new marks replace the oldest, and some older marks are lost.
+Marking a letter again, while its first mark is kept, has no effect.
+A mark is a position in the displayed rows, and is not tied to a file.
+.TP
+.BI \(aq letter
+Show the line marked with
+.I letter
+as the first line.
+An unset
+.I letter
+does nothing.
+.TP
+.BR { ", " ( ", " [
+The first line shown must contain the bracket.
+Scroll so that the nearest line at or after it that contains the
+matching close bracket is the last line shown.
+Only the input read so far is searched, and nesting is not tracked.
+.TP
+.BR } ", " ) ", " ]
+The last line shown must contain the bracket.
+Scroll so that the nearest line at or before it that contains the
+matching open bracket is the first line shown.
+Nesting is not tracked.
+.TP
+.B :n
+Show the next file.
+.TP
+.B :p
+Show the previous file.
+.TP
+.B :x
+Show the first file.
+.TP
+.B :d
+Show the previous file, or the next if the current file is the first,
+and remove a file from the list: the current file if it is the first
+or second, and otherwise the second file.
+It has no effect when there is only one file.
+.TP
+.BR E ", " :e
+Prompt for a file name, and show that file instead.
+The list of files from the command line is forgotten, so
+.B :n
+and
+.B :p
+find no other file.
+A file that cannot be read is refused with
+.BR "Cannot read this file" .
+.TP
+.BR = ", " :f
+Show the longer prompt of
+.BR \-m .
+.TP
+.B s
+Prompt for a file name, and write the input read so far to it,
+replacing the file if it exists.
+Each row is written as a line, so a wrapped line is broken where it
+wrapped.
+With
+.BR \-R ,
+SGR sequences are kept.
+.TP
+.BI \- flag
+Toggle an option.
+.I flag
+is one of
+.BR M ,
+.BR m ,
+.BR E ,
+.BR S ,
+.BR N ,
+and
+.BR ~ .
+Toggling
+.B \-N
+wraps the text again and clears the search.
+Toggling
+.B \-~
+changes nothing visible, as the rows past the end are chosen at startup.
+.TP
+.BR r ", " R
+Redraw the screen.
+.TP
+.BR q ", " Q ", " :q
+Quit.
+.PP
+Digits typed before a command form a count, which the prompt shows
+after a colon.
+A count is from 1 to 9999999, and is used by these commands only.
+With any other key, or a count out of range, both the count and the
+key are discarded.
+.IP \(bu 2
+.BR e ", " z ", " d ", " Space ", " Enter ", " Down :
+scroll forward that many lines.
+.IP \(bu 2
+.BR y ", " b ", " w ", " u ", " Up :
+scroll back that many lines.
+.IP \(bu 2
+.BR g ", " < ", " G ", " > :
+go to that line, counting lines of input, not wrapped rows.
+.IP \(bu 2
+.BR p ", " % :
+go to that percentage of the file.
+.IP \(bu 2
+.B n
+goes that many matches on from the current match.
+.IP \(bu 2
+.BR / " and " ?\&
+ignore the count.
+.SS Searching
+A search pattern is a POSIX basic regular expression, with the GNU
+operators
+.BR \e+ ,
+.BR \e? ,
+and
+.BR \e| .
+It is matched against each row of text on its own, so a match cannot
+span a wrapped line, and
+.B ^
+and
+.B $
+match at the ends of a row.
+Case matters unless
+.B \-I
+is given.
+With
+.BR \-R ,
+SGR sequences are not part of the text matched.
+An error in the pattern is shown in the prompt, and the previous search
+is already cleared.
+.PP
+The matches of a search are shown in reverse video until the next
+search, or until
+.B \-N
+is toggled.
+.B n
+and
+.B N
+move through the matches of the last search in file order, whatever
+the direction of that search.
+They move from the last match found, not from the screen, and stop at
+the first and last matches.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-EF ,
+and may follow the
+.I file
+operands unless
+.B POSIXLY_CORRECT
+is set.
+.B \-\-
+ends the options.
+An unknown option prints a usage message on standard error and exits
+with status 1.
+That includes
+.BR \-h ,
+which the usage message itself lists.
+As the first argument,
+.B \-\-help
+prints the usage message on standard output and exits with status 0;
+see
+.BR busybox (1).
+.TP
+.B \-E
+Quit when the end of the input is displayed.
+The whole of
+.B less
+quits, not only the current file.
+The flag can be toggled with the
+.B \-
+command.
+.TP
+.B \-F
+Quit if all of a file's input fits on one screen, when that file is
+shown.
+With
+.BR \-F ,
+.B \-E
+has no effect.
+.TP
+.B \-I
+Ignore case in all searches.
+.TP
+.BR \-M ", " \-m
+Show the longer prompt described under
+.BR Display .
+The two options are the same, and can be toggled separately.
+.TP
+.B \-N
+Put each line number before its line, in 7 columns followed by a space.
+A wrapped line repeats its number on each row, and rows past the end of
+the input get blank space.
+The text is wrapped 8 columns narrower.
+The flag can be toggled.
+.TP
+.B \-S
+Truncate long lines: show only the first window width of each line, and
+leave the rest out of reach, as there is no scrolling sideways.
+The flag can be toggled.
+.TP
+.B \-R
+Pass SGR sequences, which set colors and text styles, to the console.
+They are the sequences of the form ESC, then
+.BR [ ,
+then digits and semicolons, then
+.BR m .
+Each takes no columns.
+A wrapped line carries its style onto its further rows, and every row
+that used a style ends with a reset.
+Without
+.BR \-R ,
+ESC is shown as described under
+.BR Display ,
+so the sequences appear as text.
+By default,
+.BR man (1)
+runs
+.B less \-R
+to show its emphasis.
+.TP
+.B \-~
+Leave the rows after the end of the input blank, instead of showing
+a
+.BR ~ .
+.TP
+.BR \-s ", " \-X
+Accepted and ignored.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the operands are expanded, as needed when run from
+.BR cmd.exe .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+operands as the shell expanded them.
+.TP
+.B BB_SKIP_ANSI_EMULATION
+The older form of
+.BR BB_TERMINAL_MODE ;
+see
+.BR busybox (1).
+.TP
+.B BB_TERMINAL_MODE
+How the console handles escape sequences and keys; see
+.BR busybox (1).
+It decides whether
+.B less
+reads keys with virtual terminal input; see
+.BR NOTES .
+.TP
+.B COLUMNS
+The window width in columns, instead of the console's.
+A value from 2 to 29999 is used.
+Any other value means 80.
+.TP
+.B CONEMUPID
+When set, the default
+.B BB_TERMINAL_MODE
+is 0; see
+.BR busybox (1).
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+The first of these that is set decides whether text is UTF-8; see
+.BR Display .
+It also decides how the console is written; see
+.BR busybox (1).
+.TP
+.B LESS
+Options for every run, read after the command line and scanned one
+character at a time.
+.BR F ,
+.BR M ,
+.BR R ,
+and
+.B S
+turn on
+.BR \-F ,
+.BR \-M ,
+.BR \-R ,
+and
+.BR \-S .
+Every other character, including a dash, is ignored, so
+.B FRSXMK
+is the same as
+.BR \-FRSM .
+.IP
+.BR man (1)
+sets it to
+.B R
+for its pager when it is unset and the output of
+.B man
+is a console.
+.TP
+.B LINES
+The window height in rows, instead of the console's.
+A value from 2 to 29999 is used.
+Any other value means 24.
+.TP
+.B POSIXLY_CORRECT
+If set, options must come before operands.
+.SH EXIT STATUS
+.TP
+.B 0
+Success:
+.B less
+quit, the input was copied, or
+.B \-\-help
+printed the usage message.
+.TP
+.B 1
+An unknown option, no
+.I file
+and a console for standard input, a
+.I file
+that cannot be opened, or a console that cannot be opened.
+A file that cannot be opened ends
+.B less
+at once, even when it is reached late.
+When
+.B less
+acts as
+.BR cat ,
+a file that cannot be opened or copied also gives 1, after the others
+are copied.
+.SH EXAMPLES
+Number the lines of a file as it is shown:
+.PP
+.RS 4
+.EX
+$ less \-N main.c
+.EE
+.RE
+.PP
+Page compiler output, keeping its colors:
+.PP
+.RS 4
+.EX
+$ gcc \-fdiagnostics\-color=always \-c main.c 2>&1 | less \-R
+.EE
+.RE
+.PP
+View two files with the longer prompt, and type
+.B :n
+to move to the second:
+.PP
+.RS 4
+.EX
+$ less \-M one.txt two.txt
+.EE
+.RE
+.PP
+Make every
+.BR less ,
+including the one that
+.BR man (1)
+runs, show colors and truncate long lines:
+.PP
+.RS 4
+.EX
+$ export LESS=RS
+.EE
+.RE
+.SH NOTES
+.B less
+uses the console's alternate screen buffer.
+It switches to it when it starts paging, and back when it quits, so the
+screen then shows what it showed before
+.B less
+ran, and nothing that
+.B less
+displayed remains.
+That includes the text shown by
+.B \-E
+or
+.BR \-F ,
+which quit as soon as the end of the input is displayed.
+A
+.I file
+that cannot be opened after paging has begun ends
+.B less
+without switching back, so its error message, and whatever runs next,
+appear on the alternate screen.
+.PP
+The window size is read once, when
+.B less
+starts, and a resize is not noticed.
+.PP
+Keys are read through the console API, unless standard input is the
+console and it already has virtual terminal input enabled, or
+.B BB_TERMINAL_MODE
+forces virtual terminal input.
+While
+.B less
+waits for a key, Ctrl+C is read as a key and ignored.
+.PP
+Standard input is read with blocking reads.
+.B less
+shows nothing until it has a screenful of input, or the end of the
+input, and a command that needs more input waits for it.
+.PP
+.B less
+does not decompress files.
+A file named
+.B \-
+is an ordinary file name when paging.
+.PP
+Unlike GNU
+.BR less :
+.IP \(bu 2
+The options are those above, and
+.B LESS
+sets only four of them.
+.IP \(bu 2
+There is no help command, no
+.B +cmd
+option, and no command to run a shell command, edit the file, use tags,
+or scroll sideways.
+.IP \(bu 2
+Searches have no modifiers, the regular expressions are basic ones, and
+.B n
+and
+.B N
+ignore the direction of the search.
+.IP \(bu 2
+The
+.B \-
+command toggles only six options, and has no long names.
+.IP \(bu 2
+There is no
+.BR LESSOPEN ,
+no
+.BR LESSKEY ,
+and no way to change the prompt.
+.PP
+w64devkit patches
+.B less
+so that
+.B \-R
+passes SGR sequences through, where busybox removes them, and so that a
+UTF-8 character takes one column and byte 0x9B is not shown as a
+control character.
+.SH SEE ALSO
+.BR busybox (1),
+.BR cat (1),
+.BR grep (1),
+.BR man (1)

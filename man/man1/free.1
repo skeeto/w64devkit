@@ -1,0 +1,255 @@
+.TH FREE 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+free \- show the amount of free and used memory
+.SH SYNOPSIS
+.B free
+.RB [ \-b | \-k | \-m | \-g | \-h ]
+.SH DESCRIPTION
+.B free
+prints the amount of physical memory and paging file space in the system
+on standard output.
+It takes a single sample and exits.
+.PP
+The output is three lines: a header, a
+.B Mem:
+line for physical memory, and a
+.B Swap:
+line for the paging files.
+Each line starts with its label padded to 7 columns, which is blank in
+the header, and then has fields that are 12 characters wide and right
+aligned.
+A value too wide for its field is not truncated, and pushes the rest of
+the line to the right.
+The header names six columns:
+.BR total ,
+.BR used ,
+.BR free ,
+.BR shared ,
+.BR buff/cache ,
+and
+.BR available .
+The
+.B Mem:
+line has a value for each, and the
+.B Swap:
+line has only the first three.
+.PP
+The columns of the
+.B Mem:
+line are:
+.TP
+.B total
+The physical memory in the system.
+.TP
+.B used
+The total less
+.B free
+and
+.BR buff/cache .
+.TP
+.B free
+The physical memory that Windows reports as available, less
+.BR buff/cache .
+It is 0 when the system cache is at least as large as the available
+memory.
+Otherwise the sum of
+.B free
+and
+.B buff/cache
+is the memory that Windows reports as available.
+.TP
+.B shared
+Always 0.
+.TP
+.B buff/cache
+The size of the system cache.
+.TP
+.B available
+Always 0.
+This port has no value for it.
+.PP
+The columns of the
+.B Swap:
+line are:
+.TP
+.B total
+The sum of the sizes of the paging files.
+.TP
+.B used
+The sum of the space in use in the paging files.
+.TP
+.B free
+The total less the space in use.
+.PP
+All three are 0 when there is no paging file.
+.PP
+Sizes are in kibibytes (units of 1024 bytes), unless an option selects
+another unit.
+Each size is the number of bytes divided by the unit and rounded to the
+nearest integer, with halves rounded up.
+A size smaller than half a unit is shown as 0, and the rounded columns
+may not add up.
+.PP
+With
+.BR \-h ,
+each size is scaled by powers of 1024 to the largest unit that keeps it
+below 1024, and written with one decimal digit and a suffix:
+.BR K ,
+.BR M ,
+.BR G ,
+or
+.BR T .
+For example, 33271988 KiB is written
+.BR 31.7G .
+A size of 0 is written as a plain
+.BR 0 ,
+with no suffix.
+.SH OPTIONS
+Only the first argument is examined, and only if it begins with a dash.
+The character after the dash selects the option, and any further
+characters in the argument are ignored, so
+.B \-mk
+is the same as
+.BR \-m ,
+and
+.B \-bytes
+is the same as
+.BR \-b .
+Options cannot be grouped, a second option has no effect, and arguments
+that follow the first are ignored.
+A first argument that does not begin with a dash is ignored too.
+Any other first argument that begins with a dash, including a lone
+.B \-
+and
+.B \-\-
+but not
+.BR \-\-help ,
+prints a usage message on standard error and exits with status 1.
+.TP
+.B \-b
+Show sizes in bytes.
+.TP
+.B \-k
+Show sizes in kibibytes.
+This is the default.
+.TP
+.B \-m
+Show sizes in mebibytes (1048576 bytes).
+.TP
+.B \-g
+Show sizes in gibibytes (1073741824 bytes).
+.TP
+.B \-h
+Show sizes in a human-readable form, as described above.
+It does not print a usage message.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument, and any arguments that
+follow are ignored.
+.SH ENVIRONMENT
+.B free
+reads no environment variables.
+The variables that busybox reads for every applet, such as
+.BR BB_GLOBBING ,
+are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success, or
+.B \-\-help
+was given.
+.TP
+.B 1
+Invalid option.
+.PP
+Failure to read a statistic is not an error.
+A value that the system does not supply is shown as 0.
+.SH EXAMPLES
+Show sizes in a human-readable form:
+.PP
+.RS 4
+.EX
+$ free \-h
+.EE
+.RE
+.PP
+Print the percentage of physical memory in use:
+.PP
+.RS 4
+.EX
+$ free | awk \(aq/^Mem:/ { printf "%d%%\en", 100 * $3 / $2 }\(aq
+32%
+.EE
+.RE
+.PP
+Show the memory in mebibytes every two seconds:
+.PP
+.RS 4
+.EX
+$ watch \-n 2 free \-m
+.EE
+.RE
+.SH NOTES
+The figures are for the whole system.
+.B free
+gets physical memory and the system cache from
+.BR GetPerformanceInfo ,
+and the paging files from
+.BR EnumPageFilesA ,
+both in
+.IR psapi.dll ,
+which busybox loads when
+.B free
+runs.
+It does not read
+.IR /proc/meminfo .
+.PP
+Differences from
+.B free
+on Linux:
+.IP \(bu 2
+The only options are
+.BR \-b ,
+.BR \-k ,
+.BR \-m ,
+.BR \-g ,
+.BR \-h ,
+and
+.BR \-\-help .
+There is no
+.BR \-t ", " \-s ", " \-c ", " \-l ", " \-w ", or " \-\-si ,
+and no other long option.
+.IP \(bu 2
+The
+.B shared
+and
+.B available
+columns are always 0, so a script that reads
+.B available
+gets 0.
+.IP \(bu 2
+The extra
+.B \-/+ buffers/cache
+line, which busybox prints on Linux kernels that lack
+.B MemAvailable
+in
+.IR /proc/meminfo ,
+is never printed.
+.PP
+Output lines end in LF.
+The output has no escape sequences, on a console or not.
+.PP
+In the x86 kit,
+.B free
+multiplies page counts by the page size in 32 bits, so a quantity of
+4 GiB or more wraps around modulo 4 GiB.
+On a machine with 4 GiB or more of memory, or of paging file space, the
+figures are wrong.
+.SH SEE ALSO
+.BR busybox (1),
+.BR df (1),
+.BR ps (1),
+.BR uptime (1),
+.BR watch (1)

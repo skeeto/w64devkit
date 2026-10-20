@@ -1,0 +1,273 @@
+.TH UNCOMPRESS 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+uncompress \- decompress files made by compress
+.SH SYNOPSIS
+.B uncompress
+.RB [ \-cf ]
+.RI [ file ...]
+.SH DESCRIPTION
+.B uncompress
+decompresses files in the format of the Unix
+.B compress
+program, which are conventionally named with the suffix
+.BR .Z .
+Such a file begins with the octets
+.B 0x1F 0x9D
+and holds LZW-coded data with up to 16 bits per code, with or without
+block mode.
+There is no
+.B compress
+applet, so busybox only reads this format.
+.PP
+Each
+.I file
+is replaced by its decompressed form.
+The output is named after the input with the
+.B .Z
+suffix removed, and the input is deleted once the output is complete.
+A name that does not end in
+.B .Z
+is an error and is skipped, with the message
+.BR "unknown suffix \- ignored" .
+The comparison is case-sensitive, and the suffix is never added to a name.
+An existing output file is an error unless
+.B \-f
+is given.
+.PP
+With no
+.I file
+operands, or for a
+.I file
+named
+.BR \- ,
+the command reads standard input and writes standard output.
+Each named file replaces standard input in turn, so a
+.B \-
+after a named file fails with
+.BR "invalid magic" .
+With
+.BR \-c ,
+all output goes to standard output, the input files are kept, and
+compressed file names need not end in
+.BR .Z .
+.PP
+When a file fails, the error is reported on standard error, the input
+file is kept, the partial output file is removed, and the remaining
+files are still processed.
+Output is written in blocks of 2048 octets, and the block in progress
+at the error is lost, so
+.B \-c
+writes only the complete blocks decoded before it.
+.PP
+Some failures end the command at once instead, and leave any partial
+output file in place.
+They are reading standard input from a console without
+.BR \-f ,
+a read or write error, failing to delete a file, and some kinds of
+damaged data, such as a first code that is not a literal octet.
+.SS Diagnostics
+Messages on standard error begin with the command name and a colon.
+.TP
+.B invalid magic
+The input does not begin with the octets
+.BR "0x1F 0x9D" ,
+or is shorter than that.
+.TP
+.B short read
+The input ends after those two octets, before the octet that gives the
+maximum code size.
+.TP
+.BI "compressed with " n " bits, can only handle 16 bits"
+The file uses codes wider than 16 bits.
+.TP
+.B corrupted data
+A code is not valid at its place in the stream.
+.TP
+.IB name ": unknown suffix \- ignored"
+The name does not end in
+.BR .Z .
+.TP
+.B compressed data not read from terminal, use \-f to force it
+Standard input is a console and
+.B \-f
+was not given.
+.PP
+A file that cannot be read, created, or deleted is reported with the
+system's reason, as in
+.PP
+.RS 4
+.EX
+uncompress: can\(aqt open \(aqnotes.txt\(aq: File exists
+.EE
+.RE
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-cf ,
+and may follow file operands unless
+.B POSIXLY_CORRECT
+is set.
+.B \-\-
+ends the options.
+There are no long options other than
+.BR \-\-help .
+.TP
+.B \-c
+Write the decompressed data of every file to standard output, in order,
+and keep the input files.
+No output file is created, so the names need not end in
+.BR .Z .
+.TP
+.B \-f
+Delete an existing output file, even a read-only one, before
+decompression starts, instead of failing because it exists.
+The old file is lost even if the input then proves to be invalid.
+Also read standard input even when it is a console.
+.TP
+.B \-\-help
+As the first argument, print a usage message on standard output and
+exit with status 0.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the command line are expanded at startup, for callers such
+as
+.B cmd.exe
+that do not expand them.
+The C runtime does the expansion, on quoted arguments too, and a pattern
+that matches nothing stays as it is.
+A busybox program started without this variable sets it to
+.BR 0 ,
+so the commands it runs do not expand their arguments again.
+.TP
+.B BB_UMASK
+An octal file mode creation mask applied at startup.
+If it includes the owner write bit,
+.BR 0200 ,
+output files are created read-only.
+.TP
+.B POSIXLY_CORRECT
+If set, options must precede the file operands.
+.PP
+The other
+.B BB_
+variables described in
+.BR busybox (1)
+apply to this command as to every applet.
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+Invalid option, or an error with any file.
+.SH EXAMPLES
+Decompress a file, replacing it with
+.IR notes.txt :
+.PP
+.RS 4
+.EX
+$ uncompress notes.txt.Z
+.EE
+.RE
+.PP
+Decompress a file, keeping the original:
+.PP
+.RS 4
+.EX
+$ uncompress \-c notes.txt.Z >notes.txt
+.EE
+.RE
+.PP
+Decompress a file, replacing an existing
+.IR notes.txt :
+.PP
+.RS 4
+.EX
+$ uncompress \-f notes.txt.Z
+.EE
+.RE
+.PP
+Decompress a stream:
+.PP
+.RS 4
+.EX
+$ uncompress <notes.txt.Z >notes.txt
+.EE
+.RE
+.PP
+List a compressed tar archive, with
+.B uncompress
+or with
+.B tar
+alone:
+.PP
+.RS 4
+.EX
+$ uncompress \-c src.tar.Z | tar \-tf \-
+$ tar \-tf src.tar.Z
+.EE
+.RE
+.PP
+Skip a file that lacks the suffix:
+.PP
+.RS 4
+.EX
+$ uncompress README
+uncompress: README: unknown suffix \- ignored
+.EE
+.RE
+.SH NOTES
+Differences from the Unix
+.BR uncompress :
+.IP \(bu 2
+Only
+.B \-c
+and
+.B \-f
+are accepted.
+Other options, such as
+.BR \-k ,
+.BR \-t ,
+.BR \-v ,
+and
+.BR \-q ,
+are errors that print the usage message on standard error.
+.IP \(bu 2
+A name must be given with its
+.B .Z
+suffix.
+.B uncompress
+does not try the name with the suffix added.
+.IP \(bu 2
+The output file gets the current time, not the input's modification
+time.
+.IP \(bu 2
+The format has no checksum, so truncated input is not detected.
+The part that decoded is written, the exit status is 0, and the input
+file is deleted.
+.PP
+.B tar
+reads
+.B .Z
+archives when given
+.BR \-Z ,
+or when it recognizes one by its contents, which works for a file but
+not a pipe.
+It decompresses them by running
+.B uncompress \-cf \-
+as a child process.
+.PP
+Standard input and output are in binary mode.
+Output names are formed from the input path as written, so drive
+letters and backslashes work, and the suffix test looks only at the text
+after the last period.
+A read-only input file is still deleted, and its output is also
+read-only.
+Paths may contain any Unicode characters on Windows 10 version 1903 and
+later, and are limited to the system code page on earlier versions.
+.SH SEE ALSO
+.BR busybox (1),
+.BR gzip (1),
+.BR tar (1)

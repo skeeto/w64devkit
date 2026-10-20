@@ -1,0 +1,322 @@
+.TH LZMA 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+lzma, unlzma, lzcat \- decompress .lzma files
+.SH SYNOPSIS
+.B unlzma
+.RB [ \-cdfkqtv ]
+.RI [ file ...]
+.br
+.B lzma
+.RB { \-d | \-t }
+.RB [ \-cfkqv ]
+.RI [ file ...]
+.br
+.B lzcat
+.RB [ \-cdfkqtv ]
+.RI [ file ...]
+.SH DESCRIPTION
+.B unlzma
+decompresses each
+.I file
+in the legacy
+.B .lzma
+format of LZMA Utils and the LZMA SDK, and replaces it with a file of the
+same name without the
+.B .lzma
+suffix.
+.B lzma
+is the same, but requires
+.B \-d
+or
+.BR \-t :
+it cannot compress, and without either option it prints a usage message
+and fails.
+.B lzcat
+is
+.BR "unlzma \-c" :
+it writes the decompressed data of each
+.IR file ,
+in order, to standard output.
+.PP
+With no
+.I file
+operands, or for a
+.I file
+named
+.BR \- ,
+the program reads standard input and writes standard output.
+When standard input is a console, it exits with an error unless
+.B \-f
+is given.
+.PP
+When decompressing to files, a
+.I file
+whose name does not end in
+.B .lzma
+is reported and skipped.
+With
+.B \-c
+or
+.BR \-t ,
+any name is accepted.
+The output file is created next to
+.IR file ,
+read-only if
+.I file
+is, and must not already exist unless
+.B \-f
+is given.
+Its modification time is the current time.
+Once the output is complete,
+.I file
+is deleted, unless
+.BR \-c ,
+.BR \-k ,
+or
+.B \-t
+is given.
+If the data is invalid or the output cannot be written, the partial
+output file is deleted,
+.I file
+is kept, and the next
+.I file
+is processed.
+With
+.BR \-c ,
+data decoded before the failure may already have been written.
+A
+.I file
+that ends early after its header, or whose dictionary does not fit in
+memory, instead ends the program at once, leaving its partial output
+file in place.
+.PP
+A
+.B .lzma
+file is a 13-byte header, holding the coding properties, the dictionary
+size, and the decompressed size, followed by one LZMA stream.
+When the header gives no size, the stream ends with an end marker.
+Decoding stops at the size or the marker, and any data after it is
+ignored, so only the first of several concatenated files is
+decompressed.
+The format has no checksum, so damage is detected only where it makes
+the stream invalid.
+An
+.B .xz
+file is rejected; decompress it with
+.BR xz (1).
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-dk ,
+and may follow
+.I file
+operands unless
+.B POSIXLY_CORRECT
+is set.
+.B \-\-
+ends the options.
+All three names accept every option.
+.TP
+.B \-c
+Write the decompressed data to standard output instead of to files, and
+keep the input files.
+Implied by
+.BR lzcat .
+.TP
+.B \-d
+Decompress.
+Required by
+.B lzma
+unless
+.B \-t
+is given, and otherwise ignored.
+.TP
+.B \-f
+Force: delete an existing output file, even a read-only one, before
+writing it, and allow reading compressed data from a console.
+.TP
+.B \-k
+Keep the input files.
+.TP
+.B \-q
+Accepted and ignored.
+Errors are still reported.
+.TP
+.B \-t
+Test: decompress each
+.I file
+and discard the output, keeping the input files.
+Overrides
+.BR \-c .
+.TP
+.B \-v
+For each
+.I file
+decompressed to an output file, report on standard error the space
+saved, as a percentage of the decompressed size rounded up:
+.RS
+.PP
+.EX
+notes.txt.lzma: 53% \- replaced with notes.txt
+.EE
+.RE
+.IP
+The line is the same with
+.BR \-k ,
+although nothing is replaced.
+When the compressed file is the larger, the percentage is a meaningless
+large number.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument.
+.SH ENVIRONMENT
+The other
+.B BB_
+variables described in
+.BR busybox (1)
+apply to this command as to every applet.
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the command line are expanded at startup, for callers such
+as
+.B cmd.exe
+that do not expand them.
+A busybox program started without this variable, such as the kit's
+shell, sets it to
+.BR 0 ,
+so the commands it runs do not expand their arguments again.
+.TP
+.B BB_UMASK
+An octal file mode creation mask applied at startup.
+Only the owner write bit,
+.BR 200 ,
+has an effect here: a mask with it, such as
+.BR 222 ,
+creates output files read-only.
+.TP
+.B POSIXLY_CORRECT
+When set, the first
+.I file
+operand ends the options, and later arguments that begin with
+.B \-
+are file names.
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+An invalid option,
+.B lzma
+without
+.B \-d
+or
+.BR \-t ,
+or a failure with any input: it could not be read or is a console, its
+name lacks the
+.B .lzma
+suffix, its output file exists, its data is invalid or truncated, memory
+ran out, or its output could not be written.
+.SH EXAMPLES
+Decompress a file, replacing it with
+.IR notes.txt :
+.PP
+.RS 4
+.EX
+$ unlzma notes.txt.lzma
+.EE
+.RE
+.PP
+Decompress a file and keep the original:
+.PP
+.RS 4
+.EX
+$ unlzma \-k notes.txt.lzma
+.EE
+.RE
+.PP
+Read a compressed file without decompressing it to disk:
+.PP
+.RS 4
+.EX
+$ lzcat notes.txt.lzma | less
+.EE
+.RE
+.PP
+Check every
+.B .lzma
+file in the current directory:
+.PP
+.RS 4
+.EX
+$ lzma \-t *.lzma
+.EE
+.RE
+.PP
+Extract a compressed tar archive, which
+.BR tar (1)
+recognizes by its suffix:
+.PP
+.RS 4
+.EX
+$ tar \-xf src.tar.lzma
+.EE
+.RE
+.SH NOTES
+Differences from the
+.BR lzma ,
+.BR unlzma ,
+and
+.B lzcat
+of XZ Utils:
+.IP \(bu 2
+There is no compression, so
+.B lzma
+requires
+.B \-d
+or
+.BR \-t .
+.IP \(bu 2
+The only recognized suffix is
+.BR .lzma ;
+.B .tlz
+is not.
+.IP \(bu 2
+The output file gets the current time, not the input's modification
+time.
+.IP \(bu 2
+There are no long options except
+.BR \-\-help ,
+and
+.B \-q
+has no effect.
+.PP
+The suffix is matched case-sensitively, so
+.I NOTES.LZMA
+is rejected although Windows file names ignore case.
+A read-only input file is deleted after decompression like any other,
+and
+.B \-f
+replaces a read-only output file.
+.PP
+A
+.B \-
+operand after a
+.I file
+operand does not read standard input, and fails.
+.PP
+Decompression holds the dictionary in memory, up to the decompressed
+size, and a dictionary may be as large as 4 GiB.
+A file with a huge dictionary can fail with
+.BR "out of memory" ,
+particularly in the 32-bit kit, where busybox has 2 GiB of address
+space.
+.SH SEE ALSO
+.BR busybox (1),
+.BR bzip2 (1),
+.BR gzip (1),
+.BR tar (1),
+.BR xz (1),
+.BR zstd (1)

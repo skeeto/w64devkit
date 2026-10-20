@@ -1,0 +1,328 @@
+.TH WC 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.SH NAME
+wc \- count lines, words, characters, and bytes
+.SH SYNOPSIS
+.B wc
+.RB [ \-cmlwL ]
+.RI [ file ...]
+.SH DESCRIPTION
+.B wc
+counts the lines, words, characters, bytes, and longest line of each
+.IR file ,
+and prints the counts that the options select, on one output line per
+.IR file .
+With no
+.I file
+operands, or for a
+.I file
+named
+.BR \- ,
+it reads standard input.
+A
+.I file
+that cannot be opened is reported on standard error and skipped, and the
+remaining files are still read.
+.PP
+The input is read as bytes in a single pass.
+It is interpreted as text only as described under
+.BR Counts .
+.SS Counts
+.TP
+.RB "Lines (" \-l )
+The number of LF bytes.
+A last line with no LF is not counted.
+.TP
+.RB "Words (" \-w )
+A word is a run of bytes from 0x21 to 0x7E, the printable ASCII
+characters other than space.
+A space, tab, LF, VT, FF, or CR, or the end of the input, ends a word.
+Any other byte, including NUL, the other control characters, and every
+byte from 0x80 up, is ignored: it neither ends a word nor makes one.
+A NUL inside a word does not split it, and a run of only non-ASCII
+letters is not a word.
+.TP
+.RB "Characters (" \-m )
+In UTF-8 mode, described under
+.BR ENVIRONMENT ,
+the number of bytes outside the range 0x80 to 0xBF, which can only
+continue a UTF-8 character.
+The input is not checked for being valid UTF-8, so a stray byte in that
+range counts for nothing.
+Otherwise every byte is a character, and the count is the byte count.
+.TP
+.RB "Bytes (" \-c )
+The number of bytes read, including CR and every other byte.
+.TP
+.RB "Longest line (" \-L )
+The width in columns of the widest line.
+A printable ASCII character, 0x20 to 0x7E, moves the column forward by 1.
+A tab moves it to the next multiple of 8.
+LF, CR, and FF end the line: its width is compared with the greatest so
+far, and the column returns to 0.
+VT compares in the same way, but the column stays where it is, so the
+text after it continues the line.
+Any other byte, including backspace, the other control characters, and
+every non-ASCII byte, does not move the column, so accented, wide, and
+combining characters are not measured.
+A last line with no LF is included.
+The CR of a CRLF line ending adds nothing to the width.
+.SS Output
+Each output line has the selected counts in a fixed order, whatever the
+order of the options: lines, words, characters, bytes, and longest line.
+With none of
+.BR \-cmlwL ,
+the counts are lines, words, and bytes.
+.PP
+Each count is right-aligned in a field of 9 columns, or more for a larger
+number, and a space separates the fields.
+The counts are followed by a space and the file name exactly as given on
+the command line.
+With no
+.I file
+operands the name is left out, and so is the space before it.
+For an operand of
+.BR \- ,
+the name is
+.BR \- .
+.PP
+When exactly one count is selected and there is at most one operand, the
+count is printed alone, without padding, so
+.B "wc \-l"
+on one file prints a number, a space, and the name.
+.PP
+With more than one operand, a last line gives the totals, with the name
+.BR total .
+An operand that could not be opened still counts as an operand, so
+.B total
+is printed even when only one of two files could be opened.
+The total for the longest line is the greatest of those of the files, not
+their sum.
+.PP
+Counts are unsigned 64-bit numbers.
+An error opening or reading a file is reported on standard error as
+.PP
+.RS 4
+.EX
+wc: \fIname\fR: \fIreason\fR
+.EE
+.RE
+.PP
+where
+.I name
+is the operand as given, or
+.B standard input
+when there are no operands.
+After a read error the counts up to the error are still printed.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-lw ,
+and may follow the
+.I file
+operands, unless
+.B POSIXLY_CORRECT
+is set.
+Giving an option more than once is the same as giving it once.
+The options only select counts, and their order does not matter.
+.B \-\-
+ends the options, and a lone
+.B \-
+is an operand.
+Apart from
+.BR \-\-help ,
+there are no long options.
+An unknown option prints the usage message on standard error and exits
+with status 1.
+.TP
+.B \-c
+Print the number of bytes.
+.TP
+.B \-m
+Print the number of characters.
+In UTF-8 mode this differs from
+.BR \-c ;
+otherwise it is the same.
+.TP
+.B \-l
+Print the number of lines, which is the number of LF bytes.
+.TP
+.B \-w
+Print the number of words.
+.TP
+.B \-L
+Print the length of the longest line.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the operands are expanded when
+.B wc
+starts, as needed when it is run from
+.BR cmd.exe .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+operands as the shell expanded them.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+The first of these that is set decides whether UTF-8 mode is on, which
+affects only
+.BR \-m .
+When its value is exactly
+.BR C ,
+UTF-8 mode is off.
+Otherwise it is on when the ANSI code page is UTF-8, which it is on
+Windows 10 version 1903 and later, and off when it is not.
+Other values, such as
+.BR POSIX ,
+do not turn it off.
+.TP
+.B POSIXLY_CORRECT
+When set, the first
+.I file
+operand ends the options, so that later arguments such as
+.B \-l
+are file names.
+.PP
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+An invalid option, a
+.I file
+could not be opened or read, or standard output could not be written.
+.TP
+.B 141
+Standard output is a pipe whose reader has exited, found before the
+last write; see
+.BR NOTES .
+.SH EXAMPLES
+Count the lines, words, and bytes of a stream:
+.PP
+.RS 4
+.EX
+$ printf \(aqhello world\en\(aq | wc
+        1         2        12
+.EE
+.RE
+.PP
+Count the lines of several files, with a total:
+.PP
+.RS 4
+.EX
+$ wc \-l a.txt b.txt
+        2 a.txt
+        1 b.txt
+        3 total
+.EE
+.RE
+.PP
+Capture a bare count in a shell variable:
+.PP
+.RS 4
+.EX
+$ n=$(ls *.c | wc \-l)
+.EE
+.RE
+.PP
+Find the width of the widest line of a source file, with tabs counted
+as in a terminal:
+.PP
+.RS 4
+.EX
+$ wc \-L main.c
+.EE
+.RE
+.PP
+Count the characters and the bytes of UTF-8 text:
+.PP
+.RS 4
+.EX
+$ printf \(aqh\e303\e251llo\en\(aq | wc \-mc
+        6         7
+.EE
+.RE
+.SH NOTES
+Differences from GNU coreutils:
+.IP \(bu 2
+There are no long options such as
+.BR \-\-bytes ,
+.BR \-\-total ,
+and
+.BR \-\-files0\-from ,
+and no
+.BR \-\-version .
+.IP \(bu 2
+Words and the longest line are counted by ASCII character, whatever the
+locale, so a no-break space does not end a word, and a wide character
+has no width.
+.IP \(bu 2
+Counts are padded to a fixed width of 9, not to fit the largest count.
+.IP \(bu 2
+Every file is read through, even for
+.BR \-c ;
+its size is not taken from the file system.
+.PP
+Files and standard input are read as binary, with no CRLF translation,
+and output lines end with LF.
+A CRLF text file therefore has the right number of lines, but its byte
+count includes the CRs.
+A CR ends a word, and a Ctrl-Z (0x1A) in a file or pipe is an ordinary
+byte, not the end of the file.
+When standard input is the console, each line typed ends in CR and LF,
+and a Ctrl-Z at the start of a line, then Enter, ends the input.
+In UTF-8 mode, non-ASCII text typed at the console is not converted to
+UTF-8: it arrives in the console's input code page, such as 437, and
+.B \-m
+counts it wrongly unless that code page is UTF-8.
+.PP
+Standard input is not closed after it is read, so a second
+.B \-
+operand continues where the first stopped.
+At the end of a file or pipe it counts nothing, and at the console it
+reads until the next Ctrl-Z.
+.PP
+When standard output is a pipe whose reader has exited, such as
+.B head
+after the lines it wanted, a write that fails before the end gives
+status 141 and no message.
+Output still buffered when
+.B wc
+finishes, which is usually all of it, fails instead with
+.B "wc: standard output: Invalid argument"
+and status 1.
+.PP
+A
+.I file
+may be a Windows path, with a drive letter and either kind of slash, or a
+busybox-w32 device name such as
+.IR /dev/null ;
+see
+.BR busybox (1).
+It is printed exactly as given.
+A directory fails with
+.BR "Is a directory" .
+On Windows 10 version 1903 or later, file names may contain any Unicode
+characters, and on older systems only those of the system code page.
+.PP
+A pattern containing
+.B *
+or
+.B ?\&
+that matches nothing is passed on as written, and fails with
+.B Invalid argument
+since Windows file names cannot contain those characters.
+.SH SEE ALSO
+.BR busybox (1),
+.BR dos2unix (1),
+.BR grep (1)

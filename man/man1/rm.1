@@ -1,0 +1,394 @@
+.TH RM 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.SH NAME
+rm \- remove files and directories
+.SH SYNOPSIS
+.B rm
+.RB [ \-fiRrv ]
+.IR file ...\&
+.SH DESCRIPTION
+.B rm
+removes each
+.IR file ,
+and with
+.B \-r
+each directory and everything in it.
+It is the
+.BR busybox (1)
+applet, which has fewer options than GNU
+.BR rm ;
+see
+.BR NOTES .
+.PP
+Removal is permanent.
+Nothing goes to the Recycle Bin; for that, use
+.BR recycle (1).
+.SS Operands
+Without
+.BR \-r ,
+a directory operand is an error.
+With
+.BR \-r ,
+a directory is emptied recursively and then removed.
+A symbolic link, junction, or app execution alias is removed itself,
+with or without
+.BR \-r ,
+and never followed, even with a trailing slash.
+Such a link found inside a directory is removed the same way.
+.PP
+Trailing slashes and backslashes are removed from each operand first,
+down to a root such as
+.BR c:/ .
+An operand whose last component is
+.B .\&
+or
+.BR .. ,
+or that is only a drive, such as
+.BR c: ,
+is refused, even with
+.BR \-f ,
+and the other operands are still processed; see
+.BR NOTES .
+No other operand is protected:
+.B rm \-r c:/
+removes everything it can from the root of the drive.
+.PP
+With no operand,
+.B rm
+writes a usage message on standard error and exits with status 1.
+With no operand and
+.BR \-f ,
+it does nothing and exits with status 0.
+.SS Order and failures
+.B rm
+handles the operands in order.
+It reports a failure, goes on with the remaining operands, and exits
+with status 1 at the end.
+The entries of a directory are removed in the order Windows lists them,
+each before the directory itself.
+If any entry could not be removed, the directory is left alone with no
+further message, though
+.B \-i
+still asks about it and
+.B \-v
+still reports it removed.
+A directory that cannot be opened for reading is left alone with status
+1 and no message.
+.SS Prompting
+With
+.BR \-i ,
+.B rm
+asks before removing each file, and for each directory it asks before
+entering it and again before removing it.
+Without
+.BR \-f ,
+it also asks before removing a read-only file, but only when standard
+input is a console.
+It does not ask about a link this way.
+Windows reports every directory as writable, even one with the read-only
+attribute, so a directory is asked about only with
+.BR \-i .
+.PP
+The questions are written on standard error, with no newline after the
+question mark:
+.PP
+.RS 4
+.EX
+rm: remove \(aqfile\(aq?
+rm: descend into directory \(aqdir\(aq?
+rm: remove directory \(aqdir\(aq?
+.EE
+.RE
+.PP
+.B rm
+then reads a line from standard input.
+The answer is yes if the first character of the line that is not a
+space or tab is
+.B y
+or
+.BR Y .
+Anything else, including the end of input, is no, which skips the item
+and is not an error.
+A no to the question about descending leaves the directory and its
+contents alone.
+A no for a file in a directory followed by a yes for the directory
+leaves the directory not empty, so its removal fails with
+.BR "Directory not empty" ,
+and the exit status is 1.
+.SS Output
+.B rm
+writes each error on standard error, preceded by its name and a colon.
+The messages are:
+.TP
+.BI "can\(aqt remove \(aq" path "\(aq: " reason
+The path does not exist and
+.B \-f
+was not given, or Windows would not remove it.
+.TP
+.BI "can\(aqt stat \(aq" path "\(aq: " reason
+The path could not be examined, for a reason other than that it does not
+exist.
+.TP
+.BI \(aq dir "\(aq is a directory"
+A directory operand without
+.BR \-r .
+.TP
+.B "can\(aqt remove \(aq.\(aq or \(aq..\(aq"
+An operand was refused.
+.PP
+Only
+.B \-v
+and
+.B \-\-help
+write to standard output.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-rf ,
+and may follow operands, unless
+.B POSIXLY_CORRECT
+is set.
+.B \-\-
+ends the options.
+Apart from
+.BR \-\-help ,
+there are no long options.
+.TP
+.B \-i
+Ask before every removal; see
+.BR Prompting .
+Of
+.B \-f
+and
+.BR \-i ,
+only the last given takes effect.
+.TP
+.B \-f
+Never ask.
+Ignore an operand that does not exist, with no message and no error.
+Every other error is still reported, with status 1, such as a directory
+without
+.BR \-r ,
+an operand of
+.BR .\& ,
+.BR .. ,
+or only a drive, and a failed removal.
+Of
+.B \-f
+and
+.BR \-i ,
+only the last given takes effect.
+.TP
+.BR \-R ", " \-r
+Remove directories and their contents recursively.
+.TP
+.B \-v
+Write
+.BI removed\ \(aq file \(aq
+on standard output after each file or link is removed, and
+.BI removed\ directory:\ \(aq dir \(aq
+after each directory, which comes after its contents.
+Nothing is written for an item that is skipped or fails, but a
+directory left in place because an entry in it could not be removed is
+still reported as removed.
+The usage message omits this option.
+.TP
+.B \-\-help
+As the first argument only, write a usage message on standard output
+and exit with status 0.
+The message omits
+.BR \-v .
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the arguments are expanded when busybox starts, for a caller
+such as
+.B cmd.exe
+that does not expand them.
+When it is unset, busybox sets it to
+.B 0
+for the programs it starts, so commands run from the kit's shell get the
+shell's expansion only.
+.TP
+.B POSIXLY_CORRECT
+If set, the first operand ends the options.
+.PP
+Startup and messages written to a console also depend on
+.BR BB_CRITICAL_ERROR_DIALOGS ,
+.BR BB_SKIP_ANSI_EMULATION ,
+.BR BB_TERMINAL_MODE ,
+.BR LANG ,
+.BR LC_ALL ,
+and
+.BR LC_CTYPE ,
+as for every busybox applet; see
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success, including
+.B \-\-help
+as the first argument, operands skipped by an answer to a question,
+operands that do not exist with
+.BR \-f ,
+and no operands with
+.BR \-f .
+.TP
+.B 1
+An invalid command line, with a usage message on standard error, or any
+operand or directory entry that could not be removed.
+.SH EXAMPLES
+Remove the object files:
+.PP
+.RS 4
+.EX
+$ rm *.o
+.EE
+.RE
+.PP
+Remove a build directory and everything in it, without asking:
+.PP
+.RS 4
+.EX
+$ rm \-rf build
+.EE
+.RE
+.PP
+Ask before removing each backup file:
+.PP
+.RS 4
+.EX
+$ rm \-i *.bak
+.EE
+.RE
+.PP
+Remove a tree that holds a/b/f and g, and list each removal:
+.PP
+.RS 4
+.EX
+$ rm \-rv v
+removed \(aqv/a/b/f\(aq
+removed directory: \(aqv/a/b\(aq
+removed directory: \(aqv/a\(aq
+removed \(aqv/g\(aq
+removed directory: \(aqv\(aq
+.EE
+.RE
+.PP
+Remove a file whose name begins with a dash:
+.PP
+.RS 4
+.EX
+$ rm \-\- \-x
+.EE
+.RE
+.PP
+Remove a junction or symbolic link to a directory, which needs no
+.BR \-r ,
+leaving the directory it points to alone:
+.PP
+.RS 4
+.EX
+$ rm link
+.EE
+.RE
+.SH NOTES
+Differences from GNU
+.BR rm :
+.IP \(bu 2
+Only
+.BR \-f ,
+.BR \-i ,
+.BR \-R ,
+.BR \-r ,
+and
+.B \-v
+exist.
+Every other option is invalid, including
+.BR \-d ,
+.BR \-I ,
+and every long option but
+.BR \-\-help .
+.IP \(bu 2
+There is no
+.BR \-\-preserve\-root .
+Only an operand ending in
+.B .\&
+or
+.BR .. ,
+or one that is only a drive, is refused.
+.PP
+.B rm
+clears the read-only attribute of a file before it removes it, and of a
+directory once the directory is empty, so read-only items are removed.
+If the removal then fails, the attribute stays cleared.
+Hidden and system files are removed like any other.
+.PP
+Windows does not remove a file that another program has open without
+allowing deletion, or a directory that is the current directory of a
+running program, such as a shell.
+The removal fails with
+.BR "Permission denied" .
+With
+.BR \-r ,
+the rest of the tree is still removed, apart from the directories that
+hold the item.
+.PP
+A full path of 260 or more characters, counting the current directory
+for a relative path, cannot be reached.
+Without
+.BR \-f ,
+.B rm
+reports
+.B "No such file or directory"
+for it.
+With
+.BR \-f ,
+it skips it silently, and the directory that holds it then fails with
+.BR "Directory not empty" .
+A directory whose full path has 258 or more characters cannot be listed,
+and is left alone with status 1 and no message.
+Either way the directories above it are left too, and
+.B rm
+goes on.
+.PP
+An operand may have a drive letter and backslashes.
+The names found in a directory are joined to the operand with
+.BR / ,
+so
+.B rm \-rv \(aqc:\etmp\ex\(aq
+writes names such as
+.IR c:\etmp\ex/y .
+Names may contain any Unicode character on Windows 10 version 1903 and
+later; see
+.BR busybox (1).
+.PP
+An operand that is only a drive, such as
+.BR c: ,
+names the current directory of that drive, as
+.B c:.\&
+does, and is refused in the same way.
+.PP
+From
+.BR cmd.exe ,
+or any caller that leaves
+.B BB_GLOBBING
+unset,
+.B rm
+expands wildcards in its operands itself, even quoted ones.
+A pattern that matches nothing is left as it is, so
+.B rm
+reports
+.B "No such file or directory"
+for it, or with
+.B \-f
+quietly succeeds.
+To delete the files that a search selects, see
+.B find \-delete
+in
+.BR find (1).
+.SH SEE ALSO
+.BR busybox (1),
+.BR find (1),
+.BR recycle (1),
+.BR rmdir (1)

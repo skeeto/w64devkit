@@ -1,0 +1,251 @@
+.TH CHATTR 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.SH NAME
+chattr \- change Windows file attributes
+.SH SYNOPSIS
+.B chattr
+.RB [ \-R ]
+.IR mode ...
+.IR file ...
+.SH DESCRIPTION
+.B chattr
+changes the Windows file attributes of each
+.IR file .
+Each
+.I mode
+is a
+.B +
+to add attributes, or a
+.B \-
+to remove them, followed by attribute letters:
+.TP
+.B r
+Read-only.
+.TP
+.B h
+Hidden.
+.TP
+.B s
+System.
+.TP
+.B a
+Archive.
+.TP
+.B t
+Temporary.
+.TP
+.B n
+Not content indexed.
+.PP
+Letters are case-sensitive.
+Several modes may be given, as in
+.BR "+hs \-r" ,
+and together they make one change applied to every
+.IR file .
+Of these six attributes, those that no mode names are left unchanged.
+For other attributes, see
+.BR NOTES .
+Adding and removing the same attribute is an error, reported as
+.BR "can\(aqt set and unset a flag" ,
+and then no file is changed.
+.BR lsattr (1)
+lists the attributes.
+.PP
+Arguments are read as modes up to the first that begins with neither
+.B +
+nor
+.BR \- .
+That argument and every later one is a
+.IR file ,
+even one that begins with
+.B +
+or
+.BR \- .
+.PP
+Files are changed in order.
+A
+.I file
+that cannot be found, or whose attributes cannot be set, is reported on
+standard error as
+.PP
+.RS 4
+.EX
+chattr: can\(aqt stat \(aq\fIfile\fR\(aq: \fIreason\fR
+chattr: setting flags on \fIfile\fR: \fIreason\fR
+.EE
+.RE
+.PP
+and the remaining files are still processed.
+.SH OPTIONS
+.B R
+is recognized in any
+.I mode
+that begins with
+.BR \- ,
+so
+.B \-Rh
+recurses and removes the hidden attribute, and
+.B \-R
+may follow other modes, as in
+.BR "+h \-R" .
+.B +R
+is an error.
+Unless some mode begins with
+.B +
+or removes an attribute,
+.B chattr
+fails with
+.BR "must use \- or +" ,
+so
+.B \-R
+alone is an error.
+There is no
+.BR \-\- ;
+write a first
+.I file
+that begins with
+.B \-
+or
+.B +
+as, for example,
+.IR ./\-name .
+.TP
+.B \-R
+Recurse: after changing a directory, change every entry in it, including
+hidden entries and names that begin with a dot, and the entries of its
+subdirectories.
+Symbolic links and junctions are changed but not descended into.
+The entries of a directory that cannot be read are skipped without a
+message.
+.TP
+.B \-\-help
+As the first argument, print a usage message on standard output and
+exit.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the operands are expanded, as needed when run from
+.BR cmd.exe .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+operands as the shell expanded them.
+.PP
+Variables that busybox-w32 reads in every applet, such as those that
+control console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+Files that could not be found or changed do not affect the status.
+.TP
+.B 1
+An invalid command line: no
+.IR file ,
+no mode that begins with
+.B +
+or removes an attribute, an unknown attribute letter, or the same
+attribute both added and removed.
+A usage or error message is printed on standard error, and no file is
+changed.
+.SH EXAMPLES
+Make a file read-only, and show the result:
+.PP
+.RS 4
+.EX
+$ chattr +r config.h
+$ lsattr config.h
+\-\-\-\-\-r\-\-a\-\- config.h
+.EE
+.RE
+.PP
+Clear the hidden and system attributes throughout a directory tree:
+.PP
+.RS 4
+.EX
+$ chattr \-R \-hs backup
+.EE
+.RE
+.PP
+Make a file hidden and system, and no longer read-only:
+.PP
+.RS 4
+.EX
+$ chattr +hs \-r desktop.ini
+.EE
+.RE
+.SH NOTES
+Differences from the e2fsprogs
+.B chattr
+on Linux:
+.IP \(bu 2
+The attributes are Windows file attributes, not ext2 inode flags, and
+the letters mean different things:
+.B a
+is archive, not append-only, and
+.B s
+is system, not secure deletion.
+.IP \(bu 2
+There is no
+.B =
+mode: an argument that begins with
+.B =
+is a
+.IR file .
+.IP \(bu 2
+There is no
+.BR \-f ,
+.BR \-p ,
+.BR \-V ,
+or
+.BR \-v ;
+each is an unknown attribute letter.
+.IP \(bu 2
+Errors on individual files do not change the exit status.
+.PP
+.B chattr
+passes
+.B SetFileAttributes
+only the six attributes above, so any other attribute that call can
+set, such as offline, pinned, or unpinned, is cleared from every file
+.B chattr
+changes, even when no mode names it.
+A mode of
+.B +
+alone adds nothing, so
+.BI "chattr + " file
+only clears those attributes.
+Pinned and unpinned record whether cloud storage such as OneDrive keeps
+a file on the device.
+Other attributes that
+.BR lsattr (1)
+shows, such as compressed, encrypted, and sparse, cannot be changed.
+.PP
+The temporary attribute cannot be set on a directory.
+The attempt fails with
+.BR "Invalid argument" ,
+and none of that directory's attributes change, though with
+.B \-R
+its entries still do.
+.PP
+A symbolic link or junction is changed itself, not its target.
+Devices such as
+.I /dev/null
+are skipped without a message.
+.PP
+File names may use drive letters and backslashes.
+A bare drive such as
+.I C:
+names the current directory of that drive.
+On Windows 10 version 1903 or later, file names may contain any Unicode
+characters, and on older systems only those of the system code page.
+A path of 260 or more characters, counting the current directory when the
+path is relative, cannot be changed and is reported as
+.B can\(aqt stat
+like a missing file.
+.SH SEE ALSO
+.BR busybox (1),
+.BR chmod (1),
+.BR lsattr (1)

@@ -1,0 +1,368 @@
+.TH MKDIR 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+mkdir \- make directories
+.SH SYNOPSIS
+.B mkdir
+.RB [ \-pv ]
+.RB [ \-m
+.IR mode ]
+.IR directory ...
+.SH DESCRIPTION
+.B mkdir
+creates each
+.I directory
+operand, in order.
+It is the
+.BR busybox (1)
+applet, which has fewer options than GNU
+.BR mkdir ;
+see
+.BR NOTES .
+.PP
+A
+.I directory
+that cannot be created is reported on standard error, and the remaining
+operands are still processed.
+The exit status is then 1.
+With no operand, or with an invalid option, it prints a usage message on
+standard error and exits with status 1.
+.PP
+Without
+.BR \-p ,
+the parent of each
+.I directory
+must exist, and an existing directory or file of that name is an
+error.
+The operands
+.B .\&
+and
+.B /
+are the exception: they name directories that exist, and
+.B mkdir
+succeeds on them without doing anything, with or without
+.BR \-p .
+Other spellings, such as
+.B ./
+and
+.BR .. ,
+are errors without
+.BR \-p .
+.SS Parent directories
+With
+.BR \-p ,
+.B mkdir
+creates the missing parents of each
+.IR directory ,
+starting from the leftmost.
+A parent or
+.I directory
+that exists as a directory is left unchanged and is not an error.
+An existing file with the name of a parent or
+.I directory
+is an error.
+Parents created before an error remain.
+.SS Output
+Nothing is written to standard output unless
+.B \-v
+is given.
+An error is written to standard error as
+.PP
+.RS 4
+.EX
+mkdir: can\(aqt create directory \(aq\fIpath\fR\(aq: \fIreason\fR
+.EE
+.RE
+.PP
+where
+.I reason
+is the system's message, such as
+.B File exists
+or
+.BR "No such file or directory" .
+The
+.I path
+is the operand with any backslashes changed to slashes.
+With
+.BR \-p ,
+it is cut after the slashes that follow the component that failed, so it
+can end in a slash.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-pv ,
+and may follow operands, unless
+.B POSIXLY_CORRECT
+is set.
+The argument of
+.B \-m
+may be attached, as in
+.BR \-m755 ,
+or be the next argument.
+A long option may be abbreviated to any unambiguous prefix, and takes
+its argument after
+.B =
+or as the next argument.
+.B \-\-
+ends the options.
+.TP
+\fB\-m\fR \fImode\fR, \fB\-\-mode=\fImode\fR
+Set the mode of each
+.I directory
+operand that
+.B mkdir
+creates to
+.IR mode ,
+after creating it.
+Parents made by
+.BR \-p ,
+and directories that already exist, are not changed.
+.IP
+The
+.I mode
+is an octal number from 0 to 7777, written with octal digits only, or a
+symbolic mode as in
+.BR chmod (1)
+that modifies 0777.
+A
+.I mode
+that begins with a digit from 0 to 7 is read as octal.
+One that cannot be parsed is reported as
+.B mkdir: invalid mode
+.BI \(aq mode \(aq
+before any directory is created, and the exit status is 1.
+A symbolic clause with no
+.BR u ,
+.BR g ,
+.BR o ,
+or
+.B a
+before its operator is limited by the umask; see
+.BR BB_UMASK .
+.IP
+If the mode cannot be set,
+.B mkdir
+reports
+.B can\(aqt set permissions of directory
+and the directory remains.
+On Windows a valid
+.I mode
+has no visible effect; see
+.BR NOTES .
+.TP
+.BR \-p ", " \-\-parents
+Create missing parent directories, and do not treat an existing
+directory as an error.
+.TP
+.BR \-v ", " \-\-verbose
+Write
+.BI "created directory: \(aq" path \(aq
+on standard output for each directory created, including each parent
+made by
+.BR \-p .
+The
+.I path
+of a parent ends with the slashes that follow it in the operand, as in
+.BR \(aqout/\(aq .
+The usage message omits this option.
+.TP
+.B \-\-help
+As the first argument only, write a usage message on standard output
+and exit with status 0.
+The message omits the long options and
+.BR \-v .
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the arguments are expanded when busybox starts, for a caller
+such as
+.B cmd.exe
+that does not expand them.
+When it is unset, busybox sets it to
+.B 0
+for the programs it starts, so commands run from the kit's shell get the
+shell's expansion only.
+.TP
+.B BB_UMASK
+The file mode creation mask, in octal, applied before
+.B mkdir
+runs.
+It limits a symbolic
+.B \-m
+mode that has no
+.BR u ,
+.BR g ,
+.BR o ,
+or
+.B a
+before its operator, but since the mode has no visible effect, neither
+does the mask.
+.TP
+.B POSIXLY_CORRECT
+If set, the first operand ends the options.
+.PP
+Messages written to a console also depend on
+.BR BB_SKIP_ANSI_EMULATION ,
+.BR BB_TERMINAL_MODE ,
+.BR LANG ,
+.BR LC_ALL ,
+and
+.BR LC_CTYPE ,
+and Windows error dialogs on
+.BR BB_CRITICAL_ERROR_DIALOGS ,
+as for every busybox applet; see
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success, including
+.B \-\-help
+as the first argument.
+.TP
+.B 1
+An invalid option or mode, no operand, or any directory that could not
+be created or given its mode.
+.SH EXAMPLES
+Make a directory:
+.PP
+.RS 4
+.EX
+$ mkdir build
+.EE
+.RE
+.PP
+Make several directories:
+.PP
+.RS 4
+.EX
+$ mkdir src doc test
+.EE
+.RE
+.PP
+Make a directory and its parents, without an error if it exists:
+.PP
+.RS 4
+.EX
+$ mkdir \-p out/bin/debug
+.EE
+.RE
+.PP
+List the directories that are made:
+.PP
+.RS 4
+.EX
+$ mkdir \-pv out/lib
+created directory: \(aqout/\(aq
+created directory: \(aqout/lib\(aq
+.EE
+.RE
+.PP
+Make a directory and its parents on another drive:
+.PP
+.RS 4
+.EX
+$ mkdir \-p d:/work/tmp
+.EE
+.RE
+.PP
+Take a lock, or print
+.B busy
+if another script holds it:
+.PP
+.RS 4
+.EX
+$ mkdir lock.d 2>/dev/null || echo busy
+.EE
+.RE
+.SH NOTES
+Differences from GNU
+.BR mkdir :
+.IP \(bu 2
+.B \-m
+only checks its mode; see below.
+.IP \(bu 2
+.B mkdir .\&
+and
+.B mkdir /
+succeed even without
+.BR \-p .
+.IP \(bu 2
+.B \-v
+is accepted although the usage message omits it.
+.IP \(bu 2
+Options not listed above, such as
+.BR \-Z ,
+.BR \-\-context ,
+and
+.BR \-\-version ,
+are invalid.
+.PP
+Windows has no Unix mode.
+A new directory gets the permissions it inherits from its parent
+directory.
+.B \-m
+can only set the read-only attribute, and never does for a directory,
+whatever the
+.IR mode ,
+so it only checks that the
+.I mode
+is valid; see
+.BR chmod (1).
+.PP
+Paths may have drive letters and backslashes.
+Backslashes in an operand are changed to slashes, so messages and
+.B \-v
+output show slashes.
+A path may be absolute, as in
+.IR c:/dir ,
+relative, or relative to a drive, as in
+.IR c:dir .
+With
+.BR \-p ,
+the drive or UNC share that begins a path, as in
+.I q:/dir
+or
+.IR //host/share/dir ,
+is one component that must exist.
+If it does not, the error names it, as in
+.BR \(aqq:/\(aq .
+.PP
+Names are not case sensitive on most volumes, so
+.B mkdir Foo
+fails with
+.B File exists
+when
+.I foo
+exists.
+Names may contain any Unicode character on Windows 10 version 1903 and
+later; see
+.BR busybox (1).
+A name that Windows does not allow, such as one containing
+.BR ? ,
+fails with
+.BR "Invalid argument" .
+Avoid Windows device names:
+.B mkdir con
+fails with
+.BR "Invalid argument" ,
+but
+.B mkdir nul
+reports success and can make a directory that ordinary paths cannot
+reach.
+The full path of a directory, counting the current directory when the
+operand is relative, must be shorter than 248 characters.
+A longer path fails with
+.BR "No such file or directory" .
+.PP
+From
+.BR cmd.exe ,
+.B mkdir
+expands wildcards in its arguments itself; see
+.BR BB_GLOBBING .
+A pattern that matches nothing is used as it is, and fails with
+.BR "Invalid argument" .
+.SH SEE ALSO
+.BR busybox (1),
+.BR chmod (1),
+.BR install (1),
+.BR rmdir (1)

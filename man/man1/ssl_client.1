@@ -1,0 +1,272 @@
+.TH SSL_CLIENT 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+ssl_client \- pipe data through TLS on a connected socket
+.SH SYNOPSIS
+.B ssl_client
+.RB [ \-ce ]
+.BI "\-h " handle
+.RB [ \-n
+.IR name ]
+.SH DESCRIPTION
+.B ssl_client
+is the TLS helper of
+.BR wget (1).
+It performs a TLS client handshake on a TCP connection that its parent
+opened, then copies data in both directions.
+Standard input is encrypted and sent to the server.
+What the server sends is decrypted and written to standard output.
+Both are binary.
+.PP
+It cannot connect by itself: the parent gives it the socket as a Windows
+handle with
+.BR \-h .
+To fetch an https or ftps URL,
+.B wget
+opens the socket, then runs
+.B ssl_client
+with
+.B \-h
+and
+.B \-n
+(the host name from the URL) and a pipe as standard input and output,
+and talks to the pipe.
+The kit's shell and tools have no way to give it a socket, so it is not
+run by hand.
+.PP
+Windows does the TLS, through Schannel, and checks certificates against
+the Windows certificate store; see
+.BR \-c .
+.SS Copying
+.B ssl_client
+waits until standard input or the connection has data.
+It reads standard input in pieces of up to 64 KiB, and encrypts and
+sends each piece at once, in TLS records of up to 16 KiB.
+A piece longer than 16 KiB is corrupted: each record after the first
+repeats the start of the piece instead of continuing it, so the server
+receives the right number of bytes but the wrong ones.
+Input from a file larger than 16 KiB is always affected, and input from
+a pipe whenever more than 16 KiB is waiting in it.
+.PP
+It reads the connection differently.
+It keeps reading and decrypting until it holds 64 KiB of plain text, the
+server ends the TLS session, or the connection closes, and only then
+writes to standard output.
+A short reply therefore appears only when the server ends the session.
+That suits HTTP with
+.BR "Connection: close" ,
+as
+.B wget
+sends it, but not a protocol in which the client waits for each reply
+before it sends more.
+FTP is such a protocol, so
+.B wget
+fails on an ftps URL: the server's greeting reaches it only when the
+server gives up and closes the connection.
+While it waits for the connection,
+.B ssl_client
+does not look at standard input.
+.SS Ending
+.B ssl_client
+exits with status 0 when the session ends, which happens in one of these
+ways:
+.IP \(bu 2
+The server closes the connection or ends the TLS session.
+The data received so far is written first.
+A connection closed without ending the TLS session is not reported, so a
+truncated reply goes unnoticed.
+.IP
+A read of the connection collects data up to the server's close alert,
+so the alert usually comes with data.
+Then
+.B ssl_client
+writes the data, but answers the alert, and exits, only when the
+connection is next readable or standard input ends.
+A server that waits for the answer before it closes the connection
+therefore delays the exit until standard input ends.
+Input that arrives in the meantime is an error:
+.BR "schannel: attempted to write to a closed connection" .
+.IP \(bu 2
+Standard input reaches end of file, or reading it fails.
+.B ssl_client
+sends a TLS
+.B close_notify
+alert.
+With
+.BR \-e ,
+it then exits at once.
+Without
+.BR \-e ,
+it waits until the connection is readable, such as when the server
+closes it, then exits.
+Whatever arrives from the server after the alert is discarded, so the
+reply to a request sent just before end of file is lost.
+Keep standard input open until the reply has arrived.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-ce ,
+and the argument of
+.B \-h
+or
+.B \-n
+may be attached or be the next argument.
+.B \-\-
+ends the options, and operands are ignored.
+.TP
+.B \-c
+Do not validate the server's certificate.
+Without
+.BR \-c ,
+Schannel checks the certificate chain against the Windows certificate
+store, and the certificate's names against the one given with
+.BR \-n ,
+and the handshake fails if either check fails.
+With
+.BR \-c ,
+any certificate is accepted.
+.IP
+.B wget
+passes
+.B \-c
+for an https URL when it is given
+.BR \-\-no\-check\-certificate ,
+and never for an ftps URL.
+.TP
+.B \-e
+Exit as soon as standard input reaches end of file, after sending the
+TLS
+.B close_notify
+alert, instead of waiting for the connection to become readable.
+.B wget
+passes
+.B \-e
+for the control connection of an ftps URL.
+.TP
+.BI "\-h " handle
+The connected socket to use, as the value of its Windows handle in
+hexadecimal digits.
+Upper and lower case and leading zeros are accepted.
+The value ends at the first character that is not a hexadecimal digit,
+so a
+.B 0x
+prefix reads as handle 0.
+This option is required: without it, or with a value that begins with no
+hexadecimal digit, the message is
+.B ssl_client: invalid handle
+and the exit status is 1.
+.IP
+The handle is not checked before use.
+It must be valid in this process, so the socket must be inheritable.
+It must have been created without overlapped I/O, as busybox creates
+sockets.
+A handle that is not open fails with
+.BR "write error: Bad file descriptor" ,
+and an overlapped socket with
+.BR "write error: Invalid argument" .
+.TP
+.BI "\-n " name
+The server name.
+Schannel checks the certificate against it, and sends it as the server
+name indication (SNI) unless it is an IP address.
+It may be an IP address if the certificate names that address.
+Without
+.BR \-n ,
+no name is sent, and unless
+.B \-c
+is given the handshake fails because the certificate matches no name.
+.B wget
+passes the host name from the URL, without a port.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit.
+It is recognized only as the first argument.
+.PP
+An unknown option or a missing option argument prints a message and the
+usage on standard error and exits with status 1.
+.SH ENVIRONMENT
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+output to a console is not converted, as described in
+.BR NOTES ,
+and the console interprets the bytes in its own code page.
+.TP
+.B POSIXLY_CORRECT
+Read by the C library's option parser.
+When set, option parsing stops at the first operand, so options after it
+are ignored.
+.PP
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+The session ended as described under
+.BR Ending ,
+or the usage was requested with
+.BR \-\-help .
+.TP
+.B 1
+An invalid command line or handle, a handshake that failed, including one
+that failed certificate validation, a TLS or connection error, or an
+error writing to the connection or to standard output.
+The message is on standard error, prefixed with
+.BR ssl_client: .
+.TP
+.B 141
+Standard output is a pipe that was closed before all output was written.
+.SH NOTES
+Differences from busybox on Unix:
+.IP \(bu 2
+The options are different.
+Unix
+.B ssl_client
+has
+.BR \-s ,
+.BR \-r ,
+a host operand, and
+.B \-e
+to run a program, and none of them exist here.
+Here
+.B \-e
+is a flag, and
+.B \-c
+and
+.B \-h
+are new.
+.IP \(bu 2
+The TLS code of Unix busybox, which cannot validate certificates, is not
+built.
+Schannel is used instead, and it validates.
+.PP
+Schannel is asked for TLS 1.0, 1.1, and 1.2 with strong cryptography.
+TLS 1.3 is not enabled in this build, so a connection to a server that
+supports both TLS 1.2 and TLS 1.3 uses TLS 1.2.
+The Windows version and its policy decide which protocols and cipher
+suites are in fact available.
+No client certificate is sent, and revocation checking is not requested.
+.PP
+A handshake that fails is reported as
+.BI "schannel: handshake failed: (" status "): " text
+with the Schannel status in hexadecimal and Windows's text for it.
+Two common statuses are
+.B 0x80090325
+(the certificate chain was issued by an authority that is not trusted)
+and
+.B 0x80090322
+(the target principal name is incorrect).
+A server that closes the connection during the handshake gives
+.BR "schannel: handshake read() failed" .
+.PP
+Standard input and output are binary, so bytes such as CR LF, Ctrl-Z,
+and NUL pass unchanged.
+When standard output is a console, busybox converts text for display and
+lets escape sequences take effect, as for other applets.
+.PP
+There is no timeout other than the ones Windows applies.
+.SH SEE ALSO
+.BR busybox (1),
+.BR nc (1),
+.BR wget (1)

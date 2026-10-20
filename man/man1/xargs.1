@@ -1,0 +1,693 @@
+.TH XARGS 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.SH NAME
+xargs \- run a command with arguments read from input
+.SH SYNOPSIS
+.B xargs
+.RI [ options ]
+.RI [ command
+.RI [ argument ...]]
+.SH DESCRIPTION
+.B xargs
+reads items from standard input, or from a file with
+.BR \-a ,
+and runs
+.I command
+with the items added after its arguments.
+With no
+.IR command ,
+it runs
+.BR echo .
+It runs
+.I command
+as many times as the items need, giving each run as many items as the
+limits of
+.B \-n
+and
+.B \-s
+allow.
+This
+.B xargs
+is a busybox applet; see
+.BR busybox (1).
+.PP
+.I command
+shares the standard input, output, and error of
+.BR xargs .
+When there are no items,
+.I command
+still runs once, with no added arguments, unless
+.B \-r
+is given.
+.B xargs
+writes nothing to standard output itself.
+Errors are reported on standard error with an
+.B xargs:
+prefix.
+.PP
+.I command
+is started as the kit's shell starts an external command: an applet of
+that name runs inside busybox, and any other name without a directory
+part is looked up in
+.BR PATH ;
+see
+.B Running commands
+in
+.BR busybox (1),
+and
+.B NOTES
+for a
+.I command
+with a directory part.
+A file that begins with
+.B #!\&
+runs under the interpreter it names.
+A shell built-in or function is not found.
+.SS Input
+Items are read as bytes.
+By default they are separated by white space: a space, tab, newline,
+vertical tab, form feed, or carriage return.
+A run of separators counts as one, and leading and trailing separators
+are ignored.
+Quoting makes a separator part of an item, and the quoting characters
+are removed:
+.IP \(bu 2
+A single or double quote starts a quoted string that ends at the next
+quote of the same kind.
+Inside it every other character is literal, including newline,
+backslash, and the other kind of quote.
+.IP \(bu 2
+Outside quotes, a backslash makes the next character literal, even a
+separator, a quote, or another backslash.
+.IP \(bu 2
+Quoted strings and unquoted text may follow one another within an item,
+so
+.B a\(aqb c\(aqd
+is the single item
+.BR "ab cd" .
+A pair of quotes with nothing between them and nothing else around
+them makes no item.
+.IP \(bu 2
+A quote still open at the end of the input is an error, except a quote
+that is the last byte and starts an item, which is ignored.
+On the error,
+.B xargs
+exits with status 1 without running
+.I command
+for the items read since its last run.
+.PP
+The options
+.B \-0
+and
+.B \-I
+read the input differently.
+.SS Size limits
+A run gets items until it has
+.B \-n
+of them, or until one more would take its size past the limit of
+.BR \-s .
+The size counts
+.I command
+and its arguments first, then the items, each as its length in bytes
+plus 1 for a terminator.
+When
+.B xargs
+starts the command as a new process, the command and its arguments
+count as they appear on the Windows command line, quoted as in
+.BR NOTES .
+An item is never split between runs.
+The default limit is 30720 bytes.
+.PP
+A command that
+.B xargs
+starts as a new process has a second limit, because Windows allows a
+command line of about 32767 characters.
+The items of a run, counted as they appear on the Windows command line,
+with quotes and escapes and one space after each, total at most 32750
+bytes.
+When they would pass that,
+.B xargs
+runs those that fit and carries the rest into the next run, whatever
+.B \-s
+says, so that run may have more items or bytes than
+.B \-n
+or
+.B \-s
+allow.
+The command and its own arguments are not counted, so a long command
+can still make the command line too long:
+.B xargs
+then reports
+.B Arg list too long
+and exits with status 126.
+An item that alone passes 32750 bytes ends the input without an error:
+.B xargs
+drops it and everything after it.
+An applet that runs inside
+.B xargs
+has neither the quoting nor this limit; see
+.BR NOTES .
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-rt .
+An option's argument may be attached, as in
+.BR \-n2 ,
+or be the next argument, except for
+.B \-e
+and
+.BR \-i ,
+whose arguments must be attached.
+The options end at the first argument that is not an option, which is
+.IR command ,
+or at
+.BR \-\- .
+Everything after belongs to the command, even arguments that begin with
+.BR \- .
+The only long option is
+.BR \-\-no\-run\-if\-empty .
+An invalid option, or an option with no argument it needs, prints an
+error and the usage message on standard error and exits with status 1.
+Numeric arguments are plain decimal numbers with no sign.
+.TP
+.B \-0
+Read NUL-terminated items.
+White space, quotes, and backslashes are not special, so an item may
+contain them, and newlines.
+The last item need not end with a NUL.
+An empty item is passed as an empty argument.
+.B \-E
+has no effect.
+.TP
+.BI "\-a " file
+Read items from
+.I file
+instead of standard input.
+.I file
+also becomes the standard input of the commands.
+Since
+.B xargs
+reads ahead in blocks, they find it positioned after the last block
+read, usually beyond the items used so far.
+.B xargs
+opens
+.I file
+before reading anything, and exits with status 1 if it cannot.
+.TP
+.BR \-r ", " \-\-no\-run\-if\-empty
+Do not run
+.I command
+when there are no items.
+.B \-I
+implies it.
+.TP
+.B \-t
+Print each command line on standard error before running it: the
+command and its arguments, separated by single spaces, then a newline.
+Nothing is quoted.
+.TP
+.B \-p
+Ask before each run.
+.B xargs
+prints the command line on standard error as
+.B \-t
+does but with no newline, then a space and
+.BR ?...\& ,
+and reads the answer from the console, not from standard input.
+The keys typed are echoed up to Enter.
+The command runs if the first key was
+.B y
+or
+.BR Y .
+Any other answer, including an empty one, skips that run, and
+.B xargs
+goes on to the next.
+.TP
+\fB\-E\fR \fIstr\fR, \fB\-e\fR[\fIstr\fR]
+Set
+.I str
+as the logical end of the input.
+When an item equals
+.IR str ,
+after its quotes are removed,
+.B xargs
+reads and discards the rest of the input, and runs
+.I command
+for the items before it.
+Both options set the same string, and the last one given wins.
+An empty
+.I str
+given to
+.B \-E
+means there is none, which is the default.
+.B \-e
+with no
+.I str
+changes nothing.
+Neither has any effect with
+.B \-0
+or
+.BR \-I .
+.TP
+\fB\-I\fR \fIstr\fR, \fB\-i\fR[\fIstr\fR]
+Run
+.I command
+once for each input line, with every occurrence of
+.I str
+in
+.I command
+and in each of its arguments replaced by the line.
+An argument without
+.I str
+is passed unchanged, and no other items are added.
+Both options set the same string, and the last one given wins.
+The default is
+.BR {} ,
+and
+.B \-i
+with no
+.I str
+changes nothing.
+An empty
+.I str
+crashes
+.BR xargs .
+.IP
+A line ends at a newline, or at a NUL with
+.BR \-0 ,
+or at the end of the input.
+Leading white space is skipped.
+Trailing white space is kept, including the carriage return of a CRLF
+line end.
+Lines that are empty or only white space are ignored.
+Quotes and backslashes are not special.
+A line that does not fit in the size limit is an error.
+.B \-n
+and
+.B \-E
+have no effect, and
+.B \-r
+is implied.
+.TP
+.BI "\-n " count
+Pass at most
+.I count
+items to each run.
+It is from 1 to 2147483647.
+There is no limit by default but the size.
+.TP
+.BI "\-s " size
+Limit each run to
+.I size
+bytes, as described under
+.BR "Size limits" ,
+instead of 30720.
+It is from 1 to 2147483647, and
+.B xargs
+allocates a buffer of that size.
+If
+.I command
+and its arguments leave no room for an item,
+.B xargs
+exits with status 1.
+So does an item that cannot fit on its own.
+.TP
+.BI "\-P " procs
+Run up to
+.I procs
+commands at the same time.
+It is from 0 to 2147483647.
+The default is 1, which waits for each command before starting the
+next, and 0 means 64.
+.B xargs
+waits for the running commands before it exits.
+See
+.B NOTES
+for what this changes.
+.TP
+.B \-x
+Accepted and ignored.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the arguments of
+.B xargs
+are expanded when it starts, as needed when run from
+.BR cmd.exe .
+That includes the arguments of
+.IR command .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so
+.I command
+does not expand them again.
+.TP
+.B BB_OVERRIDE_APPLETS
+Applets that are not run when named as
+.IR command ,
+so that a program in
+.B PATH
+runs instead; see
+.BR busybox (1).
+It applies to the
+.B echo
+used when there is no
+.IR command .
+.TP
+.B PATH
+Where
+.I command
+is looked up when it is not an applet and has no directory part.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+what
+.B xargs
+writes to a console, such as with
+.B \-t
+and
+.BR \-p ,
+is not converted, and the console interprets the bytes in its own code
+page.
+.PP
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Every run of
+.I command
+exited with status 0, or there was nothing to run.
+.TP
+.B 1
+.B xargs
+itself failed: an invalid option or number, an unmatched quote, an item,
+or the command and its arguments, too long for the size limit, a
+.B \-a
+file that cannot be opened, or no memory.
+.TP
+.B 123
+A run exited with a status from 1 to 254.
+.B xargs
+goes on with the rest of the input and exits with 123 at the end.
+.TP
+.B 124
+A run exited with status 255, and
+.B xargs
+stopped without reading more input.
+.TP
+.B 125
+A run was ended by a signal, and
+.B xargs
+stopped.
+.TP
+.B 126
+.I command
+was found but could not be run, such as when its command line is too
+long, and
+.B xargs
+stopped.
+.TP
+.B 127
+.I command
+was not found, and
+.B xargs
+stopped.
+.PP
+Errors are reported on standard error as
+.PP
+.RS 4
+.EX
+xargs: unmatched single quote
+xargs: unmatched double quote
+xargs: argument line too long
+xargs: can\(aqt fit single argument within argument list size limit
+xargs: can\(aqt open \(aq\fIfile\fR\(aq: \fIreason\fR
+xargs: invalid number \(aq\fIarg\fR\(aq
+xargs: number \fIarg\fR is not in \fImin\fR..2147483647 range
+xargs: \fIcommand\fR: \fIreason\fR
+xargs: \fIcommand\fR: exited with status 255; aborting
+xargs: \(aq\fIcommand\fR\(aq terminated by signal \fIn\fR
+.EE
+.RE
+.SH EXAMPLES
+List the C files below the current directory that mention
+.BR main ,
+whatever their names:
+.PP
+.RS 4
+.EX
+$ find . \-name \(aq*.c\(aq \-print0 | xargs \-0 grep \-l main
+.EE
+.RE
+.PP
+Remove the backup files, if there are any:
+.PP
+.RS 4
+.EX
+$ find . \-name \(aq*.bak\(aq \-print0 | xargs \-0 \-r rm
+.EE
+.RE
+.PP
+Show how the items are split, with two to a run.
+Each command line is printed on standard error before it runs:
+.PP
+.RS 4
+.EX
+$ printf \(aqa b c d e\en\(aq | xargs \-t \-n2 echo
+echo a b
+a b
+echo c d
+c d
+echo e
+e
+.EE
+.RE
+.PP
+Copy each file in a list.
+Lines are items, so names with spaces survive:
+.PP
+.RS 4
+.EX
+$ ls *.txt | xargs \-I{} cp {} backup/{}
+.EE
+.RE
+.PP
+Stop at a marker:
+.PP
+.RS 4
+.EX
+$ printf \(aqa b END c\en\(aq | xargs \-E END echo
+a b
+.EE
+.RE
+.PP
+Checksum every file with four processes at a time, eight files each:
+.PP
+.RS 4
+.EX
+$ find . \-type f \-print0 | xargs \-0 \-n8 \-P4 sha256sum
+.EE
+.RE
+.PP
+Pass a Windows path.
+The backslashes need quoting, or they are taken as escapes:
+.PP
+.RS 4
+.EX
+$ echo \(aqC:\edir\esub\(aq | xargs echo
+C:dirsub
+$ echo \(aq"C:\edir\esub"\(aq | xargs echo
+C:\edir\esub
+.EE
+.RE
+.PP
+Read the items from a file:
+.PP
+.RS 4
+.EX
+$ xargs \-a files.txt wc \-l
+.EE
+.RE
+.SH NOTES
+Differences from GNU
+.BR xargs :
+.IP \(bu 2
+There are no options beyond those above, and the only long option is
+.BR \-\-no\-run\-if\-empty .
+In particular there is no
+.BR \-d ,
+.BR \-L ,
+.BR \-l ,
+or
+.BR \-o .
+.IP \(bu 2
+.B \-x
+does nothing.
+.IP \(bu 2
+.B \-p
+reads single keys from the console, and only the first key counts,
+even if it is erased.
+.IP \(bu 2
+A quoted string may span lines, and an empty one makes no item.
+.IP \(bu 2
+.B \-I
+does not process quotes or backslashes, and ignores
+.B \-n
+and
+.BR \-E .
+.IP \(bu 2
+Without
+.BR \-a ,
+the commands inherit the standard input of
+.B xargs
+instead of an empty one.
+With
+.BR \-a ,
+they get the file instead of the standard input of
+.BR xargs .
+.PP
+A backslash in the input is an escape, so a Windows path loses its
+backslashes:
+.B C:\edir\esub
+arrives as
+.BR C:dirsub .
+Quote such a path, double its backslashes, or use forward slashes.
+The options
+.B \-0
+and
+.B \-I
+treat backslashes as ordinary characters.
+.PP
+Input is read in binary mode.
+A carriage return is white space, so CRLF line ends do no harm to the
+default mode.
+With
+.B \-I
+the carriage return stays at the end of the line.
+.PP
+.I command
+may be given with forward slashes or backslashes, and with a drive
+letter.
+A
+.I command
+with a directory part is not looked up in
+.BR PATH ,
+unless the directory is
+.IR /bin ,
+.IR /usr/bin ,
+.IR /sbin ,
+or
+.IR /usr/sbin :
+then the applet of that name runs if there is one, or else that file if
+it exists, or else the program of that name in
+.BR PATH .
+The suffix
+.BR .com ,
+.BR .exe ,
+.BR .sh ,
+.BR .bat ,
+or
+.B .cmd
+may be left off.
+.PP
+When
+.B xargs
+runs one command at a time, without
+.B \-P
+or with
+.BR "\-P 1" ,
+a command that is a NOFORK applet, such as
+.BR echo ,
+runs inside
+.B xargs
+itself;
+.B busybox \-\-list\-full
+marks these applets.
+It gets its arguments as they are, so neither the quoting nor the
+32750-byte limit of
+.B Size limits
+applies to it.
+Any other command is started as a new process, and so is every command
+with
+.B \-P
+0 or above 1.
+Each argument is quoted for the Windows command line when it is passed.
+.PP
+A command's exit code is a 32-bit Windows value, which
+.B xargs
+maps as busybox
+.B sh
+does.
+The code 0xC0000005 counts as signal 11, 0xC000013A as signal 2, and a
+code whose top byte is a signal number and whose other bytes are zero,
+as busybox programs use for signals, such as 0x0F000000 for signal 15,
+as that signal.
+Each gives status 125.
+Any other code above 255 is reported on standard error as the Windows
+message for it, if there is one, followed by
+.B Error
+and the code in hexadecimal with a
+.B 0x
+prefix, and
+.B xargs
+uses its low byte, or 255 if that is zero.
+A command that exits with 256 stops
+.B xargs
+with status 124, and one that exits with 258 gives 123.
+.PP
+On Ctrl+C or Ctrl+Break,
+.B xargs
+sends
+.B TERM
+to each running command and its child processes, and exits at once with
+the Windows exit code 0x02000000, which busybox
+.B sh
+reports as status 130.
+.PP
+With
+.B \-P
+0 or above 1, commands run as separate processes, and their output may
+be interleaved.
+.B xargs
+looks at the exit code of a command only when it needs its slot, or at
+the end, so after a failure it may start one more command before it
+stops.
+While 64 or more commands are running, which takes
+.B \-P
+0 or at least 64,
+.B xargs
+waits for one to end in a busy loop that keeps a processor busy.
+It uses the Windows exit code as it is, without the mapping above: a
+code from 256 to 0x17F counts as a failure, with status 123, a code of
+0x180 or more is reported as a signal, with status 125, and a code of
+0x80000000 or more as a command that could not be run, with status 126
+or 127.
+It also does not detect a command that cannot be started, such as one
+that does not exist: it reports no error and waits forever.
+Check that the command exists first.
+.PP
+The standard input of
+.I command
+is that of
+.BR xargs ,
+or the file of
+.BR \-a ,
+positioned after what
+.B xargs
+has read ahead.
+There is no
+.B \-o
+to give it the keyboard instead.
+.SH SEE ALSO
+.BR busybox (1),
+.BR echo (1),
+.BR find (1),
+.BR sh (1)

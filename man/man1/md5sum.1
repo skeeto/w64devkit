@@ -1,0 +1,419 @@
+.TH MD5SUM 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+md5sum, sha1sum, sha256sum, sha3sum, sha512sum \- print or check digests
+.SH SYNOPSIS
+.B md5sum
+.RB [ \-b " | " \-t ]
+.RI [ file ...]
+.br
+.B md5sum \-c
+.RB [ \-sw ]
+.RI [ file ...]
+.br
+.B sha3sum
+.RB [ \-b " | " \-t ]
+.RB [ \-a
+.IR bits ]
+.RI [ file ...]
+.br
+.B sha3sum \-c
+.RB [ \-sw ]
+.RB [ \-a
+.IR bits ]
+.RI [ file ...]
+.SH DESCRIPTION
+These commands print the message digest of each
+.IR file ,
+or with
+.B \-c
+check files against digests listed in other files.
+They are one program, and differ only in the algorithm:
+.TP
+.B md5sum
+MD5, a 128-bit digest.
+.TP
+.B sha1sum
+SHA-1, 160 bits.
+.TP
+.B sha256sum
+SHA-256, 256 bits.
+.TP
+.B sha512sum
+SHA-512, 512 bits.
+.TP
+.B sha3sum
+SHA-3, 224 bits unless
+.B \-a
+chooses another size.
+.PP
+.BR sha1sum ,
+.BR sha256sum ,
+and
+.B sha512sum
+take the same options and operands as
+.BR md5sum .
+Only
+.B sha3sum
+takes
+.BR \-a .
+.PP
+With no
+.IR file ,
+or for a
+.I file
+named
+.BR \- ,
+they read standard input.
+Every file is read as binary.
+.SS Printing digests
+For each
+.IR file ,
+the command writes a line of the digest in lowercase hex digits, two
+spaces, and the name exactly as given.
+Standard input is named
+.BR \- .
+With
+.BR \-b ,
+the second space is an asterisk.
+A file that cannot be opened or read is reported on standard error and
+gets no line, and the remaining files are still processed.
+.SS Checking digests
+With
+.BR \-c ,
+each
+.I file
+is a list of digests, such as the output of the same command, and the
+command hashes every file that a list names and compares the digests.
+A list named
+.BR \- ,
+or no list, is read from standard input.
+Names in a list are relative to the current directory, not to the list.
+.PP
+A list line is a digest, a space, optionally one more space or an
+asterisk, and a name, which is the rest of the line, including any
+spaces.
+A CR before the LF is dropped.
+The digest is everything before the first space.
+It is compared with the computed digest without regard to case.
+Its length and digits are not checked, so a line with a digest of
+another algorithm is not invalid: its file is hashed, and the line
+fails.
+A name of
+.B \-
+hashes standard input.
+A line with no space, such as a blank line, is invalid and counts as
+failed.
+Nothing is skipped: a comment line is read as a digest and a name, and
+fails.
+.PP
+For each valid line, the command writes
+.IB name ": OK"
+or
+.IB name ": FAILED"
+on standard output.
+A file that cannot be opened or read is reported on standard error, and
+also counts as
+.BR FAILED .
+After each list in which any line failed, it writes to standard error
+a line such as
+.PP
+.RS 4
+.EX
+md5sum: WARNING: 1 of 2 computed checksums did NOT match
+.EE
+.RE
+.PP
+which begins with the name of the command.
+The first count is the lines of that list that failed, and the second
+is all its lines, invalid lines included.
+A list with no lines is reported as
+.IB list ": no checksum lines found"
+on standard error, and counts as a failure.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-cs ,
+and may follow the operands.
+.B \-\-
+ends the options.
+The argument of
+.B \-a
+may be attached, as in
+.BR \-a256 ,
+or be the next argument.
+.TP
+.B \-c
+Check the digests listed in the
+.I file
+operands, as described under
+.BR "Checking digests" .
+.TP
+.B \-s
+Do not write the
+.BR OK ,
+.BR FAILED ,
+and
+.B WARNING
+lines, so that only the exit status tells whether every digest matched.
+Other errors are still written to standard error: files that cannot be
+opened, lists with no lines, and with
+.BR \-w ,
+invalid lines.
+Requires
+.BR \-c :
+without it, the command writes its usage message to standard error and
+exits with status 1.
+.TP
+.B \-w
+Warn about each invalid line by writing
+.B invalid format
+to standard error.
+The message does not name the line.
+Requires
+.BR \-c ,
+like
+.BR \-s .
+.TP
+.BI "\-a " bits
+Set the size of the digest in bits, which is written as
+.IR bits /4
+hex digits.
+The other commands reject
+.B \-a
+as an unknown option.
+The default is 224.
+Sizes 224, 256, 384, and 512 give SHA3-224, SHA3-256, SHA3-384, and
+SHA3-512 as standardized by FIPS 202.
+Any other multiple of 32 from 32 to 768 is accepted, and gives a
+nonstandard digest.
+Any other number ends the command with status 1 and an error such as
+.B sha3sum: bad \-a100
+when the first file is opened, after any earlier files that could not
+be opened are reported.
+A value that is not a plain decimal number, such as
+.B \-5
+or
+.BR 0x100 ,
+is an error at once.
+A list does not record its size, so give the same
+.B \-a
+when checking.
+.TP
+.B \-b
+Binary mode: write an asterisk instead of the second space before each
+name.
+It affects only the output, since every file is read as binary.
+Ignored with
+.BR \-c .
+A later
+.B \-t
+cancels it.
+.TP
+.B \-t
+Text mode, the default: write two spaces before each name.
+A later
+.B \-b
+cancels it, and
+.B \-bt
+is the same as
+.BR \-t .
+Ignored with
+.BR \-c .
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument.
+.SH ENVIRONMENT
+.TP
+.B POSIXLY_CORRECT
+When set, the first
+.I file
+operand ends the options, so that later arguments such as
+.B \-b
+are file names.
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the operands are expanded when the program starts, even in
+quoted operands, as needed when run from
+.BR cmd.exe .
+A pattern that matches nothing is left as it is.
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+operands as the shell expanded them.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+output to a console is not converted, as described in
+.BR NOTES ,
+and the console interprets the bytes in its own code page.
+.PP
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success: every file was hashed, or with
+.B \-c
+every listed file matched.
+.TP
+.B 1
+An invalid option, a file that could not be opened or read, a bad
+.BR \-a ,
+and with
+.BR \-c ,
+a digest that did not match, an invalid line, a list with no lines, or a
+list that could not be opened.
+.PP
+A list that cannot be opened, and a bad
+.BR \-a ,
+end the command at once, and later operands and list lines are not
+processed.
+.SH EXAMPLES
+Print the MD5 digest of a file:
+.PP
+.RS 4
+.EX
+$ printf abc >abc.txt
+$ md5sum abc.txt
+900150983cd24fb0d6963f7d28e17f72  abc.txt
+.EE
+.RE
+.PP
+Standard input is named
+.BR \- :
+.PP
+.RS 4
+.EX
+$ md5sum <abc.txt
+900150983cd24fb0d6963f7d28e17f72  -
+.EE
+.RE
+.PP
+Print only the SHA-256 digest of a file:
+.PP
+.RS 4
+.EX
+$ sha256sum <release.zip | cut \-d" " \-f1
+.EE
+.RE
+.PP
+Record digests, then check them later:
+.PP
+.RS 4
+.EX
+$ sha256sum *.zip >SHA256SUMS
+$ sha256sum \-c SHA256SUMS
+.EE
+.RE
+.PP
+Check a file against a published digest:
+.PP
+.RS 4
+.EX
+$ echo "$digest  release.zip" | sha256sum \-c
+release.zip: OK
+.EE
+.RE
+.PP
+Check without the OK and FAILED lines, and report failure:
+.PP
+.RS 4
+.EX
+$ sha256sum \-cs SHA256SUMS || echo corrupt
+.EE
+.RE
+.PP
+Record SHA3-256 digests of a tree, then check them:
+.PP
+.RS 4
+.EX
+$ find src \-type f \-exec sha3sum \-a 256 {} + >tree.sha3
+$ sha3sum \-a 256 \-c tree.sha3
+.EE
+.RE
+.SH NOTES
+Differences from GNU coreutils:
+.IP \(bu 2
+.B \-s
+is GNU's
+.BR \-\-status .
+There are no long options besides
+.BR \-\-help ,
+and no equivalents of GNU
+.BR \-\-quiet ,
+.BR \-\-ignore\-missing ,
+.BR \-\-strict ,
+.BR \-\-tag ,
+or
+.BR \-z .
+.IP \(bu 2
+An invalid line in a list makes the exit status 1, where GNU skips it
+unless given
+.BR \-\-strict .
+.IP \(bu 2
+Names are neither escaped when written nor unescaped when read.
+GNU starts the line with a backslash and escapes names that contain a
+backslash or a newline.
+.PP
+Standard input from a file or pipe is read as binary, like files, so a
+digest covers the exact bytes.
+A text file with CR LF line endings has a different digest from a copy
+with LF line endings, and
+.B \-t
+does not change that.
+Lists may have either line ending.
+Output lines end with LF.
+.PP
+Lines typed at a console arrive with CR LF line endings, which are part
+of the digest.
+To end the input, type Ctrl-Z at the start of a line and press Enter.
+.PP
+Standard input is not closed after it is read.
+A second
+.B \-
+operand hashes what remains, which at end of file is nothing.
+.PP
+A
+.I file
+may be a Windows path, with a drive letter and either kind of slash, or
+a busybox-w32 device name such as
+.IR /dev/null .
+It is printed exactly as given, so a list made with backslashes can be
+checked as it is.
+On Windows 10 version 1903 or later, file names may contain any Unicode
+characters, and on older systems only those of the system code page.
+A directory fails with
+.BR "Permission denied" ,
+or with
+.B Is a directory
+when it is a list for
+.BR \-c .
+.PP
+When standard output is a console, names are converted for display from
+the ANSI code page to the console's output code page.
+.PP
+MD5 and SHA-1 detect accidental damage only, not deliberate tampering.
+.PP
+busybox also has
+.BR sha384sum ,
+which takes the same options as
+.BR md5sum .
+The kit installs no
+.I sha384sum.exe
+for it.
+The kit's shell, and busybox commands such as
+.BR find ,
+run it by name, but elsewhere, such as from
+.BR cmd.exe ,
+run it as
+.BR "busybox sha384sum" .
+.SH SEE ALSO
+.BR busybox (1),
+.BR cksum (1),
+.BR cut (1),
+.BR find (1)

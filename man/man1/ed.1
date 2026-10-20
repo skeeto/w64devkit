@@ -1,0 +1,667 @@
+.TH ED 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+ed \- line-oriented text editor
+.SH SYNOPSIS
+.B ed
+.RB [ \-p
+.IR prompt ]
+.RB [ \-s ]
+.RI [ file ]
+.SH DESCRIPTION
+.B ed
+is the original Unix text editor.
+It reads a file into a buffer of lines, changes the buffer with commands
+read from standard input, and writes the file only when told to.
+This one is a small implementation with a subset of the usual commands;
+see
+.BR NOTES .
+.PP
+With a
+.I file
+operand,
+.B ed
+reads the file into the buffer, prints the number of bytes read unless
+.B \-s
+is given, and remembers the name for
+.B w
+and
+.BR f .
+The last line becomes the current line.
+If the file cannot be read,
+.B ed
+reports the error and exits with status 0 without reading any command,
+so it cannot start a new file.
+Start
+.B ed
+with no operand and name the file with
+.B w
+instead.
+Operands after the first are ignored.
+With no
+.IR file ,
+the buffer is empty and has no file name.
+.PP
+Each line of input is one command: optional addresses, a command letter,
+and its argument.
+Blanks may surround addresses and precede the command letter, and
+trailing blanks on the line are dropped.
+A command that fails prints a message on standard error and
+.B ed
+reads the next command.
+There is no
+.B ?\&
+response and no help command.
+.PP
+Lines printed by commands, byte counts, and the answers to
+.B f
+and
+.B =
+go to standard output.
+Error messages, the
+.B \-p
+prompt, and the
+.B Really quit?\&
+prompt go to standard error.
+.SS Addresses
+An address names a line.
+.TP
+.I n
+A decimal line number, counting from 1.
+Line 0 stands for the position before the first line.
+The
+.B a
+and
+.B r
+commands accept it, and most others report an error.
+.TP
+.B .
+The current line.
+.TP
+.B $
+The last line.
+.TP
+.BI \(aq x
+The line marked with the lowercase letter
+.I x
+by the
+.B k
+command.
+.TP
+.BI / text /
+The first line from the current line to the last that contains
+.IR text .
+The search starts at the current line itself, so repeating it finds the
+same line, and it does not wrap around.
+The text is matched literally, not as a regular expression, and cannot
+contain a slash.
+If the closing slash is missing, the rest of the line is the text.
+An empty
+.I text
+repeats the last string searched for by an address or by
+.BR s .
+.PP
+Addresses can be added and subtracted, as in
+.BR $\-2 ,
+.BR .+1 ,
+and
+.BR /text/+3 .
+Blanks are allowed around operands and operators.
+A leading
+.B +
+or
+.B \-
+is not an address.
+Whether the result lies in the buffer is checked by the command that
+uses it.
+.PP
+A range is two addresses separated by a comma.
+A missing first address means 1 and a missing second means
+.BR $ ,
+so a lone comma means the whole buffer.
+There are no semicolon ranges.
+Both addresses are evaluated from the current line, so a search in the
+second does not start after the first.
+Given one address, a command that takes a range applies to that line
+alone.
+.SS Text input
+The
+.BR a ,
+.BR c ,
+and
+.B i
+commands read lines of text and add them to the buffer.
+Input ends at a line holding only a period, which is not added, so a
+line of text cannot be a lone period.
+It also ends at the end of input, and in a console at Ctrl\-D on an empty
+line or at Ctrl\-C, which discards the line being typed.
+The last line added becomes the current line.
+The prompt is not shown in this mode.
+.PP
+The insertion point is checked only when the first line of text
+arrives.
+If it is out of range,
+.B ed
+reports
+.BR "inserting at bad line number" ,
+discards that line, and reads the lines after it as commands.
+.SS Commands
+In the forms below, omitting an address in brackets uses the current line
+unless noted.
+The commands
+.BR a ,
+.BR c ,
+.BR d ,
+.BR i ,
+.BR l ,
+.BR p ,
+and
+.B =
+ignore any text after the command letter.
+The commands
+.BR f ,
+.BR r ,
+and
+.B w
+need a space, not a tab, before their argument.
+Any other command letter is reported as
+.BR "unimplemented command" .
+.TP
+\fR[\fIaddr\fR]\fBa\fR
+Read text and insert it after line
+.IR addr .
+With a range, the first address is used.
+.TP
+\fR[\fIrange\fR]\fBc\fR
+Delete the lines, then read text and insert it where they were.
+If the range is invalid, nothing is deleted, but
+.B ed
+still reads text and inserts it before the first address.
+.TP
+\fR[\fIrange\fR]\fBd\fR
+Delete the lines.
+If the current line was deleted, the line after them becomes current, or
+the new last line when none follows, or line 0 when the buffer is empty.
+Otherwise the same line stays current.
+.TP
+\fBf\fR [\fIname\fR]
+With
+.IR name ,
+make it the remembered file name, which
+.B w
+uses when given none.
+The name is the rest of the line after the blanks, so it may contain
+spaces.
+Without
+.IR name ,
+print the current file name in double quotes, or
+.B No file name
+if there is none.
+.TP
+\fR[\fIaddr\fR]\fBi\fR
+Read text and insert it before line
+.IR addr .
+With a range, the first address is used.
+In an empty buffer with no address, the text becomes line 1.
+.TP
+\fR[\fIaddr\fR]\fBk\fIx\fR
+Mark a line with the lowercase letter
+.IR x .
+With a range, the last address is used.
+The address is not checked.
+A mark is a line number, so it does not follow its line when lines are
+added or deleted.
+An unset mark is line 0.
+.TP
+\fR[\fIrange\fR]\fBl\fR
+Print the lines unambiguously.
+A control character appears as
+.B ^
+and a character, such as
+.B ^I
+for a tab,
+.B ^M
+for a carriage return, and
+.B ^[
+for escape.
+Delete appears as
+.BR ^? .
+A byte above 127 appears as
+.B M\-
+followed by the byte with its high bit cleared, shown the same way, so
+UTF-8 text appears as
+.B M\-
+sequences.
+Each line ends with
+.BR $ ,
+long lines are not folded, and a backslash or dollar sign in the text
+appears as itself.
+The last line printed becomes current.
+.TP
+\fR[\fIrange\fR]\fBp\fR
+Print the lines exactly as stored.
+A final line that has no newline is printed without one.
+The last line printed becomes current.
+.TP
+.B q
+Quit.
+No address or argument is allowed.
+If the buffer has changed since it was read or last written by
+.B w
+without an address,
+.B ed
+prints
+.B Really quit?\&
+and reads a line.
+It quits if the first non-blank character of that line is
+.B y
+or
+.BR Y ,
+and otherwise continues.
+End of input at that prompt quits, and Ctrl\-C continues.
+The commands
+.BR a ,
+.BR c ,
+.BR d ,
+.BR i ,
+.BR r ,
+and a
+.B s
+that replaces something change the buffer.
+End of input or Ctrl\-C at the ordinary command prompt exits without the
+check, losing any changes.
+.TP
+\fR[\fIaddr\fR]\fBr \fIfile\fR
+Read
+.I file
+and insert its lines after line
+.IR addr ,
+which is the first address of a range and defaults to the last line.
+Address 0 inserts before the first line.
+The byte count is printed unless
+.B \-s
+is given.
+The last line read becomes current.
+The file name is the rest of the line after the blanks.
+It is required: the remembered file name is not used, and there is no
+form that runs a command.
+.TP
+\fR[\fIrange\fR]\fBs/\fIold\fB/\fInew\fB/\fR[\fIflags\fR]
+Replace the first occurrence of
+.I old
+in each line of the range by
+.IR new .
+Any character except a space or tab may replace the slashes.
+The strings are literal: there are no regular expressions, and
+.BR & ,
+.BR \e1 ,
+and backslash have no special meaning.
+The delimiter cannot appear in either string.
+An empty
+.I old
+repeats the last string searched for by an address or by
+.BR s ,
+and an empty
+.I new
+deletes.
+The final delimiter may be omitted when there are no flags, and
+trailing blanks on the command line are dropped, so end
+.I new
+with the delimiter to keep trailing blanks.
+The flags are
+.BR g ,
+to replace every occurrence, left to right, without rescanning the
+replacement, and
+.BR p ,
+to print each changed line.
+It is an error if no line changed.
+The current line does not change, except that with
+.B p
+the last line printed becomes current.
+.TP
+\fR[\fIrange\fR]\fBw\fR [\fIfile\fR]
+Write the lines to
+.IR file ,
+or when it is omitted to the remembered file name, replacing the
+contents of the file.
+With no address, the whole buffer is written and counts as saved, even if
+the write fails, so a following
+.B q
+quits without asking.
+With an address, only those lines are written and the saved state is
+unchanged.
+The name given does not become the remembered name.
+The byte count is printed unless
+.B \-s
+is given.
+An empty buffer cannot be written.
+There is no
+.B wq
+command.
+.TP
+\fBz\fR[\fB.\fR|\fB\-\fR]
+Print 22 lines: with no argument, from the current line;
+with
+.BR . ,
+from 11 lines before it to 10 after;
+with
+.BR \- ,
+ending at it.
+The last line printed becomes current.
+An address, and any other text after
+.BR z ,
+is ignored.
+All 22 lines must lie inside the buffer, or the command fails.
+.TP
+\fR[\fIaddr\fR]\fB=\fR
+Print the line number that
+.I addr
+gives, which is the first address of a range and defaults to the current
+line.
+.B $=
+prints the number of lines.
+.TP
+.B \-
+Make the previous line current and print it.
+Text after it is ignored, so
+.B \-3
+also goes back one line.
+.TP
+\fR[\fIrange\fR]
+A line with no command letter prints the last line of the range, which
+becomes current.
+With no address, it prints the line after the current line, which
+becomes current.
+.SH OPTIONS
+.B ed
+accepts options before or after the file operand, unless
+.B POSIXLY_CORRECT
+is set.
+The last of repeated options wins.
+An argument may follow
+.B \-p
+attached or as the next argument.
+.B \-\-
+ends the options.
+.TP
+.BI "\-p " prompt
+Show
+.I prompt
+on standard error before reading each command, even when input is not a
+console.
+It is not shown in text input mode.
+Backslash sequences in it are expanded as in the shell prompts described
+in
+.BR sh (1),
+such as
+.B \eu
+for the user name,
+.B \e$
+for a dollar sign, or a number sign when elevated, and
+.B \et
+for the time.
+.B \ew
+and
+.BR \eW ,
+the current directory, work only when standard input is not a console:
+in a console they crash
+.BR ed .
+Parameters and commands in it are not expanded.
+The default is no prompt.
+.TP
+.B \-s
+Do not print the byte counts for reading and writing files.
+Error messages and all other output are unchanged.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the arguments are expanded when
+.B ed
+starts, as needed when it is run from
+.BR cmd.exe .
+Quoted arguments are expanded too, so a prompt such as
+.B *
+given to
+.B \-p
+may become file names.
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+arguments as the shell expanded them.
+.TP
+.B BB_UMASK
+The file mode creation mask, in octal.
+When it includes the owner write bit,
+.BR 200 ,
+files that
+.B w
+creates are read-only, so a later
+.B w
+cannot replace them.
+.TP
+.B COLUMNS
+The console width that the line editor wraps and redraws lines to.
+The default is the width of the console window of standard output or
+standard error, or 80 when neither is a console.
+.TP
+.B HOME
+The directory that
+.B \ew
+and
+.B \eW
+in the
+.B \-p
+prompt show as
+.BR ~ .
+When it is unset or empty,
+.B ed
+uses the user's profile directory.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+The first of these that is set decides how the line editor handles text.
+When its value is
+.BR C ,
+text is single bytes, and console output is written without code page
+conversion.
+Otherwise text is UTF-8 when the ANSI code page is UTF-8, and single
+bytes when it is not.
+.TP
+.B POSIXLY_CORRECT
+When set, the
+.I file
+operand ends the options, so that a later argument such as
+.B \-s
+is an ignored extra operand.
+.PP
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Every normal end: the
+.B q
+command, end of input, Ctrl\-C or Ctrl\-D at the command prompt, or
+.BR \-\-help .
+Errors in commands, and a file operand that cannot be read, do not change
+the status.
+.TP
+.B 1
+An invalid option or a missing option argument, with a usage message on
+standard error, or out of memory.
+.SH EXAMPLES
+Replace every
+.B old
+with
+.B new
+in a file, from a script:
+.PP
+.RS 4
+.EX
+$ ed \-s config.h <<\(aqEOF\(aq
+,s/old/new/g
+w
+q
+EOF
+.EE
+.RE
+.PP
+Print lines 10 to 20 of a file:
+.PP
+.RS 4
+.EX
+$ printf \(aq10,20p\en\(aq | ed \-s file.txt
+.EE
+.RE
+.PP
+Insert a line at the top of a file, and save it:
+.PP
+.RS 4
+.EX
+$ printf \(aq0a\en#include <stdio.h>\en.\enw\enq\en\(aq | ed \-s main.c
+.EE
+.RE
+.PP
+Create a file:
+.PP
+.RS 4
+.EX
+$ printf \(aqa\enhello\en.\enw hello.txt\enq\en\(aq | ed \-s
+.EE
+.RE
+.PP
+Print the number of lines in a file:
+.PP
+.RS 4
+.EX
+$ printf \(aq$=\en\(aq | ed \-s file.txt
+.EE
+.RE
+.SH NOTES
+This is the
+.B ed
+of busybox, derived from a small 2002 implementation, not GNU
+.BR ed .
+It differs from POSIX
+.B ed
+in many ways:
+.IP \(bu 2
+Searches and substitutions are literal text.
+There are no regular expressions, no backward search, and no semicolon
+ranges.
+.IP \(bu 2
+Only the commands above exist.
+There is no undo, no
+.BR g ,
+.BR v ,
+.BR j ,
+.BR m ,
+.BR t ,
+.BR u ,
+.BR e ,
+.BR E ,
+.BR n ,
+.BR h ,
+.BR H ,
+.BR P ,
+.BR Q ,
+or
+.BR ! ,
+and no suffix such as
+.B p
+or
+.B n
+after a command other than
+.BR s .
+.IP \(bu 2
+Errors are messages on standard error, and the exit status does not
+report them.
+.IP \(bu 2
+Commands that take one address accept a range and use its first address,
+except
+.BR k ,
+which uses the last.
+.B =
+without an address prints the current line number rather than the number
+of lines.
+.IP \(bu 2
+A successful
+.B r
+does not set the remembered file name, but a failed
+.B r
+sets it when there is none.
+.B w
+never sets it.
+.PP
+The whole buffer is held in memory.
+Files are read and written in binary mode, so
+.B ed
+never translates line endings or character sets.
+A line from a file with CR LF endings keeps its carriage return, which
+.B p
+sends to the output,
+.B l
+shows as
+.BR ^M ,
+and
+.B s
+patterns can match.
+.PP
+When standard input is not a console, a carriage return before a newline
+is dropped from each line read.
+A lone period ended by CR LF is still not recognized as the end of text
+input, so the rest of the input becomes text.
+Scripts for
+.B ed
+need LF line endings, as made by
+.BR dos2unix (1).
+.PP
+In a console, lines are edited with the line editor of
+.BR sh (1),
+using the keys in its Line editing section, but with no history, no
+completion, and no vi mode.
+Up, Down, and Tab do nothing, so a tab cannot be typed.
+Typing into the history search that Ctrl\-R starts crashes
+.BR ed ,
+losing the buffer.
+Ctrl\-Z changes backslashes in the line to slashes.
+Ctrl\-C, or Ctrl\-D on an empty line, at the command prompt exits
+.BR ed ,
+discarding unsaved changes.
+.PP
+A command holds at most 1021 characters, and a line of text 1022, not
+counting the newline.
+A console ignores further typing.
+From a pipe or file, the excess is read as a separate command or line of
+text, and pieces of text rejoin when written.
+.PP
+File names may use drive letters and either kind of slash.
+The file operand and
+.B r
+also accept the device names listed in
+.BR busybox (1),
+such as
+.IR /dev/null ,
+but
+.B w
+does not: it treats
+.I /dev/null
+as an ordinary path, which usually fails.
+.PP
+On a console, escape sequences in the text of a line take effect when
+.B p
+prints it, so use
+.B l
+to look at them.
+.SH SEE ALSO
+.BR busybox (1),
+.BR dos2unix (1),
+.BR sed (1),
+.BR sh (1),
+.BR vim (1)

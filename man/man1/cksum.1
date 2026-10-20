@@ -1,0 +1,185 @@
+.TH CKSUM 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+cksum \- print CRC checksums and sizes of files
+.SH SYNOPSIS
+.B cksum
+.RI [ file ...]
+.SH DESCRIPTION
+.B cksum
+prints a 32-bit CRC and the size in bytes of each
+.IR file .
+With no
+.I file
+operands, or for a
+.I file
+named
+.BR \- ,
+it reads standard input.
+.PP
+The CRC is the one specified by POSIX for
+.BR cksum :
+polynomial 0x04C11DB7, most significant bit first, starting from zero.
+It covers the contents followed by their length in bytes, least
+significant byte first, in as few bytes as the length needs, so none for
+an empty file.
+The result is complemented.
+It is not the CRC-32 of zip, gzip, and PNG, which
+.BR crc32 (1)
+prints.
+.PP
+Each output line is the CRC in decimal, a space, the size in bytes, a
+space, and the file name as given on the command line.
+When standard input is read because there are no operands, the name and
+the space before it are left out.
+For an operand of
+.BR \- ,
+the name is
+.BR \- .
+.PP
+A file that cannot be opened is reported on standard error and skipped,
+and the remaining files are still read.
+An error while reading a file ends the command at once.
+.SH OPTIONS
+.B cksum
+takes no options other than
+.BR \-\-help .
+Any other argument that begins with a dash, except
+.B \-
+itself, is an invalid option, even after a
+.IR file ,
+unless
+.B POSIXLY_CORRECT
+is set.
+An invalid option prints a usage message on standard error.
+.B \-\-
+ends the options, for a
+.I file
+whose name begins with a dash.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit.
+It is recognized only as the first argument.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the operands are expanded when the program starts, even in
+quoted operands, as needed when run from
+.BR cmd.exe .
+A pattern that matches nothing is left as it is.
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+operands as the shell expanded them.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+names written to a console are not converted, as described in
+.BR NOTES ,
+and the console interprets the bytes in its own code page.
+.TP
+.B POSIXLY_CORRECT
+If set, the first operand ends the options.
+.PP
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Every file was read, or
+.B \-\-help
+was given.
+.TP
+.B 1
+A file could not be opened or read, an option was invalid, or standard
+output could not be written.
+.TP
+.B 141
+Standard output is a pipe whose reader exited before all output was
+written.
+If the pipe breaks only when the output still buffered at exit is
+written, the status is 1 instead.
+.SH EXAMPLES
+Print the CRC and size of standard input:
+.PP
+.RS 4
+.EX
+$ printf abc | cksum
+1219131554 3
+.EE
+.RE
+.PP
+Print the CRC and size of a file:
+.PP
+.RS 4
+.EX
+$ cksum abc.txt
+1219131554 3 abc.txt
+.EE
+.RE
+.PP
+List DLLs in two directories by checksum, so that copies with the same
+contents are adjacent:
+.PP
+.RS 4
+.EX
+$ cksum old/*.dll new/*.dll | sort
+.EE
+.RE
+.SH NOTES
+Differences from GNU coreutils:
+.IP \(bu 2
+There are no options besides
+.BR \-\-help .
+GNU
+.BR \-a ,
+.BR \-c ,
+.BR \-\-tag ,
+and the rest have no equivalent.
+Use
+.B md5sum
+and the related commands for other algorithms and for checking lists.
+.IP \(bu 2
+The output is the same as that of GNU
+.B cksum
+without options.
+.PP
+The usage message shows
+.I file
+as required, but it is optional.
+.PP
+Standard input is closed after it is read, so a second
+.B \-
+operand fails with
+.BR "Bad file descriptor" ,
+and the command ends there.
+.PP
+Files and standard input are read as binary, so checksums match those
+of the same bytes on other systems, and a text file with CR LF line
+endings does not match a copy with LF line endings.
+Output lines end with LF.
+.PP
+A
+.I file
+may be a Windows path, with a drive letter and either kind of slash, or
+a busybox-w32 device name such as
+.IR /dev/null .
+It is printed exactly as given.
+On Windows 10 version 1903 or later, file names may contain any Unicode
+characters, and on older systems only those of the system code page.
+A directory operand fails with
+.BR "Permission denied" .
+.PP
+When standard output is a console, names are converted for display from
+the ANSI code page to the console's output code page.
+.PP
+A 32-bit CRC detects accidental damage, not deliberate tampering.
+.SH SEE ALSO
+.BR busybox (1),
+.BR crc32 (1),
+.BR md5sum (1),
+.BR sum (1)

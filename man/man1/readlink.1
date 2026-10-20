@@ -1,0 +1,344 @@
+.TH READLINK 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+readlink \- print the target of a symbolic link, or a canonical path
+.SH SYNOPSIS
+.B readlink
+.RB [ \-fnqsv ]
+.I file
+.SH DESCRIPTION
+.B readlink
+prints the target of the symbolic link
+.IR file ,
+followed by a newline.
+With
+.BR \-f ,
+it prints the canonical absolute path of
+.I file
+instead.
+It takes exactly one operand, and any other number is a usage error.
+This
+.B readlink
+is the
+.BR busybox (1)
+applet, which has fewer options than GNU
+.BR readlink ;
+see
+.BR NOTES .
+.SS Links
+A link is a symbolic link, a directory junction such as
+.BR jn (1)
+makes, or an app execution alias, one of the program names that Windows
+keeps in a user's
+.I WindowsApps
+directory.
+The target of an alias is the path of the program it runs.
+A hard link is an ordinary file.
+.PP
+Without
+.BR \-f ,
+.B readlink
+reads the link and prints its target as stored, without resolving it or
+checking that it exists.
+A relative target stays relative, and Windows resolves it from the
+directory that holds the link.
+Backslashes become slashes.
+The NT prefix that Windows stores with an absolute target, such as
+.BR \e??\e ,
+is removed, and a network target is printed in the form
+.IR //server/share/dir .
+.PP
+Anything else is an error without
+.BR \-f :
+an ordinary file or directory, a missing file, or another kind of
+reparse point.
+A
+.B .lnk
+shortcut is an ordinary file.
+.SS Canonical paths
+With
+.BR \-f ,
+.I file
+need not be a link.
+The result is an absolute path with forward slashes.
+Dot and dot-dot components, repeated separators, and a trailing
+separator are removed.
+A dot-dot is removed by name, before any link is followed, so
+.IB link /..\&
+is the directory that holds
+.IR link ,
+and the component that a dot-dot removes need not exist.
+Every link left in the path is followed.
+Each name has the case and the long form that it has on disk, so
+.B c:/progra~1
+becomes
+.BR "C:/Program Files" .
+.PP
+The file must exist, with one exception.
+If only its last component is missing, the rest of the path is
+canonicalized, and the component is appended as typed, along with the
+separator typed before it, so a backslash there is kept.
+The rest must exist, but need not be a directory.
+A missing name with no directory part, such as
+.BR new.o ,
+fails: write
+.B ./new.o
+instead.
+A missing name directly in a root directory, such as
+.B c:/new.o
+or
+.BR /new.o ,
+is printed exactly as typed, whether or not the drive exists.
+.PP
+If
+.I file
+is a link whose target is missing, the target is canonicalized by the
+same rules.
+A relative target is made absolute with the current directory, not the
+directory that holds the link.
+.SS Output
+The path ends with a line feed, never a carriage return and line feed.
+When
+.I file
+cannot be read, nothing is written to standard output.
+With
+.BR \-v ,
+a failure without
+.B \-f
+is reported on standard error as
+.PP
+.RS 4
+.EX
+readlink: \fIfile\fR: cannot read link: \fIreason\fR
+.EE
+.RE
+.PP
+where
+.I reason
+is a system message.
+It is
+.B No such file or directory
+for a missing file, and
+.B Function not implemented
+for a file or directory that is not a link.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-fn ,
+and may follow the operand, unless
+.B POSIXLY_CORRECT
+is set.
+.B \-\-
+ends the options.
+There are no long options.
+.TP
+.B \-n
+Do not write the newline after the path.
+.TP
+.B \-f
+Print the canonical absolute path of
+.I file
+instead of the target of a link; see
+.BR "Canonical paths" .
+.TP
+.B \-v
+Report a failure on standard error; see
+.BR Output .
+Failures are silent otherwise, and the exit status is the only sign.
+Even with
+.BR \-v ,
+a failure of
+.B \-f
+is silent.
+.TP
+.BR \-q ", " \-s
+Accepted and ignored.
+Failures are silent unless
+.B \-v
+is given, and these do not change that.
+.TP
+.B \-\-help
+As the first argument only, write a usage message on standard output and
+exit with status 0.
+.SH ENVIRONMENT
+.TP
+.B BB_CRITICAL_ERROR_DIALOGS
+When it is
+.BR 1 ,
+Windows shows its critical-error dialogs, such as for a drive with no
+disk in it, instead of the operation failing with an error.
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the arguments are expanded when busybox starts, for a caller
+such as
+.B cmd.exe
+that does not expand them.
+When it is unset, busybox sets it to
+.B 0
+for the programs it starts, so commands run from the kit's shell get the
+shell's expansion only.
+.TP
+.B POSIXLY_CORRECT
+If set, the first operand ends the options.
+.PP
+Output written to a console also depends on
+.BR BB_SKIP_ANSI_EMULATION ,
+.BR BB_TERMINAL_MODE ,
+.BR CONEMUPID ,
+.BR LANG ,
+.BR LC_ALL ,
+and
+.BR LC_CTYPE ,
+as for every busybox applet; see
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+The path was written.
+.TP
+.B 1
+An invalid command line, with a usage message on standard error, a
+failure to read the link or to canonicalize the path, or an error
+writing standard output.
+.SH EXAMPLES
+Show where a junction points:
+.PP
+.RS 4
+.EX
+$ readlink vendor/zlib
+C:/src/zlib\-1.3.1
+.EE
+.RE
+.PP
+Test whether a path is a link, by exit status:
+.PP
+.RS 4
+.EX
+$ readlink vendor/zlib >/dev/null && echo link
+link
+.EE
+.RE
+.PP
+Say why a file is not a link:
+.PP
+.RS 4
+.EX
+$ readlink \-v main.c
+readlink: main.c: cannot read link: Function not implemented
+.EE
+.RE
+.PP
+Print the canonical path of a directory, and of a file that does not
+exist yet in a directory that does:
+.PP
+.RS 4
+.EX
+$ cd C:/src/app
+$ readlink \-f ../lib/./include/..
+C:/src/lib
+$ readlink \-f build/new.o
+C:/src/app/build/new.o
+.EE
+.RE
+.PP
+A bare name that does not exist fails, and the same name with a
+directory part does not:
+.PP
+.RS 4
+.EX
+$ readlink \-f new.o; echo $?
+1
+$ readlink \-f ./new.o
+C:/src/app/new.o
+.EE
+.RE
+.PP
+Expand a short name to the real one:
+.PP
+.RS 4
+.EX
+$ readlink \-f c:/progra~1
+C:/Program Files
+.EE
+.RE
+.SH NOTES
+Differences from GNU
+.BR readlink :
+.IP \(bu 2
+Only
+.BR \-f ,
+.BR \-n ,
+and
+.B \-v
+do anything.
+.BR \-q " and " \-s
+are ignored, and
+.BR \-e ,
+.BR \-m ,
+.BR \-z ,
+and the long options are invalid.
+.IP \(bu 2
+Exactly one operand is allowed.
+.IP \(bu 2
+A file that is not a link fails with
+.B Function not implemented
+rather than
+.BR "Invalid argument" .
+.IP \(bu 2
+.B \-f
+fails on a missing name with no directory part, where GNU
+.B readlink
+prints the absolute path.
+It reports no reason for a failure, even with
+.BR \-v .
+.IP \(bu 2
+.B \-f
+removes a dot-dot before following the link that precedes it, where GNU
+.B readlink
+follows the link first.
+.PP
+.B readlink \-f
+prints what
+.BR realpath (1)
+prints for the same operand.
+.PP
+Symbolic links need Developer Mode or an elevated administrator to
+create; see
+.BR ln (1).
+A junction needs neither; see
+.BR jn (1).
+.B readlink
+reads both.
+.PP
+Paths may have drive letters and either kind of slash.
+Names may contain any Unicode character on Windows 10 version 1903 and
+later, and are limited to the system code page on earlier versions.
+.PP
+Paths are limited to 259 characters.
+Without
+.BR \-f ,
+a longer path fails with
+.BR "No such file or directory" .
+.B \-f
+treats a path of 260 or more characters, as typed or once made absolute,
+as if its last component were missing: the component is appended as
+typed without being checked, and if the rest is too long as well,
+.B \-f
+fails.
+When the canonical path would have 256 to 259 characters, the path is
+only made absolute: names keep the case and form typed, and a link
+before the last component is not followed.
+.PP
+From
+.BR cmd.exe ,
+.B readlink
+expands wildcards in its operand itself; see
+.BR BB_GLOBBING .
+A pattern that matches several names gives several operands, which is a
+usage error.
+.SH SEE ALSO
+.BR busybox (1),
+.BR jn (1),
+.BR ln (1),
+.BR ls (1),
+.BR realpath (1)

@@ -1,0 +1,419 @@
+.TH PS 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+ps \- list the processes running on the system
+.SH SYNOPSIS
+.B ps
+.RB [ \-AadeflZ ]
+.RB [ \-o
+.IR columns ]
+.SH DESCRIPTION
+.B ps
+writes a table of the running processes on standard output: a header
+line, then one line per process.
+It takes a single snapshot and exits.
+It lists every process on the system, including those of other users and
+system processes such as
+.BR System ,
+and has no way to select a subset.
+Processes appear in the order Windows lists them, not sorted by process
+ID.
+.PP
+The default columns are
+.BR pid ,
+.BR ppid ,
+.BR user ,
+.BR time ,
+.BR etime ,
+and
+.BR args .
+.B \-o
+chooses others from the eight described under
+.BR Columns .
+.SS Output
+Each column is padded with spaces to its width and followed by a space,
+except the last, which is not padded.
+.B pid
+and
+.B ppid
+are right-aligned within their width, and the other columns start at the
+left edge of theirs.
+A value wider than its column is cut to the width, except for
+.B pid
+and
+.BR ppid ,
+which are written in full and push the rest of the line to the right.
+An empty value is written as
+.BR \- .
+.PP
+The header line uses the same widths, with every header at the left edge
+of its column, including those of
+.B pid
+and
+.BR ppid .
+It is omitted when every column has an empty header, as with
+.BR "\-o pid=,comm=" .
+.PP
+Each line is cut to a limit: one column less than the width of the
+console when standard output is a console, up to 2048, and 2048
+otherwise.
+Columns after the first one that, with its trailing space, reaches past
+the limit are not printed, even when their values would fit.
+As
+.B args
+is 2048 wide, a column after it is printed only when
+.B args
+has a header that narrows it.
+Lines end in LF, and
+.B ps
+writes no escape sequences.
+.SS Columns
+.TP
+.B pid
+The process ID.
+Header
+.BR PID ,
+width 5.
+.TP
+.B ppid
+The ID of the parent process.
+Header
+.BR PPID ,
+width 5.
+It is 1 when the parent is not running, because Windows does not
+reparent a process whose parent has exited, and 0 for process 0, which
+has no parent.
+Windows can reuse the ID of an exited parent, and the value is then the
+ID of an unrelated process.
+.TP
+.B user
+The user name.
+Header
+.BR USER ,
+width 8.
+It is the name of the current user for a process that
+.B ps
+can open with full access, and
+.B root
+for any other process.
+It is not the name of the process's owner; see
+.BR NOTES .
+.TP
+.B group
+The group name, which is the same as the user name.
+Header
+.BR GROUP ,
+width 8.
+.TP
+.B comm
+The name of the process: the file name of its executable, including the
+extension, such as
+.BR explorer.exe ,
+cut to 31 bytes.
+A process running the same build of busybox is named after its applet
+instead, such as
+.B sh
+or
+.BR sleep .
+Header
+.BR COMMAND ,
+width 32.
+.TP
+.B args
+The command line.
+For a process running the same build of busybox, including
+.B ps
+itself, it is the applet name and the arguments it was given, joined by
+single spaces with no quoting.
+At most 126 characters are kept, and an argument that does not fit is
+left out together with all those after it.
+For any other process
+.B ps
+does not read the command line, and the value is the same as
+.BR comm .
+Header
+.BR COMMAND ,
+width 2048.
+.TP
+.B time
+The CPU time the process has used, user and kernel together, truncated
+to whole seconds.
+Header
+.BR TIME ,
+width 5.
+The value is always five characters, padded on the left with spaces, in
+the first of these forms that fits:
+minutes and seconds, as in
+.BR 3:07 ;
+hours and minutes, as in
+.BR 2h05 ;
+days and hours, as in
+.BR 12d03 ;
+or, from 100 days, days alone, as in
+.BR 100d .
+.TP
+.B etime
+The time since the process started, in the same forms as
+.BR time .
+Header
+.BR ELAPSED ,
+width 7.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-Aef ,
+and the argument of
+.B \-o
+may be attached, as in
+.BR \-opid,args .
+Options may follow operands, unless
+.B POSIXLY_CORRECT
+is set.
+.B \-\-
+ends the options.
+Operands are ignored, so
+.B ps aux
+is the same as
+.BR ps .
+Any other option, such as
+.BR \-T ,
+.BR \-w ,
+or
+.BR \-h ,
+prints an error message and a usage message on standard error and exits
+with status 1.
+.TP
+.BI "\-o " columns
+Show the columns named in
+.IR columns ,
+in that order, instead of the default ones.
+.I columns
+is a list of names from
+.BR Columns ,
+separated by commas.
+The names are lower case, and blanks are not separators.
+The option may be repeated, and the lists are joined in order.
+A name unknown to
+.B ps
+is an error: it prints the names it knows and exits with status 1.
+.IP
+A name may be followed by
+.BI = header
+to replace that column's header with
+.IR header .
+The header ends at the next comma, so it cannot contain one.
+.IP
+A header also sets the width of its column.
+The column is exactly as wide as the header, even when that is narrower
+than the default width, and values longer than that are cut off, except
+for
+.B pid
+and
+.BR ppid .
+For example,
+.B \-o comm=NAME
+shows names of at most four characters.
+Giving
+.B pid
+or
+.B ppid
+a header narrower than its values makes
+.B ps
+overrun its line buffer, which can corrupt the output.
+An empty header, as in
+.BR \-o\ pid= ,
+keeps the default width and shows no header text.
+.TP
+.BR \-A ", " \-a ", " \-d ", " \-e ", " \-f ", " \-l ", " \-Z
+Accepted for compatibility and ignored.
+.TP
+.B \-\-help
+As the first argument, print a usage message on standard output and exit
+with status 0.
+.SH ENVIRONMENT
+.TP
+.B COLUMNS
+The width of the console, in place of its real width, when standard
+output is a console.
+A value that is not from 2 to 29999 is taken as 80.
+It has no effect when standard output is not a console.
+.TP
+.B POSIXLY_CORRECT
+When it is set, even to an empty value, the first operand ends the
+options, so that in
+.BR "ps aux \-o pid" ,
+.B \-o
+is an operand and is ignored.
+.PP
+The variables that busybox reads for every applet, such as
+.BR BB_GLOBBING ,
+are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success, or
+.B \-\-help
+was given.
+.TP
+.B 1
+An invalid option, a missing argument to
+.BR \-o ,
+or an unknown column name.
+.PP
+Failure to list the processes is not detected: if Windows refuses to
+supply the list, only the header is printed and the status is 0.
+.SH EXAMPLES
+List the processes with the default columns:
+.PP
+.RS 4
+.EX
+$ ps
+PID   PPID  USER     TIME  ELAPSED COMMAND
+    0     0 root      0:00  1d05   [System Process]
+    4     0 root      0:00  1d05   System
+\&...
+.EE
+.RE
+.PP
+List the distinct program names that are running, with no header:
+.PP
+.RS 4
+.EX
+$ ps \-o comm= | sort \-u
+.EE
+.RE
+.PP
+Find a background job and its parent, which is the shell:
+.PP
+.RS 4
+.EX
+$ sleep 60 &
+[1] 11732
+$ ps \-o pid,ppid,etime,comm | grep \-w sleep
+11732 13472  0:01   sleep
+.EE
+.RE
+.PP
+Show how a header sets the column width, here cutting names to four
+characters:
+.PP
+.RS 4
+.EX
+$ ps \-o pid,comm=NAME | head \-3
+PID   NAME
+    0 [Sys
+    4 Syst
+.EE
+.RE
+.SH NOTES
+Differences from the procps
+.B ps
+and from busybox
+.B ps
+on Linux:
+.IP \(bu 2
+There is no way to select processes or change the format other than
+.BR \-o .
+The POSIX options
+.BR \-A ,
+.BR \-a ,
+.BR \-d ,
+.BR \-e ,
+.BR \-f ,
+and
+.BR \-l ,
+and the BSD form
+.BR "ps aux" ,
+are accepted and ignored.
+.IP \(bu 2
+There is no
+.BR \-T ,
+.BR \-w ,
+or other option, and no column for the terminal, state, memory use,
+process group, session, or niceness.
+.IP \(bu 2
+The default columns include
+.B ppid
+and
+.BR etime ,
+which busybox on Linux leaves out.
+.IP \(bu 2
+Process names include the extension, such as
+.BR cmd.exe .
+.IP \(bu 2
+.B ps
+does not look up the owner of a process, so
+.B user
+and
+.B group
+are not the owner's name; see below.
+.PP
+The list comes from
+.BR CreateToolhelp32Snapshot ,
+so a process that exits while
+.B ps
+runs is still listed.
+Whether a process is shown as the current user is decided by trying to
+open it with
+.BR PROCESS_ALL_ACCESS .
+The current user's name comes from
+.BR GetUserName ,
+with each space replaced by an underscore, and is cut to the width of
+the column.
+Processes that
+.B ps
+cannot open that way, such as those of other users and protected system
+processes, are shown as
+.BR root .
+.PP
+CPU and start times come from
+.BR GetProcessTimes ,
+which needs only
+.BR PROCESS_QUERY_LIMITED_INFORMATION ,
+so it can succeed for a process shown as
+.BR root .
+For a process whose times cannot be read,
+.B time
+is
+.B 0:00
+and
+.B etime
+is the time the system has been up.
+The times are kept as 32-bit counts of milliseconds, so
+.B time
+wraps after about 49 days of CPU time, and
+.B etime
+is wrong for a process that started more than about 49 days after the
+system booted.
+.PP
+The name and command line of a process other than
+.B ps
+itself are read out of the memory of that process.
+That works only for a process that runs the same build of busybox as
+.B ps
+and whose memory
+.B ps
+can open for reading.
+Any other process is shown under its executable's file name for both
+.B comm
+and
+.BR args .
+.PP
+The kit's command launchers, such as
+.BR ps.exe ,
+appear under their own names, each alongside the busybox process it
+started.
+When
+.B ps
+is started through its launcher, as from
+.BR cmd.exe ,
+the output has a row for
+.B ps.exe
+and another for
+.BR ps .
+.SH SEE ALSO
+.BR busybox (1),
+.BR kill (1),
+.BR killall (1),
+.BR pgrep (1),
+.BR pidof (1),
+.BR pkill (1)

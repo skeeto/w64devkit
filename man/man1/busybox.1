@@ -1,0 +1,930 @@
+.TH BUSYBOX 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.SH NAME
+busybox \- one program providing the shell and many Unix commands
+.SH SYNOPSIS
+.I applet
+.RI [ argument ...]
+.br
+.B busybox
+.RI [ applet
+.RI [ argument ...]]
+.br
+.B busybox
+.BR \-\-list [ \-full ]
+.br
+.B busybox \-\-install
+.RB [ \-s ]
+.RB [ \-u
+|
+.IR dir ]
+.br
+.B busybox \-\-uninstall
+.RB [ \-n ]
+.I file
+.br
+.B busybox \-\-help
+.RI [ applet ]
+.br
+.B busybox \-\-version
+.br
+.B busybox \-\-busybox
+.I applet
+.RI [ argument ...]
+.SH DESCRIPTION
+.B busybox
+is a single program,
+.IR busybox.exe ,
+that contains the kit's shell and most of its Unix commands, each called
+an applet.
+It is busybox-w32, the Windows port of BusyBox, with w64devkit's
+patches; see
+.BR NOTES .
+An applet is a small implementation of the command of the same name,
+usually with fewer options than its GNU or BSD namesake.
+.PP
+With no arguments,
+.B busybox
+prints its version, a usage summary, and the list of applets on
+standard output, and exits.
+.PP
+Every applet except
+.BR [ ,
+.BR echo ,
+.BR false ,
+.BR test ,
+and
+.B true
+prints its usage on standard output and exits with status 0 when its
+first argument is
+.BR \-\-help .
+In the shell, a builtin of the same name, such as
+.B printf
+or
+.BR kill ,
+runs instead and does not do this.
+.SS Choosing the applet
+.B busybox
+runs the applet named by its first command-line word, the name it was
+started under.
+The word is converted to lowercase, a leading
+.B \-
+is dropped, and so is a
+.BR .exe ,
+.BR .com ,
+.BR .bat ,
+.BR .cmd ,
+or
+.B .sh
+suffix or a final period.
+The last component of what remains names the applet, so that
+.B LS.EXE
+and
+.B C:\ew64devkit\ebin\els.exe
+both run
+.BR ls .
+.PP
+A name that begins with
+.BR busybox ,
+such as
+.B busybox.exe
+or
+.BR busybox64.exe ,
+runs
+.B busybox
+itself, which performs one of the
+.B OPTIONS
+or runs the applet named by its first argument.
+A directory part in that argument is ignored, but the rest must match
+exactly:
+.B busybox ls
+works, but
+.B busybox LS
+and
+.B busybox ls.exe
+do not.
+.PP
+An unknown applet prints
+.IB name ": applet not found"
+on standard error, and the exit status is 127.
+.SS Launchers
+The kit's
+.I bin
+directory holds
+.I busybox.exe
+and, for most applets, a launcher named after the applet, such as
+.IR ls.exe .
+A launcher is a small separate program, not a link.
+It starts
+.I busybox.exe
+from its own directory with its own command line unchanged, waits for
+it, and exits with its exit status.
+The launcher itself ignores Ctrl+C, leaving it to
+.BR busybox .
+.PP
+These applets have no launcher:
+.BR [ ,
+.BR cdrop ,
+.BR drop ,
+.BR flock ,
+.BR pdrop ,
+.BR sha384sum ,
+and
+.BR stty .
+Run them as
+.B busybox
+.IR applet ,
+or by name in the kit's shell, which runs applets without searching
+.BR PATH .
+.SS Applets
+This build has these applets.
+.BR sh ,
+.BR ash ,
+and
+.B lash
+are names of the same shell.
+.TP
+Shell
+.BR ash ,
+.BR lash ,
+.B sh
+.TP
+Files
+.BR chattr ,
+.BR chmod ,
+.BR cp ,
+.BR dd ,
+.BR df ,
+.BR du ,
+.BR find ,
+.BR flock ,
+.BR fsync ,
+.BR install ,
+.BR jn ,
+.BR ln ,
+.BR ls ,
+.BR lsattr ,
+.BR mkdir ,
+.BR mktemp ,
+.BR mv ,
+.BR pwd ,
+.BR readlink ,
+.BR realpath ,
+.BR rm ,
+.BR rmdir ,
+.BR shred ,
+.BR stat ,
+.BR sync ,
+.BR touch ,
+.B truncate
+.TP
+Text
+.BR awk ,
+.BR cat ,
+.BR cmp ,
+.BR comm ,
+.BR cut ,
+.BR diff ,
+.BR dos2unix ,
+.BR ed ,
+.BR egrep ,
+.BR expand ,
+.BR fgrep ,
+.BR fold ,
+.BR grep ,
+.BR head ,
+.BR iconv ,
+.BR join ,
+.BR less ,
+.BR nl ,
+.BR paste ,
+.BR patch ,
+.BR rev ,
+.BR sed ,
+.BR shuf ,
+.BR sort ,
+.BR split ,
+.BR tac ,
+.BR tail ,
+.BR tee ,
+.BR tr ,
+.BR unexpand ,
+.BR uniq ,
+.BR unix2dos ,
+.B wc
+.TP
+Binary data
+.BR base32 ,
+.BR base64 ,
+.BR hd ,
+.BR hexdump ,
+.BR od ,
+.BR uudecode ,
+.B uuencode
+.TP
+Checksums
+.BR cksum ,
+.BR crc32 ,
+.BR md5sum ,
+.BR sha1sum ,
+.BR sha256sum ,
+.BR sha384sum ,
+.BR sha3sum ,
+.BR sha512sum ,
+.B sum
+.TP
+Compression and archives
+.BR bunzip2 ,
+.BR bzcat ,
+.BR bzip2 ,
+.BR cpio ,
+.BR lzcat ,
+.BR lzma ,
+.BR lzop ,
+.BR lzopcat ,
+.BR tar ,
+.BR uncompress ,
+.BR unlzma ,
+.BR unlzop ,
+.BR unxz ,
+.BR xz ,
+.B xzcat
+.TP
+Processes
+.BR kill ,
+.BR killall ,
+.BR pgrep ,
+.BR pidof ,
+.BR pkill ,
+.BR ps ,
+.BR time ,
+.BR timeout ,
+.B watch
+.TP
+System and users
+.BR arch ,
+.BR cdrop ,
+.BR drop ,
+.BR free ,
+.BR groups ,
+.BR id ,
+.BR logname ,
+.BR nproc ,
+.BR pdrop ,
+.BR su ,
+.BR uname ,
+.BR uptime ,
+.B whoami
+.TP
+Terminal
+.BR clear ,
+.BR reset ,
+.BR stty ,
+.B ttysize
+.TP
+Network
+.BR httpd ,
+.BR ipcalc ,
+.BR nc ,
+.BR ssl_client ,
+.BR wget ,
+.B whois
+.TP
+Scripting
+.BR [ ,
+.BR basename ,
+.BR bc ,
+.BR cal ,
+.BR date ,
+.BR dc ,
+.BR dirname ,
+.BR echo ,
+.BR env ,
+.BR expr ,
+.BR factor ,
+.BR false ,
+.BR getopt ,
+.BR inotifyd ,
+.BR pipe_progress ,
+.BR printenv ,
+.BR printf ,
+.BR seq ,
+.BR sleep ,
+.BR test ,
+.BR true ,
+.BR ts ,
+.BR usleep ,
+.BR which ,
+.BR xargs ,
+.B yes
+.TP
+Other
+.BR busybox ,
+.B man
+.SS Applets left out
+The kit builds
+.B busybox
+without these applets, and ships other programs under their names:
+.TP
+.BR gzip ", " gunzip ", " zcat ", " unzip
+tugz, which also provides
+.B zip
+and
+.BR zipinfo ;
+see
+.BR gzip (1)
+and
+.BR unzip (1).
+.TP
+.B vi
+Vim; see
+.BR vim (1).
+.TP
+.B xxd
+rexxd; see
+.BR xxd (1).
+.TP
+.B uuidgen
+The kit's own; see
+.BR uuidgen (1).
+.TP
+.B make
+GNU make; see
+.BR make (1).
+.TP
+.BR ar ", " strings
+GNU binutils.
+.PP
+These are left out with no replacement:
+.BR ascii ,
+.BR bash ,
+.BR crond ,
+.BR crontab ,
+.BR dpkg ,
+.BR dpkg\-deb ,
+.BR ftpget ,
+.BR ftpput ,
+.BR link ,
+.BR pdpmake ,
+.BR rpm ,
+.BR rpm2cpio ,
+.BR tsort ,
+.BR unlink ,
+and the
+.B [[
+form of
+.BR test .
+.SS Running commands
+When the shell, or an applet such as
+.BR env ,
+.BR find ,
+.BR time ,
+.BR timeout ,
+or
+.BR xargs ,
+runs a command, it finds the command as follows:
+.IP \(bu 2
+A command named by an applet runs that applet, even when
+.B PATH
+has a program of the same name, unless
+.B BB_OVERRIDE_APPLETS
+says otherwise.
+.IP \(bu 2
+A command given as
+.IR /bin/name ,
+.IR /usr/bin/name ,
+.IR /sbin/name ,
+or
+.IR /usr/sbin/name ,
+when no such file exists, runs the applet
+.IR name .
+.IP \(bu 2
+Other commands without a directory part are looked up in
+.BR PATH .
+Each candidate is tried as given and then with
+.BR .com ,
+.BR .exe ,
+.BR .sh ,
+.BR .bat ,
+and
+.B .cmd
+appended, unless it already ends in one of these or in a period.
+An empty element in
+.B PATH
+stands for the current directory.
+When started from a Windows environment, as from
+.BR cmd.exe ,
+busybox drops a single trailing semicolon from
+.BR PATH .
+.IP \(bu 2
+A file that begins with
+.B #!\&
+runs under the interpreter it names.
+For an interpreter in
+.IR /bin ,
+.IR /usr/bin ,
+.IR /sbin ,
+or
+.IR /usr/sbin ,
+busybox runs the applet of that name if there is one, or else that file
+if it exists, or else the program of that name in
+.BR PATH ,
+so that
+.B #!/bin/sh
+and
+.B #!/usr/bin/env
+lines work.
+When the shell runs the file, this search uses
+.B PATH
+as it was when the shell started, ignoring changes made in the shell.
+A file whose name ends in
+.B .sh
+and that has no
+.B #!\&
+line runs under
+.BR sh .
+.SH OPTIONS
+These options are recognized only as the first argument.
+Except for
+.BR \-\-busybox ,
+they work only when
+.B busybox
+is started under its own name, where any other first argument is an
+applet name.
+.TP
+.B \-\-list
+Print the name of each applet on its own line, in sorted order.
+.TP
+.B \-\-list\-full
+Like
+.BR \-\-list ,
+but precede each name with a field of 8 columns, holding
+.BR NOFORK ,
+.BR noexec ,
+or nothing, and with the applet's conventional Unix directory, such as
+.BR usr/bin/ .
+The shell runs
+.B NOFORK
+applets within its own process.
+Any longer argument that begins with
+.B \-\-list
+works the same.
+.TP
+\fB\-\-install\fR [\fB\-s\fR] [\fB\-u\fR | \fIdir\fR]
+Create a hard link to
+.I busybox.exe
+for each applet, named after the applet with
+.B .exe
+appended, in
+.IR dir ,
+which is created if needed, or else in the directory that contains
+.IR busybox.exe .
+Existing files are left alone.
+Other failures are reported, but do not change the exit status.
+.RS
+.TP
+.B \-s
+Create symbolic links instead.
+Windows allows this only with administrator rights or in developer
+mode.
+.TP
+.B \-u
+Install into the directories
+.IR /bin ,
+.IR /sbin ,
+.IR /usr/bin ,
+and
+.I /usr/sbin
+of the system drive, creating them, putting each applet in the
+directory that
+.B \-\-list\-full
+shows.
+.RE
+.IP
+The kit's launchers make this unnecessary for most applets.
+.TP
+\fB\-\-uninstall\fR [\fB\-n\fR] \fIfile\fR
+Delete every hard link to
+.IR file ,
+including
+.I file
+itself.
+Given
+.IR busybox.exe ,
+or any link that
+.B \-\-install
+made, this deletes
+.I busybox.exe
+and all its links, except that Windows refuses to delete the last link
+to a running program.
+The kit's launchers are not links, so given a launcher, this deletes
+only that launcher.
+Failures are reported, but do not change the exit status.
+On Windows XP, which lacks the API for finding links, it does nothing.
+.RS
+.TP
+.B \-n
+Print the full path of each link instead of deleting it.
+.RE
+.TP
+\fB\-\-help\fR [\fIapplet\fR]
+Print the usage of
+.I applet
+on standard output and exit with status 0.
+An unknown
+.I applet
+fails as described above.
+Without
+.IR applet ,
+or when it is
+.BR busybox ,
+print what
+.B busybox
+prints with no arguments.
+.TP
+.B \-\-version
+Print the version on standard output and exit.
+When further arguments follow,
+.B \-\-version
+is taken as an applet name, and fails.
+.TP
+\fB\-\-busybox\fR \fIapplet\fR [\fIargument\fR ...]
+Run
+.I applet
+whatever name
+.B busybox
+was started under, even one that does not begin with
+.BR busybox .
+It treats
+.I applet
+as the name it was started under, so the rules of
+.B Choosing the applet
+apply:
+.B "\-\-busybox LS.EXE"
+runs
+.BR ls .
+.SH ENVIRONMENT
+The
+.B BB_
+variables are specific to busybox-w32.
+In the shell, export them: busybox reads them from the environment.
+.TP
+.B BB_CRITICAL_ERROR_DIALOGS
+When it is
+.BR 1 ,
+Windows shows its critical-error dialogs, such as for a drive with no
+disk in it.
+Otherwise busybox suppresses them, and the operation fails with an
+error instead.
+.TP
+.B BB_FIX_BACKSLASH
+When it is
+.BR 1 ,
+.B ls
+converts backslashes in its operands to forward slashes, so that the
+names it prints have forward slashes.
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+the C runtime expands wildcards in the arguments of
+.B busybox
+when it starts, which serves commands typed in
+.BR cmd.exe .
+It expands quoted arguments too, and leaves a pattern that matches
+nothing as it is.
+When the variable is unset, busybox then sets it to
+.BR 0 ,
+so that busybox programs it starts, such as from the shell, do not
+expand their arguments again.
+.TP
+.B BB_OVERRIDE_APPLETS
+Applets that the shell and other applets should not run by name, so
+that a program in
+.B PATH
+runs instead.
+It does not affect starting an applet with its launcher or with
+.BR busybox .
+The value is one of:
+.RS
+.TP
+.B \-
+Use no applets.
+.TP
+.B +
+Use a program of the same name in
+.BR PATH ,
+when there is one, instead of any applet.
+.TP
+.I list
+Applet names separated by spaces, commas, or semicolons.
+The names before the first semicolon are not used at all, and those
+after it are replaced only when a program of that name is in
+.BR PATH .
+.RE
+.IP
+In the kit, the program found is usually the applet's own launcher in
+.IR bin ,
+which runs the applet anyway, unless a directory earlier in
+.B PATH
+has a program of that name.
+.TP
+.B BB_SKIP_ANSI_EMULATION
+The older form of
+.BR BB_TERMINAL_MODE ,
+used only when that is unset:
+.B 1
+means mode 1,
+.B 2
+means mode 5, and any other value means mode 0.
+.TP
+.B BB_SYSTEMROOT
+A drive, such as
+.BR D: ,
+to use instead of the system drive, the drive that holds the Windows
+system directory.
+A directory works too.
+The system drive is where
+.B "\-\-install \-u"
+installs, where the login shell looks for
+.IR /etc/profile ,
+and where
+.B man
+looks for its configuration files in
+.IR /etc .
+.TP
+.B BB_TERMINAL_MODE
+How busybox uses the console, from 0 to 5.
+In virtual terminal (VT) output mode, the console interprets the escape
+sequences that applets write, such as for color.
+Otherwise busybox interprets the common ones itself, through the console
+API.
+VT input mode makes the console send escape sequences for keys.
+.RS
+.TP
+.B 0
+No VT output or input.
+.TP
+.B 1
+Force VT output.
+.TP
+.B 2
+Force VT input.
+.TP
+.B 3
+Force VT output and input.
+.TP
+.B 4
+Use VT output and input only when the console already has them
+enabled.
+.TP
+.B 5
+Like 4, but also enable VT output when the console supports it.
+.RE
+.IP
+The default is 5, or 0 when
+.B CONEMUPID
+is set or under Wine.
+A number outside this range means 5, and a value that is not a number
+means 0.
+Modes 0 to 3 are meant for testing.
+.TP
+.B BB_UMASK
+The file mode creation mask, in octal, applied before each applet runs.
+The default is
+.BR 002 .
+The owner write bit,
+.BR 200 ,
+makes new files read-only.
+The group and other write bits,
+.BR 022 ,
+only remove those bits from the permissions that busybox reports.
+The shell's
+.B umask
+command sets and exports this variable.
+.TP
+.BR COLUMNS ", " LINES
+The terminal width and height for applets that fit their output to it,
+such as
+.B ls
+and
+.BR less ,
+and the width of the applet list that
+.B busybox
+prints with no arguments.
+The defaults are the size of the console window, or 80 by 24 when
+neither standard output nor standard error is a console.
+When set, they override the console window, and a value of 1 or less,
+or 30000 or more, means 80 or 24.
+.TP
+.B HOME
+When it is unset, busybox uses the user's profile directory.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+The first of these that is set decides how text is handled.
+When its value is
+.BR C ,
+text is single bytes, and console output is written without code page
+conversion.
+Otherwise text is UTF-8 when the ANSI code page is UTF-8, and single
+bytes when it is not.
+.TP
+.B PATH
+Where external programs are found; see
+.BR "Running commands" .
+.TP
+.B TMPDIR
+When it is unset, busybox uses
+.BR TMP ,
+then
+.BR TEMP .
+.SH EXIT STATUS
+.TP
+.B 0
+Success, for
+.B busybox
+with no arguments or with one of the
+.BR OPTIONS .
+.TP
+.B 1
+Invalid arguments to
+.B \-\-install
+or
+.BR \-\-uninstall .
+.TP
+.B 127
+The applet was not found.
+.TP
+.B 382
+A launcher could not start
+.IR busybox.exe ,
+such as when it is missing from the launcher's directory.
+The launcher prints a message beginning
+.B w64devkit:
+on standard error.
+The kit's shell sees it as 126, its low byte.
+.PP
+Otherwise the exit status is that of the applet.
+.SH EXAMPLES
+List the applets:
+.PP
+.RS 4
+.EX
+$ busybox \-\-list
+.EE
+.RE
+.PP
+Show the usage of an applet:
+.PP
+.RS 4
+.EX
+$ busybox \-\-help sort
+.EE
+.RE
+.PP
+Run an applet that has no launcher:
+.PP
+.RS 4
+.EX
+$ busybox sha384sum kit.zip
+.EE
+.RE
+.PP
+List the applets that the shell runs in its own process:
+.PP
+.RS 4
+.EX
+$ busybox \-\-list\-full | grep NOFORK
+.EE
+.RE
+.PP
+In the shell, run
+.I wget.exe
+from
+.I ~/bin
+instead of the
+.B wget
+applet:
+.PP
+.RS 4
+.EX
+$ export PATH="$HOME/bin;$PATH"
+$ export BB_OVERRIDE_APPLETS=wget
+.EE
+.RE
+.SH NOTES
+Paths may use forward or back slashes.
+Prefer forward slashes, since in the shell a backslash quotes the next
+character.
+An absolute path has a drive, as in
+.IR c:/path ,
+or is a UNC path, as in
+.IR //host/share/path .
+A path such as
+.I /path
+is relative to the root of the current drive.
+.PP
+A path such as
+.I c:name
+is relative to the current directory of that drive, and a bare drive such
+as
+.I c:
+is that directory, as in Windows.
+Applets name the entries of
+.I c:
+as
+.IR c:name ,
+and the root of the drive is
+.IR c:/ .
+.PP
+Applets accept these Unix device names:
+.I /dev/null
+for
+.BR NUL ,
+.I /dev/tty
+for the console,
+.IR /dev/zero ,
+.IR /dev/urandom ,
+.IR /dev/stdin ,
+.IR /dev/stdout ,
+.IR /dev/stderr ,
+and
+.IR /dev/fd/N .
+.PP
+Files and standard streams are binary, with no CRLF translation:
+applets write LF line endings.
+.PP
+Owners and permissions are synthesized.
+A file shows as writable unless it is read-only, and as executable when
+its name ends in
+.BR .com ,
+.BR .exe ,
+.BR .sh ,
+.BR .bat ,
+or
+.BR .cmd ,
+when it begins with
+.BR #! ,
+or when it is a Windows program.
+.PP
+busybox has a manifest that makes its ANSI code page UTF-8 on Windows 10
+version 1903 or later, so that file names, arguments, and text may
+contain any Unicode character.
+On older systems they are limited to the system's ANSI code page.
+Console output is converted to the console's code page, unless
+.BR LC_ALL ,
+.BR LC_CTYPE ,
+or
+.B LANG
+is
+.BR C .
+If both of the console's code pages are 850 when busybox first uses the
+console, it changes them to 858, which adds the euro sign.
+.PP
+w64devkit changes busybox-w32 as follows:
+.IP \(bu 2
+The login shell also reads the kit's
+.IR etc/profile ,
+line editing never beeps, Tab does nothing where a command name is
+expected but none is typed, the history holds 1024 lines by default and
+up to 16384, and the
+.B noiconify
+option is on by default, so that
+.B noconsole
+hides the console window instead of minimizing it; see
+.BR sh (1).
+.IP \(bu 2
+Automatic decompression, as in
+.B tar
+and
+.BR man ,
+recognizes zstd data and decompresses it with the kit's
+.BR unzstd ,
+and
+.B tar
+has a
+.B \-\-zstd
+option.
+.IP \(bu 2
+gzip data is decompressed by running the kit's
+.BR gunzip .
+.IP \(bu 2
+.B man
+finds the kit's pages and formats them with the kit's
+.BR nroff ,
+and
+.B less \-R
+passes color and font escape sequences through.
+.SH SEE ALSO
+.BR gzip (1),
+.BR less (1),
+.BR ls (1),
+.BR make (1),
+.BR man (1),
+.BR nroff (1),
+.BR sh (1),
+.BR unzip (1),
+.BR uuidgen (1),
+.BR vim (1),
+.BR w64devkit (1),
+.BR xxd (1),
+.BR zstd (1)

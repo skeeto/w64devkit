@@ -1,0 +1,365 @@
+.TH HEAD 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+head \- print the first part of files
+.SH SYNOPSIS
+.B head
+.RB [ \-qv ]
+.RB [ \-n
+.RI [\-] count ]
+.RB [ \-c
+.RI [\-] count ]
+.RI [ file ...]
+.br
+.B head
+.BI \- count
+.RI [ options ]
+.RI [ file ...]
+.SH DESCRIPTION
+.B head
+writes the first part of each
+.I file
+to standard output: by default the first 10 lines.
+With no
+.I file
+operands, or for a
+.I file
+named
+.BR \- ,
+it reads standard input.
+This
+.B head
+is a busybox applet; see
+.BR busybox (1).
+.PP
+A
+.I file
+that cannot be opened or read is reported on standard error, and the
+remaining files are still written.
+.SS Counts
+A count is a decimal number, optionally followed by one of the suffixes
+.BR b ,
+.BR k ,
+or
+.BR m ,
+which multiply it by 512, 1024, or 1048576.
+Suffixes are lowercase.
+The result must be from 0 to 4294967295.
+Hexadecimal, a leading
+.BR + ,
+and white space are not accepted.
+A count that is malformed or out of range is an error, reported before
+any file is read.
+.PP
+With
+.BR \-n ,
+.B head
+counts lines, which end at an LF.
+A CR is an ordinary byte.
+A last line without an LF is written as it is, without adding one.
+With
+.BR \-c ,
+it counts bytes.
+A count of 0 writes nothing.
+.PP
+A count that begins with
+.B \-
+counts from the end: everything except the last
+.I count
+lines or bytes is written.
+.B head
+must read all of its input to find the end, and keeps the last
+.I count
+plus 1 lines or bytes in memory.
+When the input has no more than
+.I count
+lines or bytes, nothing is written.
+In this mode with
+.BR \-n ,
+a NUL byte also ends a line, and is not written.
+.PP
+If counts are given more than once, the last one is used.
+If any of them is given with
+.BR \-c ,
+it counts bytes, and if any begins with
+.BR \- ,
+it counts from the end.
+.SS Headers
+With more than one
+.I file
+operand, or with
+.BR \-v ,
+.B head
+writes a header before the output of each file: a line of the form
+.PP
+.RS 4
+.EX
+==> name <==
+.EE
+.RE
+.PP
+where
+.I name
+is the operand as given, or
+.B standard input
+for standard input.
+Each header after the one for the first operand starts with an LF.
+That gives an empty line between files, or ends the last line of a file
+that had no final LF.
+This holds even when the first operand could not be opened.
+.B \-q
+turns headers off.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-qn5 ,
+and an option's argument may be attached or be the next argument.
+.B \-\-
+ends the options.
+The first operand also ends them: a later argument such as
+.B \-n
+is a file name.
+A lone
+.B \-
+is an operand.
+.TP
+.BI "\-n " count
+Write the first
+.I count
+lines.
+The default is 10.
+With a leading
+.BR \- ,
+write all but the last
+.I count
+lines.
+See
+.BR Counts .
+.TP
+.BI "\-c " count
+Write the first
+.I count
+bytes instead of lines.
+With a leading
+.BR \- ,
+write all but the last
+.I count
+bytes.
+.TP
+.B \-q
+Never write headers.
+.TP
+.B \-v
+Always write headers, even for one operand or for standard input with no
+operands.
+The last of
+.B \-q
+and
+.B \-v
+on the command line wins.
+.TP
+.BI \- count
+As the first argument only, the same as
+.BI "\-n " count
+except that
+.I count
+cannot begin with
+.BR \- .
+Other options may follow, as in
+.BR "head \-5 \-q a.txt b.txt" ,
+but the digits cannot be grouped with them:
+.B \-5q
+is an error.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument.
+.SH ENVIRONMENT
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+output to a console is not converted, as described in
+.BR NOTES ,
+and the console interprets the bytes in its own code page.
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the operands are expanded, as needed when run from
+.BR cmd.exe .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+operands as the shell expanded them.
+.PP
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+An invalid option or count, a
+.I file
+could not be opened or read, memory ran out, or standard output could not
+be written.
+.TP
+.B 141
+Standard output is a pipe that was closed while
+.B head
+was writing to it.
+Output is buffered, and when the closed pipe is found only by the final
+flush at exit, as with short output, the status is 1 instead.
+.SH EXAMPLES
+Write the first 3 lines of a file:
+.PP
+.RS 4
+.EX
+$ head \-n 3 notes.txt
+.EE
+.RE
+.PP
+Write the first line of each of two files, with headers:
+.PP
+.RS 4
+.EX
+$ head \-n 1 a.txt b.txt
+==> a.txt <==
+first line of a
+
+==> b.txt <==
+first line of b
+.EE
+.RE
+.PP
+Write the first line of every text file, without headers:
+.PP
+.RS 4
+.EX
+$ head \-qn1 *.txt
+.EE
+.RE
+.PP
+Write all but the last line of a file:
+.PP
+.RS 4
+.EX
+$ head \-n \-1 data.csv
+.EE
+.RE
+.PP
+Copy the first 64 KiB of a file to another file:
+.PP
+.RS 4
+.EX
+$ head \-c 64k big.bin >first.bin
+.EE
+.RE
+.PP
+Show the first 16 bytes of a program in hex:
+.PP
+.RS 4
+.EX
+$ head \-c 16 program.exe | xxd
+.EE
+.RE
+.PP
+Keep the five smallest numbers of a list:
+.PP
+.RS 4
+.EX
+$ sort \-n sizes.txt | head \-5
+.EE
+.RE
+.SH NOTES
+Differences from GNU
+.BR head :
+.IP \(bu 2
+There are no long options other than
+.BR \-\-help ,
+no
+.BR \-\-version ,
+and no
+.BR \-z .
+.IP \(bu 2
+Options are not accepted after the first operand.
+.IP \(bu 2
+Counts are decimal with the lowercase suffixes
+.BR b ,
+.BR k ,
+and
+.B m
+only.
+GNU suffixes such as
+.BR K ,
+.BR kB ,
+and
+.BR MB ,
+and a leading
+.BR + ,
+are errors.
+.IP \(bu 2
+Counts are limited to 4294967295, in the 64-bit kit too.
+.PP
+With a leading
+.BR \- ,
+.B head
+allocates memory in proportion to
+.I count
+before it reads any input, so a large count can fail with
+.B out of memory
+even for short input.
+A count of 268435455 or more, or 536870911 or more in the 32-bit kit,
+also prints
+.B count is too big
+as a warning, and
+.B head
+still runs.
+A count of 4294967295, or in the 32-bit kit a line count of 1073741823
+or more, can crash it.
+.PP
+.B head
+reads its input in blocks, and leaves a seekable standard input at the
+end of the last block it read, not after the last byte it used.
+A command that shares the redirected standard input with
+.B head
+continues from there.
+.PP
+Files and standard input and output are binary, so CR LF line endings
+and Ctrl-Z characters are copied unchanged.
+.PP
+File names may use drive letters, backslashes, and forward slashes, and
+a header shows the name as given.
+They may contain any Unicode characters on Windows 10 version 1903 and
+later, and are limited to the system code page on earlier versions.
+The device names
+.IR /dev/null ,
+.IR /dev/zero ,
+.IR /dev/urandom ,
+.IR /dev/stdin ,
+.I /dev/tty
+(the console), and
+.I /dev/fd/N
+work as on Unix.
+A directory operand fails with
+.BR "Is a directory" .
+.PP
+When standard output is a console, text is converted for display from
+the ANSI code page, which is UTF-8 on Windows 10 version 1903 and later,
+to the console's code page, unless
+.BR LC_ALL ,
+.BR LC_CTYPE ,
+or
+.B LANG
+is
+.BR C .
+.SH SEE ALSO
+.BR busybox (1),
+.BR cat (1),
+.BR less (1),
+.BR sed (1),
+.BR sort (1),
+.BR tail (1),
+.BR xxd (1)

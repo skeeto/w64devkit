@@ -1,0 +1,335 @@
+.TH PASTE 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+paste \- merge lines of files
+.SH SYNOPSIS
+.B paste
+.RB [ \-d
+.IR list ]
+.RB [ \-s ]
+.RI [ file ...]
+.SH DESCRIPTION
+.B paste
+reads its
+.I file
+operands and writes their lines side by side on standard output.
+Each output line is made of lines of the files joined by delimiters, TAB
+by default.
+With no
+.I file
+operands, or for a
+.I file
+named
+.BR \- ,
+it reads standard input.
+.PP
+A line ends at an LF.
+A CR directly before the LF is removed, so files with CRLF and LF line
+endings give the same result.
+A NUL byte also ends a line, and is not written.
+The last line of a file need not end with an LF.
+Lines may be of any length.
+Every output line ends with an LF.
+.SS Parallel merge
+Without
+.BR \-s ,
+output line
+.I n
+is line
+.I n
+of every file, in operand order, with delimiters between them.
+A file with fewer lines than the others supplies empty lines after its
+last, so the delimiters are still written and the later columns stay
+aligned.
+Output stops after the last line of the longest file.
+If every file is empty, nothing is written.
+.PP
+A file name given twice is opened twice, and the two are read
+independently.
+Operands that are
+.B \-
+share standard input, so they take turns reading it, one line each, in
+operand order.
+Thus
+.B "paste \- \- \-"
+writes three lines of input on each output line.
+.SS Serial merge
+With
+.BR \-s ,
+each file produces one output line: all of its lines, joined by
+delimiters.
+The output lines are in operand order.
+A file with no lines produces no output line.
+Operands that are
+.B \-
+read the rest of standard input in turn, so when it is a file or pipe,
+only the first of them produces a line.
+.SS Delimiter lists
+Between two consecutive lines on an output line,
+.B paste
+writes a delimiter taken from the list given by
+.BR \-d ,
+which is a single TAB by default.
+The delimiters are used in turn, and after the last one the list starts
+again from the first.
+The list starts over for each output line, or with
+.BR \-s ,
+for each file.
+No delimiter follows the last line.
+.PP
+The list is read as bytes, so a multibyte UTF-8 character is several
+delimiters, one for each of its bytes.
+Backslash sequences in the list are replaced before it is used:
+.TP
+.B \e\e
+A backslash.
+.TP
+.BR \ea ", " \eb ", " \ee ", " \ef ", " \en ", " \er ", " \et ", " \ev
+BEL, backspace, ESC, form feed, LF, CR, TAB, and vertical tab.
+.TP
+.BI \e ooo
+The byte with octal value
+.IR ooo ,
+using up to three digits and stopping before a digit that would make
+the value exceed 255.
+.TP
+.BI \ex hh
+The byte with hexadecimal value
+.IR hh ,
+using one or two digits of either case.
+.PP
+A NUL delimiter, as from
+.BR \e0 ,
+is written as nothing, but still takes its place in the list.
+Any other backslash sequence is kept as written: the delimiters of
+.B \ez
+are a backslash and
+.BR z .
+So are a backslash at the end of the list and a
+.B \ex
+with no hexadecimal digit after it.
+.SH OPTIONS
+Options may follow the operands, and may be grouped, as in
+.BR \-sd .
+The argument of
+.B \-d
+may be the next argument or be attached to it, as in
+.BR \-d: .
+.B \-\-
+ends the options.
+.TP
+.BI "\-d " list
+Use the delimiters in
+.IR list ,
+described under
+.BR "Delimiter lists" ,
+instead of TAB.
+When given more than once, the last
+.B \-d
+is used.
+An empty
+.I list
+is an error, reported as
+.BR "\-d \(aq\(aq is not supported" ;
+use
+.B \e0
+for no delimiter.
+.TP
+.B \-s
+Merge serially: write one output line for each file, as described under
+.BR "Serial merge" .
+.TP
+.B \-\-help
+Print a usage message on standard output and exit.
+It is recognized only as the first argument.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the arguments, including option arguments, are expanded
+against file names at startup, as needed when run from
+.BR cmd.exe .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+arguments as the shell expanded them.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+output to a console is not converted, and the console interprets the
+bytes in its own code page; see
+.BR NOTES .
+.TP
+.B POSIXLY_CORRECT
+When set, the first
+.I file
+operand ends the options, so that later arguments such as
+.B \-s
+are file names.
+.PP
+Variables that busybox-w32 reads in every applet, such as those that
+control console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+An invalid option or a missing option argument, with a usage message on
+standard error; an empty
+.B \-d
+list; a
+.I file
+that could not be opened; a failure writing standard output; or memory
+exhausted.
+Each is reported on standard error.
+.TP
+.B 141
+Standard output is a pipe whose reader exited while
+.B paste
+was writing.
+Output still buffered when
+.B paste
+finishes is written as it exits, and a broken pipe found then is instead
+reported as a write error, with status 1.
+.SH EXAMPLES
+Put two files side by side:
+.PP
+.RS 4
+.EX
+$ paste names.txt ages.txt
+ann	31
+bob	27
+.EE
+.RE
+.PP
+Join the lines of two files with a comma:
+.PP
+.RS 4
+.EX
+$ paste \-d, names.txt ages.txt
+ann,31
+bob,27
+.EE
+.RE
+.PP
+Arrange the lines of a list in three columns:
+.PP
+.RS 4
+.EX
+$ seq 6 | paste \- \- \-
+1	2	3
+4	5	6
+.EE
+.RE
+.PP
+Join all the lines of a list into one line:
+.PP
+.RS 4
+.EX
+$ seq 5 | paste \-sd, \-
+1,2,3,4,5
+.EE
+.RE
+.PP
+Combine pairs of lines into single lines, cycling through two
+delimiters:
+.PP
+.RS 4
+.EX
+$ seq 5 | paste \-s \-d \(aq \en\(aq
+1 2
+3 4
+5
+.EE
+.RE
+.PP
+Join the lines of two files with no delimiter:
+.PP
+.RS 4
+.EX
+$ paste \-d \(aq\e0\(aq prefix.txt suffix.txt
+.EE
+.RE
+.SH NOTES
+Differences from GNU paste:
+.IP \(bu 2
+There is no
+.BR \-z ,
+and no long options but
+.BR \-\-help .
+.IP \(bu 2
+A CR before an LF is removed, and a NUL byte ends a line.
+.IP \(bu 2
+An empty
+.B \-d
+list is an error, where GNU paste uses no delimiter.
+.IP \(bu 2
+The list also takes
+.BR \ea ,
+.BR \ee ,
+octal, and hexadecimal escapes, and an unknown sequence keeps its
+backslash.
+.IP \(bu 2
+With
+.BR \-s ,
+an empty file produces no line, not an empty one.
+.PP
+All operands are opened before any input is read.
+If one cannot be opened,
+.B paste
+reports the first such file, writes nothing, and exits with status 1.
+A read error is not reported; it ends that file as end of file would.
+.PP
+From
+.BR cmd.exe ,
+wildcard characters in an argument, even a quoted one or the list of
+.BR \-d ,
+are expanded against file names unless
+.B BB_GLOBBING
+is
+.BR 0 ,
+so a list of
+.B *
+can be replaced by file names.
+A pattern that matches no file is left as it is.
+Commands run from the kit's shell normally get no such expansion; see
+.B BB_GLOBBING
+under
+.BR ENVIRONMENT .
+.PP
+Files and the standard streams are binary, so the C runtime translates
+no line endings.
+Output lines end in LF even where the input lines end in CRLF.
+.PP
+File names may use drive letters and backslashes.
+They may contain any Unicode characters on Windows 10 version 1903 and
+later, and are limited to the system code page on earlier versions.
+The device names
+.IR /dev/null ,
+.IR /dev/stdin ,
+and
+.I /dev/tty
+(the console) work as on Unix.
+A directory operand fails with
+.BR "Is a directory" .
+.PP
+When standard output is a console, bytes above 0x7F are converted for
+display from the ANSI code page, which is UTF-8 on Windows 10 version
+1903 and later, to the console's code page, unless
+.B LC_ALL
+or a related variable is
+.BR C .
+Escape sequences in the input lines, such as those for color, take
+effect, and busybox emulates them on consoles without virtual terminal
+support.
+.PP
+On Windows 10 version 1903 and later, non-ASCII characters typed at a
+console arrive in the console's input code page, not in UTF-8.
+.SH SEE ALSO
+.BR busybox (1),
+.BR cat (1),
+.BR cut (1),
+.BR join (1)

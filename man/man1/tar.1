@@ -1,0 +1,972 @@
+.TH TAR 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.SH NAME
+tar \- create, list, and extract tar archives
+.SH SYNOPSIS
+.B tar \-c
+.RI [ options ]
+.IR file ...
+.br
+.B tar \-t
+.RI [ options ]
+.RI [ member ...]
+.br
+.B tar \-x
+.RI [ options ]
+.RI [ member ...]
+.SH DESCRIPTION
+.B tar
+creates an archive of files and directories, lists the members of an
+archive, or extracts them.
+This is the busybox
+.BR tar .
+Exactly one of
+.BR \-c ,
+.BR \-t ,
+and
+.B \-x
+chooses the mode.
+Giving none, or more than one, prints a usage message and fails.
+.PP
+The archive is standard input for
+.B \-t
+and
+.BR \-x ,
+and standard output for
+.BR \-c ,
+unless
+.B \-f
+names a file.
+Standard input and output are in binary mode.
+A file written by
+.B \-c
+is created, or truncated if it exists.
+.PP
+The first argument may be option letters with no leading dash, as in
+.BR "tar czf out.tgz dir" .
+Then
+.B f
+takes the next argument wherever it stands among the letters.
+Use dashes when other letters, such as
+.BR C ,
+take arguments.
+.SS Compression
+.B tar
+does not compress data itself.
+It runs a separate program with the arguments
+.BR "\-cf \-" ,
+so that the program reads standard input and writes standard output.
+When creating an archive,
+.BR \-z ,
+.BR \-j ,
+.BR \-J ,
+.BR \-\-lzma ,
+.BR \-\-zstd ,
+and
+.B \-Z
+run
+.BR gzip ,
+.BR bzip2 ,
+.BR xz ,
+.BR lzma ,
+.BR zstd ,
+and
+.BR compress .
+When reading, they run
+.BR gunzip ,
+.BR bunzip2 ,
+.BR unxz ,
+.BR unlzma ,
+.BR unzstd ,
+and
+.BR uncompress .
+If several of these options are given, the one used is the earliest in
+this list, whatever their order on the command line:
+.BR \-\-zstd ,
+.BR \-J ,
+.BR \-\-lzma ,
+.BR \-j ,
+.BR \-z ,
+.BR \-Z .
+.PP
+.BR bzip2 ,
+.BR bunzip2 ,
+.BR unxz ,
+.BR unlzma ,
+and
+.B uncompress
+are busybox applets, and run as busybox itself.
+The other programs are found in
+.BR PATH ,
+and so are
+.B xz
+and
+.B lzma
+when compressing, since the applets cannot compress.
+A program that cannot be started is reported as
+.BI "can't execute '" name "'"
+and the status is 1.
+.PP
+In the kit,
+.B gzip
+and
+.B gunzip
+are tugz, and
+.B zstd
+and
+.B unzstd
+are Zstandard.
+The kit has no
+.BR compress ,
+and its
+.B xz
+and
+.B lzma
+only decompress, so
+.BR \-Z ,
+.BR \-J ,
+and
+.B \-\-lzma
+fail when creating an archive unless
+.B PATH
+has a program that can compress, ahead of the kit's.
+A failed compression leaves an empty or partial archive file.
+.PP
+.B tar
+cannot pass options to the program.
+To choose a compression level, compress its output instead.
+When reading, the exit status of the decompressor is ignored, and a
+damaged stream shows up as an error in the archive, such as
+.BR "short read" .
+.PP
+When listing or extracting without a decompression option,
+.B tar
+looks at the first block of the archive.
+If it is not a tar header,
+.B tar
+recognizes gzip, bzip2, xz, zstd, and compress data by its first bytes,
+and decompresses it as above.
+This needs a seekable archive: a named file, or standard input
+redirected from a file.
+Compressed data from a pipe needs a decompression option, or
+.B tar
+fails with
+.BR "invalid tar magic" .
+A file named by
+.B \-f
+whose name ends in
+.B .lzma
+is decompressed as lzma data, which has no signature to recognize.
+.SS Member names
+With no operands,
+.B \-t
+and
+.B \-x
+use every member.
+Otherwise each
+.I member
+is a shell wildcard pattern, matched case-sensitively against the names
+in the archive, including a leading
+.BR ./ ,
+once leading slashes and
+.B ../
+components are removed as described under Extracting.
+A trailing
+.B /
+on the pattern is removed, and a backslash quotes the next character.
+A pattern with
+.I n
+slashes is compared with the first
+.IR n +1
+components of a name, so
+.B dir
+selects
+.B dir
+and everything below it, and
+.B dir/*.c
+selects
+.B dir/x.c
+but not
+.BR dir/sub/x.c .
+The patterns of
+.B \-X
+and
+.B \-\-exclude
+select the members to skip in the same way, and win over
+.IR member s.
+.PP
+Each operand must also be the name of a member.
+After the whole archive has been read, the first operand that is not
+the name of a member that was listed or extracted, and does not match
+an exclusion pattern, is reported as
+.IB name ": not found in archive"
+and the status is 1.
+This includes an operand with a wildcard, and an operand that names a
+directory for which the archive has no member, even though such an
+operand selected members, and they were processed.
+.SS Creating
+.B \-c
+adds each
+.I file
+to the archive, and a directory with everything below it, unless
+.B \-\-no\-recursion
+is given.
+The names from
+.B \-T
+come before the operands.
+With no names at all,
+.B tar
+fails with
+.BR "empty archive" .
+.PP
+A member is named as the file was named on the command line, with a
+trailing
+.B /
+removed, and with
+.B /
+appended for a directory.
+Leading slashes, and everything through the last
+.B ../
+component, are removed, with the warning
+.BI "removing leading '" prefix "' from member names"
+printed once.
+Nothing else changes: a leading
+.BR ./ ,
+a backslash, or a drive letter stays in the name.
+The files below a directory are in the order the file system lists
+them.
+A bare drive such as
+.B c:
+names the current directory of that drive.
+It is stored as
+.BR c:/ ,
+and the files below it are named
+.BR c:name .
+.PP
+A member records the file's type, permissions, owner, modification time
+(in whole seconds), and size, followed by the contents.
+A file with a link count above 1 is stored in full under the first name
+found, and the later names are stored as hard link members that name the
+first.
+A symbolic link or junction is stored as a link, with a target that uses
+forward slashes, unless
+.B \-h
+is given.
+A junction's target is its absolute path.
+A file that becomes shorter while it is archived ends the command with
+.BR "short read" ,
+and leaves a damaged archive.
+.PP
+The archive is in GNU format.
+A name or link target of 100 bytes or more is stored in an extra GNU
+long name member.
+A size of 8 GiB or more is stored in base-256.
+The archive ends with two blocks of zeros, and is not padded to a
+multiple of 10240 bytes.
+An archive file that is among the files being archived is skipped with
+the message
+.BR "file is the archive; skipping" .
+.PP
+The patterns of
+.B \-X
+and
+.B \-\-exclude
+are matched with
+.B *
+and
+.B ?\&
+not matching
+.BR / ,
+against the stored name of each file, and against the part of it after
+each
+.BR / .
+A match skips the file, and for a directory everything below it, so
+.B \-\-exclude=.git
+skips every directory named
+.BR .git ,
+and
+.B \-\-exclude=\(aq*.o\(aq
+every file ending in
+.BR .o .
+A pattern that begins with
+.B /
+never matches.
+.SS Listing
+.B \-t
+prints the name of each selected member on a line of its own, as stored,
+so a directory usually ends in
+.BR / .
+With
+.BR \-v ,
+or a second
+.BR \-t ,
+each line holds the permissions in the form used by
+.BR "ls \-l" ,
+the user and group IDs separated by a slash, the size right-aligned in 9
+columns, the modification time as local time in the form
+.IR "YYYY\-MM\-DD hh:mm:ss" ,
+and the name.
+A symbolic link or hard link is followed by
+.B \->
+and its target.
+User and group names in the archive are not used.
+Leading slashes and
+.B ../
+components are removed from the names, as when extracting.
+.SS Extracting
+.B \-x
+creates each selected member under its name, relative to the current
+directory, or the one that
+.B \-C
+names.
+Missing parent directories are created.
+Leading slashes and everything through the last
+.B ../
+component are removed from member names, and from the targets of hard
+links, with the warning given for creating.
+Backslashes and drive letters are not recognized, so a member named
+.BR C:/dir/file ,
+.BR \edir\efile ,
+or
+.B ..\ex
+is extracted where the name says, even outside the
+.B \-C
+directory.
+List an archive from an untrusted source with
+.B \-t
+first.
+.PP
+Before a member other than a directory is created, an existing file of
+the same name is removed, even if it is read-only, unless
+.B \-k
+or
+.B \-\-overwrite
+is given.
+Failing to remove it, as for an existing directory, ends the command.
+.PP
+By type:
+.IP \(bu 2
+A regular file is created with the archived contents.
+It is read-only if the archived permissions lack the owner write bit,
+and is never made executable.
+Its modification time is restored, unless
+.B \-m
+is given.
+.IP \(bu 2
+A directory is created, and an existing one is left alone.
+An error creating it is reported without ending the command.
+Its modification time is restored, even if it already existed, unless
+.B \-m
+is given, but creating files in it afterwards changes the time again.
+.IP \(bu 2
+A symbolic link is created as a Windows symbolic link, which requires
+Developer Mode or administrator rights, with backslashes for slashes in
+its target.
+It is a directory link only if its target is an existing directory when
+the link is made.
+A link whose target begins with
+.B /
+or contains
+.BR .. ,
+or that cannot be made at once, is made after all other members, and
+failing then ends the command with
+.BR "can't create symlink" .
+.IP \(bu 2
+A hard link is made after all other members, and needs a file system
+that supports hard links, such as NTFS.
+Failing ends the command with
+.BR "can't create hardlink" .
+.IP \(bu 2
+A device, FIFO, or other special file cannot be created on Windows.
+It is reported as
+.B "can't create node"
+and skipped, without changing the exit status.
+.PP
+Members that carry GNU long names and links, and POSIX extended headers
+with a
+.B path
+or
+.B linkpath
+record, are understood; other records are ignored.
+Old archives with no
+.B ustar
+signature are accepted.
+A volume header is skipped with a warning, and any other member type,
+such as a GNU sparse file, ends the command with
+.BR "unknown typeflag" .
+Reading stops at the first two consecutive zero blocks, and anything
+after them is ignored.
+An archive that is cut off at a block boundary, without them, is
+accepted.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-xvf .
+An option's argument may be attached, as in
+.BR \-Cdir ,
+or be the next argument.
+Long options begin with
+.BR \-\- ,
+may be abbreviated to a unique prefix, and take their argument after
+.B =
+or as the next argument.
+Options may follow the operands, unless
+.B POSIXLY_CORRECT
+is set.
+.B \-\-
+ends the options.
+An unknown option prints a usage message on standard error, and the
+status is 1.
+Options described as accepted are recognized for compatibility, and do
+nothing here.
+.TP
+.BR \-c ", " \-\-create
+Create an archive of the
+.I file
+operands and the names from
+.BR \-T .
+.TP
+.BR \-x ", " \-\-extract
+Extract the selected members.
+.TP
+.BR \-t ", " \-\-list
+List the selected members.
+.TP
+\fB\-f\fR \fIfile\fR, \fB\-\-file=\fR\fIfile\fR
+Read the archive from, or with
+.B \-c
+write it to,
+.IR file .
+A
+.I file
+of
+.B \-
+means standard input or output, which is the default.
+The archive is opened before
+.B \-C
+takes effect, so a relative name refers to the directory
+.B tar
+started in.
+.TP
+\fB\-C\fR \fIdir\fR, \fB\-\-directory=\fR\fIdir\fR
+Change to
+.IR dir ,
+which must exist, before archiving or extracting.
+This applies to the
+.I file
+operands, but not to
+.BR \-f ,
+.BR \-T ,
+or
+.BR \-X ,
+which are read first.
+Wherever
+.B \-C
+stands, it acts once at the start, and only the last one counts.
+.TP
+.BR \-v ", " \-\-verbose
+Print the name of each member as it is added by
+.BR \-c ,
+on standard output, or on standard error when the archive goes to
+standard output, and as it is extracted by
+.BR \-x ,
+on standard output.
+With
+.BR \-t ,
+or a second
+.B \-v
+with
+.BR \-x ,
+print the long listing instead.
+More than two have no further effect, and a second
+.B \-v
+with
+.B \-c
+changes nothing.
+.TP
+.BR \-O ", " \-\-to\-stdout
+Write the contents of the selected members to standard output, one
+after another, and create no files.
+Names printed by
+.B \-v
+go to the same stream, and are buffered, so when it is a file or pipe
+they can come after the contents.
+With
+.BR \-t ,
+the contents are written as well as the listing.
+.TP
+.BR \-m ", " \-\-touch
+With
+.BR \-x ,
+do not restore modification times, so that extracted files and
+directories get the time of extraction.
+.TP
+.BR \-o ", " \-\-no\-same\-owner
+Accepted.
+Ownership cannot be set on Windows, so it is never restored.
+.TP
+.BR \-p ", " \-\-same\-permissions
+Accepted.
+.TP
+.BR \-k ", " \-\-keep\-old
+Do not replace existing files.
+If a regular file member names an existing file,
+.B tar
+reports
+.BI "can't open '" name "': File exists"
+and exits with status 1 at once, rather than skipping the member.
+.TP
+.BR \-Z ", " \-\-compress
+Compress the archive with
+.BR compress ,
+or decompress it with
+.BR uncompress .
+.TP
+.BR \-z ", " \-\-gzip
+Compress the archive with
+.BR gzip ,
+or decompress it with
+.BR gunzip .
+.TP
+.BR \-J ", " \-\-xz
+Compress the archive with
+.BR xz ,
+or decompress it with
+.BR unxz .
+.TP
+.BR \-j ", " \-\-bzip2
+Compress the archive with
+.BR bzip2 ,
+or decompress it with
+.BR bunzip2 .
+.TP
+.B \-\-lzma
+Compress the archive with
+.BR lzma ,
+or decompress it with
+.BR unlzma .
+.TP
+.B \-\-zstd
+Compress the archive with
+.BR zstd ,
+or decompress it with
+.BR unzstd .
+.TP
+.BR \-a ", " \-\-auto\-compress
+With
+.B \-c
+and a file named by
+.BR \-f ,
+compress according to the end of the file name, as if the matching
+option were given:
+.B \-z
+for
+.BR gz ,
+.B \-j
+for
+.BR bz2 ,
+.B \-J
+for
+.BR xz ,
+.B \-\-lzma
+for
+.BR lzma ,
+and
+.B \-\-zstd
+for
+.BR zst .
+There need not be a period before the ending, and the match is
+case-sensitive.
+Any other name is not compressed.
+Has no effect with
+.B \-t
+and
+.BR \-x .
+.TP
+.BR \-h ", " \-\-dereference
+With
+.BR \-c ,
+store the file or directory that a symbolic link or junction refers to,
+instead of the link.
+.TP
+\fB\-T\fR \fIfile\fR, \fB\-\-files\-from=\fR\fIfile\fR
+Read names from
+.IR file ,
+one per line, and use them as if they were operands that come before
+those on the command line.
+With
+.B \-c
+they are the files to archive, and otherwise the
+.IR member s
+to select.
+A line may end with LF or CRLF.
+A trailing
+.B /
+is removed, unless the name is only
+.BR / .
+A
+.I file
+of
+.B \-
+means standard input.
+May be repeated.
+.TP
+\fB\-X\fR \fIfile\fR, \fB\-\-exclude\-from=\fR\fIfile\fR
+Read wildcard patterns from
+.IR file ,
+one per line, with the same rules as
+.BR \-T ,
+and skip the files or members that match.
+May be repeated.
+.TP
+\fB\-\-exclude=\fR\fIpattern\fR
+Skip the files or members that match
+.IR pattern ,
+like a line of
+.BR \-X .
+A trailing
+.B /
+is kept.
+May be repeated.
+.TP
+.B \-\-overwrite
+With
+.BR \-x ,
+replace an existing file by truncating and writing it, instead of
+removing it first.
+This fails with
+.B Permission denied
+for a read-only file.
+.TP
+\fB\-\-strip\-components=\fR\fInumber\fR
+With
+.BR \-x ,
+remove
+.I number
+leading components from the names of the members.
+.I number
+is a decimal integer, and 0 removes nothing.
+A member that has no more components than
+.IR number ,
+such as the top directory when
+.I number
+is 1, is skipped.
+The target of a hard link is shortened the same way, and that of a
+symbolic link is not.
+Operands and
+.B \-v
+output use the names as stored.
+No effect with
+.BR \-c ,
+.BR \-t ,
+and
+.BR \-O .
+.TP
+.B \-\-no\-recursion
+With
+.BR \-c ,
+archive a directory without its contents.
+.TP
+.B \-\-numeric\-owner
+Accepted.
+This build never looks up user and group names.
+.TP
+.B \-\-no\-same\-permissions
+Accepted.
+A file is still made read-only when its archived permissions lack the
+owner write bit.
+.TP
+.B \-\-help
+As the first argument, print a usage message on standard output and
+exit.
+.TP
+.B \-\-version
+As the first argument, print
+.B tar (busybox)
+and the busybox version on standard output and exit.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the command line are expanded at startup against the files
+in the current directory, even if quoted, for callers such as
+.B cmd.exe
+that do not expand them, so a
+.I member
+pattern such as
+.B *.c
+may become a list of file names.
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+patterns as the shell passed them.
+.TP
+.B BB_UMASK
+An octal file mode creation mask applied at startup.
+With
+.BR \-c ,
+its group and other write bits are removed from the stored permissions.
+If it includes the owner write bit,
+.BR 0200 ,
+the archive file created by
+.B \-f
+and the files created by
+.B \-x
+are read-only.
+.TP
+.B PATH
+Where the compression programs are found.
+.TP
+.B POSIXLY_CORRECT
+If set, options must precede the operands.
+.TP
+.B TZ
+The time zone of the times printed by the long listing.
+The format is that of the Microsoft C runtime, such as
+.BR EST5EDT .
+When it is unset, the Windows time zone setting applies.
+.PP
+Output to a console also depends on
+.BR BB_TERMINAL_MODE ,
+.BR BB_SKIP_ANSI_EMULATION ,
+.BR LC_ALL ,
+.BR LC_CTYPE ,
+and
+.BR LANG ,
+as for all busybox applets.
+.SH EXIT STATUS
+.TP
+.B 0
+Success, including when problems were reported and skipped: a special
+file that could not be created, or a directory that could not be made.
+.TP
+.B 1
+An invalid command line, with a usage message on standard error, or any
+other error: a file that cannot be read, created, or removed, a damaged
+or empty archive, a compression program that cannot be started or that
+fails when creating, or an operand that is not found in the archive.
+.TP
+.B 141
+Writing to a pipe whose reader has exited, such as in
+.BR "tar tf big.tar | head \-1" ,
+or when a compression program has failed at once.
+There is no message.
+.PP
+Errors are reported on standard error as
+.PP
+.RS 4
+.EX
+tar: \fImessage\fR
+.EE
+.RE
+.PP
+When creating, an error with one file does not stop the others.
+.B tar
+writes the archive anyway, reports
+.BR "error exit delayed from previous errors" ,
+and exits with status 1.
+When extracting, an error ends the command at once, except for those
+that leave the status 0.
+.SH EXAMPLES
+Archive a directory, compressed with gzip:
+.PP
+.RS 4
+.EX
+$ tar czf src.tgz src
+.EE
+.RE
+.PP
+Do the same with zstd, picked by the name:
+.PP
+.RS 4
+.EX
+$ tar caf src.tar.zst src
+.EE
+.RE
+.PP
+List an archive in detail:
+.PP
+.RS 4
+.EX
+$ tar tvf src.tgz
+drwxrwxr\-x 4095/4095         0 2026\-10\-19 21:18:08 src/
+\-rw\-rw\-r\-\- 4095/4095         6 2026\-10\-19 21:18:08 src/a.txt
+.EE
+.RE
+.PP
+Extract into an existing directory:
+.PP
+.RS 4
+.EX
+$ tar xf src.tgz \-C c:/build
+.EE
+.RE
+.PP
+Extract a source release without its top directory:
+.PP
+.RS 4
+.EX
+$ mkdir pkg
+$ tar xf pkg\-1.0.tar.xz \-\-strip\-components=1 \-C pkg
+.EE
+.RE
+.PP
+Print one file from an archive:
+.PP
+.RS 4
+.EX
+$ tar xOf src.tgz src/a.txt
+.EE
+.RE
+.PP
+Archive a directory without object files and version control data:
+.PP
+.RS 4
+.EX
+$ tar cf src.tar \-\-exclude=\(aq*.o\(aq \-\-exclude=.git src
+.EE
+.RE
+.PP
+Archive the files that
+.BR find (1)
+lists:
+.PP
+.RS 4
+.EX
+$ find . \-name \(aq*.c\(aq | tar cf src.tar \-T \-
+.EE
+.RE
+.PP
+Copy a directory tree:
+.PP
+.RS 4
+.EX
+$ tar cf \- src | (cd dest && tar xf \-)
+.EE
+.RE
+.PP
+Compress with a chosen level, which
+.B tar
+cannot pass on:
+.PP
+.RS 4
+.EX
+$ tar cf \- src | zstd \-19 >src.tar.zst
+.EE
+.RE
+.SH NOTES
+Differences from GNU
+.BR tar :
+.IP \(bu 2
+There are no append, update, compare, or delete modes, and no
+multi-volume, sparse file, or incremental support.
+Options such as
+.BR \-r ,
+.BR \-u ,
+.BR \-A ,
+.BR \-d ,
+.BR \-P ,
+.BR \-b ,
+.BR \-\-transform ,
+and
+.B \-\-to\-command
+are invalid.
+.IP \(bu 2
+.B \-k
+fails on an existing file instead of skipping it.
+.IP \(bu 2
+.B \-o
+means only
+.BR \-\-no\-same\-owner ,
+even when creating.
+.IP \(bu 2
+When listing and extracting,
+.IR member s
+and the patterns of
+.B \-X
+and
+.B \-\-exclude
+are compared with only the leading components of a name, so
+.B \-\-exclude=\(aq*.txt\(aq
+skips only top-level names.
+Use
+.B \-\-exclude=\(aq*/*.txt\(aq
+for files one level down.
+When creating, the patterns are compared with every component, and skip
+such files anywhere.
+.IP \(bu 2
+An operand with a wildcard selects members, but is then reported as not
+found, and the status is 1.
+.IP \(bu 2
+Archives are written in the GNU format, with no option for POSIX or
+other formats.
+.IP \(bu 2
+Listings show numeric user and group IDs, and extraction ignores the
+names in the archive.
+.PP
+Names are stored and extracted byte for byte: UTF-8 on Windows 10
+version 1903 and later, and the system code page on earlier versions.
+Backslashes are not converted to slashes.
+Listings, including the names printed when extracting with
+.BR \-v ,
+show each control character as
+.BR ? ,
+and on Windows 10 version 1903 and later, each byte of a non-ASCII
+character as well.
+The names printed when creating with
+.B \-v
+are not changed.
+A name that Windows rejects, such as one with
+.B *
+or
+.BR ? ,
+or a device name such as
+.BR con ,
+ends the command with an error when extracting.
+So does a path longer than
+.BR MAX_PATH ,
+260 characters, counting the current directory.
+.PP
+When creating, the stored attributes come from busybox-w32's emulation
+of Unix file information:
+.IP \(bu 2
+Everyone may read, and write unless the file is read-only, less the
+group and other write bits of the umask.
+The default umask is 002, which removes the write bit for others.
+Directories, and files whose names end in
+.BR .bat ,
+.BR .cmd ,
+.BR .com ,
+.BR .exe ,
+or
+.BR .sh ,
+or that begin with
+.B #!\&
+or are PE executables other than DLLs, are executable.
+.IP \(bu 2
+A file owned by the current user has user and group ID 4095, and the
+owner and group names stored are the user's name.
+For a file of another owner, the ID is the relative ID of the owner's
+account when that is from 500 to 4094, and the name is that number.
+Otherwise the ID is 0, and the name is
+.BR root .
+.IP \(bu 2
+Hard links are recognized by the file index and the volume.
+.IP \(bu 2
+The modification time is the last write time.
+A time before 1970 is stored as 0.
+.PP
+When extracting, the owner write permission is the only one that has an
+effect: a file without it is made read-only.
+Directories are never read-only, and nothing is made executable.
+The owner is never restored.
+.SH SEE ALSO
+.BR busybox (1),
+.BR bzip2 (1),
+.BR cpio (1),
+.BR find (1),
+.BR gzip (1),
+.BR lzma (1),
+.BR sh (1),
+.BR uncompress (1),
+.BR xz (1),
+.BR zstd (1)

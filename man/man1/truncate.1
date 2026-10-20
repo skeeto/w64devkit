@@ -1,0 +1,357 @@
+.TH TRUNCATE 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+truncate \- shrink or extend files to a given size
+.SH SYNOPSIS
+.B truncate
+.RB [ \-c ]
+.BI "\-s " size
+.IR file ...
+.br
+.B truncate \-\-help
+.SH DESCRIPTION
+.B truncate
+sets the length of each
+.I file
+to
+.I size
+bytes.
+It cuts off the data beyond that length and extends a shorter file with
+zero bytes.
+The data below the new length is kept.
+It is the
+.BR busybox (1)
+applet, which has fewer options than GNU
+.BR truncate ;
+see
+.BR NOTES .
+.PP
+The files are processed in order.
+A
+.I file
+that does not exist is created, empty, and then extended, unless
+.B \-c
+is given.
+A
+.I file
+that cannot be opened or resized is reported on standard error, and the
+remaining files are still processed.
+The exit status is then 1.
+The messages have the forms
+.PP
+.RS 4
+.EX
+truncate: \fIfile\fR: open: \fIreason\fR
+truncate: \fIfile\fR: truncate: \fIreason\fR
+.EE
+.RE
+.PP
+Nothing is written to standard output.
+The size is read before any file is touched, so an invalid
+.I size
+creates nothing.
+With no
+.BR \-s ,
+no
+.IR file ,
+or an invalid option,
+.B truncate
+prints a usage message on standard error and exits with status 1.
+.SS Sizes
+A
+.I size
+is a number in decimal digits, with an optional suffix that multiplies
+it.
+A sign, white space, a fraction, and hexadecimal notation are not
+accepted, and leading zeros do not make a number octal:
+.B 010
+is ten.
+Suffixes are case-sensitive:
+.TP
+.BR k ", " K
+1024.
+.TP
+.BR kB ", " KB ", " kD ", " KD
+1000.
+.TP
+.B M
+1048576.
+.TP
+.BR MB ", " MD
+1000000.
+.TP
+.B G
+1073741824.
+.TP
+.BR GB ", " GD
+1000000000.
+.PP
+A number that is malformed, or that does not fit in 64 bits unsigned,
+ends
+.B truncate
+with status 1 and one of these messages, the second for a number that
+its suffix makes too large:
+.PP
+.RS 4
+.EX
+truncate: invalid number \(aq\fIsize\fR\(aq
+truncate: number \fIsize\fR is not in 0..18446744073709551615 range
+.EE
+.RE
+.PP
+A
+.I size
+above 9223372036854775807 is accepted, but resizing then fails with
+.BR "Invalid argument" ,
+after the
+.I file
+is created if it did not exist.
+.SH OPTIONS
+Options may be grouped, as in
+.BR "\-cs 1M" ,
+and may follow the
+.I file
+operands, unless
+.B POSIXLY_CORRECT
+is set.
+The argument of
+.B \-s
+may be attached, as in
+.BR \-s1M ,
+or be the next argument.
+Repeating
+.B \-s
+keeps the last
+.IR size .
+.B \-\-
+ends the options.
+There are no long options apart from
+.BR \-\-help .
+.TP
+.B \-c
+Do not create files.
+A
+.I file
+that does not exist is skipped without a message, and does not affect
+the exit status.
+This holds for any missing path, including one whose directory does not
+exist.
+Other failures to open a
+.IR file ,
+such as a directory or a read-only file, are still errors.
+.TP
+.BI "\-s " size
+Set the length of each
+.I file
+to
+.I size
+bytes.
+This option is required.
+.TP
+.B \-\-help
+As the first argument only, print a usage message on standard output and
+exit with status 0.
+.SH ENVIRONMENT
+.TP
+.B BB_CRITICAL_ERROR_DIALOGS
+When it is
+.BR 1 ,
+Windows may show a critical-error dialog for a
+.I file
+on a drive with no disk in it.
+Otherwise busybox suppresses the dialog, and the file fails to open.
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the arguments are expanded when busybox starts, as needed
+when run from
+.BR cmd.exe .
+A pattern that matches nothing is left as it is.
+A busybox process started with the variable unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+arguments as the shell expanded them.
+.TP
+.B BB_UMASK
+A file mode creation mask in octal.
+When it includes the owner write bit,
+.BR 200 ,
+a file that
+.B truncate
+creates is read-only.
+The run that creates it still extends it, but later runs fail to open it
+with
+.BR "Permission denied" .
+In the kit's shell,
+.B truncate
+uses the shell's mask instead; see
+.BR NOTES .
+.TP
+.B POSIXLY_CORRECT
+When set, the first
+.I file
+operand ends the options, so that a later
+.B \-s
+is a file name.
+.PP
+Messages written to a console also depend on
+.BR BB_SKIP_ANSI_EMULATION ,
+.BR BB_TERMINAL_MODE ,
+.BR LANG ,
+.BR LC_ALL ,
+and
+.BR LC_CTYPE ,
+as for every busybox applet; see
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Every
+.I file
+was resized, or skipped by
+.BR \-c .
+This includes
+.B \-\-help
+as the first argument.
+.TP
+.B 1
+An invalid option or
+.IR size ,
+no
+.BR \-s ,
+no
+.IR file ,
+or a
+.I file
+that could not be opened or resized.
+.SH EXAMPLES
+Create a file of 1000000 zero bytes, or resize an existing one to that
+length:
+.PP
+.RS 4
+.EX
+$ truncate \-s 1MB blob.bin
+.EE
+.RE
+.PP
+Empty a file without deleting it:
+.PP
+.RS 4
+.EX
+$ truncate \-s 0 build.log
+.EE
+.RE
+.PP
+Keep the first 512 bytes of a file:
+.PP
+.RS 4
+.EX
+$ truncate \-s 512 image.bin
+.EE
+.RE
+.PP
+Empty the files that exist, and ignore those that do not:
+.PP
+.RS 4
+.EX
+$ truncate \-c \-s 0 old.log cache.tmp
+.EE
+.RE
+.PP
+Remove the last 16 bytes of a file.
+There are no relative sizes, so the shell computes the new length:
+.PP
+.RS 4
+.EX
+$ truncate \-s $(($(stat \-c %s data.bin) \- 16)) data.bin
+.EE
+.RE
+.SH NOTES
+Differences from GNU
+.BR truncate :
+.IP \(bu 2
+The size is absolute.
+A leading
+.BR + ,
+.BR \- ,
+.BR < ,
+.BR > ,
+.BR / ,
+or
+.B %
+is not accepted.
+.IP \(bu 2
+The only options are
+.BR \-c ,
+.BR \-s ,
+and
+.BR \-\-help .
+.B \-o
+(sizes in blocks),
+.B \-r
+(copy the size of another file), and the other long options, such as
+.B \-\-size
+and
+.BR \-\-version ,
+are invalid.
+.IP \(bu 2
+The only suffixes are those listed under
+.BR Sizes .
+Lowercase
+.B m
+and
+.BR g ,
+the larger units such as
+.BR T ,
+and the
+.B iB
+forms such as
+.B KiB
+are invalid.
+.PP
+Extending a file allocates the new range on disk and fills it with
+zeros, so it takes time and disk space in proportion to the growth.
+A very large size keeps running until the disk is full or
+.B truncate
+is interrupted, and an interrupted run leaves the file partly extended.
+On NTFS,
+.B truncate
+first marks the file sparse, and the mark stays on the file, but the new
+range is allocated like any other data, not left as a hole.
+.PP
+A directory operand fails with
+.BR "Is a directory" ,
+and a read-only file with
+.BR "Permission denied" ,
+with or without
+.BR \-c .
+A file named
+.B \-
+is an ordinary file name, not standard output.
+.IR /dev/null ,
+.IR /dev/zero ,
+and
+.I /dev/urandom
+are accepted, and resizing them succeeds without effect.
+.PP
+The kit's
+.B sh
+runs
+.B truncate
+inside a shell process, without starting busybox anew, so
+.B truncate
+uses the shell's file mode creation mask, which the shell's
+.B umask
+command sets, and ignores a
+.B BB_UMASK
+assignment on its command line.
+.PP
+File names may use drive letters and backslashes.
+They may contain any Unicode characters on Windows 10 version 1903 and
+later, and are limited to the system code page on earlier versions.
+.SH SEE ALSO
+.BR busybox (1),
+.BR dd (1),
+.BR du (1),
+.BR sh (1),
+.BR stat (1)

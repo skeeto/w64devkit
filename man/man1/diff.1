@@ -1,0 +1,566 @@
+.TH DIFF 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.SH NAME
+diff \- compare files line by line
+.SH SYNOPSIS
+.B diff
+.RB [ \-abBdiNqrTstw ]
+.RB [ \-L
+.IR label ]
+.RB [ \-S
+.IR file ]
+.RB [ \-U
+.IR lines ]
+.RB [ \-\-binary ]
+.I file1
+.I file2
+.SH DESCRIPTION
+.B diff
+compares
+.I file1
+with
+.I file2
+line by line and writes the differences as a unified diff, the format
+that
+.BR patch (1)
+reads.
+It writes nothing when the files are the same.
+There must be exactly two operands.
+A file named
+.B \-
+is standard input.
+.PP
+Lines are compared as octets, and a line ends at LF.
+Options can make the comparison ignore case or white space, but they do
+not change how lines are written.
+A CR before an LF is also ignored, unless
+.B \-\-binary
+is given; see
+.BR NOTES .
+.PP
+If the files differ and a NUL octet appears in either of them, within
+the length of the shorter file,
+.B diff
+does not compare lines, and writes
+.PP
+.RS 4
+.EX
+Files \fIfile1\fR and \fIfile2\fR differ
+.EE
+.RE
+.PP
+on standard output instead.
+.B \-a
+compares them as text.
+.SS "Output format"
+Output begins with two header lines naming the files:
+.PP
+.RS 4
+.EX
+\-\-\- \fIfile1\fR
++++ \fIfile2\fR
+.EE
+.RE
+.PP
+The names are the operands as given, or the
+.B \-L
+labels, with no timestamps.
+Each hunk, a group of changes with their surrounding lines, follows as a
+line
+.PP
+.RS 4
+.EX
+@@ \-\fIstart\fR,\fIcount\fR +\fIstart\fR,\fIcount\fR @@
+.EE
+.RE
+.PP
+and the lines it covers.
+The first range is in
+.IR file1 ,
+the second in
+.IR file2 .
+A
+.I count
+of 1 is omitted.
+A range of no lines is written as the number of the line before it, or
+0 at the start of the file, and a
+.I count
+of 0.
+.PP
+Each line of a hunk starts with one character.
+A space marks a context line, which is in both files.
+A
+.B \-
+marks a line only in
+.IR file1 ,
+and a
+.B +
+marks a line only in
+.IR file2 .
+A hunk has
+.B 3
+context lines around each change, or the number given by
+.BR \-U .
+Changes separated by no more than twice that many unchanged lines share
+a hunk.
+A line that ends without a newline, which only the last line of a file
+can, is followed by
+.PP
+.RS 4
+.EX
+\e No newline at end of file
+.EE
+.RE
+.SS Directories
+If both operands are directories,
+.B diff
+compares the files that have the same name in both, and writes the diff
+of each pair that differs.
+Names are sorted in byte order and match case-sensitively.
+In messages and headers a file is named by the operand as given, a
+slash unless the operand ends in one, and the name.
+Other output is one of these lines:
+.TP
+.BI "Only in " dir ": " name
+.I name
+exists only in
+.IR dir .
+With
+.BR \-r ,
+.I name
+is a path relative to the operand.
+.B \-N
+suppresses this line.
+.TP
+.BI "Common subdirectories: " path1 " and " path2
+Without
+.BR \-r ,
+a subdirectory in both is not entered.
+.TP
+.BI "File " path1 " is a directory while file " path2 " is a regular file"
+Without
+.BR \-r .
+The reverse, with the kinds exchanged, also occurs.
+.TP
+.BI "File " path " is not a regular file or directory and was skipped"
+For a device, or another special file.
+.TP
+.BI "Files " path1 " and " path2 " differ"
+With
+.BR \-q ,
+or for binary files.
+.TP
+.BI "Files " path1 " and " path2 " are identical"
+With
+.BR \-s .
+.PP
+Without
+.BR \-r ,
+only the entries of the two directories are compared.
+With
+.BR \-r ,
+every subdirectory is entered, through symbolic links too, and files are
+matched by path relative to the operands.
+A subdirectory that is missing from the other operand, or is not a
+directory there, is not entered and is not reported, but sets exit
+status 1.
+With
+.BR \-N ,
+it is entered, and its files are compared with empty files.
+An entry that cannot be examined, such as a broken symbolic link, is
+reported on standard error and left out, and the exit status does not
+change.
+.PP
+If only one operand is a directory,
+.B diff
+compares the other operand with the file in that directory that has its
+name: the part after the last forward slash, or all of the operand if it
+has none.
+That file must exist, even with
+.BR \-N .
+Standard input cannot be compared with a directory.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-rN ,
+and may follow the operands, unless
+.B POSIXLY_CORRECT
+is set.
+An option's argument may be attached, as in
+.BR \-U5 ,
+or be the next argument.
+Long options may be abbreviated to a unique prefix, and the argument of
+a long option may follow
+.B =
+or be the next argument.
+.B \-\-
+ends the options.
+.TP
+.BR \-a ", " \-\-text
+Treat all files as text, even if they contain NUL octets.
+.TP
+.BR \-b ", " \-\-ignore\-space\-change
+Ignore changes in the amount of white space: compare each run of white
+space as a single space.
+White space at the end of a line, and a missing newline at the end of
+the file, are ignored.
+A line with white space at its start differs from one without.
+White space is space, tab, CR, LF, VT, and FF.
+.TP
+.BR \-B ", " \-\-ignore\-blank\-lines
+Omit a hunk whose changed lines, in both files, are all empty.
+A line is empty when it contains only its newline.
+A line of white space, or one ending in CR LF, is not empty.
+If every hunk is omitted, the files count as the same.
+.TP
+.BR \-d ", " \-\-minimal
+Try harder to find a small set of changes.
+Without
+.BR \-d ,
+.B diff
+limits the effort spent on a line that occurs many times in the other
+file, so the result can be larger than necessary.
+.TP
+.BR \-i ", " \-\-ignore\-case
+Ignore differences in case.
+Only the ASCII letters are folded.
+.TP
+\fB\-L\fR \fIlabel\fR, \fB\-\-label=\fIlabel\fR
+Use
+.I label
+instead of the file name in a header line.
+Give
+.B \-L
+twice to label both files: the first labels
+.IR file1 ,
+the second
+.IR file2 .
+A single label applies to
+.IR file1 .
+Of more than two, only the first and last are used.
+When directories are compared, the labels apply to every pair of files
+that differs.
+.TP
+.BR \-N ", " \-\-new\-file
+Treat absent files as empty.
+An operand or directory entry that does not exist, or cannot be opened,
+is compared as an empty file.
+In a directory, a file that is in only one of the two is diffed against
+an empty file named
+.I /dev/null
+instead of being reported as
+.BR "Only in" .
+Without
+.BR \-r ,
+a subdirectory that is in only one of the two is reported as common to
+both.
+A missing operand keeps its name in the header.
+.TP
+.BR \-q ", " \-\-brief
+Write only
+.BI "Files " file1 " and " file2 " differ"
+for files that differ, and no diff.
+Binary files are always reported this way.
+.TP
+.BR \-r ", " \-\-recursive
+Compare directories recursively.
+Has no effect unless both operands are directories.
+.TP
+\fB\-S\fR \fIfile\fR, \fB\-\-starting\-file=\fIfile\fR
+When comparing directories, start with
+.IR file :
+skip each entry whose name sorts before
+.I file
+in byte order.
+With
+.BR \-r ,
+an entry's name is its path relative to the operand.
+.I file
+need not exist.
+.TP
+.BR \-T ", " \-\-initial\-tab
+Write a tab after the space,
+.BR \- ,
+or
+.B +
+that starts each line of a hunk, so that tab stops in the text keep
+their columns.
+.TP
+.BR \-s ", " \-\-report\-identical\-files
+Write
+.BI "Files " file1 " and " file2 " are identical"
+when two files compared are the same.
+.TP
+.BR \-t ", " \-\-expand\-tabs
+Expand tabs to spaces in the output, to tab stops every 8 columns.
+Columns count octets from the start of the text of the line.
+.TP
+\fB\-U\fR \fIlines\fR, \fB\-\-unified=\fIlines\fR
+Use
+.I lines
+as the number of lines of context around each change.
+The default is 3.
+.I lines
+is a decimal number from 0 to 2147483647, and anything else is an error.
+Values of 1073741824 or more overflow and give wrong hunks.
+.TP
+.BR \-w ", " \-\-ignore\-all\-space
+Ignore white space: compare lines with all white space removed, so that
+.B "a b"
+and
+.B ab
+are equal.
+A missing newline at the end of the file is also ignored.
+.TP
+.B \-\-binary
+Compare lines exactly, without ignoring a CR before an LF.
+See
+.BR NOTES .
+.TP
+.BR \-E ", " \-\-ignore\-tab\-expansion
+Accepted for compatibility and ignored.
+.TP
+.BR \-p ", " \-\-show\-c\-function
+Accepted for compatibility and ignored.
+The hunk headers never name a function.
+.TP
+.B \-u
+Accepted for compatibility and ignored.
+The output is always unified.
+.TP
+.B \-\-help
+As the first argument, print a usage message on standard output and
+exit with status 0.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the operands are expanded when
+.B diff
+starts, as needed when it is run from
+.BR cmd.exe .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+operands as the shell expanded them.
+.TP
+.B POSIXLY_CORRECT
+If set, the first operand ends the options.
+.TP
+.B TMPDIR
+The directory for the temporary copy of an input that cannot seek, such
+as a pipe.
+When it is unset,
+.B TMP
+and then
+.B TEMP
+are used.
+If none is set, see
+.BR NOTES .
+.PP
+Variables that affect every busybox applet are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+No differences were found, including when the files differ only in what
+an option ignores, or in a CR before an LF (see
+.BR NOTES ).
+.TP
+.B 1
+The files differ, including binary files, an
+.B Only in
+line, and a subdirectory skipped under
+.BR \-r .
+Also an invalid command line, with a message on standard error, and any
+error other than a missing operand, such as a temporary file that cannot
+be created, a file missing from the directory when only one operand is a
+directory, or standard input compared with a directory.
+.TP
+.B 2
+An operand does not exist, and
+.B \-N
+was not given.
+.TP
+.B 141
+Standard output is a pipe whose reader has exited.
+.PP
+Messages about common subdirectories, files of different kinds, and
+skipped files do not change the status.
+Nor does a file that cannot be opened, which is reported on standard
+error as
+.PP
+.RS 4
+.EX
+diff: can't open '\fIfile\fR': \fIreason\fR
+.EE
+.RE
+.PP
+The pair of files then counts as the same.
+.SH EXAMPLES
+Compare two files:
+.PP
+.RS 4
+.EX
+$ diff old.txt new.txt
+\-\-\- old.txt
++++ new.txt
+@@ \-1,3 +1,3 @@
+ one
+\-two
++2
+ three
+.EE
+.RE
+.PP
+Test in a script whether two files are the same:
+.PP
+.RS 4
+.EX
+$ if diff \-q old.txt new.txt >/dev/null; then echo same; fi
+.EE
+.RE
+.PP
+Ignore changes in white space, and show 10 lines of context:
+.PP
+.RS 4
+.EX
+$ diff \-w \-U 10 old.c new.c
+.EE
+.RE
+.PP
+Compare the output of a program with the expected output:
+.PP
+.RS 4
+.EX
+$ ./prog | diff \- expected.txt
+.EE
+.RE
+.PP
+List the files that differ between two build trees:
+.PP
+.RS 4
+.EX
+$ diff \-rq build1 build2
+.EE
+.RE
+.PP
+Write a patch that turns tree
+.I a
+into tree
+.IR b ,
+including new files, and apply it to a copy of
+.IR a :
+.PP
+.RS 4
+.EX
+$ diff \-rN a b >fix.patch
+$ cp \-r a c
+$ cd c
+$ patch \-p1 <../fix.patch
+.EE
+.RE
+.PP
+Compare files with their CR LF line endings significant:
+.PP
+.RS 4
+.EX
+$ diff \-\-binary dos.txt unix.txt
+.EE
+.RE
+.SH NOTES
+Differences from GNU diff:
+.IP \(bu 2
+Only the unified format is written.
+Options such as
+.BR \-c ,
+.BR \-e ,
+.BR \-y ,
+.BR \-x ,
+.BR \-X ,
+and
+.B \-I
+are not accepted.
+.IP \(bu 2
+The header lines have no timestamps.
+.IP \(bu 2
+The message for binary files begins with
+.BR Files ,
+not
+.BR "Binary files" .
+.IP \(bu 2
+With
+.BR \-r ,
+a file in only one tree is reported as
+.BI "Only in " dir ": " sub/name
+with the subdirectory in the file part, where GNU diff puts it in the
+directory part, and a subdirectory in only one tree is not reported.
+.IP \(bu 2
+Status 2 is for a missing operand only, and other errors give status 1.
+.PP
+Files and standard input are read in binary mode.
+Unless
+.B \-\-binary
+is given, a CR directly before an LF is removed when lines are compared,
+so text with CR LF line endings and the same text with LF line endings
+are the same: nothing is written, and the exit status is 0.
+Lines that are written keep their CRs.
+Output lines that
+.B diff
+writes itself end with LF, not CR LF.
+.PP
+Operands may be Windows paths, with a drive letter and either kind of
+slash, and are named in output as given.
+.I /dev/null
+is accepted as an operand, but the Windows name
+.I nul
+is not.
+When directories are compared, names are joined to the directory operand
+with a forward slash, which is added even after a trailing backslash.
+When only one operand is a directory, only a forward slash ends the
+directory part of the other operand, so
+.B diff
+appends all of an operand such as
+.I sub\ef.txt
+to the directory, and looks for
+.IR dir/sub\ef.txt .
+A bare drive such as
+.I c:
+names the current directory of that drive, and names are joined to it
+with no slash, as
+.IR c:name .
+File names may contain any Unicode characters on Windows 10 version 1903
+and later, and are limited to the ANSI code page on earlier versions.
+.PP
+An input that cannot seek, such as a pipe, is first copied to a
+temporary file in
+.BR TMPDIR ,
+named
+.B dif
+and six more characters, which
+.B diff
+removes when it finishes.
+It reads such an input to its end before it writes anything.
+If none of
+.BR TMPDIR ,
+.BR TMP ,
+and
+.B TEMP
+is set,
+.B diff
+does not compare the pair of files, writes no message, and counts them
+as the same: the exit status is 0, and
+.B \-s
+reports them as identical.
+.PP
+If both operands name the same file, such as one path spelled two ways,
+.B diff
+exits with status 0 at once, and writes nothing even with
+.BR \-s .
+Two
+.B \-
+operands also count as the same.
+.SH SEE ALSO
+.BR busybox (1),
+.BR cmp (1),
+.BR comm (1),
+.BR patch (1)

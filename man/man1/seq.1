@@ -1,0 +1,336 @@
+.TH SEQ 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+seq \- print a sequence of numbers
+.SH SYNOPSIS
+.B seq
+.RB [ \-w ]
+.RB [ \-s
+.IR sep ]
+.RI [ first
+.RI [ incr ]]
+.I last
+.SH DESCRIPTION
+.B seq
+writes the numbers from
+.I first
+to
+.I last
+in steps of
+.I incr
+to standard output.
+With one operand, it is
+.IR last .
+With two, they are
+.I first
+and
+.IR last ,
+and with three,
+.IR first ,
+.IR incr ,
+and
+.IR last .
+.I first
+and
+.I incr
+default to 1.
+Any other number of operands is a usage error.
+.PP
+Each operand is read with the C library function
+.BR strtod .
+It may have leading white space and a sign, and be written with a
+fraction, with an exponent as in
+.BR 1e3 ,
+or in hexadecimal as in
+.BR 0x1F .
+It may also be
+.BR inf ,
+.BR infinity ,
+or
+.BR nan ,
+in any case.
+The decimal separator is always a period.
+An empty operand is 0.
+Trailing characters after the number, a value too large for a double,
+and a nonzero value smaller in magnitude than about 2.2e\-308 are usage
+errors.
+.PP
+The number at position
+.IR n ,
+counting from 0, is
+.IR first " + " n "*" incr ,
+computed as a double, so rounding errors do not accumulate.
+When
+.I incr
+is 0 or positive,
+.B seq
+writes numbers as long as they are at most
+.IR last .
+When it is negative, it writes them as long as they are at least
+.IR last .
+A sequence that starts beyond
+.IR last ,
+such as
+.BR "seq 3 1" ,
+is empty: nothing is written, not even a newline, and the status is 0.
+An
+.I incr
+of 0 repeats
+.I first
+forever unless
+.I first
+is above
+.IR last .
+.PP
+Numbers are written in decimal, never with an exponent.
+Each has as many digits after the period as there are characters after
+the period in
+.I first
+or
+.IR incr ,
+whichever has more, as typed.
+Every character after the period counts, so
+.B 1.5e1
+gives three digits, and an operand with no period, such as
+.BR 1e\-1 ,
+gives none.
+The characters of
+.I last
+do not count.
+Numbers are rounded to that many digits, so
+.B "seq 0 1e\-1 1"
+writes whole numbers only.
+.PP
+.B seq
+writes
+.I sep
+between numbers, and a newline after the last number.
+.SH OPTIONS
+Options may be grouped, and an option's argument may be attached or be
+the next argument, so
+.B \-ws:
+is the same as
+.BR "\-w \-s :" .
+.B \-\-
+ends the options.
+Options must come before the operands: a later word is an operand.
+.PP
+A word that starts with a hyphen and a digit or a period, such as
+.B \-5
+or
+.BR \-.5 ,
+is a negative number wherever it appears, and the options end before it.
+A
+.I sep
+that looks like that must be attached to the option, as in
+.BR \-s\-1 .
+.TP
+.B \-w
+Pad the numbers with leading zeros to a common width.
+The width is the largest, over all the operands including
+.IR last ,
+of the number of characters typed before the period, or in the whole
+operand when it has none, so white space, a sign, an exponent, and a
+.B 0x
+prefix count.
+When the numbers have digits after the period, the period and those
+digits are added.
+The width is computed from the text, not the values:
+.B "seq \-w 0x9 0x10"
+pads to four characters and writes
+.BR 0009 ,
+.BR 0010 ,
+and so on.
+Zeros go after a sign, so
+.B "seq \-w \-10 5"
+writes
+.B \-10
+through
+.BR \-01 ,
+then
+.B 000
+through
+.BR 005 .
+.TP
+.BI "\-s " sep
+Write
+.I sep
+between numbers instead of a newline.
+It is written as is, with no backslash escapes, and may be empty.
+With several
+.B \-s
+options, the last wins.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the arguments are expanded, as needed when run from
+.BR cmd.exe .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+arguments as the shell expanded them.
+.TP
+.BR BB_TERMINAL_MODE ", " BB_SKIP_ANSI_EMULATION
+When standard output is a console, decide whether the console or busybox
+interprets the escape sequences in the output, such as for color.
+See
+.BR busybox (1).
+.TP
+.B CONEMUPID
+When it is set and neither of the above is, busybox uses terminal mode
+0: it turns virtual terminal output off and emulates escape sequences
+itself.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+output to a console is not converted, and the console interprets the
+bytes in its own code page.
+.PP
+Variables that affect every busybox applet are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success, including an empty sequence.
+.TP
+.B 1
+Usage error: an unknown option, a missing option argument, a number of
+operands other than one to three, or an operand that is not a number or
+is out of range for a double.
+The usage message is written to standard error, preceded for an option
+error by a line such as
+.BR "seq: unknown option \-\- x" .
+.TP
+.B 141
+Standard output is a pipe whose reader has exited, found while writing
+the numbers.
+.TP
+.B 255
+Standard output could not be written when it was flushed at exit, such
+as when it is closed, or when it is a pipe whose reader has exited and
+the output was short enough to stay buffered until then.
+No message is written.
+.SH EXAMPLES
+Write the numbers from 1 to 5 on one line:
+.PP
+.RS 4
+.EX
+$ seq \-s \(aq \(aq 5
+1 2 3 4 5
+.EE
+.RE
+.PP
+Count down by fives, and count up from a negative number:
+.PP
+.RS 4
+.EX
+$ seq \-s \(aq \(aq 20 \-5 0
+20 15 10 5 0
+$ seq \-s, \-2 2
+\-2,\-1,0,1,2
+.EE
+.RE
+.PP
+Write fractions; the step 0.25 sets two digits for every number:
+.PP
+.RS 4
+.EX
+$ seq 0 0.25 1
+0.00
+0.25
+0.50
+0.75
+1.00
+.EE
+.RE
+.PP
+Number files with a common width:
+.PP
+.RS 4
+.EX
+$ for i in $(seq \-w 8 11); do echo img$i.png; done
+img08.png
+img09.png
+img10.png
+img11.png
+.EE
+.RE
+.PP
+Rounding makes the last number of a fractional sequence uncertain.
+Here 0.3 is missing, because 3 times 0.1 is slightly more than 0.3:
+.PP
+.RS 4
+.EX
+$ seq 0 0.1 0.3
+0.0
+0.1
+0.2
+.EE
+.RE
+.PP
+Keep 0.3 by stopping a little past it:
+.PP
+.RS 4
+.EX
+$ seq 0 0.1 0.35
+.EE
+.RE
+.SH NOTES
+Unlike GNU
+.BR seq ,
+this one has no format option
+.RB ( \-f ),
+and no long options other than
+.BR \-\-help .
+.PP
+Numbers are doubles, so integers above 2 to the 53rd power are not all
+representable.
+Each number is rounded to the nearest double, so an
+.I incr
+that is small next to
+.I first
+makes numbers repeat or skip.
+The count of numbers written is a 32-bit value, so a sequence of
+4294967296 numbers or more starts over from
+.I first
+after that many, and never ends.
+.PP
+Standard output is binary, so the newline is a bare LF.
+.PP
+The C runtime expands wildcards in the arguments, even quoted ones, when
+.B seq
+is run from
+.BR cmd.exe .
+A
+.I sep
+such as
+.B *
+is then replaced by the names of the matching files, so the arguments
+differ from those typed.
+Set
+.B BB_GLOBBING
+to
+.B 0
+to prevent that.
+.PP
+Arguments may contain any Unicode character on Windows 10 version 1903
+and later, and are limited to the system code page on earlier versions.
+When standard output is a console, the output is converted for display
+from the ANSI code page, which is UTF-8 on Windows 10 version 1903 and
+later.
+Escape sequences in
+.IR sep ,
+such as those for color, take effect, and busybox emulates them on
+consoles without virtual terminal support.
+.SH SEE ALSO
+.BR awk (1),
+.BR busybox (1),
+.BR printf (1),
+.BR sh (1),
+.BR shuf (1)

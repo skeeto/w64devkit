@@ -1,0 +1,457 @@
+.TH GETOPT 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+getopt \- parse command-line options for shell scripts
+.SH SYNOPSIS
+.B getopt
+.B \-o
+.I optstring
+.RI [ options ]
+.RB [ \-\- ]
+.RI [ parameter ...]
+.br
+.B getopt
+.RI [ options ]
+.RB [ \-\- ]
+.I optstring
+.RI [ parameter ...]
+.br
+.B getopt
+.I optstring
+.RI [ parameter ...]
+.br
+.B getopt \-T
+.SH DESCRIPTION
+.B getopt
+sorts its
+.I parameters
+into options and operands, and writes them on standard output in a fixed
+form.
+A shell script passes its own arguments, then hands the output back to the
+shell with
+.BR "eval set \-\-" ,
+so that a simple loop can read the options; see
+.BR EXAMPLES .
+.PP
+.I optstring
+lists the short options to recognize, and
+.B \-l
+lists the long options.
+Without
+.BR \-o ,
+.I optstring
+is the first argument after the options of
+.B getopt
+itself.
+Those options end at the first argument that is not an option, or at
+.BR \-\- .
+Every later argument is
+.I optstring
+or a parameter, even if it begins with a dash.
+If the first argument after the options begins with a dash, precede it
+with
+.BR \-\- .
+When the first argument is not an option or
+.BR \-\- ,
+as in
+.BR "getopt ab \-a" ,
+the traditional form described below applies instead.
+.SS Option strings
+Each letter of
+.I optstring
+is a short option.
+A letter followed by a colon takes an argument, which is attached to the
+option, as in
+.BI \-b value\fR,
+or is the next parameter.
+A letter followed by two colons takes an optional argument, which must be
+attached.
+Options may be grouped, as in
+.BR \-ab ,
+and
+.B \-\-
+ends the options.
+A lone
+.B \-
+is an operand.
+.PP
+Unless told otherwise, options and operands may be mixed, and the output
+lists every operand after the options.
+These characters at the start of
+.I optstring
+change the scan:
+.TP
+.B +
+Stop at the first operand.
+It and everything after it are operands.
+Setting the environment variable
+.B POSIXLY_CORRECT
+has the same effect, unless
+.I optstring
+starts with
+.BR \- .
+.TP
+.B \-
+Do not move operands to the end.
+Each operand appears in its place among the options, as a quoted argument.
+.TP
+.B :
+Print no error messages, as with
+.BR \-q .
+It must follow any
+.B +
+or
+.BR \- .
+.PP
+An unknown or ambiguous option, a missing argument, or an argument given
+to a long option that takes none is reported on standard error, left out
+of the output, and makes the exit status 1.
+Scanning continues after it.
+.SS Long options
+.B \-l
+gives a list of long option names, separated by commas or white space.
+A name followed by a colon takes an argument, and a name followed by two
+colons takes an optional argument.
+.B \-l
+may be repeated, and the lists add up.
+.PP
+On the command line a long option is written
+.BI \-\- name\fR.
+A required argument follows an equals sign, as in
+.BI \-\- name = value\fR,
+or is the next parameter.
+An optional argument can only follow an equals sign.
+A name may be shortened to a prefix, and the output has the full name.
+An exact match always wins.
+A prefix of several names is ambiguous only when they differ in whether
+they take an argument; otherwise the first of them in the order given to
+.B \-l
+is used.
+.PP
+With
+.BR \-a ,
+a long option may also start with a single dash.
+Such an argument, or the rest of a group after a short option, is read
+as a long option if it matches one, unless it is a single letter that is
+also a short option.
+Otherwise its first letter is read as a short option, or, if it is not
+one, the whole remainder is reported as an unknown option.
+.SS Output
+Each item of the output is preceded by a space, and the output ends with
+a line feed.
+The items are the options in the order given, each as
+.BI \- c
+or
+.BI \-\- name
+(the full name of a long option), followed by its argument if it takes one.
+An optional argument that is absent is written as an empty argument.
+Then comes
+.BR \-\- ,
+then the operands.
+.PP
+Each option argument and each operand is enclosed in single quotes, and
+each single quote inside it is written as
+.BR \(aq\e\(aq\(aq ,
+so that the shell reads back the original string.
+A newline inside an argument is written as it is.
+.B \-u
+turns quoting off.
+With
+.B \-s csh
+or
+.BR "\-s tcsh" ,
+each exclamation mark and each white-space character other than newline is
+also written as a closing quote, a backslash, the character, and an opening
+quote, and a newline is written as a backslash and the letter
+.BR n .
+.SS Traditional form
+If the first argument does not begin with a dash, or if
+.B GETOPT_COMPATIBLE
+is set, the first argument is
+.I optstring
+and all the rest are parameters, and no option of
+.B getopt
+is recognized.
+There are no long options, and the output is not quoted, as with
+.BR \-u .
+Leading
+.B +
+and
+.B \-
+characters of
+.I optstring
+are ignored.
+Error messages carry the name the program was started under.
+With no arguments at all, it reports a missing
+.IR optstring ,
+except that when
+.B GETOPT_COMPATIBLE
+is set it writes the output for no parameters, which is just
+.BR \-\- ,
+and exits 0.
+.SH OPTIONS
+These are the options of
+.B getopt
+itself.
+They may be grouped, as in
+.BR \-uq .
+A short option's argument may be attached, as in
+.BR \-oab ,
+or be the next argument.
+A long option's argument follows an equals sign or is the next argument.
+Long options may be shortened to a unique prefix.
+An error in these options prints a message and the usage text on
+standard error, and exits with status 1.
+.TP
+\fB\-a\fR, \fB\-\-alternative\fR
+Allow long options to start with a single dash.
+.TP
+\fB\-l\fR, \fB\-\-longoptions\fR \fIlongopts\fR
+Recognize the long options in
+.IR longopts .
+May be repeated.
+.TP
+\fB\-n\fR, \fB\-\-name\fR \fIname\fR
+Use
+.I name
+as the program name in the error messages about the parameters.
+The default is the name the program was started under, normally
+.BR getopt .
+Messages about the command line of
+.B getopt
+itself are not affected.
+.TP
+\fB\-o\fR, \fB\-\-options\fR \fIoptstring\fR
+Recognize the short options in
+.IR optstring .
+Without
+.BR \-o ,
+the first operand is
+.IR optstring .
+If repeated, the last one wins.
+.TP
+.BR \-q ", " \-\-quiet
+Print no error messages about the parameters.
+An error still makes the exit status 1.
+Errors in the command line of
+.B getopt
+itself are still reported.
+.TP
+.BR \-Q ", " \-\-quiet\-output
+Write nothing on standard output.
+Use it to test parameters by the exit status alone.
+.TP
+\fB\-s\fR, \fB\-\-shell\fR \fIshell\fR
+Set the quoting convention to that of
+.IR shell ,
+which is
+.B bash
+or
+.B sh
+(the default),
+.BR csh ,
+or
+.BR tcsh .
+The names are case-sensitive.
+Any other name produces a warning on standard error and is treated as
+.BR bash .
+Has no effect with
+.BR \-u .
+.TP
+.BR \-T ", " \-\-test
+Exit with status 4 without writing anything, as a test for this
+.BR getopt .
+The other options are still checked first.
+When
+.B GETOPT_COMPATIBLE
+is set,
+.B \-T
+is the
+.I optstring
+of the traditional form instead, so the output is
+.B \-\-
+and the exit status 0.
+.TP
+.BR \-u ", " \-\-unquoted
+Do not quote the output.
+An empty argument, or one with white space or characters special to the
+shell, then does not survive the shell's word splitting.
+.TP
+.B \-\-help
+As the first argument, print a usage message on standard output and exit
+with status 0.
+There is no
+.B \-h
+or
+.BR \-V .
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Read when
+.B busybox.exe
+starts.
+Unless it is
+.BR 0 ,
+the C runtime expands wildcards in the command-line arguments before
+.B getopt
+sees them.
+If it is unset, startup sets it to
+.B 0
+in the environment of child processes, so that they do not expand wildcards
+again.
+.TP
+.BR BB_TERMINAL_MODE ", " BB_SKIP_ANSI_EMULATION
+When standard output is a console, decide whether the console or busybox
+interprets escape sequences in the output.
+See
+.BR busybox (1).
+.TP
+.B CONEMUPID
+When it is set and neither of the above is, busybox uses terminal mode
+0: it turns virtual terminal output off and emulates escape sequences
+itself.
+.TP
+.B GETOPT_COMPATIBLE
+If set, even to an empty value, use the traditional form.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+output to a console is not converted, as described in
+.BR NOTES ,
+and the console interprets the bytes in its own code page.
+.TP
+.B POSIXLY_CORRECT
+If set, even to an empty value, stop scanning the parameters at the first
+operand, as with a leading
+.B +
+in
+.IR optstring .
+It has no effect when
+.I optstring
+starts with
+.BR \- .
+The C runtime reads it.
+.PP
+Variables that affect every busybox applet are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+The parameters contained an error, or the command line of
+.B getopt
+is invalid: an unknown or ambiguous option, a missing option argument or
+.IR optstring ,
+or an empty long option name.
+.TP
+.B 4
+.B \-T
+was given.
+.SH EXAMPLES
+Read the options of a script.
+The loop ends at the
+.B \-\-
+that
+.B getopt
+writes after the options:
+.PP
+.RS 4
+.EX
+$ cat opts.sh
+args=$(getopt \-n opts \-o vo: \-l verbose,output: \-\- "$@") || exit 1
+eval set \-\- "$args"
+while :; do
+    case $1 in
+    \-v|\-\-verbose) verbose=1; shift;;
+    \-o|\-\-output)  output=$2; shift 2;;
+    \-\-)           shift; break;;
+    esac
+done
+echo "verbose=$verbose output=$output files: $*"
+$ sh opts.sh \-v \-\-out=a.txt "my file" b.c
+verbose=1 output=a.txt files: my file b.c
+$ sh opts.sh \-x
+opts: unknown option \-\- x
+.EE
+.RE
+.PP
+Show what
+.B getopt
+writes for a short option, a short option with an attached argument, a
+long option with an optional argument, and operands, one of which holds a
+quote:
+.PP
+.RS 4
+.EX
+$ getopt \-o ab: \-l long:: \-\- \-a \-bfoo \-\-long=x "it\(aqs" rest
+ \-a \-b \(aqfoo\(aq \-\-long \(aqx\(aq \-\- \(aqit\(aq\e\(aq\(aqs\(aq \(aqrest\(aq
+.EE
+.RE
+.PP
+Check parameters without writing anything or printing errors:
+.PP
+.RS 4
+.EX
+$ getopt \-qQ \-o ab \-\- \-a \-z || echo bad
+bad
+.EE
+.RE
+.PP
+Use the traditional form, whose output is not quoted:
+.PP
+.RS 4
+.EX
+$ set \-\- \-a x
+$ set \-\- $(getopt ab "$@")
+$ echo "$@"
+\-a \-\- x
+.EE
+.RE
+.SH NOTES
+The parameters are scanned by the getopt functions of the mingw-w64 C
+runtime, not by the GNU C library, so some details differ from util-linux
+.BR getopt :
+.IP \(bu 2
+The error messages are the runtime's, such as
+.BR "getopt: unknown option \-\- x" ,
+.BR "getopt: option requires an argument \-\- b" ,
+.BR "getopt: option doesn\(aqt take an argument \-\- alpha" ,
+and
+.BR "getopt: ambiguous option \-\- al" .
+.IP \(bu 2
+A prefix that matches several long options is an error only when they
+differ in whether they take an argument; otherwise the first of them is
+used.
+.IP \(bu 2
+With
+.BR \-a ,
+the rest of a group after a short option may be read as a long option.
+.IP \(bu 2
+Every failure exits with status 1, where util-linux also uses 2 and 3.
+.PP
+The output ends in a line feed, not CRLF.
+Arguments are copied byte for byte, and paths are not converted: drive
+letters and backslashes stay as typed, and the single quotes keep
+backslashes literal for the shell.
+When standard output is a console, the output is converted for display
+from the ANSI code page, which is UTF-8 on Windows 10 version 1903 and
+later, and escape sequences in it take effect.
+Only a POSIX shell such as
+.BR sh (1)
+can read the quoted output, not
+.BR cmd.exe .
+The shell builtin
+.BR getopts ,
+also described in
+.BR sh (1),
+needs no external program but has no long options.
+.PP
+When started from outside the kit shell, as from
+.BR cmd.exe ,
+the program expands wildcards in its arguments first; see
+.BR BB_GLOBBING .
+.SH SEE ALSO
+.BR busybox (1),
+.BR sh (1)

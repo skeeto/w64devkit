@@ -1,0 +1,330 @@
+.TH REALPATH 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+realpath \- print the canonical absolute name of each file
+.SH SYNOPSIS
+.B realpath
+.IR file ...
+.SH DESCRIPTION
+.B realpath
+prints the canonical absolute name of each
+.IR file ,
+one per line, on standard output.
+A canonical name has no
+.B .\&
+or
+.B ..\&
+components, no repeated separators, and no symbolic links or junctions.
+It is written with slashes, as in
+.BR C:/Users/me/src ,
+except where noted below.
+.PP
+There must be at least one
+.IR file .
+Standard input is not read.
+The operands are processed in order.
+One that cannot be resolved is reported on standard error, and the rest
+are still processed.
+.SS Existing files
+Resolution has two steps.
+The first works on the text of the operand, without touching the file
+system.
+It makes the name absolute, relative to the current directory, and
+removes
+.B .\&
+components, repeated separators, and each
+.B ..\&
+with the component before it.
+The empty operand is the current directory, a name that begins with a
+single
+.B /
+or
+.B \e
+starts at the root of the current drive, and a drive without a
+separator, as in
+.BR C:dir ,
+is relative to the current directory on that drive.
+As elsewhere in Windows, trailing dots and spaces in a component are
+ignored.
+.PP
+Because this step removes
+.B ..\&
+by text, it does not follow links first:
+.B link/..\&
+is the directory that contains
+.BR link ,
+not the parent of its target, and
+.B missing/..\&
+succeeds although
+.B missing
+does not exist.
+.PP
+The second step opens the resulting name, which fails unless the file
+exists, and asks Windows for its final name.
+This replaces every symbolic link and junction with its target, expands
+8.3 short names, writes the drive letter in upper case, and gives every
+component the case it has on disk.
+An app execution alias, one of the program names that Windows keeps in a
+user's
+.I WindowsApps
+directory, is replaced by the program it runs.
+The result has no
+.B \e\e?\e
+prefix, and a name on a network share is written
+.IR //server/share/dir .
+Backslashes become slashes, and a trailing separator is removed unless
+it ends a drive root such as
+.BR C:/ .
+An existing file followed by a separator is an error.
+.SS Files that do not exist
+A name that does not exist is still printed when only its last component
+is missing, so that the name of a file to be created can be resolved.
+The operand is split at its last separator, after trailing separators
+are removed.
+The part before it is resolved as above, and the last component is
+appended as written, in its own case, after the separator that
+was in the operand.
+That separator may be a backslash, so in
+.IR C:/work ,
+.B dir\enew
+prints as
+.BR C:/work/dir\enew .
+.PP
+It is an error if the part before the separator does not exist, or if
+the operand has no separator.
+So
+.B new
+fails, and
+.B ./new
+does not.
+The part before the separator need not be a directory.
+.PP
+Two cases differ.
+When the last separator is the one that ends the root of the operand, as
+in
+.BR C:/new ,
+.BR /new ,
+or
+.BR //host/share/new ,
+there is nothing to resolve, and the operand is printed as written,
+without being made absolute.
+So
+.B /new
+prints
+.BR /new ,
+as does
+.BR ///new .
+And when the part before the separator resolves to a drive root, the
+result has two separators after the drive, as in
+.BR C://new .
+.PP
+A symbolic link or junction whose target does not exist is replaced by
+its target, and the rules above apply to that.
+A relative target is taken relative to the current directory, not to the
+directory that holds the link.
+.SH OPTIONS
+.B realpath
+takes no options, so an operand that begins with a dash, such as
+.BR \-s ,
+is a
+.IR file ,
+and so is
+.BR \-\- .
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument, and any further arguments
+are then ignored.
+.SH ENVIRONMENT
+.TP
+.B BB_CRITICAL_ERROR_DIALOGS
+When it is
+.BR 1 ,
+Windows shows its critical-error dialogs, such as for a drive with no
+disk in it, instead of the operation failing with an error.
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+the C runtime expands the wildcards
+.B *
+and
+.B ?\&
+in the last component of each argument when busybox starts, even in
+quoted arguments, as needed for commands typed in
+.BR cmd.exe .
+A pattern that matches nothing is left as it is, and then fails as
+described under
+.BR NOTES .
+When the variable is unset, busybox sets it to
+.BR 0 ,
+so that busybox programs it starts do not expand their arguments again.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+output to a console is not converted, and the console interprets the
+bytes in its own code page.
+.PP
+Variables that affect every busybox program, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Every operand was resolved and printed.
+.TP
+.B 1
+There was no operand, with a usage message on standard error, or at
+least one operand could not be resolved, or standard output could not be
+written.
+.TP
+.B 141
+Standard output is a pipe whose reader exited before
+.B realpath
+finished writing.
+Nothing is printed.
+When this is first detected as the output is flushed at exit, the
+status is 1 instead.
+.PP
+A failure is reported on standard error as
+.PP
+.RS 4
+.EX
+realpath: \fIfile\fR: \fIreason\fR
+.EE
+.RE
+.PP
+where
+.I reason
+is the system's message for the error, such as
+.B No such file or directory
+or
+.BR "Invalid argument" .
+A write error names
+.B standard output
+in place of the file.
+.SH EXAMPLES
+Print the canonical name of a file:
+.PP
+.RS 4
+.EX
+$ cd C:/work/app
+$ realpath ../lib/./util.c
+C:/work/lib/util.c
+.EE
+.RE
+.PP
+Expand a short name:
+.PP
+.RS 4
+.EX
+$ realpath c:/progra~1/common~1
+C:/Program Files/Common Files
+.EE
+.RE
+.PP
+Name a file that does not exist yet, in a directory that does:
+.PP
+.RS 4
+.EX
+$ realpath build/app.exe
+C:/work/app/build/app.exe
+.EE
+.RE
+.PP
+Test whether the directory of a new file exists:
+.PP
+.RS 4
+.EX
+$ realpath nodir/log.txt || echo cannot resolve
+realpath: nodir/log.txt: No such file or directory
+cannot resolve
+.EE
+.RE
+.SH NOTES
+Differences from GNU
+.BR realpath :
+.IP \(bu 2
+There are no options, such as
+.BR \-e ,
+.BR \-m ,
+.BR \-s ,
+.BR \-z ,
+or
+.BR \-\-relative\-to .
+.IP \(bu 2
+A missing last component is allowed, as with GNU
+.BR realpath ,
+but only when the operand has a separator.
+.IP \(bu 2
+The empty operand is the current directory, not an error.
+.IP \(bu 2
+.B ..\&
+is resolved before links, not after.
+.IP \(bu 2
+Results are not made absolute in every case, and may mix separators; see
+.BR "Files that do not exist" .
+.PP
+A name containing
+.BR * ,
+.BR ? ,
+.BR < ,
+.BR > ,
+.BR | ,
+or
+.BR \(dq ,
+as an unmatched wildcard does, fails with
+.BR "Invalid argument" ,
+and so does a name that Windows takes for a device, such as
+.B NUL
+or a bare
+.BR CON .
+.PP
+Names are limited to 259 characters.
+An operand of 260 or more characters, as typed or once made absolute, is
+treated as if its last component were missing, and if the part before
+the last separator is too long as well,
+.B realpath
+fails with
+.BR "No such file or directory" .
+When the final name of an existing file would have 256 or more
+characters, or 254 on a network share, the second step only follows a
+link in the last component:
+names keep the case and form typed, and other links are not followed.
+.PP
+On Windows XP, which lacks the API for finding a final name, the second
+step only checks that the file exists and follows a link in the last
+component, so names keep the case and form typed.
+.PP
+Started from
+.BR cmd.exe ,
+.B realpath *.c
+prints every match, as described under
+.BR BB_GLOBBING .
+In the kit's shell, the shell expands the pattern.
+.PP
+On Windows 10 version 1903 and later, a name may contain any Unicode
+characters.
+On older versions it is limited to the ANSI code page.
+.PP
+Lines end with LF, not CRLF.
+When standard output is a console, the output is converted for display
+from the ANSI code page, which is UTF-8 on Windows 10 version 1903 and
+later.
+.PP
+The kit's
+.B sh
+runs
+.B realpath
+inside the shell process, without starting a new one, except where the
+shell needs a separate process anyway, as for a command substitution or
+a pipeline.
+.SH SEE ALSO
+.BR basename (1),
+.BR busybox (1),
+.BR dirname (1),
+.BR jn (1),
+.BR ln (1),
+.BR readlink (1),
+.BR sh (1)

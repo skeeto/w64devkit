@@ -1,0 +1,386 @@
+.TH SPLIT 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+split \- split a file into pieces
+.SH SYNOPSIS
+.B split
+.RB [ \-b
+.IR count ]
+.RB [ \-l
+.IR count ]
+.RB [ \-a
+.IR length ]
+.RI [ input
+.RI [ prefix ]]
+.SH DESCRIPTION
+.B split
+copies
+.I input
+to a series of new files, called pieces, each holding a fixed number of
+lines or bytes.
+By default a piece holds 1000 lines.
+With no
+.IR input ,
+or when it is
+.BR \- ,
+.B split
+reads standard input.
+To give a
+.I prefix
+and still read standard input, name the input
+.BR \- .
+This
+.B split
+is a busybox applet; see
+.BR busybox (1).
+.PP
+A piece is created when there is data to put in it, and replaces a file
+of the same name without warning.
+Empty input creates no pieces.
+Data is copied byte for byte, and
+.B split
+writes nothing to standard output.
+.SS Piece names
+A piece is named
+.I prefix
+followed by a suffix of lowercase letters.
+The prefix is
+.B x
+by default, and the suffix is 2 letters long unless
+.B \-a
+says otherwise.
+The suffixes run in order from
+.B aa
+to
+.BR az ,
+then
+.B ba
+to
+.BR bz ,
+and so on to
+.BR zz ,
+so the names sort in the order of the data.
+.PP
+Each letter of suffix multiplies the number of pieces by 26: 26 pieces
+for 1 letter, 676 for 2, and 17576 for 3.
+If there is more data after the last name is used,
+.B split
+reports
+.B suffixes exhausted
+and exits with status 1.
+The pieces written until then remain.
+.PP
+The
+.I prefix
+may include a directory, which must exist.
+The prefix and the suffix together must not be longer than 255 bytes,
+directory included.
+Otherwise
+.B split
+reports
+.B suffix too long
+and writes nothing.
+.SS Counts
+A count is a decimal number.
+Hexadecimal, a sign, and white space are not accepted, and leading zeros
+are allowed.
+A count for
+.B \-b
+may be followed by one of the lowercase suffixes
+.BR b ,
+.BR k ,
+.BR m ,
+or
+.BR g ,
+which multiply it by 512, 1024, 1048576, or 1073741824.
+A count for
+.B \-l
+cannot have a suffix.
+.PP
+A count that is malformed or out of range is an error, reported before
+the input is opened.
+The largest count for
+.B \-l
+is 9223372036854775807.
+A
+.B \-b
+count, after its suffix multiplies it, may be up to
+18446744073709551615, but one above 9223372036854775807 does not work:
+.B split
+writes empty or partial pieces, and may hang.
+.PP
+A count of 0 is accepted and is not useful.
+.B "\-b\ 0"
+creates empty pieces until the names run out, and then fails.
+.B "\-l\ 0"
+puts all the input in one piece.
+.PP
+With
+.BR \-l ,
+a piece holds
+.I count
+lines, and a line ends at an LF.
+A CR is an ordinary byte.
+The last piece holds what remains, and a last line without an LF is
+written as it is.
+With
+.BR \-b ,
+every piece except the last holds exactly
+.I count
+bytes, and a piece may end in the middle of a line or of a UTF-8
+character.
+.SH OPTIONS
+Options may follow the operands, unless
+.B POSIXLY_CORRECT
+is set.
+An option's argument may be attached, as in
+.BR \-l100 ,
+or be the next argument.
+.B \-\-
+ends the options.
+Long options are not accepted.
+An unknown option, a missing option argument, or more than two operands
+prints the usage message on standard error and exits with status 1.
+.TP
+.BI "\-b " count
+Split by bytes: each piece except the last holds
+.I count
+bytes.
+The count may have a suffix; see
+.BR Counts .
+.IP
+If both
+.B \-b
+and
+.B \-l
+are given, the input is split by bytes, and the count is the argument of
+whichever came last.
+That argument is also checked as a line count, so it cannot have a
+suffix if
+.B \-l
+is given anywhere: in
+.BR "\-l\ 5\ \-b\ 1k" ,
+the
+.B 1k
+is an error, and
+.B "\-b\ 1k\ \-l\ 5"
+splits into 5-byte pieces.
+.TP
+.BI "\-l " count
+Split by lines: each piece except the last holds
+.I count
+lines.
+The default, when neither
+.B \-b
+nor
+.B \-l
+is given, is 1000 lines.
+.TP
+.BI "\-a " length
+Make the suffix
+.I length
+letters long.
+The default is 2.
+It is a decimal number from 0 to 2147483647, and an error if the name
+would be too long; see
+.BR "Piece names" .
+A length of 0 is not rejected, but there is then no suffix: the first
+piece is named
+.I prefix
+itself, and each later one steps the last character of
+.I prefix
+up to
+.BR z .
+With the default prefix that gives at most three pieces, named
+.BR x ,
+.BR y ,
+and
+.BR z .
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+the C runtime expands wildcards in the operands when
+.B split
+starts as a new program, which serves commands typed in
+.BR cmd.exe .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+operands as the shell expanded them.
+.TP
+.B BB_UMASK
+A file mode creation mask in octal.
+When it includes the owner write bit,
+.BR 200 ,
+the pieces that
+.B split
+creates are read-only.
+A later run cannot replace them: it fails with
+.BR "Permission denied" .
+.TP
+.B POSIXLY_CORRECT
+If set, the first operand ends the options.
+.PP
+Variables that affect every busybox applet are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+An invalid option, count, or number of operands, the
+.I input
+could not be opened or read, the name would be too long, a piece could
+not be created or written, or the suffixes ran out.
+.PP
+Errors are reported on standard error as
+.PP
+.RS 4
+.EX
+split: \fImessage\fR
+.EE
+.RE
+.PP
+Pieces written before an error remain.
+.SH EXAMPLES
+Split a log into pieces of 10000 lines, named
+.BR part_aa ,
+.BR part_ab ,
+and so on:
+.PP
+.RS 4
+.EX
+$ split \-l 10000 big.log part_
+.EE
+.RE
+.PP
+Split a file into 1 MiB pieces, then join them again:
+.PP
+.RS 4
+.EX
+$ split \-b 1m archive.zip archive.zip.
+$ cat archive.zip.?? >copy.zip
+.EE
+.RE
+.PP
+Split standard input into pieces of 3 lines.
+The input is named
+.B \-
+so that a prefix can follow it:
+.PP
+.RS 4
+.EX
+$ seq 1 7 | split \-l 3 \- n_
+$ cat n_ab
+4
+5
+6
+.EE
+.RE
+.PP
+Put the pieces in an existing directory, with 3 letters of suffix:
+.PP
+.RS 4
+.EX
+$ split \-a 3 \-l 500 data.csv out/data_
+.EE
+.RE
+.PP
+Split a large file into 2 GiB pieces:
+.PP
+.RS 4
+.EX
+$ split \-b 2g backup.tar backup.tar.
+.EE
+.RE
+.SH NOTES
+Differences from GNU
+.BR split :
+.IP \(bu 2
+The only options are
+.BR \-a ,
+.BR \-b ,
+.BR \-l ,
+and
+.BR \-\-help .
+There are no long options, and none of GNU's
+.BR \-C ,
+.BR \-d ,
+.BR \-e ,
+.BR \-n ,
+.BR \-t ,
+.BR \-u ,
+.BR \-x ,
+.BR \-\-additional\-suffix ,
+.BR \-\-filter ,
+or
+.BR \-\-verbose .
+.IP \(bu 2
+Suffixes are always lowercase letters.
+Without
+.BR \-a ,
+GNU
+.B split
+lengthens them when the names run out, but this one fails after 676
+pieces.
+.IP \(bu 2
+.B "\-a\ 0"
+means no suffix, not the default length.
+.IP \(bu 2
+The only
+.B \-b
+suffixes are lowercase
+.BR b ,
+.BR k ,
+.BR m ,
+and
+.BR g .
+GNU suffixes such as
+.BR K ,
+.BR KB ,
+and
+.B MB
+are errors.
+.IP \(bu 2
+Counts of 0 are not rejected.
+.PP
+Files and standard streams are binary, so CR LF line endings and Ctrl-Z
+characters are copied unchanged, and lines end only at LF.
+.PP
+File names may use drive letters, backslashes, and forward slashes, in
+the
+.I input
+and in the
+.IR prefix .
+They may contain any Unicode characters on Windows 10 version 1903 and
+later, and are limited to the system code page on earlier versions.
+A full path of 260 characters or more, counting the current directory
+for a relative name, fails with
+.BR "No such file or directory" ,
+even when the name passes the 255-byte check.
+The device names
+.IR /dev/null ,
+.IR /dev/zero ,
+.IR /dev/urandom ,
+.IR /dev/stdin ,
+.IR /dev/tty
+(the console), and
+.I /dev/fd/N
+work as an
+.I input
+on Windows as on Unix.
+A directory as the
+.I input
+fails with
+.BR "Permission denied" .
+.SH SEE ALSO
+.BR busybox (1),
+.BR cat (1),
+.BR dd (1),
+.BR head (1)

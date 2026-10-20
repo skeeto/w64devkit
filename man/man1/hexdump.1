@@ -1,0 +1,479 @@
+.TH HEXDUMP 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+hexdump, hd \- dump files in hexadecimal or a custom format
+.SH SYNOPSIS
+.B hexdump
+.RB [ \-bcdoxCv ]
+.RB [ \-e
+.IR format ]
+.RB [ \-f
+.IR file ]
+.RB [ \-n
+.IR length ]
+.RB [ \-s
+.IR offset ]
+.RI [ file ...]
+.br
+.B hd
+.RI [ options ]
+.RI [ file ...]
+.SH DESCRIPTION
+.B hexdump
+writes the bytes of each
+.I file
+to standard output in one or more formats.
+With no
+.I file
+operands, or for a
+.I file
+named
+.BR \- ,
+it reads standard input.
+The files form a single input: offsets run on from one file to the next,
+and
+.B \-s
+and
+.B \-n
+apply to the whole.
+A file that cannot be opened is reported on standard error and skipped.
+.PP
+.B hd
+is
+.B hexdump
+with
+.B \-C
+given before any other option.
+.PP
+The options
+.BR \-b ,
+.BR \-c ,
+.BR \-d ,
+.BR \-o ,
+.BR \-x ,
+.BR \-C ,
+.BR \-e ,
+and
+.B \-f
+each add formats, and may be repeated.
+Input is read in blocks, 16 bytes for the built-in formats, and each
+block is written in every format in the order given, so
+.B \-bc
+writes two lines for each 16 bytes.
+With none of these options, each line is a 7-digit hexadecimal offset
+and eight 2-byte values, each as a space and 4 hexadecimal digits.
+.PP
+Multibyte values are read little-endian.
+The built-in formats write offsets in hexadecimal, widening them past
+their minimum width as needed, and after the last line, the offset just
+past the end of the input.
+In the last block, a value only partly present is completed with zero
+bytes, and the line is padded with spaces where the input ran out.
+Empty input produces no output.
+.PP
+Unless
+.B \-v
+is given, a block identical to the one before it is not written, and
+each run of such blocks is replaced by a line holding a single
+.BR * .
+A partial last block is always written, but when it matches the start of
+the block before it, a
+.B *
+line comes first even if no block was left out.
+.SS Format strings
+A format string, the argument of
+.B \-e
+or a line of a
+.B \-f
+file, is a sequence of units, each of the form
+.PP
+.RS 4
+.EX
+[\fIiterations\fR][\fB/\fIbytes\fR] \fB"\fIformat\fB"\fR
+.EE
+.RE
+.PP
+A unit writes
+.I format
+.I iterations
+times, by default once.
+Each conversion in
+.I format
+converts
+.I bytes
+bytes of input, or without
+.IR bytes ,
+the default for the conversion.
+A byte count must be followed by whitespace, as in
+.BR "16/1\ \(dq%02x\(dq" .
+.PP
+The block size is the most input any one format string converts, and
+every format string starts at the beginning of the block.
+When the last unit of a format string has no
+.I iterations
+and converts input, it repeats as often as fits in the block.
+On the last of several iterations, a whitespace character at the end of
+.I format
+is not written, so
+.B "4/1\ \(dq%02x\ \(dq"
+ends without a space.
+In a partial last block, conversions past the end of the input are
+written as spaces filling their field width, while the text around them
+is still written.
+.PP
+Text in
+.I format
+is written as is, after these escape sequences are replaced:
+.BR \ea ,
+.BR \eb ,
+.BR \ee ,
+.BR \ef ,
+.BR \en ,
+.BR \er ,
+.BR \et ,
+.BR \ev ,
+.BR \e\e ,
+.BI \e ooo
+with 1 to 3 octal digits, and
+.BI \ex hh
+with 1 or 2 hexadecimal digits.
+An escape that gives a NUL byte ends the format.
+Any other backslash is written as is.
+.I format
+cannot contain a double quote, but
+.B \e042
+writes one.
+.PP
+A conversion is
+.B %
+followed by optional flags, field width, and precision, as in
+.BR printf ,
+and one of the following.
+Integer conversions also accept the length modifiers
+.B l
+and
+.BR ll ,
+but
+.B ll
+is correct only in an 8-byte
+.B %d
+or
+.BR %i .
+Only the first conversion in each quoted format works: the format is
+cut off before its second
+.BR % ,
+but the block size still counts the input of the dropped conversions,
+so that much input is never shown.
+With a byte count, a format with two conversions other than offsets is
+rejected.
+Put each conversion in a quoted format of its own.
+.TP
+.B %c
+One byte as a character.
+.TP
+.BR %d ", " %i
+A signed decimal integer of 1, 2, 4, or 8 bytes, with
+.B %lld
+or
+.B %lli
+for 8.
+Always give a byte count: without one,
+.B %d
+prints 4 bytes but advances 8, so a later conversion in the same format
+string prints garbage, and
+.B %lld
+counts as no input, so alone it writes nothing.
+.TP
+.BR %o ", " %u ", " %x ", " %X
+An unsigned integer of 1, 2, or 4 bytes, by default 4, in octal,
+decimal, or hexadecimal.
+.TP
+.BR %e ", " %E ", " %f ", " %g ", " %G
+A floating-point number of 4 or 8 bytes, by default 8.
+.TP
+.B %s
+A string of
+.I bytes
+bytes.
+Without a byte count, a precision, as in
+.BR %.8s ,
+is required and gives the length.
+The string stops at a NUL byte, and without a precision it runs on past
+its bytes to the next NUL byte in memory, so always give one.
+.TP
+.BR %_ad ", " %_ao ", " %_ax
+The offset of the next byte, in decimal, octal, or hexadecimal.
+It converts no input.
+.TP
+.BR %_Ad ", " %_Ao ", " %_Ax
+The offset just past the end of the input, written once, after the last
+block.
+Its unit is written only then, and the units after it in the same format
+string never are.
+Only the last format string to use it, counting the built-in formats,
+is written.
+.TP
+.B %_c
+One byte as
+.B \-c
+writes it.
+.TP
+.B %_p
+One byte as a character if it is printable ASCII, otherwise a period.
+.TP
+.B %_u
+One byte as a character if it is printable ASCII, a control character as
+its lowercase ASCII name, such as
+.BR nul ,
+.BR lf ,
+or
+.BR esc ,
+0x7f as
+.BR del ,
+and other bytes in hexadecimal.
+.PP
+Conversions of one byte accept only a byte count of 1.
+.B %%
+is rejected, so a format cannot write a literal percent sign.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-bc ,
+and an option's argument may be attached, as in
+.BR \-n16 .
+Options must come before the file operands, and
+.B \-\-
+ends them.
+.B \-n
+and
+.B \-s
+take a number in decimal, in hexadecimal with a
+.B 0x
+prefix, or in octal with a leading
+.BR 0 ,
+optionally followed by a multiplier:
+.BR K ,
+.BR M ,
+or
+.B G
+for 1024, 1048576, or 1073741824, and
+.BR KB ,
+.BR MB ,
+or
+.B GB
+for 1000, 1000000, or 1000000000.
+.BR K ,
+.BR M ,
+and
+.B G
+may be lowercase, and may be followed by
+.BR iB ,
+as in
+.BR MiB .
+.TP
+.B \-b
+One-byte octal: 16 bytes per line, each as a space and 3 octal digits.
+.TP
+.B \-c
+One-byte characters: 16 bytes per line, each right-aligned in 4
+columns.
+Printable ASCII is written as itself; NUL, BEL, BS, TAB, LF, VT, FF, and
+CR as
+.BR \e0 ,
+.BR \ea ,
+.BR \eb ,
+.BR \et ,
+.BR \en ,
+.BR \ev ,
+.BR \ef ,
+and
+.BR \er ;
+and other bytes as 3 octal digits.
+.TP
+.B \-d
+Two-byte unsigned decimal: 8 values per line, each as 3 spaces and 5
+digits with leading zeros.
+.TP
+.B \-o
+Two-byte octal: 8 values per line, each as 2 spaces and 6 octal digits.
+.TP
+.B \-x
+Two-byte hexadecimal: 8 values per line, each as 4 spaces and 4
+hexadecimal digits.
+.TP
+.B \-C
+Canonical hexadecimal and ASCII: an 8-digit offset, 16 bytes as pairs of
+hexadecimal digits in two groups of 8, and the same bytes as text
+between
+.B |
+characters, with a period for each byte that is not printable ASCII.
+.TP
+.B \-v
+Write every block, including repeated ones.
+.TP
+.BI "\-e " format
+Add the format string
+.IR format .
+.TP
+.BI "\-f " file
+Add each line of
+.I file
+as a format string.
+Leading whitespace is ignored, and so are empty lines and lines whose
+first other character is
+.BR # .
+CRLF line endings are accepted.
+.TP
+.BI "\-n " length
+Read at most
+.I length
+bytes of input, from 0 to 2147483647.
+.TP
+.BI "\-s " offset
+Skip
+.I offset
+bytes from the start of the input.
+A file lying wholly within the skip is not read.
+The offsets written include the skipped bytes.
+When the skip covers all of the input, the built-in formats write only
+the final offset.
+See
+.B NOTES
+for limits.
+.TP
+.B \-\-help
+As the first argument, print a usage message on standard output and
+exit.
+.SH ENVIRONMENT
+.B hexdump
+reads no environment variables of its own.
+For those that affect every busybox applet, see
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+An input file could not be opened, or there was an invalid option,
+number, or format string, an unreadable
+.B \-f
+file, or a failed seek.
+.PP
+An input file that cannot be opened is skipped, and the others are still
+dumped.
+The other errors stop
+.B hexdump
+at once.
+.SH EXAMPLES
+Dump a file in hexadecimal and ASCII:
+.PP
+.RS 4
+.EX
+$ hd program.exe
+.EE
+.RE
+.PP
+Show a file as 2-byte values, whose bytes appear swapped because they
+are read little-endian:
+.PP
+.RS 4
+.EX
+$ hexdump hello.txt
+0000000 6548 6c6c 2c6f 7720 726f 646c 0a21
+000000e
+.EE
+.RE
+.PP
+Show 64 bytes starting at offset 0x200:
+.PP
+.RS 4
+.EX
+$ hd \-s 0x200 \-n 64 program.exe
+.EE
+.RE
+.PP
+Print the 4-byte value at offset 0x3c of an EXE, the offset of its PE
+header:
+.PP
+.RS 4
+.EX
+$ hexdump \-s 0x3c \-n 4 \-e \(aq/4 "%x\en"\(aq xxd.exe
+80
+.EE
+.RE
+.PP
+Print a file as unsigned 2-byte integers, one per line, with decimal
+offsets:
+.PP
+.RS 4
+.EX
+$ hexdump \-v \-e \(aq"%_ad: " /2 "%u\en"\(aq samples.raw
+.EE
+.RE
+.PP
+Write a file as a list of C hexadecimal constants:
+.PP
+.RS 4
+.EX
+$ hexdump \-v \-e \(aq/1 "0x%02x, "\(aq key.bin
+.EE
+.RE
+.PP
+Print 16 random bytes as 32 hexadecimal digits:
+.PP
+.RS 4
+.EX
+$ hexdump \-n 16 \-e \(aq16/1 "%02x" "\en"\(aq /dev/urandom
+.EE
+.RE
+.SH NOTES
+Differences from the util-linux
+.BR hexdump :
+.IP \(bu 2
+Options must come before the file operands.
+.IP \(bu 2
+There are no long options, and no
+.B \-L
+or
+.BR \-X .
+.IP \(bu 2
+Each quoted format writes only its first conversion.
+.IP \(bu 2
+.B %d
+and
+.B %i
+need a byte count.
+.PP
+.B \-s
+seeks with a 32-bit offset.
+A skip that ends 2 GiB or more into a file either fails with
+.B Invalid argument
+or lands at the wrong position, though the offsets written assume the
+right one.
+On a pipe, the seek does nothing, so the dump starts at the beginning of
+the input while its offsets include the skip.
+When the bytes left to skip equal the size of a file exactly, that file
+is dumped from its start instead of skipped, with wrong offsets.
+.PP
+Floating-point conversions use the Microsoft C runtime: exponents have
+three digits, as in
+.BR 1.000000e+000 ,
+and infinities and NaNs are written in forms such as
+.B 1.#INF00
+and
+.BR 1.#QNAN0 .
+.PP
+Input files are read in binary mode, and output lines end with LF, not
+CRLF.
+The busybox device names, such as
+.I /dev/zero
+and
+.IR /dev/urandom ,
+work as input files; see
+.BR busybox (1).
+A file whose full path reaches
+.BR MAX_PATH ,
+260 characters, cannot be opened.
+.SH SEE ALSO
+.BR busybox (1),
+.BR od (1),
+.BR xxd (1)

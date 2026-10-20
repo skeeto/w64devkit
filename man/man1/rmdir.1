@@ -1,0 +1,326 @@
+.TH RMDIR 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.SH NAME
+rmdir \- remove empty directories
+.SH SYNOPSIS
+.B rmdir
+.RB [ \-pv ]
+.RB [ \-\-ignore\-fail\-on\-non\-empty ]
+.IR directory ...
+.SH DESCRIPTION
+.B rmdir
+removes each
+.I directory
+operand, in order, if it is empty.
+It is the
+.BR busybox (1)
+applet, which has fewer options than GNU
+.BR rmdir ;
+see
+.BR NOTES .
+It never removes a file, or a directory that has contents.
+.B "rm \-r"
+removes a tree; see
+.BR rm (1).
+.PP
+A
+.I directory
+that cannot be removed is reported on standard error, and the remaining
+operands are still processed.
+The exit status is then 1.
+An invalid option is reported on standard error.
+With an invalid option or no operand,
+.B rmdir
+prints a usage message on standard error and exits with status 1.
+.SS Parent directories
+With
+.BR \-p ,
+after removing a directory
+.B rmdir
+goes on to its parent, then the parent's parent, and so on.
+The parent is the path without its last component.
+The walk for an operand ends after a directory that has no parent
+component, such as
+.I out
+in
+.IR out/obj ,
+and at the first directory that cannot be removed.
+That failure is an error like any other, so a parent that is not empty
+makes the exit status 1 unless
+.B \-\-ignore\-fail\-on\-non\-empty
+is given.
+.PP
+A path with a root does not end by itself: after its topmost directory,
+.B rmdir
+tries the root, as in
+.I c:/
+or
+.IR / ,
+which cannot be removed.
+A path that begins with
+.IR .. ,
+such as
+.IR ../out ,
+goes on to
+.IR .. ,
+the directory that holds the current directory, which cannot be removed.
+.SS Output
+Nothing is written to standard output unless
+.B \-v
+or
+.B \-\-help
+is given.
+An error is written to standard error as
+.PP
+.RS 4
+.EX
+rmdir: \(aq\fIpath\fR\(aq: \fIreason\fR
+.EE
+.RE
+.PP
+where
+.I path
+is the operand as typed, or with
+.B \-p
+the parent as cut from it, and
+.I reason
+is the system's message.
+These are the common reasons:
+.TP
+.B No such file or directory
+The path does not exist, the operand is empty, or the full path is
+260 or more characters.
+.TP
+.B Directory not empty
+The directory has contents.
+.TP
+.B Not a directory
+The operand is a symbolic link or junction named without a trailing
+slash; see
+.BR NOTES .
+.TP
+.B Invalid argument
+The operand is a file, or contains a character that Windows does not
+allow in a name, such as
+.B ?\&
+or
+.BR * .
+.TP
+.B Permission denied
+The directory is in use, such as the current directory of a process, or
+access to it is denied.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-pv ,
+and may follow operands, unless
+.B POSIXLY_CORRECT
+is set.
+A long option may be abbreviated to any unambiguous prefix.
+.B \-\-
+ends the options.
+.TP
+.BR \-p ", " \-\-parents
+Remove the parents of each directory as well; see
+.BR "Parent directories" .
+.TP
+.BR \-v ", " \-\-verbose
+Write
+.BI "rmdir: removing directory, \(aq" path \(aq
+on standard output before each attempt to remove a directory, including
+each parent tried by
+.BR \-p ,
+and a directory that then cannot be removed, whose error follows on
+standard error.
+The usage message omits this option.
+.TP
+.B \-\-ignore\-fail\-on\-non\-empty
+Skip a directory that is not empty, without a message and without
+changing the exit status.
+With
+.BR \-p ,
+the walk up from it ends there.
+Every other error is still reported.
+.TP
+.B \-\-help
+As the first argument only, write a usage message on standard output
+and exit with status 0.
+The message omits
+.BR \-v ,
+.BR \-\-parents ,
+and
+.BR \-\-verbose ,
+and lists
+.B \-\-ignore\-fail\-on\-non\-empty
+without a description.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the arguments are expanded when busybox starts, for a caller
+such as
+.B cmd.exe
+that does not expand them.
+When it is unset, busybox sets it to
+.B 0
+for the programs it starts, so commands run from the kit's shell get the
+shell's expansion only.
+.TP
+.B POSIXLY_CORRECT
+If set, the first operand ends the options.
+.PP
+Messages written to a console also depend on
+.BR BB_SKIP_ANSI_EMULATION ,
+.BR BB_TERMINAL_MODE ,
+.BR LANG ,
+.BR LC_ALL ,
+and
+.BR LC_CTYPE ,
+and Windows error dialogs on
+.BR BB_CRITICAL_ERROR_DIALOGS ,
+as for every busybox applet; see
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success, including
+.B \-\-help
+as the first argument, and directories skipped by
+.BR \-\-ignore\-fail\-on\-non\-empty .
+.TP
+.B 1
+An invalid option, no operand, or any directory that could not be
+removed.
+.SH EXAMPLES
+Remove an empty directory:
+.PP
+.RS 4
+.EX
+$ rmdir build
+.EE
+.RE
+.PP
+A directory with contents is left alone:
+.PP
+.RS 4
+.EX
+$ rmdir src
+rmdir: \(aqsrc\(aq: Directory not empty
+.EE
+.RE
+.PP
+Remove a directory and its empty parents, listing each:
+.PP
+.RS 4
+.EX
+$ rmdir \-pv out/obj/debug
+rmdir: removing directory, \(aqout/obj/debug\(aq
+rmdir: removing directory, \(aqout/obj\(aq
+rmdir: removing directory, \(aqout\(aq
+.EE
+.RE
+.PP
+Remove a directory and as many of its parents as are empty, without an
+error for the first one that is not:
+.PP
+.RS 4
+.EX
+$ rmdir \-p \-\-ignore\-fail\-on\-non\-empty out/obj/debug
+.EE
+.RE
+.PP
+Remove every empty directory under
+.IR build ,
+and
+.I build
+itself if nothing is left, discarding the errors for the others:
+.PP
+.RS 4
+.EX
+$ find build \-depth \-type d \-exec rmdir {} + 2>/dev/null
+.EE
+.RE
+.PP
+Remove a directory and everything in it:
+.PP
+.RS 4
+.EX
+$ rm \-r build
+.EE
+.RE
+.SH NOTES
+Unlike GNU
+.BR rmdir ,
+this
+.B rmdir
+has no
+.B \-\-version
+option, and
+.B \-\-help
+works only as the first argument.
+.PP
+A symbolic link or junction is refused with
+.BR "Not a directory" ,
+as on Linux, even when it points to a directory, and
+.BR rm (1)
+removes it; the target is untouched.
+With a trailing slash, as in
+.IR link/ ,
+a junction is not detected: it is removed, even when its target has
+contents, and the target is untouched.
+A file is refused with
+.BR "Invalid argument" .
+A directory that a process uses as its current directory cannot be
+removed, so
+.B rmdir .\&
+fails with
+.BR "Permission denied" .
+.PP
+A read-only directory is removed.
+.B rmdir
+clears the read-only attribute of each path before it tries to remove
+it, so a file or directory that then cannot be removed, such as a
+directory that is not empty, is left without the attribute.
+.PP
+Paths may have drive letters and backslashes.
+Both kinds of slash separate components, and messages show a path as
+typed.
+A path may be absolute, as in
+.IR c:/dir ,
+relative, or relative to the current directory of a drive, as in
+.IR c:dir .
+A bare drive, such as
+.IR c: ,
+names that directory, as does
+.IR c:. ,
+so on the current drive
+.B rmdir c:
+fails with
+.BR "Permission denied" .
+With
+.BR \-p ,
+the parent of
+.I c:dir
+is
+.IR c:. ,
+so
+.B rmdir
+goes on to try it instead of stopping.
+.PP
+Names may contain any Unicode character on Windows 10 version 1903 and
+later, and are limited to the system code page on earlier versions.
+A full path of 260 or more characters, counting the current directory
+for a relative path, fails with
+.BR "No such file or directory" .
+.PP
+From
+.BR cmd.exe ,
+.B rmdir
+expands wildcards in its arguments itself; see
+.BR BB_GLOBBING .
+A pattern that matches nothing is used as it is, and fails with
+.BR "Invalid argument" .
+.SH SEE ALSO
+.BR busybox (1),
+.BR find (1),
+.BR mkdir (1),
+.BR rm (1)

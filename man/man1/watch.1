@@ -1,0 +1,407 @@
+.TH WATCH 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+watch \- run a command repeatedly and show its output
+.SH SYNOPSIS
+.B watch
+.RB [ \-n
+.IR sec ]
+.RB [ \-dtx ]
+.I prog
+.RI [ arg ...]
+.SH DESCRIPTION
+.B watch
+runs
+.I prog
+over and over.
+It clears the screen before each run, so that the output stays in one
+place and its changes stand out.
+It runs until it is interrupted, as with Ctrl+C.
+This
+.B watch
+is a busybox applet; see
+.BR busybox (1).
+.SS Cycle
+Each cycle writes the clear-screen sequence, then the header, then runs
+the command and waits for it to end, then waits for the period.
+The period is 2 seconds unless
+.B \-n
+says otherwise.
+It starts when the command ends, so a cycle takes the period plus the
+run time of the command.
+The exit status of the command is ignored.
+.PP
+The clear-screen sequence is the 6 bytes that
+.BR clear (1)
+writes, which move the cursor to the top left corner and erase from
+there to the end of the screen.
+They are written even when standard output is not a console, and then
+they appear in the output.
+.PP
+The command shares the standard input, output, and error of
+.BR watch .
+.B watch
+reads no input and does not capture the output, so output taller than
+the window scrolls the header off the top.
+.SS Header
+Unless
+.B \-t
+is given, the header is a line of text and an empty line after it.
+The text is
+.B "Every 2.0s:"
+and the command line, where
+.B 2.0
+stands for the period in seconds, shown with one decimal place.
+The command line is the words of
+.I prog
+and
+.I arg
+joined by single spaces, whether or not
+.B \-x
+is given, so quoting is not shown.
+The local date and time, as
+.BR "YYYY\-MM\-DD HH:MM:SS" ,
+is written over the right end of the line, ending in the second-to-last
+column.
+That cuts the line short, so a long command line is truncated.
+With a 60-column window the header of
+.B watch ls \-l
+looks like this:
+.PP
+.RS 4
+.EX
+Every 2.0s: ls \-l                       2026\-10\-19 21:34:22
+.EE
+.RE
+.PP
+The time is taken when the header is written, before the command runs.
+When the width is 20 columns or less there is no time, and the line is
+not cut.
+The width is that of the console window, as described under
+.BR COLUMNS ,
+and is measured again in every cycle, so that resizing the window takes
+effect at the next one.
+.SS Command
+Without
+.BR \-x ,
+the words of
+.I prog
+and
+.I arg
+are joined by single spaces into one command line, which
+.B sh \-c
+runs, so shell syntax works: pipes, redirections, wildcards, quoting,
+and
+.BR && .
+The shell is the kit's
+.BR sh (1),
+whatever
+.B SHELL
+says, unless
+.B BB_OVERRIDE_APPLETS
+replaces that applet.
+It starts afresh in every cycle: it has none of the aliases,
+functions, or unexported variables of the shell that started
+.BR watch ,
+and expands wildcards anew.
+Quote the command so that the invoking shell passes it on whole.
+The joining loses the quoting of the words, so an argument with a space
+in it becomes several words.
+Use
+.B \-x
+to keep it whole.
+.PP
+With
+.BR \-x ,
+no shell runs.
+.I prog
+is started directly, with each
+.I arg
+as one argument, so nothing is interpreted or expanded, and a shell
+built-in or function cannot be run.
+.I prog
+is found as described under
+.B Running commands
+in
+.BR busybox (1):
+an applet of that name runs in preference to a program in
+.BR PATH ,
+and any other name without a directory part is looked up in
+.BR PATH .
+An applet that busybox marks
+.BR NOFORK ,
+such as
+.B echo
+or
+.BR printf ,
+runs inside the
+.B watch
+process itself, and any other applet in another busybox process; see
+.B \-\-list\-full
+in
+.BR busybox (1).
+If
+.I prog
+cannot be started, nothing is reported and
+.B watch
+tries again in the next cycle.
+.SH OPTIONS
+Options are recognized only before
+.IR prog .
+The first argument that is not an option begins
+.IR prog ,
+and everything after it belongs to the command, even arguments that
+begin with
+.BR \- .
+Options may be grouped, as in
+.BR \-tx ,
+and the argument of
+.B \-n
+may be attached, as in
+.BR \-n5 ,
+or be the next argument.
+.B \-\-
+ends the options.
+At least one argument must follow the options.
+.TP
+.B \-d
+Accepted for compatibility and ignored.
+Differences between runs are not highlighted.
+.TP
+.BI "\-n " sec
+Wait
+.I sec
+seconds between runs.
+The default is 2.
+.I sec
+is a decimal number of seconds that may have a fractional part and a
+unit suffix of
+.BR s ,
+.BR m ,
+.BR h ,
+or
+.BR d ,
+as in
+.B 0.5
+or
+.BR 1.5m .
+A period of 0 runs the command again at once.
+If
+.B \-n
+is given more than once, the last one is used.
+The syntax and error messages are those of one
+.BR sleep (1)
+argument, except that
+.B inf
+is an invalid number.
+.TP
+.B \-t
+Do not write the header, neither the line of text nor the empty line
+after it.
+.TP
+.B \-x
+Run
+.I prog
+directly instead of with
+.BR "sh \-c" ;
+see
+.BR Command .
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument, and any further arguments
+are ignored.
+.SH ENVIRONMENT
+.TP
+.B COLUMNS
+The width in columns that the header is fitted to.
+A value that does not begin with a number from 2 to 29999 means 80.
+When
+.B COLUMNS
+is unset, the width is that of the console window of standard output, or
+else of standard error, and 80 if neither is a console.
+.TP
+.B PATH
+With
+.BR \-x ,
+where
+.I prog
+is looked up.
+.TP
+.B BB_OVERRIDE_APPLETS
+Applets to replace with a program in
+.BR PATH ,
+both for
+.I prog
+with
+.B \-x
+and for
+.B sh
+without it; see
+.BR busybox (1).
+.TP
+.B TZ
+The time zone of the time in the header.
+When it is unset, the time zone is the Windows setting.
+.TP
+.BR BB_SKIP_ANSI_EMULATION ", " BB_TERMINAL_MODE ", " CONEMUPID
+Decide whether the console interprets the clear-screen sequence or
+busybox emulates it, as for
+.BR clear (1).
+They are read only when standard output is a console.
+.PP
+Console output also depends on
+.BR LC_ALL ,
+.BR LC_CTYPE ,
+and
+.BR LANG .
+These and the variables that busybox reads when it starts, such as
+.BR BB_GLOBBING ,
+are described in
+.BR busybox (1).
+.B watch
+sets no variables itself, but busybox sets
+.B BB_GLOBBING
+to
+.B 0
+when it starts if it is unset, and the command inherits that.
+.SH EXIT STATUS
+.TP
+.B 0
+The first argument was
+.BR \-\-help .
+.TP
+.B 1
+An option is invalid, there is no
+.IR prog ,
+or
+.I sec
+is invalid.
+A message beginning with
+.BR watch: ,
+the usage message, or both are written to standard error.
+.TP
+.B 141
+With
+.BR \-x ,
+a
+.B NOFORK
+applet wrote to standard output, a pipe whose reader had exited.
+.PP
+Otherwise
+.B watch
+runs until it is interrupted.
+.SH EXAMPLES
+Watch a directory listing, refreshed every second:
+.PP
+.RS 4
+.EX
+$ watch \-n 1 ls \-l build
+.EE
+.RE
+.PP
+Show the end of a log without a header.
+The
+.B \-n
+after the command name belongs to
+.BR tail :
+.PP
+.RS 4
+.EX
+$ watch \-t tail \-n 5 build.log
+.EE
+.RE
+.PP
+Count object files with a pipeline, twice a second.
+The quotes pass the command to
+.B watch
+as one argument:
+.PP
+.RS 4
+.EX
+$ watch \-n 0.5 \(aqls *.o | wc \-l\(aq
+.EE
+.RE
+.PP
+Run a program without a shell, so that an argument with a space stays
+whole:
+.PP
+.RS 4
+.EX
+$ watch \-x ls \-l "my dir"
+.EE
+.RE
+.PP
+Run a command every minute and a half:
+.PP
+.RS 4
+.EX
+$ watch \-n 1.5m \(aqls dist | wc \-l\(aq
+.EE
+.RE
+.SH NOTES
+Differences from the procps
+.BR watch :
+.IP \(bu 2
+Only
+.BR \-d ,
+.BR \-n ,
+.BR \-t ,
+and
+.B \-x
+are accepted, and
+.B \-d
+does nothing.
+There are no long options except
+.BR \-\-help .
+.IP \(bu 2
+The output of the command is not captured, so it is not cut to the size
+of the window.
+.PP
+Only the visible part of the console window is cleared, and text that has
+scrolled above it stays in the scrollback; see
+.BR clear (1).
+.PP
+The period is rounded down to whole milliseconds and passed to the
+Windows
+.B Sleep
+function, so a period shorter than a millisecond does not wait, and a
+period of 2^32 milliseconds, about 49.7 days, or more wraps around as
+described in
+.BR sleep (1).
+.PP
+.B watch
+does not check for errors writing its own output, so when standard
+output is a pipe whose reader has exited, it keeps running.
+The exception is a
+.B NOFORK
+applet run with
+.BR \-x ,
+which runs inside
+.BR watch :
+when it writes to such a pipe,
+.B watch
+exits with status 141.
+Ctrl+C is sent to every process attached to the console, so it also
+reaches a command that is running at that moment.
+.PP
+When
+.B BB_GLOBBING
+is unset, as when
+.B watch
+is started from
+.BR cmd.exe ,
+busybox expands the wildcards in its arguments once, as it starts, so
+.B watch ls *.c
+names the files present at that moment.
+Setting
+.B BB_GLOBBING
+to
+.B 0
+prevents this; see
+.BR busybox (1).
+.SH SEE ALSO
+.BR busybox (1),
+.BR clear (1),
+.BR sh (1),
+.BR sleep (1),
+.BR timeout (1)

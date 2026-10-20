@@ -1,0 +1,503 @@
+.TH ICONV 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+iconv \- convert text between character encodings
+.SH SYNOPSIS
+.B iconv
+.RB [ \-c ]
+.RB [ \-o
+.IR outfile ]
+.RB [ \-f
+.IR fromcode ]
+.RB [ \-t
+.IR tocode ]
+.RI [ file ...]
+.br
+.B iconv \-l
+.SH DESCRIPTION
+.B iconv
+reads text in one character encoding, converts it to another, and writes
+the result.
+It is the busybox-w32 applet derived from win-iconv, and it does the work
+with the Windows API, so the encodings it knows are the code pages that
+Windows provides.
+Each character is converted to UTF\-16 and then to the output encoding.
+.PP
+With no
+.IR file ,
+or for a
+.I file
+named
+.BR \- ,
+.B iconv
+reads standard input.
+It writes standard output, or with
+.B \-o
+a file.
+Operands are converted in order, each on its own, so the byte order mark
+and any other conversion state start afresh with each.
+But every operand other than
+.B \-
+opens the first operand and not itself, so give a single
+.IR file ;
+see
+.BR NOTES .
+.PP
+The input encoding
+.I fromcode
+and the output encoding
+.I tocode
+default to the ANSI code page, which is UTF\-8 on Windows 10 version 1903
+and later.
+The locale plays no part in the conversion.
+.SS Encoding names
+A name is one of these, tried in this order:
+.IP \(bu 2
+Empty, or
+.BR char :
+the ANSI code page.
+.IP \(bu 2
+.BR wchar_t :
+UTF\-16 little endian, with no byte order mark.
+.IP \(bu 2
+A decimal Windows code page number, optionally preceded by
+.B CP
+or
+.B XX
+in any case, as in
+.BR CP1252 ,
+.BR 437 ,
+or
+.BR cp65001 .
+Any text after the digits is ignored, so
+.B CP850x
+means 850.
+The code page must be one that Windows reports as valid.
+.IP \(bu 2
+An alias from the list that
+.B \-l
+prints, such as
+.BR UTF\-8 ,
+.BR UTF\-16LE ,
+.BR ASCII ,
+.BR ISO\-8859\-1 ,
+.BR WINDOWS\-1252 ,
+.BR SJIS ,
+.BR EUC\-JP ,
+.BR GB18030 ,
+.BR BIG5 ,
+or
+.BR KOI8\-R .
+Case does not matter.
+.PP
+The names
+.B char
+and
+.B wchar_t
+must be lowercase.
+Since the number test comes before the list, aliases in the list that
+begin with
+.B CP
+are read as numbers, and five of them fail:
+.BR CP367 ,
+.BR CP819 ,
+and
+.B cp1025
+mean code pages 367, 819, and 1025 instead of 20127, 1252, and 21025,
+and
+.B CP\-IS
+and
+.B CP\-GR
+mean code page 0.
+A name that does not resolve, or whose code page Windows lacks, makes
+.B iconv
+print
+.PP
+.RS 4
+.EX
+iconv: iconv_open error: Invalid argument
+.EE
+.RE
+.PP
+and exit.
+.SS Name suffixes
+A name may end in suffixes that begin with
+.BR // ,
+such as
+.BR ASCII//TRANSLIT .
+They may be combined and are matched without regard to case.
+An unknown suffix is ignored.
+Only suffixes on
+.I tocode
+matter, except as noted for
+.BR //NOCOMPAT .
+.TP
+.B //TRANSLIT
+Convert a character that has no equivalent in the code page to its
+nearest equivalent by the system's best-fit table, such as an accented
+letter to its base letter, or else to the code page's default
+character, usually
+.BR ? ,
+instead of failing.
+It has no effect on the UTF encodings, ISO\-2022\-JP, or EUC\-JP.
+.TP
+.B //IGNORE
+Discard what cannot be converted, as
+.B \-c
+does.
+.TP
+.B //NOCOMPAT
+Turn off a compatibility mapping.
+By default, when the output is code page 932 (SJIS), 51932 (EUC\-JP), or
+50220 to 50222 (ISO\-2022\-JP), nine characters are first replaced by
+their CP932 equivalents:
+U+00A5 becomes U+005C, U+203E becomes U+007E, U+2014 becomes U+2015,
+U+301C becomes U+FF5E, U+2016 becomes U+2225, U+2212 becomes U+FF0D, and
+U+00A2, U+00A3, and U+00AC become U+FFE0, U+FFE1, and U+FFE2.
+Code page 20932 has its own table, which also applies to its input,
+so this is the one suffix that matters on
+.IR fromcode .
+.SS Byte order marks
+.BR UTF\-16 ,
+.BR UTF16 ,
+.BR UCS\-2 ,
+.BR UCS2 ,
+and
+.B UCS\-2\-INTERNAL
+mean UTF\-16 little endian with a byte order mark (BOM).
+On input, a leading BOM of
+.B FF FE
+or
+.B FE FF
+is removed and sets the byte order, which is little endian without one.
+On output,
+.B FF FE
+is written before the first character, so empty input gives empty
+output.
+.BR UTF\-32 ,
+.BR UTF32 ,
+.BR UCS\-4 ,
+and
+.B UCS4
+do the same with 32-bit units and the BOM
+.BR "FF FE 00 00" .
+.PP
+Names that give a byte order, such as
+.BR UTF\-16LE ,
+.BR UTF\-16BE ,
+.BR UTF\-32LE ,
+and
+.BR UTF\-32BE ,
+neither write nor remove a BOM, so a BOM in the input becomes the
+character U+FEFF.
+.B UTF\-8
+neither writes nor removes one.
+.SS Errors
+Input is rejected if it is invalid for
+.IR fromcode ,
+such as an unpaired UTF\-16 surrogate, a UTF\-32 value above 10FFFF, or a
+byte above 7F in ASCII.
+Output is rejected if
+.I tocode
+cannot represent a character.
+On the first such failure
+.B iconv
+writes what it has converted so far, prints
+.PP
+.RS 4
+.EX
+iconv: conversion error: \fIreason\fR
+.EE
+.RE
+.PP
+on standard error, and exits with status 1.
+The message gives no position.
+.I reason
+is
+.B Illegal byte sequence
+for the cases above, and
+.B Invalid argument
+when the input ends inside a character or is invalid GB18030.
+.B \-c
+and
+.B //IGNORE
+turn these failures into discards.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-cfUTF\-8 ,
+and an option's argument may be attached or be the next argument.
+There are no long options.
+Options may follow operands, unless
+.B POSIXLY_CORRECT
+is set.
+.B \-\-
+ends the options.
+Of an option given more than once, the last counts.
+.TP
+.B \-l
+Print the name of each encoding the program knows, one per line, and
+exit, ignoring any other options and operands.
+The names are in the order of the program's table and not sorted, and
+some appear more than once.
+The list has neither the numeric forms nor
+.B char
+and
+.BR wchar_t ,
+and it includes names that do not work: the five
+.B CP
+names described above, the code pages that convert nothing (see
+.BR NOTES ),
+and code pages that not every system has, such as
+.B CP154
+and
+.BR CP1133 .
+.TP
+.B \-c
+Discard characters that
+.I tocode
+cannot represent, and bytes that are invalid in
+.IR fromcode ,
+without a message.
+An invalid sequence is discarded one byte at a time.
+This is the same as adding
+.B //IGNORE
+to
+.IR tocode .
+.TP
+.BI "\-o " outfile
+Write to
+.I outfile
+instead of standard output.
+The output goes to a temporary file in the same directory, named
+.I outfile
+with six characters appended, which replaces
+.I outfile
+when every operand has been converted, even if
+.I outfile
+is read-only.
+So
+.I outfile
+may also be an input.
+.TP
+.BI "\-f " fromcode
+Read text in the encoding
+.IR fromcode .
+The default is the ANSI code page.
+.TP
+.BI "\-t " tocode
+Write text in the encoding
+.IR tocode .
+The default is the ANSI code page.
+.TP
+.B \-\-help
+As the first argument, print a usage message on standard output and
+exit with status 0.
+.SH ENVIRONMENT
+.TP
+.B POSIXLY_CORRECT
+When set, the first operand ends the options, so that later arguments
+such as
+.B \-t
+are file names.
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the operands are expanded when
+.B iconv
+starts, even in quoted operands, as needed when run from
+.BR cmd.exe .
+A pattern that matches nothing is left as it is.
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+operands as the shell expanded them.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+output to a console is not converted, as described in
+.BR NOTES ,
+and the console interprets the bytes in its own code page.
+.PP
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success, or
+.B \-l
+or
+.BR \-\-help .
+.TP
+.B 1
+An invalid option or a missing option argument, an unknown encoding, a
+file that could not be opened or replaced, or a conversion error.
+.SH EXAMPLES
+Convert a Windows\-1252 file to UTF\-8:
+.PP
+.RS 4
+.EX
+$ iconv \-f CP1252 \-t UTF\-8 old.txt >new.txt
+.EE
+.RE
+.PP
+Convert a file in place:
+.PP
+.RS 4
+.EX
+$ iconv \-f LATIN1 \-t UTF\-8 \-o names.txt names.txt
+.EE
+.RE
+.PP
+Convert UTF\-16 text, with or without a BOM, to UTF\-8:
+.PP
+.RS 4
+.EX
+$ iconv \-f UTF\-16 \-t UTF\-8 log.txt >log\-utf8.txt
+.EE
+.RE
+.PP
+Write UTF\-16 with a BOM, for programs that expect one:
+.PP
+.RS 4
+.EX
+$ iconv \-f UTF\-8 \-t UTF\-16 notes.txt >notes\-utf16.txt
+.EE
+.RE
+.PP
+Discard the characters that ASCII cannot hold:
+.PP
+.RS 4
+.EX
+$ iconv \-c \-f UTF\-8 \-t ASCII names.txt
+.EE
+.RE
+.PP
+Approximate them instead:
+.PP
+.RS 4
+.EX
+$ printf \(aqcaf\e303\e251\en\(aq | iconv \-f UTF\-8 \-t ASCII//TRANSLIT
+cafe
+.EE
+.RE
+.PP
+List the ISO 8859 encodings:
+.PP
+.RS 4
+.EX
+$ iconv \-l | grep \-i 8859
+.EE
+.RE
+.SH NOTES
+Differences from GNU iconv:
+.IP \(bu 2
+The encodings are Windows code pages, not libiconv's converters.
+ISO\-2022\-JP and EUC\-JP work, through MLang.
+Other code pages whose characters can exceed two bytes, apart from
+UTF\-8 and GB18030, are accepted but convert nothing: ISO\-2022\-KR
+(50225), HZ\-GB\-2312 (52936), UTF\-7 (65000, which has no alias), the
+ISCII pages (57002 to 57011), and others.
+Without
+.BR \-c ,
+output in them fails at the first character, and input fails or hangs
+as described below.
+With
+.BR \-c ,
+everything is discarded.
+.IP \(bu 2
+There are no long options, no
+.BR \-s ,
+and no
+.BR \-\-verbose .
+.IP \(bu 2
+The defaults for
+.B \-f
+and
+.B \-t
+are the ANSI code page, not the locale's.
+.IP \(bu 2
+.B //TRANSLIT
+is Windows' best-fit mapping, not libiconv's transliteration.
+.IP \(bu 2
+Conversion errors give no position.
+.PP
+Only the first operand can be a file.
+An operand other than
+.B \-
+is never opened by its own name: the first operand is opened instead.
+So
+.B iconv a b
+converts
+.I a
+twice and never opens
+.IR b ,
+and
+.B iconv \- a
+looks for a file named
+.BR \- .
+Run
+.B iconv
+once for each file.
+.PP
+Input is converted in blocks of 512 bytes.
+Normally a character that straddles a block boundary is carried over to
+the next block, but with
+.B \-c
+or
+.B //IGNORE
+it is not: the part at the end of the block is discarded as invalid, and
+so is the rest of the character at the start of the next block.
+So
+.B \-c
+corrupts any multibyte character that falls across a boundary.
+.PP
+Without
+.BR \-c ,
+some input makes
+.B iconv
+loop forever instead of failing with
+.BR "Invalid argument" :
+input of 512 bytes or more in a code page that converts nothing, and
+GB18030 input with an invalid byte sequence followed by 511 or more
+bytes.
+.PP
+With
+.BR \-o ,
+the temporary file stays behind after any failure, including a bad
+encoding name or an input that cannot be opened, and
+.I outfile
+is left as it was.
+If
+.I outfile
+is a directory, the command fails with
+.BR "Is a directory" .
+.PP
+Standard input, standard output, and files are read and written in
+binary mode, so CR LF line endings and Ctrl-Z characters are ordinary
+characters to convert.
+.B iconv
+does not change line endings.
+Convert UTF\-16 text to an ASCII-compatible encoding before changing its
+line endings with
+.BR dos2unix (1).
+.PP
+File names may use drive letters and backslashes.
+They may contain any Unicode characters on Windows 10 version 1903 and
+later, and are limited to the system code page on earlier versions.
+A directory operand fails with
+.BR "Permission denied" .
+.PP
+When standard output is a console, the output is treated as text in the
+ANSI code page and converted for display, so only output in that
+encoding is readable there.
+Each block of up to 512 output bytes is also cut short at its first NUL
+byte, as found in UTF\-16 output.
+Write to a file or a pipe for any other encoding.
+.SH SEE ALSO
+.BR busybox (1),
+.BR dos2unix (1),
+.BR od (1),
+.BR xxd (1)

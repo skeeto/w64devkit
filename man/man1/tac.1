@@ -1,0 +1,237 @@
+.TH TAC 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+tac \- print files with their lines in reverse order
+.SH SYNOPSIS
+.B tac
+.RI [ file ...]
+.SH DESCRIPTION
+.B tac
+writes each
+.I file
+to standard output with its lines in reverse order, last line first.
+With no
+.I file
+operands, or for a
+.I file
+named
+.BR \- ,
+it reads standard input.
+This
+.B tac
+is a busybox applet; see
+.BR busybox (1).
+.PP
+Files are written in the order given, and the lines of each file are
+reversed on their own.
+.B tac a b
+writes the reversed
+.I a
+followed by the reversed
+.IR b ,
+unlike
+.BR "cat a b | tac" ,
+which writes the lines of
+.I b
+first.
+.PP
+A line ends at an LF.
+A CR or NUL is an ordinary byte, so a CR LF line ending stays at the end
+of its line.
+An empty file writes nothing.
+.PP
+The last line of a file may have no LF.
+It is written first, and without one, so it runs into whatever is
+written next: the line before it or, if it is the only line of its
+file, the last line of the next file.
+.PP
+.B tac
+reads all of its input before it writes anything, and holds it in
+memory with some overhead for each line.
+Input that never ends, such as a program that runs forever, produces no
+output.
+.PP
+A
+.I file
+that cannot be opened is reported on standard error and skipped.
+A read error is reported too, and ends its file, but the lines read
+before it are still written.
+Either way, the remaining files are still written.
+Operands are read from last to first, so the messages come in that
+order, before any output.
+.SH OPTIONS
+.B tac
+has no options other than
+.BR \-\-help .
+An argument that starts with a dash is an option wherever it appears,
+even after the
+.I file
+operands, except
+.BR \- ,
+which is standard input.
+.B \-\-
+ends the options, so a file whose name starts with a dash follows it or
+is given with a leading
+.BR ./ .
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument, and elsewhere is an unknown
+option.
+.PP
+Any other option prints an error and the usage message on standard error
+and exits with status 1.
+.SH ENVIRONMENT
+.TP
+.B POSIXLY_CORRECT
+When set, the first
+.I file
+operand ends the options, so that a later argument such as
+.B \-x
+is a file name.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+output to a console is not converted, as described in
+.BR NOTES ,
+and the console interprets the bytes in its own code page.
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the operands are expanded when
+.B tac
+starts, as needed when it is run from
+.BR cmd.exe .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+operands as the shell expanded them.
+.PP
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+An unknown option, a
+.I file
+could not be opened or read (a directory is reported as
+.BR "Is a directory" ),
+memory ran out, or standard output could not be written.
+.TP
+.B 141
+Standard output is a pipe that was closed before all output was written.
+.SH EXAMPLES
+Show a file from its last line to its first:
+.PP
+.RS 4
+.EX
+$ tac log.txt
+.EE
+.RE
+.PP
+Show the five most recent lines of a log, newest first:
+.PP
+.RS 4
+.EX
+$ tac log.txt | head \-n 5
+.EE
+.RE
+.PP
+Find the last line of a file that contains
+.BR error :
+.PP
+.RS 4
+.EX
+$ tac log.txt | grep \-m1 error
+.EE
+.RE
+.PP
+Reverse the lines of two files joined together, not each on its own:
+.PP
+.RS 4
+.EX
+$ cat a.txt b.txt | tac
+.EE
+.RE
+.PP
+A last line without an LF is written first, and runs into the line
+before it:
+.PP
+.RS 4
+.EX
+$ printf \(aqa\enb\(aq | tac
+ba
+.EE
+.RE
+.SH NOTES
+Unlike GNU
+.BR tac ,
+this
+.B tac
+has no options other than
+.BR \-\-help .
+The GNU options
+.BR \-b ,
+.BR \-r ,
+.BR \-s ,
+and
+.B \-\-version
+are errors, and a line always ends at an LF.
+.PP
+The length of a line is kept in an
+.BR int ,
+so a line of 2 GiB or more is not supported.
+.PP
+.B tac
+does not close a file until it exits, and the C runtime allows about
+500 open files.
+Since operands are opened from last to first, with more operands than
+that the first ones fail with
+.BR "Too many open files" .
+.PP
+Files and standard streams are binary, so CR LF line endings and Ctrl-Z
+characters are copied unchanged.
+.PP
+File names may use drive letters, backslashes, and forward slashes.
+They may contain any Unicode characters on Windows 10 version 1903 and
+later, and are limited to the system code page on earlier versions.
+The device names that busybox accepts, such as
+.I /dev/null
+and
+.IR /dev/stdin ,
+work as operands; see
+.BR busybox (1).
+A directory operand fails with
+.BR "Is a directory" .
+.PP
+Lines typed at a console arrive with CR LF line endings.
+On Windows 10 version 1903 and later, non-ASCII characters typed at a
+console arrive in the console's input code page, such as 437, not in
+UTF-8.
+To end the input, type Ctrl-Z at the start of a line and press Enter.
+Ctrl-D is an ordinary character.
+.PP
+When standard output is a console, each line is converted for display
+from the ANSI code page, which is UTF-8 on Windows 10 version 1903 and
+later, unless the first of
+.BR LC_ALL ,
+.BR LC_CTYPE ,
+and
+.B LANG
+that is set is
+.BR C .
+Escape sequences, such as those for color, take effect, and busybox
+emulates them on consoles without virtual terminal support.
+A line that contains a NUL byte is written as is, with no conversion or
+emulation.
+.SH SEE ALSO
+.BR busybox (1),
+.BR cat (1),
+.BR head (1),
+.BR rev (1)

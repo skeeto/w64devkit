@@ -1,0 +1,268 @@
+.TH SHRED 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+shred \- overwrite and optionally remove files to hide their contents
+.SH SYNOPSIS
+.B shred
+.RB [ \-fuvxz ]
+.RB [ \-n
+.IR count ]
+.RB [ \-s
+.IR size ]
+.IR file ...
+.SH DESCRIPTION
+.B shred
+overwrites each
+.I file
+in place, so that its contents are hard to recover, and with
+.B \-u
+removes it.
+.PP
+A pass writes random bytes from the start of the file, as many bytes as
+the file is long, and then flushes the file to disk.
+There are 3 passes unless
+.B \-n
+says otherwise.
+With
+.BR \-z ,
+a final pass writes zeros.
+The random bytes come from the Windows generator
+.BR RtlGenRandom .
+.PP
+Files are processed in order.
+The first file that cannot be opened or removed ends the run with an
+error: earlier files stay shredded, and later ones are not touched.
+A directory cannot be opened.
+An operand of
+.B \-
+names a file, not standard input or output.
+.PP
+A file of length 0 is not written, whatever
+.B \-s
+says, but
+.B \-u
+still removes it.
+With
+.BR \-u ,
+after the last pass
+.B shred
+truncates the file to length 0, closes it, and removes it.
+The name is not changed first.
+.PP
+.B shred
+prints nothing when it succeeds.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-zu ,
+and an option's argument may be attached, as in
+.BR \-n5 ,
+or be the next argument.
+Options may follow the
+.I file
+operands unless
+.B POSIXLY_CORRECT
+is set.
+.B \-\-
+ends the options.
+There are no long options except
+.BR \-\-help .
+.TP
+.B \-f
+If a file cannot be opened for writing, clear its read-only attribute,
+as
+.B "chmod 666"
+does, and try again.
+The attribute stays cleared even if the file still cannot be opened,
+as with a directory or a file that an access control list protects.
+.TP
+.BI "\-s " size
+Write
+.I size
+bytes in each pass, instead of the length of the file.
+This applies to the
+.B \-z
+pass too.
+.I size
+is decimal, hexadecimal with a
+.B 0x
+prefix, or octal with a leading
+.BR 0 .
+It takes no suffix such as
+.BR K .
+A
+.I size
+beyond the end of the file makes the file grow, and a
+.I size
+of 0 writes nothing.
+.IP
+An invalid
+.IR size ,
+such as one that is negative, has leading white space, or is followed by
+other text, prints the usage message on standard error and exits with
+status 1.
+It is not examined for a file of length 0.
+.TP
+.BI "\-n " count
+Make
+.I count
+passes of random bytes instead of 3.
+.I count
+is a decimal number from 0 to 2147483647.
+With 0, no random pass is made, and
+.B shred
+writes only the
+.B \-z
+pass, if requested.
+.TP
+.B \-z
+After the random passes, make a final pass that writes zeros.
+.TP
+.B \-u
+Remove each file after overwriting it.
+A read-only file cannot be opened without
+.BR \-f ,
+and so is left in place.
+.TP
+.B \-v
+Accepted and ignored.
+There is no progress output.
+.TP
+.B \-x
+Accepted and ignored.
+The length is never rounded up to a multiple of a block.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the operands are expanded, as needed when run from
+.BR cmd.exe .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+operands as the shell expanded them.
+.TP
+.B POSIXLY_CORRECT
+If set, the first operand ends the options.
+.PP
+Variables that busybox-w32 reads in every applet, such as those that
+control console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Every file was processed.
+A read or write error during a pass is reported on standard error, but
+does not stop
+.B shred
+or change the status.
+.TP
+.B 1
+Invalid command line, with a usage message on standard error; an invalid
+.I count
+or
+.IR size ;
+a file that cannot be opened or removed; or a failure to rewind or close
+a file.
+.B shred
+stops at the first such failure.
+.SH EXAMPLES
+Overwrite a file, zero it, and remove it:
+.PP
+.RS 4
+.EX
+$ shred \-zu secrets.txt
+.EE
+.RE
+.PP
+Overwrite a file once, and keep it:
+.PP
+.RS 4
+.EX
+$ shred \-n 1 notes.txt
+.EE
+.RE
+.PP
+Overwrite and remove a read-only file:
+.PP
+.RS 4
+.EX
+$ shred \-fu locked.dat
+.EE
+.RE
+.PP
+Overwrite the first mebibyte of a large file with one random pass:
+.PP
+.RS 4
+.EX
+$ shred \-n 1 \-s 0x100000 backup.img
+.EE
+.RE
+.PP
+Overwrite and remove every temporary file below the current directory:
+.PP
+.RS 4
+.EX
+$ find . \-name \(aq*.tmp\(aq \-exec shred \-u {} +
+.EE
+.RE
+.SH NOTES
+Differences from GNU
+.BR shred :
+.IP \(bu 2
+There are no long options, and so no
+.B \-\-random\-source
+or
+.BR \-\-remove .
+.IP \(bu 2
+.B \-s
+takes no suffixes.
+.IP \(bu 2
+.B \-v
+and
+.B \-x
+do nothing.
+.IP \(bu 2
+The first file that cannot be opened or removed ends the run, and a
+read or write error does not change the exit status.
+.IP \(bu 2
+.B \-u
+removes a file without first renaming it.
+.PP
+.B shred
+overwrites a file's data through the file system, so it cannot erase
+copies kept elsewhere, such as in backups, shadow copies, and the page
+file, or old blocks that a solid-state drive or a copy-on-write file
+system retains after a write.
+.PP
+A hard link shares its data with the file's other names.
+The overwrite shows through all of them, and
+.B \-u
+truncates the data to length 0 while removing only the name given.
+NTFS alternate data streams are not overwritten.
+.PP
+Paths may use a drive letter and either kind of slash.
+On Windows 10 version 1903 or later, file names may contain any Unicode
+characters, and on older systems only those of the system code page.
+.PP
+An operand of
+.I /dev/urandom
+or
+.I /dev/zero
+is the null device, and it breaks the passes for the files after it:
+after
+.IR /dev/urandom ,
+the random passes write nothing, and after
+.IR /dev/zero ,
+the
+.B \-z
+pass writes nothing.
+The exit status is still 0.
+.SH SEE ALSO
+.BR busybox (1),
+.BR chmod (1),
+.BR dd (1),
+.BR rm (1)

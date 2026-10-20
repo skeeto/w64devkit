@@ -1,0 +1,123 @@
+.TH PIPE_PROGRESS 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+pipe_progress \- pass data through a pipe, showing activity with dots
+.SH SYNOPSIS
+.B pipe_progress
+.SH DESCRIPTION
+.B pipe_progress
+copies standard input to standard output unchanged, and writes dots to
+standard error, so that a long pipeline shows that data is still
+flowing.
+It takes no file operands: it reads standard input until end of input.
+.PP
+It reads in blocks of at most 4096 bytes.
+After each read, it takes the time from the system clock, in whole
+seconds.
+If that differs from the time at start-up, or from the time of the
+previous dot, it writes a dot to standard error and then writes the
+block to standard output.
+Each dot is written to standard error at once.
+.PP
+So a dot is written at most once per block, and a steady stream gives
+about one dot per second.
+The first dot can come less than a second after the start.
+Dots mark arriving data, not elapsed time: nothing is written while a
+read waits, and the first block after a stall of any length gets one
+dot.
+A pipeline whose data all arrives within the clock second in which it
+started writes no dots.
+There is no total or percentage; the program does not know how much
+data to expect.
+.PP
+At end of input,
+.B pipe_progress
+writes a newline to standard error, even when it wrote no dots, so that
+the next prompt starts on a fresh line.
+.PP
+An error reading standard input ends the copy as if at end of input.
+An error writing standard output is ignored, and the rest of that block
+is lost, unless standard output is a pipe whose reader has exited (see
+.BR "EXIT STATUS" ).
+Neither is reported.
+.SH OPTIONS
+No option is examined.
+Any argument other than a first argument of
+.B \-\-help
+is ignored.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit.
+It is recognized only as the first argument.
+.SH ENVIRONMENT
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+output to a console is not converted, as described in
+.BR NOTES ,
+and the console interprets the bytes in its own code page.
+.PP
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+This includes the case where standard input could not be read or
+standard output could not be written, other than as below.
+.TP
+.B 141
+Standard output or standard error is a pipe whose reader has exited.
+This is noticed only when a write to it fails: on standard output when
+the next block arrives, and on standard error at the next dot or the
+final newline, even after all the data was copied.
+.SH EXAMPLES
+Show activity while a directory tree is archived and compressed:
+.PP
+.RS 4
+.EX
+$ tar cf - src | pipe_progress | bzip2 >src.tar.bz2
+.EE
+.RE
+.PP
+Copy a large file to another drive, with dots on the console:
+.PP
+.RS 4
+.EX
+$ pipe_progress <disk.img >d:/disk.img
+.EE
+.RE
+.SH NOTES
+The dots go to standard error, so they still show when standard output
+is redirected to a file or another command.
+Redirect standard error to hide them.
+.PP
+The time comes from the system clock, not from a monotonic timer.
+If the clock is set back, the next block also gets a dot.
+.PP
+Standard input, output, and error are binary: CR LF pairs, NUL bytes,
+and Ctrl-Z characters in the data pass through unchanged.
+.PP
+Lines typed at a console arrive with CR LF line endings.
+To end the input, type Ctrl-Z at the start of a line and press Enter.
+Elsewhere in a line, Ctrl-Z is copied as data, and Ctrl-D is an ordinary
+character.
+On Windows 10 version 1903 and later, non-ASCII characters typed at a
+console arrive in the console's input code page, not in UTF-8.
+.PP
+When standard output is a console, text is converted for display from
+the ANSI code page, which is UTF-8 on Windows 10 version 1903 and later.
+Escape sequences, such as those for color, take effect, and busybox
+emulates them on consoles without virtual terminal support.
+Where busybox emulates them, an escape sequence split between two blocks
+is not recognized, and is written as text.
+A block that contains a NUL byte is written as is, with no conversion
+or emulation.
+This is decided for each block, so other blocks are still converted.
+.SH SEE ALSO
+.BR busybox (1),
+.BR bzip2 (1),
+.BR cat (1),
+.BR tar (1)

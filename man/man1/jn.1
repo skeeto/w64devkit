@@ -1,0 +1,275 @@
+.TH JN 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+jn \- create a directory junction
+.SH SYNOPSIS
+.B jn
+.I dir junc
+.SH DESCRIPTION
+.B jn
+creates
+.IR junc ,
+a directory junction to the existing directory
+.IR dir .
+A junction is a reparse point that redirects a directory to another
+directory on the same computer, so a path under
+.I junc
+names the same file as the path at the same place under
+.IR dir .
+Unlike a symbolic link, a junction needs no special privilege or system
+setting to create.
+.PP
+.I dir
+must exist and be a directory.
+The junction stores the name that
+.BR realpath (1)
+prints for it.
+A relative
+.I dir
+is taken from the current directory, not from the directory of
+.IR junc .
+The
+.B .\&
+and
+.B ..\&
+components are removed by name before links are followed, so
+.I link/..\&
+is the directory that contains
+.IR link ,
+not the parent of its target.
+Every symbolic link and junction is then replaced with its target, so
+the junction never refers to another link, and each name gets the case
+and the long form that it has on disk.
+The resolved name must begin with a drive letter.
+.PP
+.I junc
+must not exist, but its parent directory must.
+.B jn
+creates
+.I junc
+as an empty directory and then turns it into a junction.
+If that fails, it removes
+.I junc
+again.
+.PP
+On success
+.B jn
+writes nothing.
+.SH OPTIONS
+.B jn
+has no options other than
+.BR \-\-help .
+Any other argument that begins with
+.BR \- ,
+other than
+.B \-
+itself, is an unknown option and an error, even after the operands
+unless
+.B POSIXLY_CORRECT
+is set.
+.B \-\-
+ends the options, so a
+.I junc
+named
+.B \-x
+is created with
+.BI "jn \-\- " dir " \-x\fR."
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument, and the arguments after it
+are ignored.
+.SH ENVIRONMENT
+.TP
+.B BB_CRITICAL_ERROR_DIALOGS
+When it is
+.BR 1 ,
+Windows may show a critical-error dialog for a path on a drive with no
+disk in it.
+Otherwise busybox suppresses the dialog, and the operation fails.
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the arguments are expanded when busybox starts, for a caller
+such as
+.B cmd.exe
+that does not expand them.
+When it is unset, busybox sets it to
+.B 0
+for the programs it starts, so commands run from the kit's shell get the
+shell's expansion only.
+.TP
+.B POSIXLY_CORRECT
+When set, the first operand ends the options, so that a later argument
+such as
+.B \-x
+is a name.
+.PP
+Messages written to a console also depend on
+.BR BB_SKIP_ANSI_EMULATION ,
+.BR BB_TERMINAL_MODE ,
+.BR LANG ,
+.BR LC_ALL ,
+and
+.BR LC_CTYPE ,
+as for every busybox applet; see
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+The junction was created, or
+.B \-\-help
+printed the usage message.
+.TP
+.B 1
+An invalid command line, with a usage message on standard error, or a
+junction that could not be created.
+.PP
+A failure is reported on standard error as
+.PP
+.RS 4
+.EX
+jn: can\(aqt create junction \(aq\fIjunc\fR\(aq to \(aq\fIdir\fR\(aq: \fIreason\fR
+.EE
+.RE
+.PP
+with the operands as typed.
+Common reasons are
+.B No such file or directory
+when
+.I dir
+or the parent of
+.I junc
+is missing,
+.B Not a directory
+when
+.I dir
+is a file,
+.B File exists
+when
+.I junc
+exists, and
+.B Invalid argument
+when
+.I dir
+resolves to a name without a drive letter, as a UNC path or a path on
+a mapped network drive does.
+.SH EXAMPLES
+Make a library directory available under a second name, then show where
+the junction points:
+.PP
+.RS 4
+.EX
+$ jn C:/src/zlib\-1.3.1 vendor/zlib
+$ readlink vendor/zlib
+C:/src/zlib\-1.3.1
+.EE
+.RE
+.PP
+Give a directory whose name contains a space a path without one:
+.PP
+.RS 4
+.EX
+$ jn "C:/Program Files/Some Tool" C:/tools/some
+.EE
+.RE
+.PP
+Remove a junction, leaving its target directory alone:
+.PP
+.RS 4
+.EX
+$ rm vendor/zlib
+.EE
+.RE
+.PP
+A junction cannot replace an existing file or directory:
+.PP
+.RS 4
+.EX
+$ jn src build; echo $?
+jn: can\(aqt create junction \(aqbuild\(aq to \(aqsrc\(aq: File exists
+1
+.EE
+.RE
+.SH NOTES
+Differences from a symbolic link made by
+.BR "ln \-s" :
+.IP \(bu 2
+The target must be a directory.
+.IP \(bu 2
+A relative target is taken from the current directory, not from the
+directory of the junction.
+.IP \(bu 2
+The target is stored as an absolute path, so moving the junction does
+not change where it points.
+.IP \(bu 2
+A UNC path such as
+.I //server/share/dir
+is rejected as a target, and so is a directory on a mapped network
+drive, which resolves to a UNC path.
+.PP
+Other busybox programs treat a junction as a symbolic link.
+.B ls \-l
+shows it as
+.IB junc " \-> " path
+and
+.B readlink
+prints the stored path, with forward slashes.
+.B rm
+removes only the junction, with or without
+.BR \-r ,
+and leaves the directory it points to alone.
+.B rmdir
+refuses, with
+.BR "Not a directory" .
+In
+.BR cmd.exe ,
+.B dir
+lists a junction as
+.BR <JUNCTION> ,
+and
+.B rmdir
+removes it.
+.PP
+.B jn
+.I dir junc
+is like the
+.B cmd.exe
+command
+.B mklink /J
+.IR "junc dir" ,
+with the operands in the other order, except that
+.B mklink
+only makes
+.I dir
+absolute: it does not check that
+.I dir
+is an existing directory, and does not resolve links in it.
+.PP
+The volume that holds
+.I junc
+must support reparse points, as NTFS does.
+.PP
+Operands may use drive letters and either kind of slash.
+They may contain any Unicode characters on Windows 10 version 1903 and
+later, and are limited to the system code page on earlier versions.
+The absolute name of
+.I dir
+is limited to 259 characters, and a longer one fails with
+.BR "No such file or directory" .
+When the resolved name would be longer than 255 characters, links are
+not followed, and the junction stores the absolute name as typed.
+.PP
+On Windows XP, which lacks the API for finding a final name, a junction
+in
+.I dir
+is followed only when it is the last component, and names keep the
+case and form in which they were typed.
+.SH SEE ALSO
+.BR busybox (1),
+.BR ln (1),
+.BR ls (1),
+.BR readlink (1),
+.BR realpath (1),
+.BR rm (1),
+.BR rmdir (1)

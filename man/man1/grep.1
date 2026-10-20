@@ -1,0 +1,580 @@
+.TH GREP 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.SH NAME
+grep, egrep, fgrep \- print lines that match patterns
+.SH SYNOPSIS
+.B grep
+.RI [ options ]
+.I pattern
+.RI [ file ...]
+.br
+.B grep
+.RI [ options ]
+.BI "\-e " pattern
+.RI ...\&
+.RI [ file ...]
+.br
+.B grep
+.RI [ options ]
+.BI "\-f " patfile
+.RI ...\&
+.RI [ file ...]
+.br
+.B egrep
+.RI [ options ]
+.I pattern
+.RI [ file ...]
+.br
+.B fgrep
+.RI [ options ]
+.I pattern
+.RI [ file ...]
+.SH DESCRIPTION
+.B grep
+searches each
+.I file
+for lines that match any of the patterns, and writes those lines to
+standard output.
+With no
+.I file
+operands, or for a
+.I file
+named
+.BR \- ,
+it reads standard input.
+.B egrep
+is
+.BR "grep \-E" ,
+and
+.B fgrep
+is
+.BR "grep \-F" .
+This is the busybox
+.BR grep .
+.PP
+The patterns are those given with
+.B \-e
+and
+.BR \-f ,
+or when neither is given, the
+.I pattern
+operand.
+A pattern containing newlines is several patterns, one per line, and an
+empty pattern matches every line.
+Patterns are basic regular expressions, extended regular expressions
+with
+.BR \-E ,
+or fixed strings with
+.BR \-F .
+.PP
+A line of input ends at an LF or at a NUL byte, and a CR before an LF is
+removed, so CRLF text is matched as if it had LF line endings.
+Lines may be any length.
+Every file is searched as text; there is no binary file detection.
+.PP
+Each selected line is written followed by an LF.
+When more than one
+.I file
+is given, or a directory is searched with
+.BR \-r ,
+the line is preceded by its file name and a colon;
+.B \-H
+and
+.B \-h
+override this.
+Standard input is named
+.BR "(standard input)" .
+With
+.BR \-n ,
+the line number and a colon come next.
+Context lines, requested with
+.BR \-A ,
+.BR \-B ,
+or
+.BR \-C ,
+have a
+.B \-
+in place of each colon, and a line containing only
+.B \-\-
+separates groups of lines that are not adjacent.
+.BR \-c ,
+.BR \-l ,
+.BR \-L ,
+and
+.B \-q
+replace this output, and they disable
+.B \-n
+and context.
+.SS Regular expressions
+Regular expressions are POSIX basic or extended regular expressions, as
+implemented by the GNU regex code built into busybox, with its
+extensions.
+In a basic expression,
+.BR \e? ,
+.BR \e+ ,
+and
+.B \e|
+are the optional, repetition, and alternation operators that
+.BR ? ,
+.BR + ,
+and
+.B |
+are in an extended expression, and
+.BR ? ,
+.BR + ,
+and
+.B |
+match themselves.
+An interval is
+.BI \e{ m , n \e}
+in a basic expression and
+.BI { m , n }
+in an extended one.
+Both kinds accept back-references
+.B \e1
+to
+.BR \e9 ,
+.B \ew
+for a word character, which is an ASCII letter, digit, or underscore,
+.B \eW
+for any other character,
+.B \es
+and
+.B \eS
+for whitespace and anything else,
+.B \eb
+and
+.B \eB
+for a word boundary and its absence, and
+.B \e<
+and
+.B \e>
+for the start and end of a word.
+.PP
+Matching works on bytes.
+A
+.B .\&
+or a bracket expression matches one byte, not one non-ASCII character,
+and character classes such as
+.B [:alpha:]
+contain only ASCII characters.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-in ,
+and may follow operands unless
+.B POSIXLY_CORRECT
+is set.
+An option's argument may be attached, as in
+.BR \-m1 ,
+or be the next argument.
+.B \-\-
+ends the options.
+The
+.I num
+arguments are decimal integers from 0 to 2147483647.
+.TP
+.B \-H
+Precede each line with its file name, even for a single file.
+When both
+.B \-H
+and
+.B \-h
+are given, the later one wins.
+.TP
+.B \-h
+Never precede lines with file names.
+.TP
+.B \-n
+Precede each line with its line number, starting at 1.
+.TP
+.B \-l
+Print only the name of each file that has a selected line, and stop
+reading the file at that line.
+.TP
+.B \-L
+Print only the name of each file that has no selected line.
+.TP
+.B \-c
+Print only the number of selected lines in each file, after the file
+name and a colon when names are shown.
+.TP
+.B \-o
+Print only the matched part of each selected line, each match on its own
+line.
+Empty regular expression matches are not printed.
+See
+.B NOTES
+for how this differs from GNU
+.BR grep .
+.TP
+.B \-q
+Print no lines, and exit with status 0 at the first selected line, even
+if there were errors.
+With
+.B \-c
+or
+.BR \-L ,
+files with no selected line are still reported until then.
+.TP
+.B \-v
+Select the lines that do not match.
+.TP
+.B \-s
+Do not report files that cannot be opened.
+The exit status still reports the error.
+Directories that
+.B \-r
+or
+.B \-R
+cannot read are reported anyway, and do not affect the exit status.
+.TP
+.B \-r
+Search the files under each directory operand, recursively.
+Below the operands, symbolic links and junctions are followed if they
+lead to files and skipped if they lead to directories.
+File operands are searched as usual, and with no
+.I file
+operands
+.B grep
+reads standard input.
+Without
+.B \-r
+or
+.BR \-R ,
+a directory operand is an error.
+.TP
+.B \-R
+Like
+.BR \-r ,
+but also follow symbolic links and junctions to directories.
+.TP
+.B \-i
+Ignore case, for ASCII letters only.
+.TP
+.B \-w
+Select a line only if a match is a whole word: one that is neither
+preceded nor followed by an ASCII letter, digit, or underscore.
+.TP
+.B \-x
+Select a line only if a pattern matches the whole line.
+Overrides
+.BR \-w .
+.TP
+.B \-F
+Patterns are fixed strings.
+Takes precedence over
+.BR \-E ,
+including for
+.BR egrep .
+.TP
+.B \-E
+Patterns are extended regular expressions.
+.TP
+.BI "\-m " num
+Stop reading a file after its
+.IR num th
+selected line.
+Trailing context is still printed after it, up to the next selected line.
+With a
+.I num
+of 0, only the first line is read; it is never printed, but if it is
+selected, it counts as such for
+.BR \-c ,
+.BR \-l ,
+.BR \-L ,
+.BR \-q ,
+and the exit status.
+.TP
+.BI "\-A " num
+Print
+.I num
+lines of trailing context after each selected line.
+.TP
+.BI "\-B " num
+Print
+.I num
+lines of leading context before each selected line.
+.TP
+.BI "\-C " num
+Same as
+.BI "\-A " num
+.BI "\-B " num
+at this position, so it overrides an earlier
+.B \-A
+or
+.BR \-B ,
+and a later one overrides it.
+.TP
+.BI "\-e " pattern
+Use
+.IR pattern .
+May be repeated, and combined with
+.BR \-f .
+.TP
+.BI "\-f " patfile
+Read patterns from
+.IR patfile ,
+one per line, ignoring a CR before each LF.
+A
+.I patfile
+of
+.B \-
+is standard input.
+May be repeated.
+When the files hold no patterns and there is no
+.BR \-e ,
+no line matches.
+.TP
+.BR \-a ", " \-I
+Accepted and ignored.
+.TP
+\fB\-\-color\fR[\fB=\fIwhen\fR]
+Accepted and ignored.
+There is no color output.
+.TP
+.B \-\-help
+As the first argument, print a usage message on standard output and
+exit with status 0.
+.B egrep
+and
+.B fgrep
+print that no help is available instead.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+the C runtime replaces each argument containing wildcards with the names
+of the files it matches, if any, even when the argument is quoted.
+From
+.BR cmd.exe ,
+a pattern such as
+.B \(dqa*\(dq
+may become a list of files.
+When it is unset, busybox sets it to
+.B 0
+for its child processes, so commands run from the busybox shell, which
+expands wildcards itself, receive their arguments as given.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+output to a console is not converted, as described in
+.BR NOTES ,
+and the console interprets the bytes in its own code page.
+.TP
+.B POSIXLY_CORRECT
+If set, options must come before operands.
+.PP
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+A line was selected, or with
+.BR \-L ,
+a file name was printed.
+.TP
+.B 1
+No line was selected.
+.TP
+.B 2
+An error: an invalid option or argument, an invalid regular expression,
+a pattern file that cannot be read, or a file that cannot be opened,
+even if lines were selected in others.
+With
+.BR \-q ,
+a selected line ends the search with status 0 regardless of earlier
+errors.
+.TP
+.B 141
+Standard output is a pipe that was closed while
+.B grep
+was writing to it.
+Output is buffered, and a closed pipe found only by the final flush at
+exit, as with short output, is ignored.
+.SH EXAMPLES
+Show where
+.B main
+is defined, with line numbers and a line of context:
+.PP
+.RS 4
+.EX
+$ grep \-n \-C1 main hello.c
+2\-
+3:int main(void)
+4\-{
+.EE
+.RE
+.PP
+Search a source tree for the whole word
+.BR count :
+.PP
+.RS 4
+.EX
+$ grep \-rnw count src
+src/count.c:1:static int count;
+src/count.c:5:    return count++;
+.EE
+.RE
+.PP
+Find errors and warnings in a build log, using an extended regular
+expression, then the same with a basic one:
+.PP
+.RS 4
+.EX
+$ grep \-E \(aqerror|warning\(aq build.log
+$ grep \(aqerror\e|warning\(aq build.log
+.EE
+.RE
+.PP
+Search for a pattern that begins with a dash:
+.PP
+.RS 4
+.EX
+$ grep \-e \-Wall Makefile
+.EE
+.RE
+.PP
+List the C files that do not include
+.IR stdio.h :
+.PP
+.RS 4
+.EX
+$ grep \-L \(aq#include <stdio.h>\(aq *.c
+.EE
+.RE
+.PP
+Test for a match in a script:
+.PP
+.RS 4
+.EX
+$ grep \-q \(aq^CFLAGS\(aq Makefile && echo configured
+.EE
+.RE
+.SH NOTES
+Differences from GNU
+.BR grep :
+.IP \(bu 2
+.B \-r
+with no
+.I file
+operands reads standard input, not the current directory.
+.IP \(bu 2
+There is no binary file detection, a NUL byte ends a line, and
+.B \-a
+and
+.B \-I
+have no effect.
+.IP \(bu 2
+With
+.BR \-F ,
+.B \-o
+prints the pattern as given, once per line, however often and in
+whatever case it occurs.
+With several patterns,
+.B \-o
+prints the matches of only one of them on each line; join them with
+.B \e|
+or
+.B |
+instead.
+With
+.BR \-w ,
+.B \-o
+prints every match on a selected line, whole word or not, and prints the
+wrong text when the first match on the line is not a whole word.
+Each later match on a line is found as if the line began where the
+previous match ended, which changes the result of
+.BR \eb ,
+.BR \eB ,
+.BR \e< ,
+and
+.BR \e> .
+Context lines are printed whole, and with
+.BR \-v ,
+.B \-o
+prints only the file name and line number prefixes of context lines,
+without their text or a newline.
+.IP \(bu 2
+A regular expression is compiled when first needed, so an invalid one is
+not reported if no input is read.
+.IP \(bu 2
+Read errors end a file silently.
+.IP \(bu 2
+An empty
+.B \-f
+file, with no other patterns, selects no line, except that with
+.B \-F
+and
+.B \-x
+it selects every line except one reading
+.BR .* ,
+and with
+.B \-w
+but neither
+.B \-F
+nor
+.BR \-x ,
+every line that begins with an ASCII letter, digit, or underscore.
+.IP \(bu 2
+With
+.B \-w
+but not
+.BR \-x ,
+an empty pattern, such as a blank line in a
+.B \-f
+file, matches every line if
+.B \-F
+is given, and otherwise only lines that are empty or begin with a
+character other than an ASCII letter, digit, or underscore.
+.IP \(bu 2
+GNU options not listed above, such as
+.BR \-P ,
+.BR \-z ,
+.BR \-\-include ,
+and long forms such as
+.BR \-\-ignore\-case ,
+are invalid.
+.PP
+Output lines end with LF, not CRLF, even when the input has CRLF line
+endings.
+.PP
+Patterns and input are compared as bytes, so their encodings must agree.
+On Windows 10 version 1903 and later, busybox runs with UTF-8 as its code
+page, and patterns and file names from the command line are UTF-8.
+On earlier versions they are in the ANSI code page.
+When standard output is a console, output is converted from that code
+page to the console's for display, and escape sequences in it take
+effect.
+.PP
+File operands may use drive letters and backslashes, and are printed as
+given.
+.B \-r
+joins the names it finds with
+.BR / ,
+so
+.B grep \-r x \(aqC:\esrc\(aq
+prints names such as
+.IR C:\esrc/main.c .
+A bare drive such as
+.I C:
+names the current directory of that drive, and
+.B \-r
+prints names such as
+.I C:name
+for the files below it.
+The device names
+.IR /dev/null ,
+.IR /dev/stdin ,
+and
+.I /dev/tty
+(the console) work as on Unix.
+.SH SEE ALSO
+.BR busybox (1),
+.BR find (1),
+.BR less (1),
+.BR sed (1),
+.BR sh (1),
+.BR xargs (1)

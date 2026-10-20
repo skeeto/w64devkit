@@ -1,0 +1,580 @@
+.TH DD 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+dd \- copy a file, converting and formatting it
+.SH SYNOPSIS
+.B dd
+.RB [ if=\c
+.IR file ]
+.RB [ of=\c
+.IR file ]
+.RB [ bs=\c
+.IR n ]
+.RB [ ibs=\c
+.IR n ]
+.RB [ obs=\c
+.IR n ]
+.RB [ count=\c
+.IR n ]
+.RB [ skip=\c
+.IR n ]
+.RB [ seek=\c
+.IR n ]
+.RB [ conv=\c
+.IR list ]
+.RB [ iflag=\c
+.IR list ]
+.RB [ oflag=\c
+.IR list ]
+.RB [ status=\c
+.IR word ]
+.br
+.B dd \-\-help
+.SH DESCRIPTION
+.B dd
+copies its input to its output in blocks, and can skip, limit, pad, and
+byte-swap the data on the way.
+It reads standard input unless
+.BI if= file
+is given, and writes standard output unless
+.BI of= file
+is given.
+Its arguments are operands, described under
+.BR OPTIONS .
+.PP
+When the copy ends, normally or after a write error,
+.B dd
+writes two lines on standard error:
+.PP
+.RS 4
+.EX
+2+1 records in
+2+1 records out
+.EE
+.RE
+.PP
+Each line is a count of complete blocks, a plus sign, and a count of
+partial blocks.
+The first line counts blocks read, in units of
+.B ibs
+bytes, and the second counts blocks written, in units of
+.B obs
+bytes.
+A block read or written short, as at the end of the input, is partial.
+A write to a closed pipe, or any other error, ends
+.B dd
+at once without the counts.
+.B status=none
+also suppresses them.
+.SS Copying
+.B dd
+opens the input and then the output, and positions them as
+.B skip
+and
+.B seek
+ask.
+It then repeats: read one block of up to
+.B ibs
+bytes, apply the conversions, and write the data.
+It stops at the end of the input, or after
+.B count
+blocks.
+.PP
+A read from a pipe or a console can return less than
+.B ibs
+bytes.
+Without
+.BR iflag=fullblock ,
+.B dd
+counts that as a block and, if
+.B ibs
+and
+.B obs
+are equal, writes it as it is.
+When they differ,
+.B dd
+collects the data and writes blocks of exactly
+.B obs
+bytes, then the remainder at the end.
+.SS Numbers
+A number is decimal digits with an optional suffix that multiplies it.
+Signs, white space, and hexadecimal and octal notation are not accepted;
+.B 010
+is ten.
+Suffixes are case-sensitive:
+.BR c " (1), " w " (2), " b " (512),"
+.BR k " or " K " (1024), " kB " or " KB " (1000),"
+.BR M " (1048576), " MB " (1000000),"
+.BR G " (1073741824), and " GB " (1000000000)."
+.BR kD ", " KD ", " MD ", and " GD
+are synonyms for
+.BR kB ", " KB ", " MB ", and " GB .
+A number that is malformed or out of range ends
+.B dd
+with a message and status 1.
+The range is 1 to 2147483647 for
+.BR bs ,
+.BR ibs ,
+and
+.BR obs ,
+and 0 to 9223372036854775807 for
+.BR count ,
+.BR skip ,
+and
+.BR seek .
+.SH OPTIONS
+Every argument is an operand of the form
+\fIkeyword\fB=\fIvalue\fR.
+Keywords and the words in their values are case-sensitive.
+An argument without an
+.B =
+or with an unknown keyword prints the usage message on standard error and
+exits with status 1.
+The operands apply in order, so a repeated keyword takes its last value,
+except that
+.BR conv ,
+.BR iflag ,
+.BR oflag ,
+and
+.B status
+accumulate.
+The first three take a comma-separated list, as in
+.BR conv=notrunc,sync ;
+an unknown or empty item is an error.
+The argument
+.B \-\-
+is ignored wherever it appears.
+.TP
+.BI if= file
+Read
+.I file
+instead of standard input.
+A
+.I file
+named
+.B \-
+is an ordinary file, not standard input.
+.TP
+.BI of= file
+Write
+.I file
+instead of standard output.
+The file is created if it does not exist.
+It is truncated when opened, unless
+.B seek
+is nonzero or
+.B conv=notrunc
+is given.
+.TP
+.BI bs= n
+Read and write
+.I n
+bytes at a time.
+This sets both
+.B ibs
+and
+.BR obs ,
+so
+.B ibs=512 bs=4k
+reads 4096 bytes at a time, and
+.B bs=4k ibs=512
+reads 512 and writes 4096.
+.TP
+.BI ibs= n
+Read
+.I n
+bytes at a time.
+The default is 512.
+.TP
+.BI obs= n
+Write
+.I n
+bytes at a time.
+The default is 512.
+.TP
+.BI count= n
+Copy at most
+.I n
+input blocks.
+A block read short counts as a block.
+With
+.BR iflag=count_bytes ,
+.I n
+is a number of bytes.
+Without
+.BR count ,
+.B dd
+copies until the end of the input, and
+.B count=0
+copies nothing.
+.TP
+.BI skip= n
+Skip
+.I n
+blocks of input before copying.
+A seekable input is repositioned.
+Any other input, such as a pipe, is read and the data discarded, stopping
+early at the end of the input.
+Each read counts as a block, so without
+.B iflag=fullblock
+a short read from a pipe skips fewer bytes.
+With
+.BR iflag=skip_bytes ,
+.I n
+is a number of bytes, and an input that cannot seek is read one byte at a
+time.
+.TP
+.BI seek= n
+Skip
+.I n
+blocks of
+.B obs
+bytes on the output before writing.
+Unless
+.B conv=notrunc
+is given, an output file is first truncated, or extended with zero
+bytes, to exactly that offset, so only the data before it survives.
+Seeking past the end of a file on NTFS makes the file sparse.
+With
+.BR oflag=seek_bytes ,
+.I n
+is a number of bytes.
+The output must be seekable: standard output that is a pipe fails with
+.B Invalid seek
+and status 1.
+.TP
+.B conv=notrunc
+Do not truncate the output file when opening it or seeking.
+Data beyond what is written stays in the file.
+.TP
+.B conv=noerror
+Continue after a read error.
+.B dd
+reports the error, seeks
+.B ibs
+bytes forward in the input, and goes on, counting a partial block read.
+With
+.BR sync ,
+that block is written as
+.B ibs
+zero bytes; without it, nothing is written for it.
+If the input cannot seek,
+.B dd
+stops with an error.
+Without
+.BR noerror ,
+a read error ends
+.B dd
+at once with status 1.
+.TP
+.B conv=sync
+Pad a short input block with zero bytes to
+.B ibs
+bytes before writing it.
+.TP
+.B conv=fsync
+Flush the output file to disk before finishing.
+With different
+.B ibs
+and
+.BR obs ,
+the flush comes before the final short output block is written.
+It fails when the output is
+.I /dev/null
+or a console.
+.TP
+.B conv=swab
+Swap each pair of bytes of the input.
+An odd byte at the very end is left as it is.
+Every block but the last must have an even size, or
+.B dd
+stops with
+.BI "can't swab " n " byte buffer"
+and status 1.
+Use an even
+.B ibs
+with
+.B iflag=fullblock
+when the input is a pipe.
+.TP
+.B iflag=skip_bytes
+Count
+.B skip
+in bytes instead of blocks.
+.TP
+.B iflag=count_bytes
+Count
+.B count
+in bytes instead of blocks.
+The last block is shortened to fit.
+.TP
+.B oflag=seek_bytes
+Count
+.B seek
+in bytes instead of blocks.
+.TP
+.B iflag=fullblock
+Repeat reads until the block is full or the input ends, so that only the
+last block can be partial.
+.TP
+.B oflag=append
+Open the output file in append mode, so every write goes to the end of
+the file.
+Without
+.BR conv=notrunc ,
+the file is still truncated first, to the
+.B seek
+offset, which is 0 by default.
+It has no effect on standard output.
+.TP
+.B status=noxfer
+Accepted and ignored.
+This
+.B dd
+never writes a transfer rate.
+.TP
+.B status=none
+Do not write the record counts.
+Error messages are still written.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the operands are expanded when busybox starts, as needed
+when run from
+.BR cmd.exe .
+Each operand begins with a keyword and
+.BR = ,
+so only file names that begin that way can match.
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+operands as the shell expanded them.
+.TP
+.B BB_UMASK
+A file mode creation mask in octal.
+When it includes the owner write bit,
+.BR 200 ,
+an output file that
+.B dd
+creates is read-only.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+output to a console is not converted, as described in
+.BR NOTES .
+.PP
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+An invalid operand, number, or list item, a file that could not be
+opened, read, written, positioned, truncated, flushed, or closed, a swab
+failure, or too little memory.
+.TP
+.B 141
+The output is a pipe that was closed before all data was written.
+No record counts are written.
+.SH EXAMPLES
+Write one mebibyte of zero bytes to a file:
+.PP
+.RS 4
+.EX
+$ dd if=/dev/zero of=blank.img bs=1M count=1
+1+0 records in
+1+0 records out
+.EE
+.RE
+.PP
+Print 16 random bytes as a hex string:
+.PP
+.RS 4
+.EX
+$ dd if=/dev/urandom bs=16 count=1 status=none | xxd \-p
+.EE
+.RE
+.PP
+Copy 100 bytes from offset 1000 of a file:
+.PP
+.RS 4
+.EX
+$ dd if=in of=out skip=1000 count=100 iflag=skip_bytes,count_bytes
+.EE
+.RE
+.PP
+Overwrite the bytes at offset 0x1000 of a file with the contents of
+another, leaving the rest of the file alone:
+.PP
+.RS 4
+.EX
+$ dd if=new of=data seek=4096 oflag=seek_bytes conv=notrunc
+.EE
+.RE
+.PP
+Extract the first sector of a compressed disk image.
+A pipe can deliver less than a full block, and
+.B iflag=fullblock
+keeps the one block that
+.B count=1
+allows from coming up short.
+.B gzip
+may report a broken pipe, since
+.B dd
+stops reading after that block:
+.PP
+.RS 4
+.EX
+$ gzip \-dc disk.gz | dd bs=512 count=1 iflag=fullblock >sector
+.EE
+.RE
+.PP
+Swap the bytes of each 16-bit word in a file:
+.PP
+.RS 4
+.EX
+$ dd if=big of=little bs=64k conv=swab
+.EE
+.RE
+.SH NOTES
+Differences from GNU
+.BR dd :
+.IP \(bu 2
+There is no transfer rate line, and no status report on a signal.
+.IP \(bu 2
+Numbers take no
+.B x
+multiplier, as in
+.BR 2x512 ,
+and the only suffixes are those listed under
+.BR Numbers .
+.IP \(bu 2
+.B bs
+sets
+.B ibs
+and
+.B obs
+where it appears, so a later
+.B ibs
+or
+.B obs
+overrides it.
+.IP \(bu 2
+Operands and values not described above are rejected, such as
+.BR cbs ,
+.BR status=progress ,
+the
+.B direct
+flags, and the
+.B conv
+values
+.BR ucase ,
+.BR lcase ,
+.BR block ,
+.BR unblock ,
+.BR ascii ,
+.BR ebcdic ,
+.BR excl ,
+.BR nocreat ,
+.BR fdatasync ,
+and
+.BR sparse .
+.PP
+Standard input and output are binary, so CR LF pairs and Ctrl-Z
+characters are copied unchanged.
+.PP
+File names may use drive letters and backslashes.
+They may contain any Unicode characters on Windows 10 version 1903 and
+later, and are limited to the system code page on earlier versions.
+A directory as
+.B if
+fails with
+.BR "Permission denied" ,
+and as
+.B of
+with
+.BR "Is a directory" .
+.PP
+For both
+.B if
+and
+.BR of ,
+the names
+.IR /dev/null ,
+.IR /dev/tty ,
+.IR /dev/stdin ,
+.IR /dev/stdout ,
+and
+.I /dev/stderr
+work as on Unix, with
+.I /dev/tty
+the console.
+.I /dev/fd/n
+gives descriptor
+.I n
+itself rather than a copy, and
+.B dd
+closes it once it has moved it to standard input or output, so
+.B of=/dev/fd/2
+loses the record counts and later error messages.
+.I /dev/zero
+and
+.I /dev/urandom
+are sources of zero bytes and of random bytes from the system's
+cryptographic generator;
+as
+.B of
+they discard the data, like
+.IR /dev/null .
+.PP
+An
+.B of
+that names a physical drive, such as
+.I \e\e.\ePhysicalDrive1
+or
+.IR //./PhysicalDrive1 ,
+is opened without creating or truncating it.
+A drive cannot be truncated, so
+.B seek
+on a drive needs
+.BR conv=notrunc ,
+or
+.B dd
+stops with an error before copying.
+.PP
+When the output is a console, each block is converted for display from
+the ANSI code page, which is UTF-8 on Windows 10 version 1903 and later,
+and escape sequences, such as those for color, take effect.
+A block that contains a NUL byte is written unconverted.
+Redirect the output to a file or a pipe when copying binary data.
+Data read from a console is converted from the console's input code page
+to the ANSI code page, unless the ANSI code page is UTF-8.
+.PP
+The buffers for
+.B ibs
+and
+.B obs
+are allocated before copying starts, and a size that exceeds the
+available memory ends
+.B dd
+with
+.B out of memory
+and status 1.
+.SH SEE ALSO
+.BR busybox (1),
+.BR cat (1),
+.BR cp (1),
+.BR head (1),
+.BR od (1),
+.BR truncate (1),
+.BR xxd (1)

@@ -1,0 +1,259 @@
+.TH ID 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+id \- print the user and group identity
+.SH SYNOPSIS
+.B id
+.RB { \-u | \-g | \-G }
+.RB [ \-nr ]
+.RI [ user ]
+.br
+.B id
+.RI [ user ]
+.SH DESCRIPTION
+.B id
+prints the user id and group id of the current user, or of
+.I user
+when one is given.
+Without options it prints the user id, the group id, and the groups,
+each with its name, and with
+.BR \-u ,
+.BR \-g ,
+or
+.B \-G
+only the id that option selects.
+.PP
+Windows has no Unix user and group ids, so busybox supplies fixed ones:
+.IP \(bu 2
+The current user is user 4095 in group 4095, whoever the account is.
+.IP \(bu 2
+A process that is elevated and has the Administrators group enabled is
+instead user 0 in group 0, both named
+.BR root .
+.IP \(bu 2
+There are no supplementary groups, and no difference between real and
+effective ids.
+.PP
+The user's name is the one the Windows function
+.B GetUserName
+returns, without a domain, with each space replaced by an underscore.
+The group has the same name.
+.PP
+.I user
+is a name, never a number.
+Only two names are known: the current user's name, spelled as above,
+which is user 4095 even in an elevated process, and
+.BR root ,
+which is user 0.
+The current user's name must match exactly, case included.
+Any other name fails.
+.B id
+takes at most one
+.IR user .
+.SS Output
+Without options,
+.B id
+prints one line:
+.PP
+.RS 4
+.EX
+uid=4095(name) gid=4095(name) groups=4095(name)
+.EE
+.RE
+.PP
+A name that is not known is left out of this line, with its parentheses.
+With
+.BR \-u ,
+.BR \-g ,
+or
+.BR \-G ,
+the line holds only the id, as a number or, with
+.BR \-n ,
+as a name.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-rGn ,
+and may follow
+.IR user .
+.B \-\-
+ends the options.
+At most one of
+.BR \-u ,
+.BR \-g ,
+and
+.B \-G
+is allowed, and
+.B \-n
+and
+.B \-r
+are allowed only with one of them.
+Apart from
+.BR \-\-help ,
+there are no long options.
+.TP
+.B \-u
+Print only the user id.
+.TP
+.B \-g
+Print only the group id.
+.TP
+.B \-G
+Print the ids of all the groups, separated by spaces.
+There is only one, so the output is that of
+.BR \-g .
+.TP
+.B \-n
+Print names instead of numbers.
+If the name is not known, print the number, report the error, and exit
+with status 1.
+.TP
+.B \-r
+Print the real id instead of the effective id.
+Windows makes no difference, so it changes nothing.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument, and any further arguments
+are then ignored.
+.SH ENVIRONMENT
+.TP
+.B POSIXLY_CORRECT
+The C library's option parser reads it.
+When it is set, even to an empty value, options are recognized only
+before the first operand.
+So
+.B id root \-u
+is then an error, since
+.B \-u
+is a second operand.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+output to a console is not converted, as described in
+.BR NOTES ,
+and the console interprets the bytes in its own code page.
+.PP
+Variables that affect every busybox applet are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+An error: an invalid command line, with a usage message on standard
+error, an unknown
+.IR user ,
+a name that is not known for an id printed as a name, or a failure to
+write standard output.
+.PP
+An unknown
+.I user
+is reported on standard error, as in
+.PP
+.RS 4
+.EX
+$ id bob
+id: unknown user bob
+.EE
+.RE
+.PP
+An id that
+.B \-n
+prints as a name, but has none, is printed as a number instead, and
+.B id: unknown ID
+.I number
+goes to standard error.
+This happens only when Windows does not supply the user name.
+.SH EXAMPLES
+Show the identity of the current user:
+.PP
+.RS 4
+.EX
+$ id
+uid=4095(alice) gid=4095(alice) groups=4095(alice)
+.EE
+.RE
+.PP
+In an elevated process, such as a shell started by
+.BR su :
+.PP
+.RS 4
+.EX
+$ id
+uid=0(root) gid=0(root) groups=0(root)
+.EE
+.RE
+.PP
+Do something only when elevated:
+.PP
+.RS 4
+.EX
+$ [ "$(id \-u)" = 0 ] && echo elevated
+.EE
+.RE
+.PP
+Print the name of the current user:
+.PP
+.RS 4
+.EX
+$ id \-un
+alice
+.EE
+.RE
+.SH NOTES
+All users get the same numbers, so
+.B id
+does not tell users apart.
+It does not report Windows security identifiers or group memberships.
+The Administrators group only decides whether the process is
+.BR root .
+A command started by
+.BR drop ,
+.BR cdrop ,
+or
+.B pdrop
+runs with reduced privileges and is not
+.BR root ,
+even from an elevated process.
+.PP
+.B whoami
+prints the same name as
+.BR "id \-un" ,
+and
+.B groups
+prints what
+.B id \-Gn
+prints.
+.B logname
+prints the user's name even when elevated.
+The name does not come from
+.BR USER ,
+.BR USERNAME ,
+or
+.BR LOGNAME .
+.PP
+Differences from GNU
+.BR id :
+.IP \(bu 2
+There is no
+.BR \-a ,
+.BR \-z ,
+or
+.BR \-Z ,
+and no long option other than
+.BR \-\-help .
+.IP \(bu 2
+The operand is one name, never a numeric id.
+.PP
+The user name is read in the ANSI code page, which is UTF-8 on Windows
+10 version 1903 and later.
+When standard output is a console, the output is converted from that
+code page for display.
+Output lines end with LF, not CRLF.
+.SH SEE ALSO
+.BR busybox (1),
+.BR groups (1),
+.BR logname (1),
+.BR su (1),
+.BR whoami (1)

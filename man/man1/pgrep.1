@@ -1,0 +1,376 @@
+.TH PGREP 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+pgrep, pkill \- find or signal processes by name
+.SH SYNOPSIS
+.B pgrep
+.RB [ \-lvx ]
+.I pattern
+.br
+.B pgrep
+.RB [ \-lvx ]
+.B \-P
+.I ppid
+.RI [ pattern ]
+.br
+.B pkill
+.RB [ \-\c
+.IR signal ]
+.RB [ \-evx ]
+.I pattern
+.br
+.B pkill
+.RB [ \-\c
+.IR signal ]
+.RB [ \-evx ]
+.B \-P
+.I ppid
+.RI [ pattern ]
+.br
+.B pkill \-l
+.SH DESCRIPTION
+.B pgrep
+writes the process ID of each running process whose name matches
+.IR pattern ,
+one per line, on standard output.
+.B pkill
+instead sends each such process a signal,
+.B TERM
+by default.
+Neither selects its own process.
+.PP
+.I pattern
+is an extended regular expression, as in
+.BR "grep \-E" ,
+and matches case-sensitively anywhere in the name unless
+.B \-x
+is given.
+With
+.BR \-P ,
+a process must also be a child of
+.IR ppid ,
+.I pattern
+is optional, and operands after the first are ignored.
+Without
+.BR \-P ,
+exactly one
+.I pattern
+is required.
+.PP
+Processes are visited in the order Windows lists them, not sorted by
+process ID.
+.SS Process names
+Only the name of a process is matched, never its command line.
+The name is the file name of its executable as Windows reports it,
+including the extension, such as
+.BR explorer.exe ,
+truncated to 31 bytes.
+A process running the same build of busybox is named after its applet
+instead, such as
+.B sh
+or
+.BR sleep ,
+and a script whose
+.B #!\&
+line names an applet may be named after the script file.
+The kit's command launchers, such as
+.B sh.exe
+and
+.BR pgrep.exe ,
+appear under their own names, each alongside the busybox process it
+started.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-lx ,
+and the argument of
+.B \-P
+may be attached, as in
+.BR \-P1234 .
+Options may follow
+.IR pattern ,
+unless
+.B POSIXLY_CORRECT
+is set.
+.B \-\-
+ends the options, so that a
+.I pattern
+may begin with
+.BR \- .
+.TP
+.BI \- signal
+Send
+.I signal
+instead of
+.BR TERM .
+Only
+.B pkill
+accepts it, and only as the first argument.
+.I signal
+is a name, in any case and with or without a
+.B SIG
+prefix, or a number from 0 to 22.
+The names are those listed by
+.BR "pkill \-l" :
+.BR HUP ,
+.BR INT ,
+.BR QUIT ,
+.BR ILL ,
+.BR FPE ,
+.BR KILL ,
+.BR SEGV ,
+.BR PIPE ,
+.BR TERM ,
+and
+.BR ABRT ,
+plus
+.B EXIT
+for 0.
+Signal 0, and a number without a name, select processes but send
+nothing.
+See
+.B NOTES
+for what the signals do on Windows.
+.TP
+.B \-l
+For
+.BR pgrep ,
+write each process's name after its ID, separated by a space.
+For
+.BR pkill ,
+write the signal numbers and names on standard output and exit without
+signaling anything.
+.TP
+.B \-v
+Negate the match: select the processes that would otherwise not be
+selected.
+With both
+.B \-P
+and
+.IR pattern ,
+a process is selected if its parent is not
+.I ppid
+or its name does not match.
+.TP
+.B \-x
+Require
+.I pattern
+to match the whole name.
+Since names include the extension,
+.B pgrep \-x explorer
+does not match
+.BR explorer.exe .
+.TP
+.BI "\-P " ppid
+Select only children of the process
+.IR ppid ,
+a non-negative decimal integer.
+.TP
+.B \-e
+For
+.BR pkill ,
+write a line
+.IB name " killed (pid " pid )
+on standard output for each selected process, even when the signal was
+not delivered.
+.B pgrep
+accepts
+.B \-e
+and ignores it.
+.TP
+.B \-\-help
+As the first argument, print a usage message on standard output and
+exit.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+the wildcards
+.B *
+and
+.B ?\&
+in arguments are expanded as file names before the command sees them,
+even inside quotes, so a
+.I pattern
+such as
+.B vim.*\&
+may be replaced by file names, as when run from
+.BR cmd.exe .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+arguments as the shell expanded them.
+.TP
+.B POSIXLY_CORRECT
+If set, even to an empty value, the first operand ends the options.
+.PP
+Variables that affect every busybox applet are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+At least one process was selected, or
+.B pkill \-l
+or
+.B \-\-help
+was given.
+.B pkill
+exits 0 even when a signal could not be delivered.
+.TP
+.B 1
+No process was selected, or an error such as an invalid option,
+.IR ppid ,
+or regular expression.
+Selecting only process 0,
+.BR "[System\ Process]" ,
+also exits 1.
+.PP
+A
+.B pkill
+that selects process 0 signals itself; see
+.BR NOTES .
+.SH EXAMPLES
+List Vim processes with their names:
+.PP
+.RS 4
+.EX
+$ pgrep \-l vim
+.EE
+.RE
+.PP
+Terminate every instance of a program, and show what was signaled:
+.PP
+.RS 4
+.EX
+$ pkill \-e \-x \(aqserver\e.exe\(aq
+server.exe killed (pid 12704)
+server.exe killed (pid 16776)
+.EE
+.RE
+.PP
+Terminate a 32-bit program from a 64-bit busybox, which requires
+.BR KILL :
+.PP
+.RS 4
+.EX
+$ pkill \-KILL \-x \(aqserver32\e.exe\(aq
+.EE
+.RE
+.PP
+List the children of the current shell:
+.PP
+.RS 4
+.EX
+$ sleep 60 &
+[1] 22068
+$ pgrep \-l \-P $$
+22068 sleep
+.EE
+.RE
+.PP
+Check whether a program is running:
+.PP
+.RS 4
+.EX
+$ pgrep \-x \(aqgdb\e.exe\(aq >/dev/null && echo running
+.EE
+.RE
+.SH NOTES
+Differences from the procps commands and from busybox on Linux:
+.IP \(bu 2
+There is no
+.BR \-a ,
+.BR \-f ,
+.BR \-n ,
+.BR \-o ,
+or
+.BR \-s ,
+which busybox has on Linux, nor
+.BR \-i ,
+.BR \-u ,
+or the other procps options.
+.IP \(bu 2
+Names include the extension, and matching is case-sensitive although
+Windows file names are not.
+A bracket expression such as
+.B [Nn]otepad
+matches either case.
+.IP \(bu 2
+Errors exit with status 1, the same as no match, not 2 or 3.
+.PP
+Every process on the system is listed, including those of other users
+and system processes such as
+.BR System .
+A process whose parent has exited has parent ID 1, unless Windows has
+since reused the parent's ID, in which case it appears to be a child of
+the process now holding that ID.
+.B pkill
+silently fails to signal a process it cannot open.
+.PP
+Windows has no signals, so
+.B pkill
+emulates them as
+.BR kill (1)
+does.
+.B KILL
+calls
+.BR TerminateProcess ,
+and any other signal that is sent makes the process call
+.B ExitProcess
+from a thread injected into it.
+No signal handler runs either way, and
+.B INT
+does not send Ctrl+C.
+The exit code of the process is the signal number shifted left 24 bits,
+such as
+.B 0x0F000000
+for
+.BR TERM ,
+which the kit's shell reports as 128 plus the signal number.
+.B pkill
+does not wait for the process to exit.
+Injecting a thread works only when the process and busybox are both
+32-bit or both 64-bit, so otherwise only
+.B KILL
+takes effect.
+Only the selected process is signaled, not its children.
+.PP
+Process 0,
+.BR "[System\ Process]" ,
+is listed first, and a
+.B pkill
+that selects it signals itself and its descendants in its place, as
+.BR kill (1)
+does for PID 0.
+Unless the signal is 0 or a number without a name,
+.B pkill
+then ends as if by that signal, and may not signal the processes after
+it.
+A pattern such as
+.B ss
+or
+.B o
+matches
+.BR "[System\ Process]" ,
+and
+.B \-v
+with most other patterns selects it.
+.PP
+Each command excludes only its own process.
+When started through the kit's
+.B pgrep.exe
+or
+.B pkill.exe
+launcher, as from
+.BR cmd.exe ,
+the launcher is not excluded, so a
+.B pkill
+whose pattern matches
+.B pkill.exe
+signals its own launcher.
+.SH SEE ALSO
+.BR busybox (1),
+.BR grep (1),
+.BR kill (1),
+.BR killall (1),
+.BR pidof (1),
+.BR ps (1)

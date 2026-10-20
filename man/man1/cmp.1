@@ -1,0 +1,284 @@
+.TH CMP 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+cmp \- compare two files byte by byte
+.SH SYNOPSIS
+.B cmp
+.RB [ \-l | \-s ]
+.RB [ \-n
+.IR count ]
+.I file1
+.RI [ file2
+.RI [ skip1
+.RI [ skip2 ]]]
+.SH DESCRIPTION
+.B cmp
+compares
+.I file1
+with
+.I file2
+byte by byte and reports the first difference.
+A file named
+.B \-
+is standard input, and
+.I file2
+defaults to
+.BR \- .
+If both files are
+.BR \- ,
+.B cmp
+exits with status 0 without reading.
+.PP
+.I skip1
+and
+.I skip2
+are numbers of bytes to skip at the start of
+.I file1
+and
+.IR file2 ,
+and
+.I skip2
+defaults to 0.
+Each is a decimal number, optionally followed by a suffix that
+multiplies it:
+.BR k ,
+.BR K ,
+.BR kiB ,
+or
+.B KiB
+for 1024;
+.BR m ,
+.BR M ,
+.BR miB ,
+or
+.B MiB
+for 1048576;
+.BR g ,
+.BR G ,
+.BR giB ,
+or
+.B GiB
+for 1073741824; and
+.BR KB ,
+.BR MB ,
+or
+.B GB
+for powers of 1000.
+Skipped bytes are read and discarded, so skipping works on pipes, and a
+file shorter than its skip is compared as empty.
+.PP
+At the first differing byte,
+.B cmp
+writes a line to standard output and stops:
+.PP
+.RS 4
+.EX
+\fIfile1\fR \fIfile2\fR differ: byte \fIn\fR, line \fIm\fR
+.EE
+.RE
+.PP
+.I n
+is the position of the byte, counting from 1, and
+.I m
+is 1 plus the number of LF bytes before it.
+Both count from the skip points.
+If one file ends before a difference is found,
+.B cmp
+instead writes
+.PP
+.RS 4
+.EX
+cmp: EOF on \fIfile\fR
+.EE
+.RE
+.PP
+to standard error, naming the shorter file.
+Files are named in messages as given on the command line, and an absent
+.I file2
+as
+.BR \- .
+.SH OPTIONS
+Options may be grouped, as in
+.BR "\-ln 100" ,
+and the argument of
+.B \-n
+may be attached, as in
+.BR \-n100 .
+Long options may be abbreviated to a unique prefix, and the argument of
+.B \-\-bytes
+may follow
+.B =
+or be the next argument.
+Options may follow operands, unless
+.B POSIXLY_CORRECT
+is set.
+.B \-\-
+ends the options.
+.TP
+.BR \-l ", " \-\-verbose
+Report every differing byte, not only the first.
+For each, write a line to standard output with its position in decimal
+and its values in
+.I file1
+and
+.I file2
+in octal, separated by spaces, with each octal value padded on the left
+with spaces to 3 characters.
+If one file is shorter, the EOF message follows the lines for the bytes
+the files have in common.
+Incompatible with
+.BR \-s .
+.TP
+.BR \-s ", " \-\-quiet ", " \-\-silent
+Write no difference or EOF message, and no message when a file cannot
+be opened, so only the exit status reports the result.
+Read errors and command line errors are still reported.
+Incompatible with
+.BR \-l .
+.TP
+\fB\-n\fR \fIcount\fR, \fB\-\-bytes=\fIcount\fR
+Compare at most
+.I count
+bytes after the skips.
+.I count
+is a decimal number from 0 to 2147483647, with no suffix.
+If given more than once, the last is used.
+.TP
+.B \-\-help
+As the first argument, print a usage message on standard output and
+exit with status 0.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the operands are expanded when
+.B cmp
+starts, as needed when it is run from
+.BR cmd.exe .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+operands as the shell expanded them.
+.TP
+.B POSIXLY_CORRECT
+If set, the first operand ends the options.
+.PP
+Variables that affect every busybox applet are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+The files are identical, or identical in their first
+.I count
+bytes, or both are
+.BR \- .
+.TP
+.B 1
+A difference was found, or one file ended before the other.
+Also an invalid command line, including an invalid
+.IR count ,
+.IR skip1 ,
+or
+.IR skip2 ,
+with a message on standard error.
+.TP
+.B 2
+A file could not be opened or read, or standard output could not be
+written, as when it is a pipe whose reader has exited.
+.TP
+.B 141
+With
+.BR \-l ,
+standard output is a pipe whose reader exited before
+.B cmp
+finished writing a long listing.
+.SH EXAMPLES
+Compare two files:
+.PP
+.RS 4
+.EX
+$ cmp old.txt new.txt
+old.txt new.txt differ: byte 15, line 2
+.EE
+.RE
+.PP
+List every differing byte:
+.PP
+.RS 4
+.EX
+$ cmp \-l old.txt new.txt
+15 107 147
+22  56  41
+.EE
+.RE
+.PP
+Check in a script whether a rebuilt program is unchanged:
+.PP
+.RS 4
+.EX
+$ if cmp \-s old/prog.exe prog.exe; then echo unchanged; fi
+.EE
+.RE
+.PP
+Compare the output of a program with the expected output:
+.PP
+.RS 4
+.EX
+$ ./prog | cmp \- expected.txt
+.EE
+.RE
+.PP
+Compare a 4 KiB file with the data at offset 1 MiB of a disk image:
+.PP
+.RS 4
+.EX
+$ cmp \-n 4096 part.bin disk.img 0 1M
+.EE
+.RE
+.SH NOTES
+Differences from GNU cmp:
+.IP \(bu 2
+There is no
+.BR \-b ,
+.BR \-i ,
+or
+.BR \-v ,
+nor their long forms.
+.IP \(bu 2
+.I count
+takes no suffix and is at most 2147483647.
+.IP \(bu 2
+The EOF message does not give the byte and line number where the shorter
+file ends.
+.IP \(bu 2
+.B \-l
+does not pad positions to a common width.
+.IP \(bu 2
+An invalid command line exits with status 1, the same as for differing
+files, not 2.
+.PP
+Files and standard input are read in binary mode, so text with CRLF line
+endings differs from the same text with LF line endings.
+Output lines end with LF, not CRLF.
+.PP
+.I file1
+and
+.I file2
+may be Windows paths, with a drive letter and either kind of slash, or
+busybox-w32 device names such as
+.I /dev/null
+and
+.IR /dev/zero .
+Since
+.I /dev/zero
+never ends,
+.BI "cmp " file " /dev/zero"
+writes only the EOF message, and exits with status 1, when
+.I file
+contains nothing but zero bytes.
+File names may contain any Unicode characters on Windows 10 version 1903
+and later, and are limited to the ANSI code page on earlier versions.
+.SH SEE ALSO
+.BR busybox (1),
+.BR diff (1),
+.BR xxd (1)

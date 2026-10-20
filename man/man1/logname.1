@@ -1,0 +1,170 @@
+.TH LOGNAME 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+logname \- print the login name of the current user
+.SH SYNOPSIS
+.B logname
+.SH DESCRIPTION
+.B logname
+prints the name of the current user, followed by a newline, on standard
+output.
+It takes no operands.
+.PP
+The name is the account name that Windows reports for the process, as
+the Windows API function
+.B GetUserName
+returns it.
+It has no domain, keeps the case that Windows gives it, and has each
+space replaced by an underscore.
+.BR id (1)
+and
+.BR whoami (1)
+use the same name for the current user, but in a process that is
+elevated and has the Administrators group enabled they print
+.B root
+instead, as
+.BR id (1)
+describes.
+.B logname
+always prints the account name.
+.PP
+The name does not come from the environment, so setting
+.BR LOGNAME ,
+.BR USER ,
+or
+.B USERNAME
+does not change it.
+.SH OPTIONS
+.B logname
+takes no options.
+Any argument other than
+.B \-\-help
+as the first argument, including
+.BR \-\- ,
+a lone
+.BR \- ,
+and
+.BR \-\-version ,
+is rejected with a usage message on standard error and exit status 1.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument, and any further arguments
+are then ignored.
+.SH ENVIRONMENT
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+output to a console is not converted, as described in
+.BR NOTES ,
+and the console interprets the bytes in its own code page.
+.PP
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+An argument other than a first
+.BR \-\-help ,
+or a failure to get the name.
+.TP
+.B 255
+The output could not be written.
+No message is printed.
+.PP
+A rejected argument is reported with a usage message on standard error.
+A failure to get the name is reported on standard error as
+.PP
+.RS 4
+.EX
+logname: getlogin: \fIreason\fR
+.EE
+.RE
+.PP
+where
+.I reason
+is
+.B "Result too large"
+for a name that is too long, as described in
+.BR NOTES .
+When Windows does not supply the name at all, busybox records no
+reason, so the message shows an unrelated reason or ends at
+.BR getlogin .
+.SH EXAMPLES
+Print the name of the current user:
+.PP
+.RS 4
+.EX
+$ logname
+jdoe
+.EE
+.RE
+.PP
+The environment does not change the result:
+.PP
+.RS 4
+.EX
+$ USER=nobody LOGNAME=nobody logname
+jdoe
+.EE
+.RE
+.PP
+For an account named
+.BR "Jane Doe" ,
+each space becomes an underscore:
+.PP
+.RS 4
+.EX
+$ logname
+Jane_Doe
+.EE
+.RE
+.PP
+Name a directory after the current user:
+.PP
+.RS 4
+.EX
+$ mkdir "build-$(logname)"
+.EE
+.RE
+.SH NOTES
+Differences from POSIX and GNU
+.BR logname :
+.IP \(bu 2
+There is no login record to read.
+The result is the name of the account that Windows reports for the
+process, and no terminal is needed.
+.IP \(bu 2
+There is no
+.BR \-\-version ,
+and
+.B \-\-help
+is recognized only as the first argument.
+.PP
+For an account name with spaces the result differs from the
+.B USERNAME
+variable, which keeps the spaces.
+.PP
+The user name is read in the ANSI code page, which is UTF-8 on Windows 10
+version 1903 and later, so on those versions it may contain any Unicode
+characters.
+On older versions it is limited to the system code page.
+A name of 64 bytes or more is not printed and fails with
+.BR "Result too large" ,
+and one of 100 bytes or more cannot be read at all; see
+.BR "EXIT STATUS" .
+.PP
+The output line ends with LF, not CRLF.
+When standard output is a console, a name with non-ASCII characters is
+converted for display from the ANSI code page, unless the variables in
+.B ENVIRONMENT
+say otherwise.
+.SH SEE ALSO
+.BR busybox (1),
+.BR id (1),
+.BR whoami (1)

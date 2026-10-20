@@ -1,0 +1,245 @@
+.TH YES 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+yes \- write a line repeatedly until stopped
+.SH SYNOPSIS
+.B yes
+.RI [ string ...]
+.SH DESCRIPTION
+.B yes
+writes the same line to standard output over and over.
+The line is its arguments, separated by single spaces, followed by a
+newline.
+With no arguments, the line is
+.BR y .
+It reads no input.
+This
+.B yes
+is a busybox applet; see
+.BR busybox (1).
+.PP
+The arguments are written byte for byte, except to a console; see
+.BR NOTES .
+A backslash is an ordinary character, and
+.B yes
+interprets no escape sequences itself.
+Every argument counts, even an empty one: two empty arguments give a line
+with one space, and a single empty argument, as in
+.BR "yes \(aq\(aq" ,
+gives empty lines.
+.PP
+.B yes
+does not end on its own.
+It runs until it is interrupted or killed, such as by Ctrl+C, until its
+output is a pipe that is closed, or until it notices that a write
+failed; see
+.BR "EXIT STATUS" .
+.SH OPTIONS
+.B yes
+has no options other than
+.BR \-\-help .
+Every other argument is part of the line, including
+.BR \-n ,
+.BR \-\- ,
+and other words that begin with a dash.
+.TP
+.B \-\-help
+Print the busybox version and a usage message on standard output, and
+exit with status 0.
+It is recognized only as the first argument, and any further arguments
+are then ignored.
+In any other position it is part of the line.
+.SH ENVIRONMENT
+.B yes
+reads no environment variables itself.
+The startup code and the console output code shared by all applets read
+these, which can change what
+.B yes
+writes:
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the arguments are expanded, as needed when run from
+.BR cmd.exe .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+arguments as the shell expanded them.
+.TP
+.BR BB_TERMINAL_MODE ", " BB_SKIP_ANSI_EMULATION
+When standard output is a console, decide whether the console or busybox
+interprets the escape sequences in the arguments, such as for color.
+See
+.BR busybox (1).
+.TP
+.B CONEMUPID
+When it is set and neither of the above is, busybox uses terminal mode
+0: it turns virtual terminal output off and emulates escape sequences
+itself.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+output to a console is not converted, as described in
+.BR NOTES ,
+and the console interprets the bytes in its own code page.
+.PP
+The startup code also reads
+.B BB_CRITICAL_ERROR_DIALOGS
+and
+.BR BB_UMASK ,
+which do not change what
+.B yes
+does.
+Variables that affect every busybox applet are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+The first argument was
+.BR \-\-help .
+No other way of ending
+.B yes
+gives status 0.
+.TP
+.B 1
+A write to standard output failed, for a reason other than a closed
+pipe.
+.TP
+.B 141
+Standard output is a pipe whose reader has closed it.
+Nothing is written to standard error.
+.PP
+A failed write is reported on standard error as
+.PP
+.RS 4
+.EX
+yes: : \fIreason\fR
+.EE
+.RE
+.PP
+such as
+.BR "yes: : Bad file descriptor" ;
+the doubled colon is part of the message.
+A failed write is not always noticed; see
+.BR NOTES .
+.SH EXAMPLES
+Write a line three times, then stop by ending the pipe:
+.PP
+.RS 4
+.EX
+$ yes \(aqhello world\(aq | head \-n 3
+hello world
+hello world
+hello world
+.EE
+.RE
+.PP
+Answer yes to every question that a command asks on standard input:
+.PP
+.RS 4
+.EX
+$ yes | cp \-i new.txt old.txt
+.EE
+.RE
+.PP
+Create a file of one million octets, made of lines holding
+.BR y :
+.PP
+.RS 4
+.EX
+$ yes | head \-c 1000000 >y.txt
+.EE
+.RE
+.PP
+Create a file of 100 empty lines:
+.PP
+.RS 4
+.EX
+$ yes \(aq\(aq | head \-n 100 >blank.txt
+.EE
+.RE
+.PP
+Words that look like options are written like any other:
+.PP
+.RS 4
+.EX
+$ yes \-\- \-n | head \-n 1
+\-\- \-n
+.EE
+.RE
+.SH NOTES
+Differences from GNU
+.BR yes :
+.IP \(bu 2
+No word is an option, except
+.B \-\-help
+as the first argument.
+.B \-\-
+does not end options: it is written like any other argument.
+.IP \(bu 2
+There is no
+.BR \-\-version .
+.PP
+Standard output is binary, so every line ends with a bare LF, not
+CR LF.
+.PP
+A write error is noticed only when it happens while the newline is
+written.
+The C library writes out its 4096-byte output buffer when the buffer
+overflows, and reports a failure only to the call that overflowed it,
+which may be the call that writes the text of the line or a space.
+The error is then lost and
+.B yes
+runs on with its output discarded.
+For a line shorter than 4096 bytes, counting the newline, the newline
+sooner or later overflows the buffer if the length is odd, and never if
+it is even.
+For example, with standard output closed, as with
+.BR >&\- ,
+or a file opened only for reading,
+.B "yes ab"
+and
+.B "yes abcd"
+fail with status 1, but
+.BR yes ,
+.BR "yes x" ,
+and
+.B "yes abc"
+never stop.
+A closed pipe is noticed whichever call hits it, because the Windows
+output code of busybox then exits the process with status 141 at once.
+.PP
+Arguments may contain any Unicode character on Windows 10 version 1903
+and later, and are limited to the system code page on earlier versions.
+When standard output is a console, the text of the arguments is converted
+for display from the ANSI code page, which is UTF-8 on Windows 10 version
+1903 and later.
+Escape sequences, such as those for color, take effect, and busybox
+emulates the common ones on consoles without virtual terminal support.
+.PP
+When
+.B yes
+is run from
+.BR cmd.exe ,
+the C runtime expands wildcards in the arguments, even quoted ones, so
+.B yes *.c
+writes the names of the matching files; set
+.B BB_GLOBBING
+to
+.B 0
+to prevent that.
+.PP
+In the kit's
+.BR sh (1),
+.B yes
+is an applet that busybox does not mark
+.BR NOFORK ,
+so the shell runs it in another busybox process, not inside itself.
+That way Ctrl+C can end it.
+.SH SEE ALSO
+.BR busybox (1),
+.BR cp (1),
+.BR echo (1),
+.BR head (1),
+.BR sh (1)

@@ -1,0 +1,97 @@
+.TH FALSE 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+false \- do nothing, unsuccessfully
+.SH SYNOPSIS
+.B false
+.RI [ argument ...]
+.SH DESCRIPTION
+.B false
+exits with status 1.
+It does nothing else: it reads no input, writes no output, and ignores
+its arguments.
+It does not use the standard streams, so a closed one makes no
+difference.
+This
+.B false
+is a busybox applet; see
+.BR busybox (1).
+.PP
+Nothing on the command line is an option.
+.BR \-\-help ,
+.BR \-\-version ,
+and
+.B \-\-
+are ignored like any other argument.
+.SH ENVIRONMENT
+.B false
+reads no environment variables.
+The startup code shared by all applets reads
+.BR BB_CRITICAL_ERROR_DIALOGS ,
+.BR BB_GLOBBING ,
+and
+.BR BB_UMASK ,
+and may trim a trailing semicolon from
+.BR PATH .
+None of these changes what
+.B false
+does; see
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 1
+Always.
+.SH EXAMPLES
+Show the exit status of
+.BR false :
+.PP
+.RS 4
+.EX
+$ false; echo $?
+1
+.EE
+.RE
+.PP
+Run a command only when the previous one fails:
+.PP
+.RS 4
+.EX
+$ false || echo failed
+failed
+.EE
+.RE
+.SH NOTES
+Unlike the GNU
+.BR false ,
+this one has no
+.B \-\-help
+or
+.B \-\-version
+and never prints anything.
+.B busybox \-\-help false
+prints the busybox version and
+.B No help available
+on standard output, and exits with status 0.
+.PP
+In the kit's shell,
+.B false
+is a builtin, so typing it does not start the applet.
+Programs that run commands by name, such as
+.BR env ,
+run the applet by starting
+.IR busybox.exe ,
+unless
+.B BB_OVERRIDE_APPLETS
+says otherwise; see
+.BR busybox (1).
+From
+.BR cmd.exe ,
+the launcher
+.I false.exe
+or
+.B busybox false
+runs it.
+.SH SEE ALSO
+.BR busybox (1),
+.BR env (1),
+.BR sh (1),
+.BR true (1)

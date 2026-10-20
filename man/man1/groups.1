@@ -1,0 +1,251 @@
+.TH GROUPS 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+groups \- print the group of a user
+.SH SYNOPSIS
+.B groups
+.RI [ user ]
+.SH DESCRIPTION
+.B groups
+prints the name of the group that the current user, or
+.IR user ,
+belongs to, followed by a newline, on standard output.
+It is the
+.BR id (1)
+applet run under another name, and it prints what
+.B id \-Gn
+prints.
+.PP
+Windows has no Unix users or groups, so busybox emulates two users.
+Each is the only member of a group with the same name and ID:
+.IP \(bu 2
+The current Windows user, with ID 4095.
+Its name is the account name that Windows reports, without a domain, with
+each space replaced by an underscore.
+.IP \(bu 2
+.BR root ,
+with ID 0.
+.PP
+A process is
+.BR root ,
+and not the current user, when it is elevated and the Administrators
+group is enabled in its access token.
+With no
+.IR user ,
+.B groups
+therefore prints
+.B root
+in an elevated process, and the user name otherwise.
+With a
+.IR user ,
+whether the process is elevated does not matter.
+The current user's name, compared case-sensitively, gives that name,
+.B root
+gives
+.BR root ,
+and any other name is an error.
+.PP
+The Windows groups that the account belongs to, such as Administrators
+and Users, are never reported.
+Further operands after
+.I user
+are ignored.
+.SH OPTIONS
+Apart from
+.BR \-\-help ,
+.B groups
+takes no options.
+Any other argument that begins with a dash, other than
+.B \-\-
+and a lone
+.BR \- ,
+is an unknown option and is rejected with a usage message.
+.B \-\-
+ends the options, and a lone
+.B \-
+is taken as a
+.IR user ,
+which is unknown.
+Options are recognized after the first operand too, unless
+.B POSIXLY_CORRECT
+is set.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument, and any further arguments
+are then ignored.
+.SH ENVIRONMENT
+.TP
+.B POSIXLY_CORRECT
+When set, the first operand ends the options, so that a later argument
+such as
+.B \-x
+is an operand and is ignored.
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the arguments are expanded when
+.B groups
+starts, as needed when run from
+.BR cmd.exe .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+arguments as the shell expanded them.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+output to a console is not converted, as described in
+.BR NOTES ,
+and the console interprets the bytes in its own code page.
+.PP
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+An unknown option, a
+.I user
+that is neither the current user nor
+.BR root ,
+an error writing standard output, or a group with no name, as described
+in
+.BR NOTES .
+.PP
+Each failure is reported on standard error, and an unknown option is
+followed by a usage message:
+.PP
+.RS 4
+.EX
+groups: unknown option \-\- \fIx\fR
+groups: unknown user \fIuser\fR
+groups: standard output: \fIreason\fR
+groups: unknown ID \fIid\fR
+.EE
+.RE
+.PP
+The unknown option message begins with the command as it was invoked,
+in lowercase, with forward slashes, and without
+.BR .exe ,
+so it includes a directory when the caller gave one.
+.SH EXAMPLES
+Print the group of the current user, here a user named
+.BR jdoe :
+.PP
+.RS 4
+.EX
+$ groups
+jdoe
+.EE
+.RE
+.PP
+Print the group of
+.BR root ,
+which is known whether or not the process is elevated:
+.PP
+.RS 4
+.EX
+$ groups root
+root
+.EE
+.RE
+.PP
+Any other user is unknown:
+.PP
+.RS 4
+.EX
+$ groups alice
+groups: unknown user alice
+.EE
+.RE
+.PP
+Tell a script whether it runs as
+.BR root :
+.PP
+.RS 4
+.EX
+$ test "$(groups)" = root && echo elevated
+.EE
+.RE
+.SH NOTES
+Differences from GNU
+.BR groups :
+.IP \(bu 2
+It reports one emulated group, not the account's groups.
+.IP \(bu 2
+It takes one
+.IR user .
+GNU
+.B groups
+takes several, and starts each line with the user name and a colon.
+.IP \(bu 2
+Only the current user and
+.B root
+are known.
+.IP \(bu 2
+There is no
+.BR \-\-version ,
+and
+.B \-\-help
+is recognized only as the first argument.
+.PP
+The name comes from Windows, not from
+.BR USER ,
+.BR USERNAME ,
+or
+.BR LOGNAME .
+It is that of the account without its domain, so
+.IB domain \e name
+is unknown.
+A name with spaces, such as
+.BR "Jane Doe" ,
+becomes
+.BR Jane_Doe ,
+and
+.B "Jane Doe"
+is then an unknown user.
+.PP
+Elevated means started with administrator rights, as from a console
+opened with Run as administrator, or by
+.BR su (1).
+A command that
+.BR drop ,
+.BR cdrop ,
+or
+.B pdrop
+starts from an elevated console is not
+.BR root ,
+because those commands run it with a reduced token.
+.PP
+When Windows does not report a user name, the group of the current user
+has no name.
+.B groups
+with no
+.I user
+in a process that is not
+.B root
+then prints the ID,
+.BR 4095 ,
+reports
+.B unknown ID
+on standard error, and exits with status 1.
+.PP
+The user name is read in the ANSI code page, which is UTF-8 on Windows 10
+version 1903 and later, so on those versions it may contain any Unicode
+characters.
+On older versions it is limited to the system code page.
+When standard output is a console, the name is converted from the ANSI
+code page for display.
+The output line ends with LF, not CRLF.
+.SH SEE ALSO
+.BR busybox (1),
+.BR id (1),
+.BR sh (1),
+.BR su (1),
+.BR whoami (1)

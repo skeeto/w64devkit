@@ -1,0 +1,939 @@
+.TH FIND 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.SH NAME
+find \- search for files in a directory hierarchy
+.SH SYNOPSIS
+.B find
+.RB [ \-HLP ]
+.RI [ path ...]
+.RI [ expression ]
+.br
+.B find \-\-help
+.SH DESCRIPTION
+.B find
+searches the directory tree below each
+.I path
+for files that satisfy an
+.IR expression ,
+and acts on them.
+This
+.B find
+is the busybox applet; see
+.BR busybox (1).
+.PP
+The operands before the first one that begins with
+.BR \- ,
+or is
+.B !\&
+or
+.BR ( ,
+are the paths, and the rest is the expression.
+A path cannot begin with
+.BR \- ;
+write
+.B ./\-name
+instead.
+With no
+.IR path ,
+.B find
+searches the current directory.
+A
+.I path
+that is not a directory is tested by itself.
+.PP
+For each file, the expression is true or false.
+Actions in it can print the file's name, run a command, or delete the file.
+When the expression contains none of
+.BR \-print ,
+.BR \-print0 ,
+.BR \-exec ,
+.BR \-ok ,
+or
+.BR \-delete ,
+.B find
+adds a
+.B \-print
+for the whole expression, so it prints the name of each file for which the
+expression is true.
+With no expression, it prints every file.
+.PP
+Names are written on standard output, one per line, each ending in LF.
+The name of a path is as given.
+The name of an entry in a directory is the directory's name, a
+.BR / ,
+and the entry's name, with no second
+.B /
+when the directory's name already ends in one, and none after a bare
+drive such as
+.BR c: .
+.PP
+The expression is checked before the search starts.
+An unrecognized argument, or a primary with a missing or invalid argument,
+is reported on standard error, and the exit status is 1.
+A file that cannot be examined, or a directory that cannot be opened, is
+reported on standard error, and the search goes on.
+.SS Traversal
+.B find
+searches the paths in the order given.
+It tests a directory before the entries in it, unless
+.B \-depth
+or
+.B \-delete
+says otherwise.
+The entries of a directory come in the order the file system lists them;
+.B find
+does not sort them.
+The entries
+.B .\&
+and
+.B ..\&
+are never visited.
+.PP
+A symbolic link is tested as itself and not entered, unless
+.BR \-H ,
+.BR \-L ,
+or
+.B \-follow
+says to follow it.
+.B find
+does not detect loops.
+.SS Operators
+Operators combine tests and actions.
+They are listed from the highest precedence to the lowest.
+.TP
+\fB(\fR \fIexpression\fR \fB)\fR
+Group.
+Each parenthesis is a separate argument, and the shell needs both quoted.
+.TP
+\fB!\fR, \fB\-not\fR \fIexpression\fR
+True when
+.I expression
+is false.
+Negations may be stacked.
+.TP
+\fIexpr1\fR [\fB\-a\fR | \fB\-and\fR] \fIexpr2\fR
+True when both are true.
+If
+.I expr1
+is false,
+.I expr2
+is not evaluated.
+Two expressions side by side mean this.
+.TP
+\fIexpr1\fR \fB\-o\fR | \fB\-or\fR \fIexpr2\fR
+True when either is true.
+If
+.I expr1
+is true,
+.I expr2
+is not evaluated.
+.PP
+There is no
+.B ,
+operator.
+.SS Global options
+These apply to the whole search wherever they appear in the expression.
+They are not tests, so put them before the tests.
+A
+.B !\&
+before one applies to the next test instead.
+An alternative of
+.B \-o
+that holds only global options is empty, and an empty alternative ends
+the expression:
+.B "\-name a \-o \-xdev \-o \-name b"
+never tests
+.BR "\-name b" ,
+and
+.B "\-xdev \-o \-name b"
+is true for every file.
+The argument of
+.B \-maxdepth
+or
+.B \-mindepth
+is a decimal integer from 0 to 2147483647.
+.TP
+.B \-follow
+The same as
+.BR \-L ,
+but may appear in the expression.
+.TP
+.B \-xdev
+Enter a directory only if it is on the same volume as one of the paths.
+Volumes are told apart by serial number, and a directory whose volume
+busybox cannot read counts as another volume.
+A directory on another volume is still tested.
+With
+.BR \-L ,
+this keeps
+.B find
+from crossing a junction or symbolic link to another volume.
+.TP
+.BI "\-maxdepth " n
+Do not descend below level
+.IR n .
+A directory at level
+.I n
+is tested but not entered.
+.B "\-maxdepth 0"
+tests only the paths.
+.TP
+.BI "\-mindepth " n
+Do not test files fewer than
+.I n
+levels below the paths.
+A path is at level 0, and the entries directly in it are at level 1.
+.TP
+.B \-depth
+Test the entries in a directory before the directory itself.
+.B \-prune
+then has no effect.
+.SS Tests
+Where a test takes a number
+.IR n ,
+.BI + n
+means more than
+.IR n ,
+.BI \- n
+means less than
+.IR n ,
+and a plain
+.I n
+means exactly
+.IR n .
+Numbers are decimal.
+.TP
+.BI "\-name " pattern
+The last component of the path matches the shell
+.IR pattern .
+The last component is the part after the last
+.BR / ,
+.BR \e ,
+or
+.BR : .
+When a path ends in one of these, trailing slashes are dropped and only a
+.B /
+counts, so
+.B a/dir/
+is tested as
+.BR dir ,
+and
+.BR c:src/ ,
+.BR src\e ,
+and
+.B c:
+as
+.BR c:src ,
+.BR src\e ,
+and
+.BR c: .
+In the pattern,
+.B *
+matches any string,
+.B ?\&
+matches any one byte, and
+.B [
+starts a set of bytes, as in
+.BR [a\-f] ,
+.BR [!0\-9] ,
+or
+.BR [[:alpha:]] ,
+with
+.B !\&
+or
+.B ^
+first for the complement.
+A backslash quotes the next character.
+The match is case-sensitive, and a leading period is not special.
+.TP
+.BI "\-iname " pattern
+Like
+.BR \-name ,
+but ASCII letters match in either case.
+.TP
+\fB\-path\fR, \fB\-wholename\fR \fIpattern\fR
+The whole path, as printed, matches
+.IR pattern .
+Here
+.B *
+and
+.B ?\&
+also match
+.BR / .
+.TP
+.BI "\-ipath " pattern
+Like
+.BR \-path ,
+but ASCII letters match in either case.
+.TP
+.BI "\-regex " pattern
+The whole path, as printed, matches the POSIX basic regular expression
+.IR pattern ,
+which may use the GNU operators
+.BR \e| ,
+.BR \e+ ,
+and
+.BR \e? .
+The match is case-sensitive.
+An invalid expression is an error.
+.TP
+.BI "\-type " c
+The file is of type
+.IR c :
+.B f
+for a regular file,
+.B d
+for a directory,
+.B l
+for a symbolic link,
+.B c
+for a character device,
+.B b
+for a block device,
+.B p
+for a named pipe, or
+.B s
+for a socket.
+See
+.B NOTES
+for what these are on Windows.
+.TP
+.B \-executable
+The file is executable: a directory, a file whose name ends in
+.BR .com ,
+.BR .exe ,
+.BR .sh ,
+.BR .bat ,
+or
+.BR .cmd ,
+a file that begins with
+.BR #! ,
+or a Windows program.
+.TP
+.BI "\-perm " mode
+The file's permission bits equal
+.IR mode ,
+which is octal, up to 7777, or symbolic as for
+.BR chmod ,
+starting from no permissions.
+With a leading
+.BR \- ,
+all the bits of
+.I mode
+must be set, and with a leading
+.B /
+or
+.BR + ,
+at least one.
+.TP
+.BI "\-mtime " n
+The file's data was last modified
+.I n
+days ago.
+The age is the time since then in whole days of 24 hours, with any
+remainder dropped.
+So
+.B \-mtime 0
+is an age under 1 day,
+.B \-mtime 1
+is from 1 day to under 2, and
+.B \-mtime +1
+is 2 days or more.
+.TP
+.BI "\-atime " n
+Like
+.BR \-mtime ,
+for the time of last access.
+.TP
+.BI "\-ctime " n
+Like
+.BR \-mtime ,
+for the time of creation.
+.TP
+.BI "\-mmin " n
+Like
+.BR \-mtime ,
+in minutes.
+.TP
+.BI "\-amin " n
+Like
+.BR \-atime ,
+in minutes.
+.TP
+.BI "\-cmin " n
+Like
+.BR \-ctime ,
+in minutes.
+.TP
+.BI "\-newer " file
+The file was modified later than
+.IR file ,
+comparing whole seconds.
+.I file
+is examined once, before the search starts, and a link is followed.
+If it cannot be examined, that is an error.
+.TP
+.BI "\-inum " n
+The file's index on its volume is
+.IR n .
+.TP
+.BI "\-samefile " file
+The file has the same volume and index as
+.IR file :
+it is
+.IR file ,
+or another name for it.
+.I file
+is examined before the search starts, and a link is not followed unless
+.BR \-L ,
+.BR \-H ,
+or an earlier
+.B \-follow
+says to.
+.TP
+\fB\-size \fIn\fR[\fBcwbk\fR]
+The file's length is
+.I n
+units.
+The unit is
+.B c
+for 1 byte,
+.B w
+for 2,
+.B b
+for 512, or
+.B k
+for 1024, and is
+.B b
+when omitted.
+The length is compared exactly, not rounded up to whole units, so
+.B "\-size 1k"
+matches only a file of 1024 bytes.
+.TP
+.BI "\-links " n
+The file has
+.I n
+links.
+.TP
+.B \-empty
+The file is a regular file of length 0, or a directory with no entries.
+A directory that cannot be opened is reported on standard error and is
+not empty, and the exit status is not affected.
+.SS Actions
+.TP
+.B \-prune
+Always true.
+If the file is a directory, do not enter it.
+.TP
+.B \-print
+Print the file's name.
+Always true.
+.TP
+.B \-print0
+Print the file's name followed by a NUL instead of a newline.
+Always true.
+.TP
+\fB\-exec \fIcommand\fR [\fIargument\fR ...] \fB;\fR
+Run
+.I command
+with its arguments, replacing each
+.B {}
+in them, including in
+.IR command ,
+by the file's name as printed.
+True if the command exits with status 0.
+The
+.B ;
+is an argument of its own, and the shell needs it quoted.
+The first argument that is
+.B ;
+or
+.B +
+alone ends the command, so neither can be passed to it.
+.IP
+The command runs in the current directory of
+.BR find ,
+sharing its standard input, output, and error.
+It is found as
+.BR busybox (1)
+describes under Running commands, which prefers an applet to a program in
+.BR PATH .
+If it cannot be started,
+.B find
+reports that on standard error, the action is false, and the exit status
+is not affected.
+.TP
+\fB\-exec \fIcommand\fR [\fIargument\fR ...] \fB+\fR
+Run
+.I command
+once for many files.
+.B {}
+must appear exactly once in the whole command, alone or within an argument.
+That argument is repeated for each saved file, with
+.B {}
+replaced by the file's name.
+The action saves the file's name and is true.
+When the saved names, counting 9 more bytes for each (5 in the x86 kit),
+reach 30720 bytes, it runs the command on them and is true if the command
+succeeds.
+.IP
+After the search, the command runs once more on the names still saved, if
+any.
+If it exits with a nonzero status,
+.B find
+runs no further
+.B "\-exec +"
+commands and exits with status 1.
+The names saved by an
+.B "\-exec +"
+inside parentheses are never run after the search.
+.B \-quit
+discards the names still saved.
+Otherwise it is as above.
+.TP
+\fB\-ok \fIcommand\fR [\fIargument\fR ...] \fB;\fR
+Like
+.BR "\-exec ;" ,
+but first writes the command line to standard error, each argument followed
+by a space, then a
+.BR ? ,
+and reads a line from standard input.
+The command runs only if the first character on the line that is not a
+space or tab is
+.B y
+or
+.BR Y .
+Otherwise the action is false.
+Only
+.B ;
+ends the command.
+At end of file the answer is no.
+A command that reads standard input competes with the answers.
+.TP
+.B \-delete
+Delete the file or directory.
+Always true, even when the deletion fails: the failure is reported on
+standard error and the exit status is not affected.
+A read-only file is deleted too, and a directory must be empty.
+The read-only attribute is cleared first, and stays cleared when the
+deletion then fails.
+A path named exactly
+.B .\&
+is not deleted.
+Implies
+.BR \-depth .
+.TP
+.B \-quit
+Exit at once, without visiting any more files.
+The exit status is 1 only if a path before the current one had an error:
+errors below the current path are not counted.
+.SH OPTIONS
+These options, if any, come before the paths.
+They may be grouped, as in
+.BR \-HL ,
+and
+.B \-\-
+ends them.
+There are no long options.
+.TP
+.B \-L
+Follow all symbolic links.
+A link counts as what it points to, and a link to a directory is entered.
+A link whose target does not exist counts as the link itself, so
+.B "\-type l"
+matches only such links.
+With both
+.B \-H
+and
+.BR \-L ,
+.B \-L
+applies.
+.TP
+.B \-H
+Follow symbolic links named as paths, but no others.
+.TP
+.B \-P
+Ignored.
+Not following symbolic links is the default, and
+.B \-P
+does not cancel
+.B \-H
+or
+.BR \-L .
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+busybox expands wildcards in its arguments when it starts, even quoted
+ones, which serves commands typed in
+.BR cmd.exe .
+There,
+.B \-name \(dq*.c\(dq
+becomes
+.B \-name
+followed by the matching names in the current directory, which gives
+wrong results or an invalid expression, so set it to
+.B 0
+first.
+When it is unset, busybox sets it to
+.B 0
+for the programs it starts, so the kit's shell is not affected.
+See
+.BR busybox (1).
+.TP
+.B BB_OVERRIDE_APPLETS
+Applets that
+.B \-exec
+and
+.B \-ok
+should not run by name; see
+.BR busybox (1).
+.TP
+.B BB_UMASK
+Its group and other write bits are cleared from the permissions that
+.B \-perm
+tests; see
+.BR NOTES .
+.TP
+.B PATH
+Where
+.B \-exec
+and
+.B \-ok
+look for commands that are not applets.
+.PP
+Variables that affect every busybox applet are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+A path or an entry below one could not be examined, a directory could not be
+opened, the expression or an option was invalid, a file named by
+.B \-newer
+or
+.B \-samefile
+could not be examined, or a command run by
+.B "\-exec +"
+after the search failed.
+See
+.B \-quit
+for an exception.
+.PP
+An unrecognized argument is reported with the usage on standard error:
+.PP
+.RS 4
+.EX
+find: unrecognized: \fIargument\fR
+.EE
+.RE
+.PP
+A file that cannot be examined or opened is reported as
+.PP
+.RS 4
+.EX
+find: \fIname\fR: \fIreason\fR
+.EE
+.RE
+.PP
+and the search goes on.
+.SH EXAMPLES
+Print the C source files below the current directory:
+.PP
+.RS 4
+.EX
+$ find . \-name \(aq*.c\(aq
+.EE
+.RE
+.PP
+Print the source and header files in
+.IR src ,
+quoting the parentheses and the patterns:
+.PP
+.RS 4
+.EX
+$ find src \e( \-name \(aq*.c\(aq \-o \-name \(aq*.h\(aq \e)
+.EE
+.RE
+.PP
+Print the regular files below the current directory, skipping
+.I .git
+directories:
+.PP
+.RS 4
+.EX
+$ find . \-name .git \-prune \-o \-type f \-print
+.EE
+.RE
+.PP
+Search the users' directories for pictures, ignoring case:
+.PP
+.RS 4
+.EX
+$ find c:/Users \-iname \(aq*.png\(aq
+.EE
+.RE
+.PP
+List files larger than 1 MiB, without crossing to another volume:
+.PP
+.RS 4
+.EX
+$ find c:/ \-xdev \-type f \-size +1048576c
+.EE
+.RE
+.PP
+List the source files that mention
+.BR main ,
+running
+.B grep
+on many files at once:
+.PP
+.RS 4
+.EX
+$ find src \-name \(aq*.c\(aq \-exec grep \-l main {} +
+.EE
+.RE
+.PP
+Remove log files, passing the names safely to
+.BR xargs :
+.PP
+.RS 4
+.EX
+$ find . \-name \(aq*.log\(aq \-print0 | xargs \-0 rm
+.EE
+.RE
+.PP
+Remove object files directly:
+.PP
+.RS 4
+.EX
+$ find build \-name \(aq*.o\(aq \-delete
+.EE
+.RE
+.PP
+Ask before removing each backup file:
+.PP
+.RS 4
+.EX
+$ find . \-name \(aq*.bak\(aq \-ok rm {} \e;
+.EE
+.RE
+.PP
+Find the empty directories modified in the last hour:
+.PP
+.RS 4
+.EX
+$ find . \-type d \-empty \-mmin \-60
+.EE
+.RE
+.SH NOTES
+Paths may use
+.B /
+or
+.BR \e ,
+but in the shell a backslash quotes the next character, so prefer
+.BR / .
+The names
+.B find
+prints begin with the path as given, and only
+.B /
+is added, so
+.B "find \(aqsrc\esub\(aq"
+prints names such as
+.BR src\esub/a.c .
+Paths such as
+.IR c:/dir
+and
+.I //server/share/dir
+work.
+A bare drive,
+.BR c: ,
+is the current directory of that drive, and its entries are named
+.BR c:name .
+A file whose full path, including the current directory when the path is
+relative, reaches about 260 characters is reported as not found.
+.PP
+Matching is bytewise.
+Names are UTF-8 on Windows 10 version 1903 or later, so
+.B ?\&
+and a regular expression's
+.B .\&
+match one byte, and a non-ASCII character takes two or more of them.
+Case folding by
+.B \-iname
+and
+.B \-ipath
+is ASCII only.
+.BR \-name ,
+.BR \-path ,
+and
+.B \-regex
+are case-sensitive, though NTFS is not.
+A backslash in a pattern quotes the next character and is not a path
+separator, so write
+.B /
+in a
+.B \-path
+pattern.
+.PP
+.B find
+treats a symbolic link, a junction, a volume mount point, and an app
+execution alias alike, as a symbolic link of type
+.BR l .
+Type
+.B c
+matches only the Unix device names that busybox provides, such as
+.IR /dev/null .
+Types
+.BR b ,
+.BR p ,
+and
+.B s
+never match.
+With
+.BR \-L ,
+a junction that points to its own parent is entered again and again until
+the path is too long.
+.PP
+Owners and permissions are synthesized; see
+.BR busybox (1).
+The owner, the group, and others each get read permission, write
+permission except for a read-only regular file, and execute permission as
+.B \-executable
+says.
+Then
+.BR BB_UMASK ,
+002 by default, may clear write permission for the group and others.
+So a file you own usually has mode 664, a read-only file 444, and an
+executable file or a directory 775.
+A symbolic link has mode 777, and a device 666.
+A file owned by someone else, when you have full access to it and busybox
+is not elevated, gets the owner's permissions for others too, so a
+directory such as
+.I c:/Users/name
+may have mode 777.
+When busybox cannot read a file's security information, others get no
+permissions.
+There are no setuid, setgid, or sticky bits.
+The tests
+.B \-user
+and
+.B \-group
+are not built in.
+.PP
+Times come from the file system.
+.B \-ctime
+and
+.B \-cmin
+test the time of creation, not of the last change of status.
+.PP
+The index tested by
+.B \-inum
+and
+.B \-samefile
+is the file index of the volume, and
+.B \-xdev
+compares volume serial numbers.
+.B \-links
+counts the hard links to a file, and is always 2 for a directory, and for
+a junction or other link to a directory.
+.PP
+To decide whether a regular file is executable, busybox reads the first
+bytes of each one whose name ends in neither an executable suffix nor
+.BR .dll ,
+so a search over many files is slower than a plain listing.
+.PP
+When standard output is not a console, the names written by
+.B \-print
+wait in a buffer until it fills or
+.B find
+exits, and are not flushed before
+.B \-exec
+runs a command, so the output of commands can come first.
+.B \-ok
+flushes before it asks.
+.PP
+Windows has its own
+.B find.exe
+in
+.IR System32 ,
+a tool that searches text.
+In
+.BR cmd.exe ,
+make the kit's
+.I bin
+directory come first in
+.BR PATH ,
+or run
+.BR "busybox find" .
+.PP
+Differences from GNU
+.BR find :
+.IP \(bu 2
+Only
+.BR \-H ,
+.BR \-L ,
+and
+.B \-P
+are options, and they cannot follow a path.
+.IP \(bu 2
+There is no
+.B ,
+operator, and no
+.BR \-mount ,
+.BR \-iregex ,
+.BR \-newerXY ,
+.BR \-anewer ,
+.BR \-cnewer ,
+.BR \-printf ,
+.BR \-ls ,
+.BR \-fprint ,
+.BR \-readable ,
+.BR \-writable ,
+.BR \-true ,
+.BR \-false ,
+.BR \-daystart ,
+or
+.BR \-regextype .
+.IP \(bu 2
+.B \-size
+does not round up, and accepts only the units
+.BR c ,
+.BR w ,
+.BR b ,
+and
+.BR k .
+.IP \(bu 2
+.B "\-exec +"
+accepts
+.B {}
+anywhere in the command, once, and
+.B \-ok
+does not accept
+.BR + .
+.IP \(bu 2
+.B \-quit
+does not run the commands saved by
+.BR "\-exec +" .
+.IP \(bu 2
+The global options are not tests that are always true; see
+.BR "Global options" .
+.IP \(bu 2
+.B \-P
+does not cancel an earlier
+.B \-H
+or
+.BR \-L .
+.SH SEE ALSO
+.BR busybox (1),
+.BR du (1),
+.BR grep (1),
+.BR ls (1),
+.BR sh (1),
+.BR xargs (1)

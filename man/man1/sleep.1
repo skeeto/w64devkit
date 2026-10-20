@@ -1,0 +1,245 @@
+.TH SLEEP 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+sleep \- pause for a specified time
+.SH SYNOPSIS
+.B sleep
+.IR number [ suffix ]...
+.br
+.B sleep inf
+.SH DESCRIPTION
+.B sleep
+waits for the total of the times that its arguments give, then exits.
+It reads no input and writes no output.
+This
+.B sleep
+is a busybox applet; see
+.BR busybox (1).
+.PP
+Each argument is a
+.I number
+of seconds, or of another unit named by the optional
+.IR suffix :
+.TP
+.B s
+Seconds, the default.
+.TP
+.B m
+Minutes, which are 60 seconds.
+.TP
+.B h
+Hours, which are 3600 seconds.
+.TP
+.B d
+Days, which are 86400 seconds.
+.PP
+The suffix is one lowercase letter that follows the number directly.
+The number is a string of decimal digits with at most one period, as in
+.BR 90 ,
+.BR 1.5 ,
+or
+.BR .5 .
+A period may lack digits on one side, as in
+.BR 5.\& ,
+but not on both.
+Nothing else is part of a number: no sign, exponent, hexadecimal
+digits, white space, or comma.
+A number with no period must not exceed 4294967295 once its suffix is
+applied.
+A number with a period need only fit in a double, but see
+.BR NOTES .
+.PP
+The delay is the sum of the arguments, rounded down to whole
+milliseconds.
+All arguments are checked before the wait begins, so an invalid argument
+anywhere means no delay at all.
+A total of zero returns at once.
+.PP
+If the first argument begins with
+.BR inf ,
+in any mix of uppercase and lowercase, such as
+.BR inf ,
+.BR INFINITY ,
+or
+.BR information ,
+.B sleep
+never returns on its own.
+The other arguments are then not examined.
+.SH OPTIONS
+.B sleep
+has no options.
+A first argument of
+.B \-\-
+is skipped, and every other argument that begins with
+.B \-
+is an invalid number, since numbers cannot be negative.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument, and any further arguments
+are then ignored.
+In any other position it is an invalid number.
+.SH ENVIRONMENT
+.B sleep
+reads no environment variables.
+The startup code shared by all applets reads
+.BR BB_CRITICAL_ERROR_DIALOGS ,
+.BR BB_GLOBBING ,
+and
+.BR BB_UMASK ,
+and may trim a trailing semicolon from
+.BR PATH .
+None of these affects how
+.B sleep
+waits.
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+The delay elapsed, or the first argument was
+.BR \-\-help .
+.TP
+.B 1
+There were no arguments, or an argument was invalid.
+Nothing is waited for.
+.PP
+An argument without a period that is not a number, or whose digits
+exceed 4294967295, is reported on standard error as
+.PP
+.RS 4
+.EX
+sleep: invalid number \(aq\fIargument\fR\(aq
+.EE
+.RE
+.PP
+and one that exceeds it only after its suffix is applied, as
+.PP
+.RS 4
+.EX
+sleep: number \fIargument\fR is not in 0..4294967295 range
+.EE
+.RE
+.PP
+No arguments, or only
+.BR \-\- ,
+give a usage message on standard error.
+So does an argument with a period whose leading digits and periods are
+not a number that fits in a double, such as a lone
+.B .\&
+or
+.BR 1.2.3 .
+.SH EXAMPLES
+Pause for half a second:
+.PP
+.RS 4
+.EX
+$ sleep 0.5
+.EE
+.RE
+.PP
+Pause for an hour and a half, in either of two ways:
+.PP
+.RS 4
+.EX
+$ sleep 1.5h
+$ sleep 1h 30m
+.EE
+.RE
+.PP
+Wait for a file to appear:
+.PP
+.RS 4
+.EX
+$ until test \-e ready.txt; do sleep 1; done
+.EE
+.RE
+.PP
+Print a message ten seconds from now, without waiting for it:
+.PP
+.RS 4
+.EX
+$ (sleep 10; echo time is up) &
+.EE
+.RE
+.SH NOTES
+Differences from GNU
+.BR sleep :
+.IP \(bu 2
+Numbers are checked strictly, as described above.
+.IP \(bu 2
+There is no
+.BR \-\-version ,
+and
+.B \-\-help
+is recognized only as the first argument.
+.IP \(bu 2
+Only the first argument can mean infinity, and it does so when it
+merely begins with
+.BR inf .
+.IP \(bu 2
+A number with no period has an upper limit.
+.PP
+The delay is passed to the Windows
+.B Sleep
+function in milliseconds, and busybox does not check it against the
+32-bit limit of that function.
+The total therefore wraps around modulo 4294967296 milliseconds, which
+is 49 days, 17 hours, 2 minutes, and 47.296 seconds.
+A total of 4294968 seconds waits for 0.7 seconds, and
+.B 50d
+for about 7 hours.
+A total of 4294967295 milliseconds after wrapping, such as
+.BR 4294967.2955 ,
+is the value that
+.B Sleep
+takes to mean forever, so it never returns.
+.PP
+The invalid number message for an argument that has a period quotes a
+modified copy of it, in which the leading digits and periods are
+replaced by a single
+.BR 1 .
+So
+.B 1.5e3
+is reported as
+.BR 1e3 .
+An argument with a period but no leading digit or period, such as
+.BR \-1.5 ,
+gets a
+.B 1
+put in front instead, and is reported as
+.BR 1\-1.5 .
+.PP
+Ctrl+C ends
+.B sleep
+at once.
+The kit's
+.BR sh (1)
+runs an applet that busybox marks
+.BR NOFORK ,
+such as
+.BR usleep (1),
+inside its own process, where Ctrl+C takes effect only after the applet
+returns, but
+.B sleep
+is not such an applet.
+The shell reports status 130 for a
+.B sleep
+ended by Ctrl+C, and 143 for one ended by
+.BR kill (1)
+with its default signal.
+Run outside the shell, as
+.B busybox sleep
+or through the launcher
+.IR sleep.exe ,
+it exits with status
+.B 0xC000013A
+on Ctrl+C.
+.SH SEE ALSO
+.BR busybox (1),
+.BR kill (1),
+.BR sh (1),
+.BR timeout (1),
+.BR usleep (1),
+.BR watch (1)

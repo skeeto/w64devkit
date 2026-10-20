@@ -1,0 +1,284 @@
+.TH TEE 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+tee \- copy standard input to standard output and to files
+.SH SYNOPSIS
+.B tee
+.RB [ \-ai ]
+.RI [ file ...]
+.SH DESCRIPTION
+.B tee
+copies standard input to standard output and to each
+.IR file ,
+so that a pipeline can be saved to files and still be passed on.
+It reads standard input to end of file, in blocks.
+It writes each block to standard output, then to each
+.I file
+in command-line order, before it reads the next block.
+Nothing is buffered, so every destination has a block as soon as it is
+read.
+The bytes are copied unchanged, except for output to a console, as
+described in
+.BR NOTES .
+With no
+.I file
+operands,
+.B tee
+copies standard input to standard output.
+.PP
+Each
+.I file
+is created if it does not exist, and is truncated unless
+.B \-a
+is given.
+A
+.I file
+that cannot be opened is reported on standard error and skipped, and the
+other destinations still receive the data.
+.PP
+A
+.I file
+named
+.B \-
+is standard output again, not a file, so the data is written to standard
+output a second time.
+To name a file called
+.BR \- ,
+write
+.BR ./\- .
+.PP
+A
+.I file
+named twice is opened twice.
+Without
+.BR \-a ,
+both streams write from the start of the file, so it ends up holding one
+copy of the input.
+With
+.BR \-a ,
+it holds two.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-ai ,
+and may follow
+.I file
+operands.
+.B \-\-
+ends the options, so that a
+.I file
+can begin with
+.BR \- .
+There are no long options other than
+.BR \-\-help .
+An invalid option prints an error and a usage message on standard error,
+and exits with status 1.
+.TP
+.B \-a
+Append to each
+.I file
+instead of truncating it.
+.TP
+.B \-i
+Ignore SIGINT, the interrupt signal that Ctrl-C raises.
+.B tee
+still ends on Ctrl-Break or
+.BR "kill \-INT" .
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument.
+.SH ENVIRONMENT
+.TP
+.B POSIXLY_CORRECT
+When set, the first
+.I file
+operand ends the options, so that later arguments such as
+.B \-a
+are file names.
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the operands are expanded, as needed when run from
+.BR cmd.exe .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+operands as the shell expanded them.
+.TP
+.B BB_UMASK
+A file mode creation mask in octal.
+When it includes the owner write bit,
+.BR 200 ,
+a file that
+.B tee
+creates is read-only, although
+.B tee
+still writes to it.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+output to a console is not converted, as described in
+.BR NOTES ,
+and the console interprets the bytes in its own code page.
+.PP
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+An invalid option, a
+.I file
+could not be opened, standard input could not be read, or a write to a
+.I file
+failed.
+.TP
+.B 141
+Standard output, or a
+.IR file ,
+is a pipe that was closed before all the input was copied.
+.B tee
+exits at once, without a message, and copies no further input to any
+destination.
+.PP
+A
+.I file
+that cannot be opened is reported on standard error as
+.PP
+.RS 4
+.EX
+tee: \fIfile\fR: \fIreason\fR
+.EE
+.RE
+.PP
+and skipped.
+A failed write to a
+.IR file ,
+other than to a closed pipe, does not stop
+.BR tee ,
+which keeps copying to every destination.
+It is noticed only when the input ends, and is then reported as
+.PP
+.RS 4
+.EX
+tee: \fIfile\fR: I/O error
+.EE
+.RE
+.PP
+for the first failing
+.I file
+only.
+A failed write to standard output, other than to a closed pipe, is not
+reported and does not affect the exit status, unless a
+.I file
+operand is
+.BR \- .
+A read error on standard input ends the input without a message.
+.SH EXAMPLES
+Save the output of a build and watch it at the same time:
+.PP
+.RS 4
+.EX
+$ make 2>&1 | tee build.log
+.EE
+.RE
+.PP
+Add a line to a log and show it:
+.PP
+.RS 4
+.EX
+$ echo "build started" | tee \-a build.log
+.EE
+.RE
+.PP
+Keep a sorted copy of a list while counting its lines:
+.PP
+.RS 4
+.EX
+$ sort names.txt | tee sorted.txt | wc \-l
+.EE
+.RE
+.PP
+Show the middle of a pipeline on the terminal:
+.PP
+.RS 4
+.EX
+$ ls | tee /dev/stderr | wc \-l
+.EE
+.RE
+.PP
+Keep logging a program's output after Ctrl-C interrupts it:
+.PP
+.RS 4
+.EX
+$ ./stress\-test | tee \-i stress.log
+.EE
+.RE
+.SH NOTES
+Differences from GNU
+.BR tee :
+.IP \(bu 2
+There are no long options other than
+.BR \-\-help ,
+and no
+.BR \-p .
+.IP \(bu 2
+A
+.I file
+named
+.B \-
+is standard output, where GNU
+.B tee
+creates a file of that name.
+.IP \(bu 2
+A failed write is reported only when the input ends, and
+.B tee
+keeps writing to that
+.IR file .
+.PP
+Standard input and output and the files are binary, so CR LF line
+endings and Ctrl-Z characters are copied unchanged.
+Lines typed at a console arrive with CR LF line endings.
+On Windows 10 version 1903 and later, non-ASCII characters typed at a
+console arrive in the console's input code page, such as 437, not in
+UTF-8.
+To end the input, type Ctrl-Z at the start of a line and press Enter.
+.PP
+File names may use drive letters, backslashes, and forward slashes.
+They may contain any Unicode characters on Windows 10 version 1903 and
+later, and are limited to the system code page on earlier versions.
+The device names
+.IR /dev/null ,
+.IR /dev/stdout ,
+.IR /dev/stderr ,
+.I /dev/tty
+(the console), and
+.I /dev/fd/N
+work as on Unix.
+A directory, or a file with the read-only attribute, fails with
+.BR "Permission denied" .
+.PP
+When standard output, or a file such as
+.IR /dev/tty ,
+is a console, text is converted for display from the ANSI code page,
+which is UTF-8 on Windows 10 version 1903 and later, unless the first
+of
+.BR LC_ALL ,
+.BR LC_CTYPE ,
+and
+.B LANG
+that is set is
+.BR C .
+Escape sequences, such as those for color, take effect, and busybox
+emulates them on consoles without virtual terminal support.
+A block written to a console is cut at its first NUL byte, and the rest
+of the block is not shown.
+.SH SEE ALSO
+.BR busybox (1),
+.BR cat (1),
+.BR sh (1)

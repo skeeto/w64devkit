@@ -1,0 +1,871 @@
+.TH DATE 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+date \- print or set the date and time
+.SH SYNOPSIS
+.B date
+.RB [ \-Ru ]
+.RB [ \-D
+.IR infmt ]
+.RB [ \-d
+.IR time ]
+.RB [ \-r
+.IR file ]
+.RB [ \-I\c
+.RI [ spec ]]
+.RB [ + \c
+.IR outfmt ]
+.br
+.B date
+.RB [ \-u ]
+.RB [ \-D
+.IR infmt ]
+.RB [ + \c
+.IR outfmt ]
+.RB [ \-s ]
+.I time
+.SH DESCRIPTION
+.B date
+prints a time on standard output, or sets the system clock.
+With no operands it prints the current time.
+.B \-d
+prints a given time instead, and
+.B \-r
+prints the modification time of a file.
+A
+.I time
+operand or
+.B \-s
+sets the system clock to that time and then prints it.
+.PP
+The output is the formatted time and a newline.
+An operand that begins with
+.B +
+is the output format
+.IR outfmt ;
+see
+.BR "Output formats" .
+It must come before a bare
+.I time
+operand, and it overrides
+.B \-R
+and
+.BR \-I .
+With none of these, the format is
+.BR "%a %b %e %H:%M:%S %Z %Y" ,
+as in
+.PP
+.RS 4
+.EX
+Mon Oct 19 20:29:49 Eastern Daylight Time 2026
+.EE
+.RE
+.PP
+With
+.BR \-R ,
+the format is that of RFC 2822, as in
+.BR "Mon, 19 Oct 2026 20:29:49 \-0400" ,
+and with
+.BR \-I ,
+that of ISO 8601.
+.SS Time zone
+Times are read and printed in the local time zone, which is the Windows
+time zone setting unless
+.B TZ
+is set.
+With
+.BR \-u ,
+the time zone is UTC.
+.SS Time formats
+.BR \-d ,
+.BR \-s ,
+and a
+.I time
+operand take a time in one of these forms.
+It must match a form entirely.
+Names are in English.
+In the forms with separators, a field may be written with one or two
+digits, except the year.
+A date field that the time does not give is taken from the current date,
+or from the modification time of the
+.B \-r
+file, and an hour, minute, or second field that it does not give is zero.
+.TP
+\fIhh\fB:\fImm\fR[\fB:\fIss\fR]
+A time of day on the current date.
+.TP
+\fIMM\fB.\fIDD\fB\-\fIhh\fB:\fImm\fR[\fB:\fIss\fR]
+A month, day, and time in the current year.
+.TP
+\fIYYYY\fB.\fIMM\fB.\fIDD\fB\-\fIhh\fB:\fImm\fR[\fB:\fIss\fR]
+A full date and time.
+.TP
+\fIMon\fR \fIDD\fR \fIhh\fB:\fImm\fB:\fIss\fR \fIYYYY\fR
+.I Mon
+is a month name in full or abbreviated to 3 letters, in any case.
+There is no weekday.
+.TP
+\fIYYYY\fB\-\fIMM\fB\-\fIDD\fR[ \fIhh\fR[\fB:\fImm\fR[\fB:\fIss\fR]]]
+A date with a time of day, an hour, or neither.
+.TP
+\fIYYYY\fB\-\fIMM\fB\-\fIDD\fR \fIhh\fB:\fImm\fR[\fB:\fIss\fR] \fIzone\fR
+A date and time in another time zone, converted to the local one.
+The space before
+.I zone
+is optional.
+.I zone
+is
+.BI + hhmm
+or
+.BI \- hhmm
+for a UTC offset of up to 12 hours,
+.BI + hh
+or
+.BI \- hh
+for whole hours, or
+.B Z
+for UTC.
+An offset is accurate to only 36 seconds, so minutes that are not a
+multiple of 3 are inexact.
+.TP
+\fB@\fIseconds\fR
+Seconds since 1970-01-01 00:00:00 UTC, as decimal digits with an
+optional minus sign and nothing else.
+.TP
+[[[[[\fIYY\fR]\fIYY\fR]\fIMM\fR]\fIDD\fR]\fIhh\fR]\fImm\fR[\fB.\fIss\fR]
+Digits only, in one of these forms:
+.IR mm ,
+.IR hhmm ,
+.IR DDhhmm ,
+.IR MMDDhhmm ,
+.IR YYMMDDhhmm ,
+or
+.IR CCYYMMDDhhmm ,
+followed by an optional
+.BI . ss\fR.
+.I YY
+is the year within 50 years of the current year.
+Each field is checked against its maximum, so month 13 is an error, but
+month or day 00 is carried back into the previous year or month.
+.PP
+A seconds field of 60 is carried into the next minute, and so is 61
+except in the digits-only form.
+A day that the month lacks, such as February 30, is carried into the
+next month.
+An hour of 24 is an error.
+.PP
+.B \-D
+replaces these forms with
+.IR infmt ,
+a format for the C function
+.BR strptime .
+Its conversions are
+.BR %a ,
+.BR %A ,
+.BR %b ,
+.BR %B ,
+.BR %c ,
+.BR %C ,
+.BR %d ,
+.BR %D ,
+.BR %e ,
+.BR %F ,
+.BR %g ,
+.BR %G ,
+.BR %h ,
+.BR %H ,
+.BR %I ,
+.BR %j ,
+.BR %k ,
+.BR %l ,
+.BR %m ,
+.BR %M ,
+.BR %n ,
+.BR %p ,
+.BR %q ,
+.BR %r ,
+.BR %R ,
+.BR %s ,
+.BR %S ,
+.BR %t ,
+.BR %T ,
+.BR %u ,
+.BR %U ,
+.BR %V ,
+.BR %w ,
+.BR %W ,
+.BR %x ,
+.BR %X ,
+.BR %y ,
+.BR %Y ,
+.BR %z ,
+.BR %Z ,
+and
+.BR %% .
+The
+.B E
+modifier is ignored before
+.BR c ,
+.BR C ,
+.BR x ,
+.BR X ,
+.BR y ,
+or
+.BR Y ,
+and
+.B O
+before
+.BR d ,
+.BR e ,
+.BR H ,
+.BR I ,
+.BR m ,
+.BR M ,
+.BR q ,
+.BR S ,
+.BR U ,
+.BR V ,
+.BR w ,
+.BR W ,
+or
+.BR y ;
+elsewhere either is an error.
+A numeric conversion skips leading spaces and reads at most 2 digits,
+but 1 for
+.BR %q ,
+.BR %u ,
+and
+.BR %w ,
+3 for
+.BR %j ,
+and 4 for
+.BR %Y .
+.B %G
+and
+.B %s
+read any number of digits and do not skip spaces.
+White space in
+.I infmt
+matches any amount of white space in the input, including none.
+Input left over once
+.I infmt
+is matched is ignored, so the input is not checked to the end.
+.B %y
+reads 69 to 99 as 1969 to 1999, and 00 to 68 as 2000 to 2068.
+.B %s
+sets the entire time from seconds since the epoch, as
+.B @
+does.
+.BR %g ,
+.BR %G ,
+and
+.B %V
+have no effect,
+.B %z
+is parsed but its offset is ignored, and
+.B %Z
+matches nothing.
+.BR %a ,
+.BR %A ,
+.BR %u ,
+and
+.B %w
+have an effect only along with
+.B %U
+or
+.BR %W ,
+and the reverse.
+.B %j
+has an effect only along with a conversion that reads the year, month,
+or day.
+Fields that
+.I infmt
+does not set are as described above.
+.SS Output formats
+In
+.IR outfmt ,
+each conversion beginning with
+.B %
+is replaced, and everything else is copied.
+Weekday and month names are in English.
+These conversions are supported:
+.TP
+.B %%
+A percent sign.
+.TP
+.BR %a ", " %A
+The weekday name, abbreviated to 3 letters or in full.
+.TP
+.BR %b ", " %B
+The month name, abbreviated to 3 letters or in full.
+.TP
+.B %c
+The date and time as
+.BR "11/14/23 17:13:20" :
+month, day, and two-digit year, then the time.
+.TP
+.B %d
+The day of the month, 01 to 31.
+.TP
+.B %e
+The day of the month, 1 to 31, padded with a space.
+.TP
+.B %H
+The hour, 00 to 23.
+.TP
+.B %I
+The hour, 01 to 12.
+.TP
+.B %j
+The day of the year, 001 to 366.
+.TP
+.B %m
+The month, 01 to 12.
+.TP
+.B %M
+The minute, 00 to 59.
+.TP
+.B %N
+The nanoseconds, as 9 digits.
+.TP
+.BI % n N
+The first
+.I n
+digits of
+.BR %N ,
+truncated, for
+.I n
+from 1 to 9.
+A larger
+.I n
+pads
+.B %N
+on the left with zeros to
+.I n
+digits, and 0 means 9.
+.IP
+The nanoseconds are zero with
+.BR \-d ,
+.BR \-s ,
+or a
+.I time
+operand, and with
+.B \-r
+they are those of the modification time.
+.TP
+.B %p
+.B AM
+or
+.BR PM .
+.TP
+.B %s
+Seconds since 1970-01-01 00:00:00 UTC.
+.TP
+.B %S
+The second, 00 to 59.
+.TP
+.B %T
+The same as
+.BR %H:%M:%S .
+.TP
+.B %U
+The week of the year, 00 to 53, with weeks starting on Sunday.
+.TP
+.B %w
+The weekday, 0 to 6, with Sunday as 0.
+.TP
+.B %W
+The week of the year, 00 to 53, with weeks starting on Monday.
+.TP
+.B %x
+The date as
+.BR 11/14/23 .
+.TP
+.B %X
+The time as
+.BR 17:13:20 .
+.TP
+.B %y
+The year within the century, 00 to 99.
+.TP
+.B %Y
+The year.
+.TP
+.B %z
+The UTC offset as
+.BI + hhmm
+or
+.BI \- hhmm\fR.
+.TP
+.B %Z
+The time zone name.
+With the Windows time zone it is the Windows name, such as
+.BR "Eastern Daylight Time" .
+With
+.B TZ
+it is the name in
+.BR TZ ,
+and with
+.B \-u
+it is
+.BR UTC .
+.PP
+A
+.B \-
+after the
+.B %
+removes the padding of
+.BR %d ,
+.BR %H ,
+.BR %I ,
+.BR %j ,
+.BR %m ,
+.BR %M ,
+.BR %S ,
+.BR %U ,
+.BR %w ,
+.BR %W ,
+.BR %y ,
+and
+.BR %Y ,
+so
+.B %\-d
+is
+.B 5
+on the fifth.
+A
+.B #
+does the same, and also gives
+.B %c
+and
+.B %x
+long forms such as
+.BR "Tuesday, November 14, 2023" .
+It is ignored with
+.BR %a ,
+.BR %A ,
+.BR %b ,
+.BR %B ,
+.BR %p ,
+.BR %X ,
+and
+.BR %Z ,
+and
+.B %#z
+is the same as
+.BR %Z .
+.PP
+No other conversion, flag, or field width is supported.
+If
+.I outfmt
+has one, or the result is longer than 1023 bytes,
+.B date
+prints an empty line and exits with status 0.
+An empty
+.I outfmt
+also prints an empty line.
+.PP
+The output of
+.B \-I
+depends on
+.IR spec ,
+and the offset is
+.B +00:00
+with
+.BR \-u :
+.PP
+.RS 4
+.EX
+date     2026\-10\-19
+hours    2026\-10\-19T20\-04:00
+minutes  2026\-10\-19T20:29\-04:00
+seconds  2026\-10\-19T20:29:49\-04:00
+ns       2026\-10\-19T20:29:49,033721000\-04:00
+.EE
+.RE
+.SS Setting the clock
+A
+.I time
+operand or
+.B \-s
+sets the system clock, reading the time as local time, or as UTC with
+.BR \-u .
+The new time is then printed as usual.
+Setting the clock needs administrator rights.
+Without them,
+.B date
+prints
+.PP
+.RS 4
+.EX
+date: can\(aqt set date: Operation not permitted
+.EE
+.RE
+.PP
+and exits with status 1.
+That message is printed whenever Windows refuses to set the clock.
+.PP
+A bare
+.I time
+operand that is only digits, with an optional
+.BI . ss
+of exactly two digits, is read differently from the digits-only form
+above: as
+\fIMMDDhhmm\fR[[\fICC\fR]\fIYY\fR][\fB.\fIss\fR],
+with the year last, which is the POSIX form.
+It must have 8, 10, or 12 digits, and any other count is an error.
+For example,
+.B 1019123420
+is 12:34 on 19 October 2020, but
+.B \-s 1019123420
+is an error, since it is read as
+.IR YYMMDDhhmm ,
+with month 19.
+.B \-s 2010191234
+sets the same time.
+Such an operand is checked and reordered this way even with
+.BR \-D ,
+before
+.I infmt
+reads it.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-uR ,
+and may follow the operands unless
+.B POSIXLY_CORRECT
+is set.
+An option's argument may be attached, as in
+.BR \-d@0 ,
+or be the next argument.
+The exception is the optional argument of
+.BR \-I ,
+which must be attached, so in a group
+.B \-I
+comes last.
+A long option may be abbreviated to any unambiguous prefix, and its
+argument is attached with
+.B =
+or is the next argument.
+.B \-\-
+ends the options.
+.TP
+.BR \-u ", " \-\-utc
+Print or set the time in UTC.
+For this command only, it sets
+.B TZ
+to
+.BR UTC0 ,
+overriding any
+.BR TZ .
+.TP
+\fB\-s\fR \fItime\fR, \fB\-\-set\fR \fItime\fR
+Set the system clock to
+.IR time ;
+see
+.BR "Setting the clock" .
+Incompatible with
+.BR \-d .
+.TP
+\fB\-d\fR \fItime\fR, \fB\-\-date\fR \fItime\fR
+Print
+.I time
+instead of the current time.
+Incompatible with
+.BR \-s .
+.TP
+.BI "\-D " infmt
+Read
+.I time
+with the
+.B strptime
+format
+.I infmt
+instead of the forms in
+.BR "Time formats" .
+It applies to the argument of
+.B \-d
+and
+.BR \-s ,
+and to a bare
+.I time
+operand, which sets the clock.
+.TP
+\fB\-r\fR \fIfile\fR, \fB\-\-reference\fR \fIfile\fR
+Print the modification time of
+.I file
+instead of the current time.
+If
+.I file
+cannot be examined, it is an error.
+With a
+.I time
+to print or set, it only supplies the fields that
+.I time
+leaves out.
+.TP
+.BR \-R ", " \-\-rfc\-2822
+Print the time in the form of RFC 2822:
+.BR "%a, %d %b %Y %H:%M:%S %z" .
+.B \-\-rfc\-822
+is a synonym.
+Incompatible with
+.BR \-I .
+.TP
+\fB\-I\fR[\fIspec\fR]
+Print the time in the form of ISO 8601, to the precision
+.IR spec :
+.B date
+(the default),
+.BR hours ,
+.BR minutes ,
+.BR seconds ,
+or
+.BR ns ,
+which adds nanoseconds after a comma.
+All but
+.B date
+end with the UTC offset, as in
+.BR \-04:00 .
+.I spec
+may be abbreviated to any unambiguous prefix, such as
+.B h
+or
+.BR n .
+Any other value is an error.
+Incompatible with
+.BR \-R .
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument.
+.SH ENVIRONMENT
+.TP
+.B POSIXLY_CORRECT
+If set, options must precede the operands.
+.TP
+.B TZ
+The local time zone.
+The format is that of the Microsoft C runtime: a three-letter zone name,
+the hours to add to local time to give UTC, optionally followed by
+minutes and seconds after colons, and an optional three-letter daylight
+saving zone name, as in
+.BR EST5EDT ,
+.BR JST\-9 ,
+or
+.BR IST\-5:30 .
+The offset is read from the fourth character, so a longer standard name
+is misread: in
+.B CEST\-2
+the zone is
+.B CES
+at UTC and the daylight saving name is
+.BR T\-2 .
+A longer daylight saving name is cut to three letters.
+Daylight saving time in a
+.B TZ
+that names it follows the United States rules, whatever the zone.
+A value the C runtime rejects, such as
+.B Europe/Paris
+or one beginning with a colon, is ignored, as is an empty value.
+Then the Windows time zone setting applies.
+.B \-u
+sets it to
+.B UTC0
+for the command.
+.PP
+Variables that affect every busybox applet are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+An invalid option or operand, with a usage message on standard error.
+That includes
+.B \-d
+with
+.BR \-s ,
+.B \-R
+with
+.BR \-I ,
+an unknown
+.B \-I
+argument, and an extra operand.
+Also a
+.I time
+that matches no form, or is outside the supported range, reported as
+an invalid date; a
+.B \-r
+file that cannot be examined; and a clock that cannot be set.
+.SH EXAMPLES
+Print the current time in UTC in ISO 8601 form:
+.PP
+.RS 4
+.EX
+$ date \-u +%Y\-%m\-%dT%H:%M:%SZ
+.EE
+.RE
+.PP
+Print the time of a number of seconds since the epoch:
+.PP
+.RS 4
+.EX
+$ date \-u \-d @1700000000
+Tue Nov 14 22:13:20 UTC 2023
+.EE
+.RE
+.PP
+Print the seconds since the epoch of a time in UTC, then the current
+time in milliseconds since the epoch:
+.PP
+.RS 4
+.EX
+$ date \-u \-d \(aq2026\-10\-19 12:00\(aq +%s
+1792411200
+$ date +%s%3N
+.EE
+.RE
+.PP
+Read a date in another form, and print one in another form:
+.PP
+.RS 4
+.EX
+$ date \-D %d/%m/%Y \-d 19/10/2026 +%Y\-%m\-%d
+2026\-10\-19
+$ date \-u \-d @1700000000 \(aq+%A, %B %\-d, %Y\(aq
+Tuesday, November 14, 2023
+.EE
+.RE
+.PP
+Print the modification time of a file with its UTC offset:
+.PP
+.RS 4
+.EX
+$ date \-r main.c \-Iseconds
+.EE
+.RE
+.PP
+Print a time in the time zone of Japan:
+.PP
+.RS 4
+.EX
+$ TZ=JST\-9 date \-d @1700000000
+Wed Nov 15 07:13:20 JST 2023
+.EE
+.RE
+.PP
+Set the clock, from an elevated console, in two ways:
+.PP
+.RS 4
+.EX
+$ date \-s \(aq2026\-10\-19 12:00:00\(aq
+$ date 101912002026
+.EE
+.RE
+.SH NOTES
+Differences from GNU
+.BR date :
+.IP \(bu 2
+The only long options are
+.BR \-\-date ,
+.BR \-\-reference ,
+.BR \-\-rfc\-2822 ,
+.BR \-\-rfc\-822 ,
+.BR \-\-set ,
+and
+.BR \-\-utc .
+There is no
+.BR \-f ,
+.BR \-\-iso\-8601 ,
+.BR \-\-rfc\-3339 ,
+or
+.BR \-\-universal .
+.IP \(bu 2
+A time is not free-form text.
+Words such as
+.B now
+and
+.BR yesterday ,
+relative times such as
+.BR "1 day ago" ,
+weekday names, a
+.B T
+between date and time, fractional seconds, time zone names, and
+.B AM
+or
+.B PM
+are errors.
+.IP \(bu 2
+.B \-D
+is a busybox extension.
+.IP \(bu 2
+The output conversions are only those above.
+Others that GNU
+.B date
+has print an empty line, such as
+.BR %C ,
+.BR %D ,
+.BR %F ,
+.BR %g ,
+.BR %G ,
+.BR %h ,
+.BR %k ,
+.BR %l ,
+.BR %n ,
+.BR %P ,
+.BR %r ,
+.BR %R ,
+.BR %t ,
+.BR %u ,
+and
+.BR %V ,
+as do the
+.BR _ ,
+.BR 0 ,
+and
+.B ^
+flags and field widths.
+.PP
+Only times from 1970-01-01 00:00:00 UTC to 3001-01-01 07:59:59 UTC,
+which are 0 through 32535244799 seconds since the epoch, can be
+converted.
+A
+.I time
+outside that range, written in a form other than
+.BR @ ,
+is an invalid date.
+In the form with a
+.IR zone ,
+the latest time is 3000-12-31 23:59:59 UTC.
+An
+.BI @ seconds
+outside the range, including every negative value, or a
+.B %s
+value outside it with
+.BR \-D ,
+is not an error but is taken to be the epoch, 1970-01-01 00:00:00 UTC,
+which is then printed, or with
+.B \-s
+set.
+.PP
+The names of the days and months are English whatever the system
+language, and
+.BR %c ,
+.BR %x ,
+and
+.B %X
+have fixed forms.
+.PP
+The nanoseconds of the current time are those of the Windows system
+clock, in multiples of 100.
+.PP
+Paths for
+.B \-r
+may use forward or back slashes.
+.PP
+Lines end with LF, not CRLF.
+.SH SEE ALSO
+.BR busybox (1),
+.BR cal (1),
+.BR stat (1),
+.BR touch (1)

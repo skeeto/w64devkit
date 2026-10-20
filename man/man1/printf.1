@@ -1,0 +1,690 @@
+.TH PRINTF 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+printf \- format and write data
+.SH SYNOPSIS
+.B printf
+.RB [ \-\- ]
+.I format
+.RI [ argument ...]
+.SH DESCRIPTION
+.B printf
+writes
+.I format
+to standard output, with each conversion specification in it replaced by
+the next
+.I argument
+converted as the specification says.
+It reads no input, and it adds no newline of its own.
+.PP
+Ordinary characters in the format are written as they are.
+A backslash starts an escape sequence, which is replaced by the octet it
+names; see
+.BR "Escape sequences" .
+A percent sign starts a conversion specification; see
+.BR Conversions .
+.PP
+When the format has been written and arguments remain, the format is
+used again from its start with the remaining arguments, until none
+remain.
+A pass that uses no argument, such as the only pass of a format with no
+conversion specification, ends this repetition, and arguments left over
+are ignored.
+When the arguments run out partway through a pass, the rest of that pass
+still runs and each remaining conversion uses an empty argument; see
+.BR Arguments .
+With no arguments at all, the format is written once in the same way.
+.PP
+The kit's shell has
+.B printf
+as a builtin that runs this same code, with the differences listed under
+.BR NOTES ;
+see
+.BR sh (1).
+Outside the shell, the
+.I printf.exe
+launcher runs the
+.B busybox
+applet; see
+.BR busybox (1).
+.SS Escape sequences
+A backslash in the format, or in an argument converted by
+.BR %b ,
+starts an escape sequence, which is replaced as follows.
+.TP
+.B \ea
+Alert (BEL, 0x07).
+.TP
+.B \eb
+Backspace (0x08).
+.TP
+.B \ec
+Stop: write nothing more, not even the rest of the format.
+Output from before it is kept, the remaining arguments are not used, and
+the exit status is not affected.
+.TP
+.B \ee
+Escape (0x1B).
+.TP
+.B \ef
+Form feed (0x0C).
+.TP
+.B \en
+Line feed (0x0A).
+.TP
+.B \er
+Carriage return (0x0D).
+.TP
+.B \et
+Tab (0x09).
+.TP
+.B \ev
+Vertical tab (0x0B).
+.TP
+.B \e\e
+Backslash.
+.TP
+.BI \e ooo
+The octet whose octal value is
+.IR ooo ,
+one to three digits.
+A value above 255 ends the sequence before the digit that would exceed
+it, so
+.B \e400
+is a space (octal 40) followed by
+.BR 0 .
+.IP
+In the format, a leading 0 counts as one of the three digits, so
+.B \e0101
+is a backspace (octal 10) followed by
+.BR 1 .
+In an argument converted by
+.BR %b ,
+a 0 right after the backslash is not counted when an octal digit
+follows it, so
+.B \e0101
+is
+.BR A .
+A
+.B \e0
+with no octal digit after it is a NUL octet in both.
+.TP
+.BI \ex HH
+The octet whose hexadecimal value is
+.IR HH ,
+one or two digits in either case.
+A
+.B \ex
+not followed by a hexadecimal digit is written as it is.
+.PP
+A backslash followed by any other character, or ending the format or an
+argument, is written as it is, and the character after it is then read
+normally.
+So
+.B \e\(dq
+and
+.B \eu0041
+are written unchanged.
+.SS Conversions
+A conversion specification is a percent sign followed by these parts, in
+order, with only the conversion character required:
+.PP
+.RS 4
+\fB%\fR[\fIflags\fR][\fIwidth\fR][\fB.\fIprecision\fR][\fIlength\fR]\fIconv\fR
+.RE
+.PP
+The flags are any number of the following, in any order.
+.TP
+.B \-
+Left-justify the result within the width.
+.TP
+.B +
+Write a sign, either
+.B +
+or
+.BR \- ,
+with a signed number.
+.TP
+A space
+Write a space before a non-negative signed number.
+.TP
+.B #
+Use the alternate form: a leading
+.B 0
+for
+.BR o ,
+.B 0x
+or
+.B 0X
+before a nonzero
+.B x
+or
+.BR X ,
+and a decimal point in floating-point output even when no digit follows
+it.
+.TP
+.B 0
+Pad with leading zeros instead of spaces.
+This also applies to
+.B c
+and
+.BR s .
+.PP
+The width is a minimum field width, as decimal digits or as
+.BR * ,
+which takes it from the next argument, a decimal integer.
+A negative width from
+.B *
+is the
+.B \-
+flag with the width made positive.
+.PP
+The precision is a period followed by decimal digits or by
+.BR * ,
+or just a period, which means 0.
+For integers it is the minimum number of digits, for
+.BR e ,
+.BR E ,
+and
+.B f
+the digits after the decimal point, for
+.B g
+and
+.B G
+the significant digits, and for
+.B s
+the maximum number of bytes written.
+The default for floating-point conversions is 6.
+.PP
+Any number of the length modifiers
+.BR l ,
+.BR L ,
+.BR h ,
+and
+.B z
+are accepted and ignored: integer conversions always use 64 bits.
+.PP
+The conversion character is one of the following.
+.TP
+.BR d ", " i
+Write a signed decimal integer.
+.TP
+.BR o ", " u ", " x ", " X
+Write an unsigned integer in octal, decimal, lowercase hexadecimal, or
+uppercase hexadecimal.
+.TP
+.BR e ", " E
+Write a floating-point number with an exponent, such as
+.BR 1.234568e+004 ,
+with
+.B E
+in place of
+.B e
+for
+.BR E .
+.TP
+.B f
+Write a floating-point number without an exponent, such as
+.BR 1234.568000 .
+.TP
+.BR g ", " G
+Write a floating-point number in the style of
+.BR f ,
+or in that of
+.B e
+or
+.B E
+when the exponent is below \-4 or not below the precision, with trailing
+zeros removed unless the
+.B #
+flag is given.
+.TP
+.B c
+Write the first byte of the argument.
+An empty or missing argument writes a NUL octet.
+A
+.B *
+width or precision does not work here: the byte's value becomes the width
+or precision, and an unpredictable byte is written in its place.
+.TP
+.B s
+Write the argument.
+.TP
+.B b
+Write the argument with its escape sequences interpreted.
+The percent sign must be followed by the
+.B b
+at once: flags, width, and precision are not accepted.
+.TP
+.B %
+Write a percent sign.
+As with
+.BR b ,
+nothing may come between the two percent signs.
+.PP
+Any other conversion character, such as
+.BR a ,
+.BR A ,
+.BR F ,
+.BR n ,
+.BR p ,
+or
+.BR j ,
+or a specification that ends before its conversion character, such as a
+lone
+.B %
+at the end of the format, is an error: the message
+.PP
+.RS 4
+.EX
+printf: \fIspec\fR: invalid format
+.EE
+.RE
+.PP
+is written to standard error, where
+.I spec
+is the rest of the format from the percent sign with any length
+modifiers removed, and
+.B printf
+stops with status 1.
+Output from before the bad specification is kept.
+Positional arguments such as
+.B %1$s
+and the
+.B \(aq
+flag are not supported.
+.SS Arguments
+Whatever the conversion, an argument that was not given is empty.
+.PP
+For
+.BR d ,
+.BR i ,
+.BR o ,
+.BR u ,
+.BR x ,
+and
+.BR X ,
+an argument is an integer in decimal, in hexadecimal with a
+.B 0x
+prefix, or in octal with a leading
+.BR 0 ,
+optionally signed and optionally preceded by white space.
+Nothing may follow it.
+For
+.B d
+and
+.B i
+the range is \-2^63 to 2^63\-1.
+For the others it is 0 to 2^64\-1, and a negative number down to \-2^63
+is accepted as its two's complement, so
+.B %u
+of
+.B \-1
+is
+.BR 18446744073709551615 .
+An empty or missing argument is an error here.
+.PP
+For
+.BR e ,
+.BR E ,
+.BR f ,
+.BR g ,
+and
+.BR G ,
+an argument is a number in the form that the C library's
+.B strtod
+function reads: decimal with an optional exponent, hexadecimal such as
+.BR 0x1p3 ,
+.BR inf ,
+or
+.BR nan ,
+optionally signed and optionally preceded by white space.
+Nothing may follow it.
+An empty or missing argument is 0, not an error.
+.PP
+For all of these, an argument may instead be a single or double quote
+followed by a character, whose value is that of the first byte after the
+quote, so
+.B \(aqA
+and
+.B \(dqA
+are both 65.
+Anything after that byte is ignored, and a lone quote is 0.
+A character above U+007F gives the first byte of its encoding, which is
+UTF-8 on Windows 10 version 1903 and later; see
+.BR NOTES .
+.PP
+An argument that is not a valid number, or that is out of range, is an
+error: the message
+.PP
+.RS 4
+.EX
+printf: invalid number \(aq\fIargument\fR\(aq
+.EE
+.RE
+.PP
+is written to standard error, output continues, and the exit status will
+be 1.
+The value used is 0, not the number that began the argument, except that
+an out-of-range floating-point argument keeps the value that
+.B strtod
+gave it.
+.PP
+An argument taken by
+.B *
+as a width or precision is a decimal integer from \-2^31 to 2^31\-1,
+optionally preceded by a minus sign.
+White space, a plus sign, a
+.B 0x
+prefix, or a quote makes it invalid.
+An invalid one is reported the same way and is 0, but does not change the
+exit status.
+A missing one is 0 without a message.
+A negative precision counts as none.
+.SH OPTIONS
+.B printf
+has no options.
+A first argument that starts with a dash is the format, so
+.B "printf \-n"
+writes
+.BR \-n .
+Two arguments are recognized.
+.TP
+.B \-\-
+As the first argument, ends the options and is skipped, so that a format
+that starts with a dash can follow it.
+Only one is skipped: in
+.BR "printf \-\- \-\- x" ,
+the format is
+.BR \-\- .
+.TP
+.B \-\-help
+As the first argument of the applet, writes a usage message on standard
+output and exits with status 0, whatever else is given.
+The shell's builtin has no
+.BR \-\-help :
+there it is a format, so
+.B "printf \-\-help"
+writes
+.BR \-\-help .
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+the applet expands wildcards in its arguments, as needed when run from
+.BR cmd.exe ;
+see
+.BR NOTES .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+arguments as the shell expanded them.
+.TP
+.BR BB_TERMINAL_MODE ", " BB_SKIP_ANSI_EMULATION
+When standard output is a console, decide whether the console or busybox
+interprets the escape sequences in the output, such as for color.
+See
+.BR busybox (1).
+.TP
+.B CONEMUPID
+When it is set and neither of the above is, busybox uses terminal mode
+0: it turns virtual terminal output off and emulates escape sequences
+itself.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+output to a console is not converted, as described in
+.BR NOTES ,
+and the console interprets the bytes in its own code page.
+.PP
+Variables that affect every busybox applet are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success, including output stopped by
+.BR \ec .
+.TP
+.B 1
+An argument was not a valid number, or a conversion specification was
+not valid.
+This is the status even if
+.B \ec
+stopped the output later.
+It is also the status of a missing format in the applet.
+.TP
+.B 2
+A missing format in the shell's builtin.
+.TP
+.B 141
+Standard output is a pipe whose reader closed it before all the output
+was written.
+.PP
+A missing format in the applet writes the usage message to standard
+error.
+In the builtin the message is
+.BR "usage: printf FORMAT [ARGUMENT...]" ,
+preceded by the shell's name and a colon.
+.SH EXAMPLES
+Write each argument on a line of its own, using the format once for each:
+.PP
+.RS 4
+.EX
+$ printf \(aq%s\en\(aq one two three
+one
+two
+three
+.EE
+.RE
+.PP
+Align columns:
+.PP
+.RS 4
+.EX
+$ printf \(aq%\-10s %5d\en\(aq apple 3 banana 12
+apple          3
+banana        12
+.EE
+.RE
+.PP
+Convert a hexadecimal number to decimal, and a decimal number to
+hexadecimal:
+.PP
+.RS 4
+.EX
+$ printf \(aq%d %#x\en\(aq 0xff 255
+255 0xff
+.EE
+.RE
+.PP
+Show the code of a character:
+.PP
+.RS 4
+.EX
+$ printf \(aq%d\en\(aq "\(aqA"
+65
+.EE
+.RE
+.PP
+Take the field width from an argument:
+.PP
+.RS 4
+.EX
+$ printf \(aq%*d\en\(aq 6 42
+    42
+.EE
+.RE
+.PP
+Write a number with two decimals and a percent sign:
+.PP
+.RS 4
+.EX
+$ printf \(aq%.2f%%\en\(aq 12.345
+12.35%
+.EE
+.RE
+.PP
+Interpret the escapes in one argument but not in another:
+.PP
+.RS 4
+.EX
+$ printf \(aq%s|%b|\en\(aq \(aqa\ex41\(aq \(aqa\ex41\(aq
+a\ex41|aA|
+.EE
+.RE
+.PP
+Write a file with CR LF line endings:
+.PP
+.RS 4
+.EX
+$ printf \(aqfirst\er\ensecond\er\en\(aq >dos.txt
+.EE
+.RE
+.PP
+Write a word in red on a console:
+.PP
+.RS 4
+.EX
+$ printf \(aq\e033[31mred\e033[0m\en\(aq
+.EE
+.RE
+.PP
+Write text that
+.BR echo (1)
+would take as an option:
+.PP
+.RS 4
+.EX
+$ printf \(aq%s\en\(aq "$text"
+.EE
+.RE
+.PP
+Pass file names, which may contain spaces, to a program that reads names
+separated by NUL octets:
+.PP
+.RS 4
+.EX
+$ printf \(aq%s\e0\(aq *.c | xargs \-0 wc \-c
+.EE
+.RE
+.SH NOTES
+Differences from GNU
+.B printf
+and bash:
+.IP \(bu 2
+A missing argument for an integer conversion is an error, with exit
+status 1, where they use 0.
+.IP \(bu 2
+A numeric argument with trailing characters is an error, and its value
+is 0, instead of the number that began it.
+.IP \(bu 2
+.B \e\(dq
+is a backslash and a double quote, and there are no
+.B \eu
+or
+.B \eU
+escapes.
+.IP \(bu 2
+There are no
+.BR %a ,
+.BR %A ,
+or
+.B %F
+conversions, and none of bash's
+.BR %q ,
+.BR "%(...)T" ,
+or
+.B \-v
+.IR var .
+.PP
+The builtin differs from the applet in the exit status of a missing
+format, in having no
+.BR \-\-help ,
+and in the name that starts its error messages, which is the shell's,
+such as
+.BR sh ,
+instead of
+.BR printf .
+In the shell the builtin runs in preference to the applet and to any
+program named
+.B printf
+in
+.BR PATH .
+.PP
+Numbers are written by the C runtime, which differs from glibc.
+Exponents have three digits, as in
+.BR 1.000000e+000 .
+Infinity and not-a-number are written as forms such as
+.B 1.#INF00
+and
+.BR 1.#QNAN0 .
+An exact half rounds away from zero, so
+.B %.0f
+of 2.5 is 3.
+The decimal point is always a period.
+.PP
+Standard output is binary, so
+.B \en
+is a bare LF.
+Write
+.B \er\en
+for CR LF.
+Output is written in blocks: one at the end of each pass through the
+format, or sooner when a newline arrives with more than 40 bytes
+pending.
+A write error is not detected, except that a closed pipe ends
+.B printf
+with status 141.
+Error messages are not buffered, so when standard output and standard
+error go to the same place, a message can come before output that
+preceded it.
+.PP
+In a batch file,
+.B cmd.exe
+treats the percent sign specially: write each
+.B %
+as
+.BR %% .
+Unless
+.B BB_GLOBBING
+is
+.BR 0 ,
+as it is under the kit's shell, the C runtime of the applet expands
+wildcards in the format and the arguments, even quoted ones.
+So when
+.B printf.exe
+is started from
+.BR cmd.exe ,
+a format or argument with
+.B *
+or
+.B ?\&
+that matches file names is replaced by them.
+Set
+.B BB_GLOBBING
+to
+.B 0
+to prevent that.
+.PP
+Arguments may contain any Unicode character on Windows 10 version 1903
+and later, and are limited to the system code page on earlier versions.
+Widths and precisions count bytes, so a precision can cut a UTF-8
+character in two.
+When standard output is a console, the output is converted for display
+from the ANSI code page, which is UTF-8 on Windows 10 version 1903 and
+later.
+Escape sequences, such as those for color, take effect, and busybox
+emulates them on consoles without virtual terminal support.
+A block of output that contains a NUL octet, from
+.BR \e0 ,
+.BR \ex00 ,
+or
+.BR %c ,
+is written to a console unconverted and without escape sequence
+emulation.
+.SH SEE ALSO
+.BR busybox (1),
+.BR echo (1),
+.BR sh (1),
+.BR xargs (1)

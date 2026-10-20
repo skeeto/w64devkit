@@ -1,0 +1,314 @@
+.TH IPCALC 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+ipcalc \- calculate IPv4 network settings from an address
+.SH SYNOPSIS
+.B ipcalc
+.RB [ \-bnmphs ]
+.I address\c
+.RB [ /\c
+.IR prefix ]
+.RI [ netmask ]
+.SH DESCRIPTION
+.B ipcalc
+works out properties of an IPv4 network from an address and its netmask.
+It prints the ones selected by its options, one per line, or looks up
+the host name of the address.
+.PP
+The first operand is the
+.IR address ,
+in dotted decimal, such as
+.BR 192.168.1.5 .
+The netmask that divides it into network and host bits is given in one
+of two ways, but not both: a slash and a prefix length attached to the
+address, as in
+.BR 192.168.1.5/26 ,
+or a second operand in dotted decimal, as in
+.BR 255.255.255.192 .
+With neither, the netmask is the default for the class of the address:
+.B 255.0.0.0
+when its first bit is 0, which is a first octet of 0 to 127;
+.B 255.255.0.0
+when its first two bits are 10, which is 128 to 191;
+and
+.B 255.255.255.0
+otherwise, which is 192 to 255, including the multicast and reserved
+ranges.
+.PP
+At least one of the options
+.BR \-b ,
+.BR \-n ,
+.BR \-m ,
+.BR \-p ,
+and
+.B \-h
+is required.
+.SS Output format
+Each item selected by an option is a line
+.IB name = value
+on standard output.
+The lines appear in the order below whatever the order of the options,
+and the output suits the shell's
+.B eval
+for setting variables.
+.TP
+.BI NETMASK= address
+The netmask, in dotted decimal, from
+.BR \-m .
+.TP
+.BI BROADCAST= address
+The broadcast address, from
+.BR \-b .
+.TP
+.BI NETWORK= address
+The network address, from
+.BR \-n .
+.TP
+.BI PREFIX= length
+The prefix length, in decimal, from
+.BR \-p .
+.TP
+.BI HOSTNAME= name
+The host name, in lowercase, from
+.BR \-h .
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-bn ,
+and may follow the operands unless
+.B POSIXLY_CORRECT
+is set.
+.B \-\-
+ends the options.
+A long option may be abbreviated to any unambiguous prefix.
+The
+.I netmask
+operand is accepted only when one of
+.BR \-b ,
+.BR \-n ,
+or
+.B \-p
+is given, and is otherwise a usage error.
+.TP
+.BR \-b ", " \-\-broadcast
+Print the broadcast address: the address with every bit outside the
+netmask set to 1.
+.TP
+.BR \-n ", " \-\-network
+Print the network address: the address with every bit outside the
+netmask set to 0.
+.TP
+.BR \-m ", " \-\-netmask
+Print the netmask in effect: the one given by the prefix or the
+.I netmask
+operand, or else the default for the class of the address.
+.TP
+.BR \-p ", " \-\-prefix
+Print the prefix length: the number of 1 bits in the netmask.
+A netmask whose 1 bits are not contiguous is counted all the same, so
+.B 255.0.255.0
+gives 16.
+.TP
+.BR \-h ", " \-\-hostname
+Print the host name of the address, as the Windows name resolver reports
+it, converted to lowercase.
+Only the first name is printed.
+The prefix and the netmask play no part.
+If the resolver finds no name, this is an error.
+This option is not a request for help; see
+.BR \-\-help .
+.TP
+.BR \-s ", " \-\-silent
+Do not print error messages.
+The exit status is unchanged.
+Wrong arguments are still reported, with a usage message.
+Give at least one other option with it.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument, and any further arguments
+are then ignored.
+.SH ENVIRONMENT
+.TP
+.B POSIXLY_CORRECT
+When set, options must come before the operands.
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the arguments are expanded when
+.B ipcalc
+starts, as needed when run from
+.BR cmd.exe .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+arguments as the shell expanded them.
+.PP
+Variables that affect every busybox applet are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+Wrong arguments, or a failure.
+.PP
+Wrong arguments are an unknown or ambiguous option, no option from
+.BR \-bnmph ,
+a
+.I netmask
+operand where it is not accepted, or no operand or more than two.
+They are reported with a usage message on standard error.
+.PP
+A failure is an
+.I address
+or
+.I netmask
+that cannot be read, a prefix that is not a number from 0 to 32, both a
+prefix and a
+.IR netmask ,
+or no host name for the address.
+It is reported on standard error as
+.PP
+.RS 4
+.EX
+ipcalc: \fIreason\fR
+.EE
+.RE
+.PP
+unless
+.B \-s
+is given.
+.SH EXAMPLES
+Show the network and broadcast addresses of a host on a network whose
+prefix length is 26:
+.PP
+.RS 4
+.EX
+$ ipcalc \-bn 192.168.1.5/26
+BROADCAST=192.168.1.63
+NETWORK=192.168.1.0
+.EE
+.RE
+.PP
+Do the same with a dotted netmask, and also show the prefix length:
+.PP
+.RS 4
+.EX
+$ ipcalc \-bnp 192.168.1.5 255.255.255.192
+BROADCAST=192.168.1.63
+NETWORK=192.168.1.0
+PREFIX=26
+.EE
+.RE
+.PP
+Convert a prefix length to a netmask:
+.PP
+.RS 4
+.EX
+$ ipcalc \-m 10.0.0.0/20
+NETMASK=255.255.240.0
+.EE
+.RE
+.PP
+Show the default netmask of a class B address:
+.PP
+.RS 4
+.EX
+$ ipcalc \-m 172.16.5.9
+NETMASK=255.255.0.0
+.EE
+.RE
+.PP
+Set shell variables from the results:
+.PP
+.RS 4
+.EX
+$ eval "$(ipcalc \-bn 172.16.5.9/12)"
+$ echo $NETWORK $BROADCAST
+172.16.0.0 172.31.255.255
+.EE
+.RE
+.PP
+Test whether an address is valid, with no output from
+.B ipcalc
+itself:
+.PP
+.RS 4
+.EX
+$ ipcalc \-sn 10.0.0.256 >/dev/null || echo invalid
+invalid
+.EE
+.RE
+.PP
+Look up the name of an address:
+.PP
+.RS 4
+.EX
+$ ipcalc \-h 192.168.1.1
+.EE
+.RE
+.SH NOTES
+Addresses and netmasks are read by the Windows
+.B inet_addr
+function.
+Besides four decimal parts, it accepts fewer parts, where the last part
+fills all the remaining bytes, so
+.B 10.1
+is
+.B 10.0.0.1
+and
+.B 10
+is
+.BR 0.0.0.10 .
+Each part may be hexadecimal with a
+.B 0x
+prefix or octal with a leading
+.BR 0 ,
+so
+.B 010.010.010.010
+is
+.BR 8.8.8.8 .
+Everything from the first white-space character on is ignored, except
+that an operand of a single space reads as
+.BR 0.0.0.0 .
+Host names and IPv6 addresses are rejected, since only IPv4 is handled.
+.PP
+.B 255.255.255.255
+is rejected, as an address and as a netmask, because
+.B inet_addr
+returns that value to report an error.
+Write the prefix length instead, as in
+.BR 10.0.0.1/32 .
+.PP
+The prefix is decimal digits only, with no sign, space, or other
+characters, and leading zeros do not make it octal.
+A slash with nothing after it is ignored.
+A netmask operand is not checked for contiguous 1 bits.
+.PP
+The default netmask is chosen after the address is read, so an address
+written with fewer than four parts, such as
+.BR 200 ,
+is
+.B 0.0.0.200
+and gets
+.BR 255.0.0.0 .
+.PP
+Error messages name the address without the slash and prefix that may
+follow it.
+.PP
+The host name is looked up with the Windows
+.B gethostbyaddr
+function, so it uses whatever the system resolver is configured to use,
+including the hosts file.
+Its failure message ends in
+.BR "Unknown error" ,
+because the Winsock error code is passed to the C library's message
+table, which does not know it.
+.PP
+Output lines end with LF, not CRLF.
+A write error on standard output is not detected, so the exit status is
+still 0.
+.SH SEE ALSO
+.BR busybox (1),
+.BR sh (1)

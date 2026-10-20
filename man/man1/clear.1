@@ -1,0 +1,177 @@
+.TH CLEAR 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+clear \- clear the terminal screen
+.SH SYNOPSIS
+.B clear
+.RB [ \-\-help ]
+.SH DESCRIPTION
+.B clear
+writes two escape sequences to standard output:
+.RB ESC\  [H ,
+which moves the cursor to the top left corner of the screen, then
+.RB ESC\  [J ,
+which erases from the cursor to the end of the screen.
+It writes these 6 bytes even when standard output is not a terminal.
+.PP
+When standard output is a console with virtual terminal processing
+enabled, the console interprets the sequences; see
+.BR BB_TERMINAL_MODE .
+Otherwise busybox emulates them through the console API: it moves the
+cursor to the top left corner of the console window and fills the window
+from there to the bottom with spaces.
+Either way only the visible window is cleared, and text that has
+scrolled above it stays in the scrollback.
+.PP
+When standard output is not a console, such as a file or a pipe, the
+bytes are written unchanged, for whatever reads them to interpret.
+.SH OPTIONS
+.B clear
+takes no options, and ignores its arguments unless the first is
+.BR \-\-help .
+.TP
+.B \-\-help
+Print a usage message on standard output and exit.
+.SH ENVIRONMENT
+These variables are read only when standard output is a console.
+.TP
+.B BB_TERMINAL_MODE
+How busybox handles escape sequences written to a console.
+With
+.B 0
+or
+.BR 2 ,
+it disables the console's virtual terminal processing and emulates the
+sequences itself.
+With
+.B 1
+or
+.BR 3 ,
+it enables virtual terminal processing and passes the sequences
+through, even if the console cannot interpret them.
+With
+.BR 4 ,
+it passes them through if the console already has virtual terminal
+processing enabled, and otherwise emulates them.
+With
+.BR 5 ,
+it enables virtual terminal processing if the console supports it, and
+otherwise emulates the sequences.
+A number outside 0 to 5 means
+.BR 5 ,
+and text that is not a number means
+.BR 0 .
+.TP
+.B BB_SKIP_ANSI_EMULATION
+Used when
+.B BB_TERMINAL_MODE
+is unset:
+.B 1
+means mode
+.BR 1 ,
+.B 2
+means mode
+.BR 5 ,
+and any other value means mode
+.BR 0 .
+.TP
+.B CONEMUPID
+When neither of the above is set, the mode is
+.BR 5 ,
+or
+.B 0
+if
+.B CONEMUPID
+is set, as under ConEmu, or when running under Wine.
+.PP
+The busybox startup code also reads
+.BR BB_CRITICAL_ERROR_DIALOGS ,
+.BR BB_GLOBBING ,
+and
+.BR BB_UMASK ,
+and console output reads
+.BR LC_ALL ,
+.BR LC_CTYPE ,
+and
+.BR LANG ,
+none of which changes what
+.B clear
+does; see
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+Standard output could not be written, as when it is closed.
+.TP
+.B 141
+Standard output is a pipe whose reader has exited.
+.SH EXAMPLES
+Clear the screen:
+.PP
+.RS 4
+.EX
+$ clear
+.EE
+.RE
+.PP
+Clear the screen before a build, so that only its messages show:
+.PP
+.RS 4
+.EX
+$ clear && make
+.EE
+.RE
+.PP
+Save the sequence in a variable, and clear the screen with it later
+without running
+.BR clear :
+.PP
+.RS 4
+.EX
+$ cls=$(clear)
+$ printf %s "$cls"
+.EE
+.RE
+.SH NOTES
+Differences from the ncurses
+.BR clear :
+.IP \(bu 2
+It writes the same sequence regardless of
+.BR TERM ,
+and does not use terminfo.
+.IP \(bu 2
+Like ncurses
+.BR "clear \-x" ,
+it never clears the scrollback.
+.IP \(bu 2
+It has no
+.BR \-T ,
+.BR \-V ,
+or
+.B \-x
+options, and ignores other arguments instead of rejecting them.
+.PP
+To also erase the scrollback of a classic console window, use
+.BR reset ,
+which clears the console's whole screen buffer.
+.PP
+At an interactive
+.B sh
+prompt, Ctrl-L clears the screen the same way, keeping the command line
+being edited.
+.PP
+The kit's
+.B sh
+runs
+.B clear
+inside the shell process, without starting a new one, except where the
+shell needs a separate process anyway, as for a command substitution or
+a pipeline.
+When it runs inside the shell and standard output is a pipe whose
+reader has exited, it ends the shell itself with status 141.
+.SH SEE ALSO
+.BR busybox (1),
+.BR reset (1),
+.BR sh (1)

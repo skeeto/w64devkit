@@ -1,0 +1,801 @@
+.TH WGET 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.SH NAME
+wget \- retrieve files over HTTP, HTTPS, and FTP
+.SH SYNOPSIS
+.B wget
+.RI [ options ]
+.I url
+.RI [ url ...]
+.SH DESCRIPTION
+.B wget
+retrieves each
+.I url
+in turn and saves the document in a file.
+This is the busybox applet: a small non-interactive downloader with a
+fraction of the options of GNU Wget; see
+.BR NOTES .
+It speaks HTTP, HTTPS, FTP, and FTPS.
+Messages and a progress meter go to standard error, and nothing goes to
+standard output unless
+.B "\-O \-"
+asks for it.
+.SS URLs
+A URL is
+.RI [ scheme ://][ user [: password ]@] host [: port ][/ path ].
+The scheme is
+.BR http ,
+.BR https ,
+.BR ftp ,
+or
+.BR ftps ,
+in lowercase.
+Any other scheme fails with
+.BR "not an http or ftp url" .
+Without a scheme, the URL is taken as http.
+The default port is the standard one for the scheme.
+.I host
+is a name, an IPv4 address, or an IPv6 address in brackets.
+Windows resolves a name.
+When it has several addresses,
+.B wget
+tries only one: the first IPv4 address, or else the first address.
+.PP
+The host ends at the first
+.BR / ,
+.BR ? ,
+or
+.BR # .
+The rest is the path, which
+.B wget
+sends to the server as given: it applies no percent-encoding, and a
+query or fragment is part of the path.
+.PP
+.I user
+and
+.I password
+are percent-decoded, and a
+.B +
+in them becomes a space.
+Write a literal
+.B +
+as
+.BR %2B .
+.SS Output files
+Without
+.BR \-O ,
+the file name is the last component of the URL path, the text after the
+last
+.B /
+or
+.BR \e ,
+query included and not percent-decoded.
+When that is empty, the name is
+.IR index.html .
+The file goes in the directory named by
+.BR \-P ,
+or else the current directory.
+A redirection does not change the name.
+.PP
+Unless
+.B \-c
+is given,
+.B wget
+does not overwrite a file it names itself.
+It fails with
+.BI "can't open '" name "': File exists"
+and does not try the remaining URLs.
+It does not create directories either.
+With
+.BR \-O ,
+the file is created or replaced.
+.PP
+The file is opened only after the server has accepted the request, so a
+request that fails creates and truncates nothing.
+If the connection ends early, what was received stays in the file, and
+.B \-c
+can continue it.
+.SS HTTP
+Each request is HTTP/1.1 with
+.BR "Connection: close" ,
+on a connection of its own.
+The method is GET, or POST with
+.B \-\-post\-data
+or
+.BR \-\-post\-file .
+.B wget
+sends
+.BR Host ,
+.B User\-Agent
+(default
+.BR Wget ),
+and
+.B Connection
+headers.
+When the URL has a user, it also sends an
+.B Authorization
+header for Basic authentication with the first request, without waiting
+for a challenge.
+With
+.B \-c
+and a file that is not empty, it sends
+.BR Range .
+Headers from
+.B \-\-header
+follow, then, for a POST,
+.B Content\-Type
+and
+.BR Content\-Length .
+It sends no cookies and no
+.BR Accept\-Encoding ,
+and it does not decode
+.BR Content\-Encoding .
+.PP
+The status decides what happens next:
+.TP
+.B 100
+The response is skipped, and the one after it is used.
+.TP
+.BR 200 \- 204
+The document follows.
+.TP
+.B 206
+The document follows, but only if
+.B \-c
+asked for a range.
+.TP
+.BR 300 ", " 301 ", " 302 ", " 303 ", " 307 ", " 308
+If there is a
+.B Location
+header, the request is repeated at that URL, at most 15 times: the 16th
+redirection fails with
+.BR "too many redirections" .
+The method, body, and headers stay the same.
+A location that begins with
+.B /
+is on the same server.
+Any other location is parsed as a URL, so a relative one without the
+leading slash is taken as a host name.
+Without a
+.B Location
+header, the response is treated like a 200 and its body is saved.
+.TP
+Anything else
+The command fails with
+.BI "server returned error: " status-line \fR.
+This includes 401: there is no way to answer a challenge.
+.PP
+The body is read for as many octets as
+.B Content\-Length
+says, or in chunks for
+.BR "Transfer\-Encoding: chunked" ,
+or else to the end of the connection.
+Any other transfer encoding is an error.
+Fewer octets than
+.B Content\-Length
+promised fail with
+.BR "connection closed prematurely" .
+.PP
+Lines from the server, in HTTP and FTP alike, are cut at their first
+control character other than a tab, and tabs become spaces.
+.SS FTP
+The connection is passive.
+The login is
+.B anonymous
+with the password
+.BR busybox ,
+or the user and password from the URL, with an empty password if the URL
+has only a user.
+Then
+.B wget
+sends
+.B TYPE I
+and
+.B SIZE
+(for the size, if the server knows it),
+.B EPSV
+(or else
+.BR PASV ),
+.B REST
+(for
+.BR \-c ),
+and
+.BR RETR .
+The transfer must end with reply 226.
+.PP
+The path is the text after the first
+.BR / ,
+sent to the server as given.
+It is relative to the login directory.
+For an absolute path, double the slash, as in
+.BR ftp://host//pub/file .
+.PP
+For
+.BR ftps ,
+TLS starts as soon as the control connection opens, on port 990, and the
+data connection is encrypted too when the server accepts
+.BR "PROT P" .
+.B \-\-no\-check\-certificate
+does not apply to it.
+.SS HTTPS and FTPS
+.B wget
+runs
+.BR ssl_client (1)
+for each encrypted connection.
+Windows does the TLS: it checks the certificate chain against the
+Windows certificate store, and the certificate's names against the host
+name.
+A failed handshake is reported by
+.B ssl_client
+on standard error, followed by
+.BR "wget: error getting response" .
+.SS Messages
+Unless
+.B \-q
+is given, standard error shows these lines for each URL:
+.PP
+.RS 4
+.EX
+Connecting to \fIhost\fR (\fIaddress\fR)
+saving to \(aq\fIfile\fR\(aq
+\fIprogress meter\fR
+\(aq\fIfile\fR\(aq saved
+.EE
+.RE
+.PP
+.I host
+is written as in the URL, with any port, or is the proxy's, and
+.I address
+includes the port.
+Without a proxy, a redirection to a full URL prints another
+.B Connecting to
+line.
+With
+.BR "\-O \-" ,
+the second and fourth lines are
+.B writing to stdout
+and
+.BR "written to stdout" .
+With
+.BR \-\-spider ,
+only the first line is printed, followed by
+.BR "remote file exists" .
+.PP
+The progress meter has the file name, cut or padded to 20 columns, then
+the percentage and a bar of asterisks, when the size is known, then the
+amount received so far and the time remaining.
+The bar is as wide as the console less 48 columns, and is left out when
+that is 2 or less.
+The amount counts any part of the file already present with
+.BR \-c .
+It is in octets up to 99999, and above that in units of 1024 with a
+suffix of
+.BR k ,
+.BR M ,
+.BR G ,
+and so on.
+The time is
+.B H:MM:SS ETA
+or, when it is not known,
+.BR "\-\-:\-\-:\-\- ETA" ;
+after 5 seconds without data it reads
+.BR "\- stalled \-" .
+On a console, the meter redraws one line about once a second.
+When standard error is not a console, it writes a new line each time
+instead.
+.PP
+The meter is not shown with
+.BR \-q ,
+or with
+.B \-o
+and a file.
+.SH OPTIONS
+Options may come before or after the URLs, unless
+.B POSIXLY_CORRECT
+is set, and short options may be grouped, as in
+.BR \-cq .
+The argument of a short option may be attached or be the next argument.
+A long option takes its argument after an equals sign or as the next
+argument, and any unique prefix of a long option is enough.
+.B \-\-
+ends the options.
+.TP
+.B \-\-spider
+Check that the URL can be retrieved, without saving it.
+.B wget
+makes the usual request, and on success prints
+.B remote file exists
+(unless
+.B \-q
+is given) and goes on to the next URL without reading the document.
+Failures are those of a download.
+Over FTP, the data connection is closed unread, and a final reply other
+than 226 fails.
+.TP
+.BI "\-\-header " string
+Add
+.I string
+to the request headers, after the standard ones and before
+.B Content\-Type
+and
+.BR Content\-Length .
+It is a line of the form
+.IB name ": " value
+and is sent as given.
+This option may be repeated.
+A header whose name is
+.BR Host ,
+.BR User\-Agent ,
+.BR Range ,
+.BR Content\-Type ,
+.BR Authorization ,
+.BR Proxy\-Authorization ,
+or
+.BR Content\-Length ,
+compared without regard to case and followed by a colon, replaces the
+header
+.B wget
+would otherwise send.
+All headers are sent again after a redirection, even to another host.
+.TP
+.BI "\-\-post\-data " string
+Send
+.I string
+as the body of a POST request.
+It is sent as given, with
+.B Content\-Type: application/x\-www\-form\-urlencoded
+and
+.BR Content\-Length ,
+unless
+.B \-\-header
+gives them.
+It may be given once.
+.TP
+.BI "\-\-post\-file " file
+Send the contents of
+.I file
+as the body of a POST request, like
+.BR \-\-post\-data .
+A
+.I file
+of
+.B \-
+is standard input, and then a redirection or a second URL makes
+.B wget
+hang.
+The file is read again for each request.
+The body ends before the first NUL octet in the file.
+.IP
+Give
+.B \-\-post\-file
+once, and after
+.BR \-\-post\-data ,
+if both: the other order is an error, and in this one the file wins.
+.TP
+.B \-\-no\-check\-certificate
+Do not validate the certificate of an https server.
+Without it, validation is as described under
+.BR "HTTPS and FTPS" .
+It has no effect on ftps.
+.TP
+.BR \-c ", " \-\-continue
+Continue an interrupted download.
+If the output file exists, the rest of the document is requested, with
+.B Range
+for HTTP and
+.B REST
+for FTP, and appended.
+If it does not exist, the download starts normally.
+The existing part is not compared with the server's copy.
+.IP
+When the server will not resume (HTTP status 200 to 204, or a refused
+.BR REST ),
+the message
+.B wget: restart failed
+appears, and the whole document is written from the start of the file.
+The file is cut to the new length only at the end, so an interrupted
+restart leaves the rest of the old data in place.
+Any other status, such as 416 from a server that sees a complete file,
+is an error.
+.IP
+With
+.BR "\-O \-" ,
+.B \-c
+is ignored.
+.TP
+.BR \-q ", " \-\-quiet
+Do not print the messages and progress meter described under
+.BR Messages .
+Errors, the
+.B restart failed
+message of
+.BR \-c ,
+and the output of
+.B \-S
+are still printed.
+.TP
+\fB\-P\fR \fIdir\fR, \fB\-\-directory\-prefix\fR=\fIdir\fR
+Save files in
+.I dir
+instead of the current directory.
+It must exist.
+It is ignored with
+.BR \-O .
+.TP
+.BR \-S ", " \-\-server\-response
+Print the server's replies on standard error.
+For HTTP, each line is indented by 2 spaces.
+The status line of each response is shown, then its headers, up to and
+including the empty line that ends them.
+For a redirection, the headers stop at
+.BR Location ,
+and for an error status, only the status line is shown.
+For FTP, each reply line is shown, and each command that
+.B wget
+sends, as
+.BI "\-\-> " command
+followed by an empty line; that includes the password, in the
+.B PASS
+command.
+.TP
+.BI "\-T " sec
+Not supported.
+This build has no timeout feature, and
+.B \-T
+makes
+.B wget
+crash; see
+.BR NOTES .
+.TP
+\fB\-O\fR \fIfile\fR, \fB\-\-output\-document\fR=\fIfile\fR
+Save the document in
+.I file
+instead of a name derived from the URL.
+A
+.I file
+of
+.B \-
+is standard output.
+.IP
+The file is created, or replaced if it exists.
+When there are several URLs, their documents are written to the file one
+after another.
+.TP
+\fB\-o\fR \fIlogfile\fR, \fB\-\-output\-file\fR=\fIlogfile\fR
+Write messages to
+.I logfile
+instead of standard error, replacing the file if it exists.
+It is opened before the first URL, and failing to open it is an error.
+Everything else that
+.B wget
+would write to standard error goes there, including error messages and
+the output of
+.BR \-S ,
+and the progress meter is not shown.
+A
+.I logfile
+of
+.B \-
+leaves standard error alone.
+.TP
+\fB\-U\fR \fIstring\fR, \fB\-\-user\-agent\fR=\fIstring\fR
+Send
+.I string
+as the
+.B User\-Agent
+header.
+The default is
+.BR Wget .
+.TP
+\fB\-Y\fR \fIon/off\fR, \fB\-\-proxy\fR=\fIon/off\fR
+A value of
+.B off
+makes
+.B wget
+ignore the proxy variables described under
+.BR ENVIRONMENT .
+Any other value, and the default, uses them.
+.TP
+\fB\-t\fR \fItries\fR, \fB\-\-tries\fR=\fItries\fR
+Accepted and ignored.
+There are no retries.
+.TP
+.BI \-n arg
+Accepted and ignored, as in
+.BR \-nv ,
+.BR \-nc ,
+.BR \-nH ,
+and
+.BR \-np .
+Any text may follow the
+.BR n ,
+and it must be attached.
+With
+.B \-nc
+or
+.BR \-\-no\-clobber ,
+an existing file is still an error, as described under
+.BR "Output files" ,
+not skipped.
+.TP
+.BR \-\-no\-cache ", " \-\-no\-clobber ", " \-\-no\-host\-directories
+Accepted and ignored.
+.TP
+.BR \-\-no\-parent ", " \-\-no\-verbose ", " \-\-passive\-ftp
+Accepted and ignored.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit.
+It is recognized only as the first argument.
+.PP
+Any other option, a missing option argument, an ambiguous long option, a
+repeated
+.B \-\-post\-data
+or
+.BR \-\-post\-file ,
+.B \-\-post\-data
+after
+.BR \-\-post\-file ,
+or no URL prints the usage on standard error and exits with status 1.
+.SH ENVIRONMENT
+The proxy variables are named in lowercase, but Windows ignores the case
+of variable names, so
+.B HTTP_PROXY
+works too.
+There is no
+.BR https_proxy ,
+and no
+.BR no_proxy .
+.TP
+.B http_proxy
+The proxy for http and https URLs, as a URL:
+.RB [ http:// ][\c
+.IR user [: password ]@] host [: port ].
+Any path is ignored, and the port defaults to 80.
+A proxy URL that begins with
+.B https://
+is reached over TLS, on port 443 by default.
+When the variable is set and not empty, and
+.B \-Y
+is not
+.BR off ,
+.B wget
+connects to the proxy and requests the full URL, as in
+.BR "GET http://host/path" .
+The method is always GET, even with
+.B \-\-post\-data
+or
+.BR \-\-post\-file ,
+whose body is still sent.
+.I user
+and
+.I password
+become a
+.B Proxy\-Authorization
+header.
+.TP
+.B ftp_proxy
+The same, for ftp and ftps URLs.
+The proxy is spoken to in HTTP, as with
+.BR http_proxy .
+.TP
+.B COLUMNS
+The console width used for the progress meter.
+Without it, the width is that of the console window on standard output,
+or else on standard error, or else 80.
+A value that is not a number from 2 to 29999 means 80.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+output to a console is not converted, and when the ANSI code page is
+UTF-8, each non-ASCII octet of the file name in the progress meter is
+shown as
+.BR ? .
+.TP
+.B POSIXLY_CORRECT
+If set, the first URL ends the options.
+.PP
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Every URL was retrieved, or found with
+.BR \-\-spider ,
+or the usage was requested with
+.BR \-\-help .
+.TP
+.B 1
+An invalid command line, or any failure while handling a URL: a bad
+address, a refused connection, an unusable URL, a refused file, an error
+status from the server, or an error reading or writing.
+The message is on standard error, prefixed with
+.BR wget: .
+.PP
+The first failure ends the command: the remaining URLs are not
+retrieved, and the files already saved stay.
+.SH EXAMPLES
+Download a file into the current directory:
+.PP
+.RS 4
+.EX
+$ wget https://example.com/kit.zip
+.EE
+.RE
+.PP
+Save it in another directory, or under another name:
+.PP
+.RS 4
+.EX
+$ wget \-P downloads https://example.com/kit.zip
+$ wget \-O kit.zip \(aqhttps://example.com/dl?id=7\(aq
+.EE
+.RE
+.PP
+Print a document on standard output:
+.PP
+.RS 4
+.EX
+$ wget \-qO\- https://example.com/version.txt
+.EE
+.RE
+.PP
+Continue an interrupted download:
+.PP
+.RS 4
+.EX
+$ wget \-c https://example.com/big.iso
+.EE
+.RE
+.PP
+Test whether a URL exists:
+.PP
+.RS 4
+.EX
+$ wget \-q \-\-spider http://localhost:8000/ && echo up
+.EE
+.RE
+.PP
+Send a form with a POST request and an extra header:
+.PP
+.RS 4
+.EX
+$ wget \-qO\- \-\-header \(aqX\-Token: abc\(aq \e
+>     \-\-post\-data \(aqa=1&b=2\(aq http://localhost:8000/form
+.EE
+.RE
+.PP
+Post a file from standard input:
+.PP
+.RS 4
+.EX
+$ wget \-qO\- \-\-post\-file \- http://localhost:8000/ <data.txt
+.EE
+.RE
+.PP
+Give up on a transfer after 60 seconds, since
+.B wget
+has no timeout:
+.PP
+.RS 4
+.EX
+$ timeout 60 wget https://example.com/kit.zip
+.EE
+.RE
+.SH NOTES
+Differences from GNU Wget:
+.IP \(bu 2
+Only the options above exist.
+There is no recursion, no list of URLs read from a file, no
+timestamping, no way to give a user and password except in the URL or an
+.B Authorization
+header, no cookies, and no rate limit.
+.IP \(bu 2
+Nothing is retried.
+.IP \(bu 2
+An existing file is an error: it is not kept by saving the new one as
+.IR name.1 .
+.PP
+There is no timeout: a stalled transfer waits forever, though Windows
+gives up on a connection attempt that gets no answer.
+The timeout feature of busybox is not built:
+.B \-\-timeout
+is an unknown option, and
+.B \-T
+with a number passes the option parser and then crashes with an access
+violation.
+Use
+.BR timeout (1),
+but for https it stops only
+.BR wget :
+the
+.BR ssl_client (1)
+process that
+.B wget
+started can keep running until the server sends something or closes
+the connection.
+That process holds the standard output and standard error of
+.BR wget ,
+so a command substitution or pipeline that reads them waits for it too.
+.PP
+TLS is Windows's Schannel, run through
+.BR ssl_client (1),
+which describes the protocols (TLS 1.0 through 1.2 here) and the
+handshake error messages.
+A server that needs TLS 1.3 cannot be reached.
+The certificate is validated unless
+.B \-\-no\-check\-certificate
+is given.
+An https URL sent through
+.B http_proxy
+is not tunneled: the proxy receives the request in clear text, as
+.BR "GET https://host/path" .
+.PP
+Because of how
+.BR ssl_client (1)
+copies data, a large request body over https, such as a
+.B \-\-post\-file
+of 40000 octets, can stall before it is all sent, or reach the server
+with earlier parts of the request repeated in place of later ones.
+Over https, a response without
+.B Content\-Length
+makes
+.B wget
+hang when the server waits for the client to end the TLS session before
+it closes the connection.
+.PP
+Credentials in the URL, and headers from
+.BR \-\-header ,
+are sent to the target of a redirection even when it is on another host.
+.PP
+A name derived from the URL must be a valid Windows file name.
+A URL such as
+.B http://host/get?id=7
+fails with
+.BR "can't open 'get?id=7': Invalid argument" .
+Use
+.B \-O
+to name the file.
+Non-ASCII octets in the path are used as they are, so a UTF-8 path gives
+a UTF-8 file name when the ANSI code page is UTF-8; see
+.BR busybox (1).
+.PP
+Paths given to
+.BR \-O ,
+.BR \-o ,
+.BR \-P ,
+and
+.B \-\-post\-file
+may use forward or back slashes.
+The file name is joined to the
+.B \-P
+directory with
+.BR / ,
+except after a bare drive:
+.B \-P c:
+saves to
+.IR c:name ,
+in the current directory of the drive.
+Documents, posted files, and standard output are binary: octets pass
+unchanged.
+.PP
+A URL with a query directly after the host, as in
+.BR http://host?q=1 ,
+loses the question mark and requests
+.BR /q=1 .
+Write
+.B http://host/?q=1
+instead.
+.PP
+When the host is an IP address, the
+.B Connecting to
+line shows
+.B (null)
+in the parentheses instead of the address.
+.SH SEE ALSO
+.BR busybox (1),
+.BR nc (1),
+.BR ssl_client (1),
+.BR timeout (1)

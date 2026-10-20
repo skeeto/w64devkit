@@ -1,0 +1,568 @@
+.TH TAIL 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+tail \- print the last part of files
+.SH SYNOPSIS
+.B tail
+.RB [ \-fFqv ]
+.RB [ \-c
+.RI [+] count ]
+.RB [ \-n
+.RI [+] count ]
+.RB [ \-s
+.IR seconds ]
+.RI [ file ...]
+.br
+.B tail
+.BI \- count
+.RI [ options ]
+.RI [ file ...]
+.br
+.B tail
+.BI + count
+.RI [ options ]
+.RI [ file ...]
+.SH DESCRIPTION
+.B tail
+writes the last part of each
+.I file
+to standard output: by default the last 10 lines.
+With no
+.I file
+operands, or for a
+.I file
+named
+.BR \- ,
+it reads standard input.
+This
+.B tail
+is a busybox applet; see
+.BR busybox (1).
+.PP
+A
+.I file
+that cannot be opened is reported on standard error and skipped, and the
+remaining files are still written.
+When none can be opened,
+.B tail
+reports
+.B no files
+and exits.
+.SS Counts
+A count is a decimal number, optionally followed by one of the suffixes
+.BR b ,
+.BR k ,
+or
+.BR m ,
+which multiply it by 512, 1024, or 1048576.
+Suffixes are lowercase.
+The result must be from 0 to 4294967295.
+Hexadecimal and white space are not accepted.
+A count that is malformed or out of range is an error, reported before
+any file is read.
+.PP
+A count may begin with one
+.BR \- ,
+which changes nothing, so
+.B \-n \-5
+is the same as
+.BR "\-n 5" .
+A count that begins with
+.B +
+is a starting position instead of a length:
+.B \-n +5
+writes everything from the 5th line on, and
+.B \-c +5
+everything from the 5th byte on.
+A count of
+.B +0
+or
+.B +1
+writes the whole input.
+.PP
+With
+.BR \-n ,
+.B tail
+counts lines, which end at an LF.
+A CR is an ordinary byte.
+A last line without an LF counts as a line, and is written as it is,
+without adding one.
+With
+.BR \-c ,
+it counts bytes.
+A count of 0 writes nothing.
+.PP
+If an option is given more than once, the last one is used.
+If both
+.B \-c
+and
+.B \-n
+are given, in either order,
+.B tail
+counts bytes, using the count of
+.BR \-n ,
+and a leading
+.B +
+on either count selects counting from the start.
+.SS Headers
+With more than one
+.I file
+operand that could be opened, or with
+.BR \-v ,
+.B tail
+writes a header before the output of each file: a line of the form
+.PP
+.RS 4
+.EX
+==> name <==
+.EE
+.RE
+.PP
+where
+.I name
+is the operand as given, or
+.B standard input
+for standard input when there are no operands.
+Each header after the first starts with an LF.
+That gives an empty line between files, or ends the last line of a file
+that had no final LF.
+A file that could not be opened does not count, so
+.B tail \-n 1 a.txt missing.txt
+writes no header.
+With
+.BR \-F ,
+a file that does not exist yet counts.
+.B \-q
+turns headers off.
+.SS Following
+With
+.B \-f
+or
+.BR \-F ,
+.B tail
+writes the initial output, and then runs until interrupted.
+Every
+.B \-s
+seconds it reads each file again, in operand order, and writes any data
+added since the last read.
+When headers are on, it first writes a header, which starts with an LF,
+whenever the data comes from a different file than the data it wrote last.
+After the initial output, the last operand counts as the file written
+last, even when it did not exist yet.
+.PP
+If at a poll a file is not empty but is shorter than the position
+.B tail
+has reached in it,
+.B tail
+reads the file again from its start, with no message.
+.PP
+.B \-F
+also retries by name.
+A file that could not be opened at the start is reported, but does not
+change the exit status.
+At each poll,
+.B tail
+checks whether the name still refers to the file that it has open, by
+volume serial number and file index, and if not, opens the name again.
+It reports on standard error
+.PP
+.RS 4
+.EX
+tail: \fIname\fR has appeared; following end of new file
+tail: \fIname\fR has been replaced; following end of new file
+tail: \fIname\fR has been renamed or deleted: \fIreason\fR
+.EE
+.RE
+.PP
+for a name that now opens but did not before, a name that now refers to
+a different file, and a name that no longer opens.
+Despite the wording, a file that has appeared or been replaced is read
+from its start.
+A replaced file is read only after the open file runs out of data.
+After a name is reported renamed or deleted,
+.B tail
+keeps following the file it has open, and repeats the message at each
+poll.
+Standard input has no name to check, so
+.B \-F
+reports it as renamed or deleted at each poll.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-qn5 ,
+and an option's argument may be attached or be the next argument.
+.B \-\-
+ends the options.
+Options may also follow operands, as in
+.BR "tail f.txt \-n 5" ,
+unless
+.B POSIXLY_CORRECT
+is set, when the first operand ends them.
+A lone
+.B \-
+is an operand.
+.TP
+.BI "\-c " count
+Write the last
+.I count
+bytes instead of lines.
+With a leading
+.BR + ,
+write everything from byte
+.I count
+on.
+See
+.BR Counts .
+.TP
+.BI "\-n " count
+Write the last
+.I count
+lines.
+The default is 10.
+With a leading
+.BR + ,
+write everything from line
+.I count
+on.
+.TP
+.B \-q
+Never write headers.
+.TP
+.B \-v
+Always write headers, even for one operand or for standard input with no
+operands.
+This wins over
+.B \-q
+whatever the order.
+.TP
+.B \-f
+Follow the files as they grow.
+See
+.BR Following .
+.TP
+.B \-F
+Like
+.BR \-f ,
+but also retry by name.
+.TP
+.BI "\-s " seconds
+Wait
+.I seconds
+between polls with
+.B \-f
+or
+.BR \-F .
+The default is 1.
+The value is a decimal integer from 0 to 2147483647, without a fraction
+or suffix.
+A value of 0 polls continuously.
+A value above 4294967 wraps around: the wait is the value times 1000,
+modulo 4294967296, in milliseconds.
+Without
+.B \-f
+or
+.BR \-F ,
+the value is checked and then ignored.
+.TP
+\fB\-\fIcount\fR, \fB+\fIcount\fR
+As the first argument only,
+.BI \- count
+is the same as
+.BI "\-n " count
+and
+.BI + count
+is the same as
+.BI "\-n +" count ,
+except that the first character of
+.I count
+must be a digit.
+Other options may follow, as in
+.BR "tail \-5 \-q a.txt b.txt" ,
+but the digits cannot be grouped with them:
+.B \-5f
+is an error.
+A later
+.B \-c
+or
+.B \-n
+replaces the number, but not the
+.B +
+of
+.BI + count ,
+so
+.B tail +2 \-n 3
+writes everything from line 3 on.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument.
+Other invalid options print the usage on standard error and exit with
+status 1.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the operands are expanded, as needed when run from
+.BR cmd.exe .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+operands as the shell expanded them.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+output to a console is not converted, as described in
+.BR NOTES ,
+and the console interprets the bytes in its own code page.
+.TP
+.B POSIXLY_CORRECT
+Read by the C library's option parser.
+When it is set, option parsing stops at the first operand.
+.PP
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+An invalid option or count, a
+.I file
+that could not be opened (except with
+.BR \-F ),
+a read error, or a write error.
+With
+.B \-c
+on a seekable file, a read error, or a write error other than a closed
+pipe, is reported but does not change the status.
+.TP
+.B 141
+Standard output is a pipe that was closed before all output was written.
+.PP
+With
+.B \-f
+or
+.BR \-F ,
+.B tail
+runs until it is interrupted or an error ends it.
+.SH EXAMPLES
+Write the last 20 lines of a file:
+.PP
+.RS 4
+.EX
+$ tail \-n 20 build.log
+.EE
+.RE
+.PP
+Write the last line of each of two files, with headers:
+.PP
+.RS 4
+.EX
+$ tail \-n 1 a.txt b.txt
+==> a.txt <==
+last line of a
+
+==> b.txt <==
+last line of b
+.EE
+.RE
+.PP
+Write the last 3 lines of every log, without headers:
+.PP
+.RS 4
+.EX
+$ tail \-qn3 *.log
+.EE
+.RE
+.PP
+Skip the first line of a file, such as the header of a CSV file:
+.PP
+.RS 4
+.EX
+$ tail \-n +2 data.csv
+.EE
+.RE
+.PP
+Write the last 4 KiB of a file:
+.PP
+.RS 4
+.EX
+$ tail \-c 4k server.log
+.EE
+.RE
+.PP
+Show the end of a command's output:
+.PP
+.RS 4
+.EX
+$ make 2>&1 | tail \-n 30
+.EE
+.RE
+.PP
+Watch a log grow, until interrupted with Ctrl+C:
+.PP
+.RS 4
+.EX
+$ tail \-f server.log
+.EE
+.RE
+.PP
+Wait for a log that does not exist yet, then follow it:
+.PP
+.RS 4
+.EX
+$ tail \-F build/output.log
+.EE
+.RE
+.PP
+Write the last 3 lines in the traditional way:
+.PP
+.RS 4
+.EX
+$ tail \-3 notes.txt
+.EE
+.RE
+.SH NOTES
+Differences from GNU
+.BR tail :
+.IP \(bu 2
+There are no long options other than
+.BR \-\-help ,
+no
+.BR \-\-version ,
+and no
+.BR \-z .
+.IP \(bu 2
+Following polls once per
+.B \-s
+interval, in whole seconds.
+.IP \(bu 2
+Counts are decimal with the lowercase suffixes
+.BR b ,
+.BR k ,
+and
+.B m
+only.
+GNU suffixes such as
+.BR K ,
+.BR kB ,
+and
+.BR MB
+are errors.
+.IP \(bu 2
+Counts are limited to 4294967295, in the 64-bit kit too.
+.IP \(bu 2
+Where GNU
+.B tail
+ignores
+.B \-f
+for a pipe on standard input, this one keeps polling the pipe forever,
+even after the writer exits.
+Interrupt it.
+.IP \(bu 2
+When both
+.B \-c
+and
+.B \-n
+are given, GNU
+.B tail
+uses the last one.
+This one counts bytes, with the count of
+.BR \-n .
+.PP
+On input that can seek, such as a regular file,
+.B tail
+with
+.B \-c
+reads only the bytes it writes.
+With
+.B \-n
+it starts reading about 64 KiB before the end for each requested line,
+but at least 960 KiB and at most 2 GiB before the end, so that it does
+not read all of a very large file.
+That assumes the last lines are shorter than that on average.
+If they are longer, it writes fewer than
+.I count
+lines, and the first may be partial.
+A count that begins with
+.B +
+reads from the start of the input.
+.PP
+On input that cannot seek, such as a pipe,
+.B tail
+reads all of the input.
+It holds the last
+.I count
+lines in memory, or with
+.B \-c
+allocates
+.I count
+bytes in advance.
+.PP
+Very large counts without a leading
+.B +
+fail.
+A
+.B \-n
+count of 2147483648 or more, or a
+.B \-c
+count of 4294966784 or more on input that cannot seek, crashes
+.B tail
+when the input is not empty.
+In the 64-bit kit, a smaller
+.B \-c
+count of 2147483136 or more on input that cannot seek fails with
+.BR "read error: Invalid argument" .
+.PP
+Files and standard input and output are binary, so CR LF line endings
+are copied unchanged, and lines end only at LF.
+.PP
+File names may use drive letters, backslashes, and forward slashes, and
+a header shows the name as given.
+They may contain any Unicode characters on Windows 10 version 1903 and
+later, and are limited to the system code page on earlier versions.
+The device names
+.IR /dev/null ,
+.IR /dev/stdin ,
+.IR /dev/tty
+(the console), and
+.I /dev/fd/N
+work as on Unix.
+A directory operand fails with
+.BR "Permission denied" .
+.PP
+While
+.B tail
+has a file open, including each file that it follows, Windows refuses to
+delete or rename the file with a sharing violation, which busybox
+.B rm
+and
+.B mv
+report as
+.BR "Permission denied" .
+Other programs can still append to the file or truncate it.
+A log cannot be rotated by renaming it while
+.B tail
+follows it, and
+.B \-F
+differs from
+.B \-f
+in practice for a file that does not exist yet.
+.PP
+When standard output is a console, text is converted for display from
+the ANSI code page, which is UTF-8 on Windows 10 version 1903 and
+later, to the console's code page, unless
+.BR LC_ALL ,
+.BR LC_CTYPE ,
+or
+.B LANG
+is
+.BR C .
+.SH SEE ALSO
+.BR busybox (1),
+.BR cat (1),
+.BR head (1),
+.BR less (1)

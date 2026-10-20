@@ -1,0 +1,142 @@
+.TH USLEEP 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+usleep \- pause for a number of microseconds
+.SH SYNOPSIS
+.B usleep
+.I microseconds
+.SH DESCRIPTION
+.B usleep
+waits for the given number of microseconds, then exits.
+It reads no input and writes no output.
+This
+.B usleep
+is a busybox applet; see
+.BR busybox (1).
+.PP
+The argument is a string of decimal digits whose value is at most
+4294967295.
+Leading zeros are allowed and do not make the number octal.
+Nothing else is a number: no sign, white space, hexadecimal prefix,
+decimal point, exponent, or unit suffix.
+Arguments after the first are ignored without being examined.
+.PP
+The wait is the number of microseconds divided by 1000, rounded down to
+whole milliseconds.
+A value below 1000 does not wait.
+The largest value waits 4294967 milliseconds, about 71 minutes and
+35 seconds.
+Nothing short of ending the process cuts the wait short.
+.SH OPTIONS
+.B usleep
+has no options.
+A first argument other than
+.B \-\-help
+that begins with
+.BR \- ,
+including
+.BR \-\- ,
+is an invalid number.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument, and any further arguments
+are then ignored.
+In a later position it is ignored like any other extra argument.
+.SH ENVIRONMENT
+.B usleep
+reads no environment variables.
+The startup code shared by all applets reads
+.BR BB_CRITICAL_ERROR_DIALOGS ,
+.BR BB_GLOBBING ,
+and
+.BR BB_UMASK ,
+and may trim a trailing semicolon from
+.BR PATH .
+None of these affects how
+.B usleep
+waits.
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+The wait ended, or the first argument was
+.BR \-\-help .
+.TP
+.B 1
+There was no argument, or the first argument was invalid.
+Nothing is waited for.
+.PP
+With no argument,
+.B usleep
+prints a usage message on standard error.
+An invalid first argument is reported on standard error as
+.PP
+.RS 4
+.EX
+usleep: invalid number \(aq\fIargument\fR\(aq
+.EE
+.RE
+.PP
+This includes a value above 4294967295, which is reported as an invalid
+number, not as out of range.
+.SH EXAMPLES
+Pause for a quarter of a second:
+.PP
+.RS 4
+.EX
+$ usleep 250000
+.EE
+.RE
+.PP
+Check for a file ten times a second until it appears:
+.PP
+.RS 4
+.EX
+$ until test \-e ready.txt; do usleep 100000; done
+.EE
+.RE
+.SH NOTES
+.B usleep
+is not specified by POSIX.
+It takes one decimal integer, with no unit suffix, and has no option
+other than
+.BR \-\-help .
+.PP
+The wait is a call to the Windows
+.B Sleep
+function with the millisecond count, so it ends on a tick of the system
+timer.
+The tick is typically about 15 ms, which makes a short wait last much
+longer than requested: a value from 1000 through 10000 usually takes
+about 15 ms.
+A value below 1000 is a count of zero milliseconds and returns at once.
+.PP
+The kit's
+.BR sh (1)
+runs
+.BR usleep ,
+an applet that busybox marks
+.BR NOFORK ,
+inside a shell process rather than in a process of its own.
+This holds in a pipeline or subshell too, which runs in a copy of the
+shell.
+There Ctrl+C cannot interrupt the wait and takes effect only after the
+wait is over.
+Started in its own process, as
+.B busybox usleep
+or through the launcher
+.IR usleep.exe ,
+from the shell or from
+.BR cmd.exe ,
+it ends at once on Ctrl+C, and the process exits with status
+.BR 0xC000013A .
+For a wait that Ctrl+C must be able to end in the shell, use
+.BR sleep (1),
+which the shell runs in another process.
+.SH SEE ALSO
+.BR busybox (1),
+.BR sh (1),
+.BR sleep (1)

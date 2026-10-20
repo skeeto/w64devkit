@@ -1,0 +1,352 @@
+.TH UNIQ 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+uniq \- report or omit repeated lines
+.SH SYNOPSIS
+.B uniq
+.RB [ \-cduiz ]
+.RB [ \-f
+.IR n ]
+.RB [ \-s
+.IR n ]
+.RB [ \-w
+.IR n ]
+.RI [ file
+.RI [ outfile ]]
+.SH DESCRIPTION
+.B uniq
+reads lines from
+.I file
+and writes each run of adjacent equal lines as one line, the first of the
+run.
+It does not find repeats that are not adjacent, so sort the input first,
+as in
+.BR "sort file | uniq" .
+Options write only the repeated lines or only the unique ones, count the
+lines in each run, and change which lines are equal.
+This
+.B uniq
+is a busybox applet; see
+.BR busybox (1).
+.PP
+With no
+.IR file ,
+or when it is
+.BR \- ,
+.B uniq
+reads standard input.
+With no
+.IR outfile ,
+or when it is
+.BR \- ,
+it writes standard output.
+A third operand is an error.
+.I outfile
+is created if it does not exist, and truncated when it is opened, which
+is before any input is read.
+Naming the input file as
+.I outfile
+empties it and writes nothing.
+.PP
+A line ends at an LF, and the last line of the input need not have one.
+A CR directly before an LF is removed.
+A NUL byte also ends a line, and is not part of it.
+.PP
+Two lines are equal when the parts of them that are compared are equal as
+bytes.
+The part compared is what remains of a line after the first
+.B \-f
+fields and then the first
+.B \-s
+bytes are skipped, cut off after
+.B \-w
+bytes.
+With
+.BR \-i ,
+ASCII letters are equal to their other case.
+.PP
+Lines are written in input order.
+Each line written is the first line of its run, as read except for a
+removed CR, and ends with an LF, or a NUL with
+.BR \-z ,
+even when the last line of the input had no LF.
+By default one line is written for every run.
+With
+.BR \-d ,
+only runs of two or more lines are written, and with
+.BR \-u ,
+only runs of one line.
+With
+.BR \-c ,
+each line written is preceded by the number of lines in its run, as a
+decimal number right-aligned in 7 columns, and one space.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-cd ,
+and may follow the operands, unless
+.B POSIXLY_CORRECT
+is set.
+An option's argument may be attached, as in
+.BR \-f1 ,
+or be the next argument.
+.B \-\-
+ends the options.
+The numbers are decimal, from 0 to 2147483647.
+A sign, a
+.B 0x
+prefix, leading white space, anything after the digits, or a larger
+value is an error:
+.B uniq
+prints a message and exits with status 1.
+.TP
+.B \-c
+Precede each line written with the number of lines in its run: the
+count in decimal, right-aligned in 7 columns, then a space.
+A count of more than 7 digits widens the field.
+.TP
+.B \-d
+Write only the first line of each run of two or more lines.
+With
+.BR \-u ,
+nothing is written, and the exit status is still 0.
+.TP
+.B \-u
+Write only the lines that are not repeated: the runs of one line.
+.TP
+.B \-i
+Ignore case when comparing lines.
+Only ASCII letters are folded, so other letters must match byte for
+byte.
+.TP
+.B \-z
+End each line written with a NUL byte instead of an LF.
+It does not change how input is read: input lines end at an LF or a NUL
+either way.
+.TP
+.BI "\-f " n
+Skip the first
+.I n
+fields of each line before comparing.
+A field is any white space, possibly none, followed by a run of other
+characters, and white space is a space, tab, VT, FF, or CR.
+The white space after the last skipped field is compared.
+A line with fewer than
+.I n
+fields has nothing left to compare.
+.TP
+.BI "\-s " n
+After skipping any fields, skip the first
+.I n
+bytes of what remains, or fewer if the line ends first.
+The unit is a byte, so a multibyte UTF-8 character can be split.
+.TP
+.BI "\-w " n
+Compare at most
+.I n
+bytes of the part left after
+.B \-f
+and
+.BR \-s .
+The default compares all of it.
+With 0 every line equals the one before, so all of the input is one
+run.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument, and elsewhere is an unknown
+option.
+.PP
+Any other option, such as
+.BR \-h ,
+or an option without its argument, prints an error and the usage
+message on standard error and exits with status 1.
+.SH ENVIRONMENT
+.TP
+.B POSIXLY_CORRECT
+When set, the first operand ends the options, so that a later argument
+such as
+.B \-c
+is a file name.
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the operands are expanded when
+.B uniq
+starts, as needed when it is run from
+.BR cmd.exe .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+operands as the shell expanded them.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+output to a console is not converted, as described in
+.BR NOTES ,
+and the console interprets the bytes in its own code page.
+.PP
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+An unknown option, a missing option argument, or more than two operands,
+with a usage message on standard error; an invalid number; a file could
+not be opened; a read or write error; or memory ran out.
+.TP
+.B 141
+Standard output is a pipe whose reader has exited.
+.SH EXAMPLES
+Count how many times each word appears, most frequent first:
+.PP
+.RS 4
+.EX
+$ sort words.txt | uniq \-c | sort \-rn
+      3 pear
+      2 apple
+      1 fig
+.EE
+.RE
+.PP
+List the words that appear more than once, and the words that appear
+only once:
+.PP
+.RS 4
+.EX
+$ sort words.txt | uniq \-d
+apple
+pear
+$ sort words.txt | uniq \-u
+fig
+.EE
+.RE
+.PP
+Collapse runs of log lines that differ only in the time stamp, the
+first field:
+.PP
+.RS 4
+.EX
+$ cat log.txt
+10:01 start
+10:02 start
+10:03 stop
+10:04 stop
+10:05 start
+$ uniq \-f 1 log.txt
+10:01 start
+10:03 stop
+10:05 start
+.EE
+.RE
+.PP
+Compare only the first three bytes of each line:
+.PP
+.RS 4
+.EX
+$ printf \(aqabc1\enabc2\enabd1\en\(aq | uniq \-c \-w 3
+      2 abc1
+      1 abd1
+.EE
+.RE
+.PP
+Read a file, and write the result to another:
+.PP
+.RS 4
+.EX
+$ sort in.txt | uniq \- out.txt
+.EE
+.RE
+.SH NOTES
+Differences from GNU
+.BR uniq :
+.IP \(bu 2
+There are no long options other than
+.BR \-\-help ,
+and no
+.BR \-D .
+.IP \(bu 2
+.B \-z
+changes only the end of the lines written, and an LF still ends an
+input line.
+.IP \(bu 2
+A CR directly before an LF is removed, and a NUL byte ends a line.
+.IP \(bu 2
+The count of
+.B \-c
+is 32 bits, in the 64-bit kit too, so a run of more than 4294967295
+lines wraps it.
+.PP
+Lines may be of any length.
+.B uniq
+holds the line being compared and the line before it in memory.
+An empty file writes nothing.
+.PP
+Files and standard input and output are binary, so Ctrl-Z is not the end
+of a file and CR LF line endings are not translated.
+Input CR LF becomes LF in the output.
+A CR anywhere else in a line is kept, and counts as white space for
+.BR \-f .
+To write CR LF line endings, pass the output through
+.BR unix2dos (1).
+.PP
+File names may use drive letters, backslashes, and forward slashes.
+They may contain any Unicode characters on Windows 10 version 1903 and
+later, and are limited to the system code page on earlier versions.
+The device names that busybox accepts, such as
+.I /dev/null
+for either operand and
+.I /dev/stdout
+for
+.IR outfile ,
+work as operands; see
+.BR busybox (1).
+.I /dev/stdin
+and
+.I /dev/fd/0
+fail as
+.IR file ,
+because
+.B uniq
+closes its standard input to open
+.I file
+in its place; give
+.B \-
+instead.
+A directory fails as
+.I file
+with
+.BR "Permission denied" ,
+and as
+.I outfile
+with
+.BR "Is a directory" .
+.PP
+To end input typed at a console, type Ctrl-Z at the start of a line and
+press Enter.
+.PP
+When standard output is a console, text is converted for display from
+the ANSI code page, which is UTF-8 on Windows 10 version 1903 and later,
+to the console's code page, unless the first of
+.BR LC_ALL ,
+.BR LC_CTYPE ,
+and
+.B LANG
+that is set is
+.BR C .
+Escape sequences in the input, such as those for color, take effect.
+With
+.BR \-z ,
+a console receives no line terminators, because the console writer stops
+at the NUL, so the lines run together.
+.SH SEE ALSO
+.BR busybox (1),
+.BR comm (1),
+.BR cut (1),
+.BR sort (1),
+.BR unix2dos (1)

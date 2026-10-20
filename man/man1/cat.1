@@ -1,0 +1,299 @@
+.TH CAT 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+cat \- concatenate files to standard output
+.SH SYNOPSIS
+.B cat
+.RB [ \-nbvteAu ]
+.RI [ file ...]
+.SH DESCRIPTION
+.B cat
+writes the contents of each
+.I file
+to standard output, in order.
+With no
+.I file
+operands, or for a
+.I file
+named
+.BR \- ,
+it reads standard input.
+A
+.I file
+that cannot be opened is reported on standard error and skipped, and the
+remaining files are still written.
+A read error ends that file.
+It is reported only without options, and with
+.B \-n
+or
+.B \-b
+alone it does not affect the exit status.
+.PP
+Without options, the bytes are copied unchanged.
+The options number the lines, show nonprinting characters, or both.
+.SS Line numbers
+With
+.B \-n
+or
+.BR \-b ,
+a numbered line starts with its number, right-aligned in 6 columns,
+and a tab.
+Numbering starts at 1 and continues across files.
+.PP
+Without
+.BR \-v ,
+.BR \-t ,
+.BR \-e ,
+or
+.BR \-A ,
+the input is read as lines of text, which changes it: a CR before an LF
+is removed, a NUL byte ends a line and is removed, and every line is
+written with a final LF, including the last line of a file that has
+none.
+.PP
+With any of them, the number is followed by two spaces instead of a
+tab, and lines end only at LF: a CR or NUL is shown like any other byte.
+A file that does not end with an LF then runs into the first line of the
+next file, which gets no number.
+.SS Nonprinting characters
+With
+.BR \-v ,
+.BR \-t ,
+.BR \-e ,
+or
+.BR \-A ,
+each byte is written as follows, so the output is plain ASCII:
+.IP \(bu 2
+LF and the printable ASCII characters 0x20 to 0x7E are written as
+themselves, and so is tab, unless
+.B \-t
+is given.
+.IP \(bu 2
+Any other byte below 0x20 is
+.B \(ha
+followed by the character 0x40 above it, from
+.B \(ha@
+to
+.BR \(ha_ ,
+so CR is
+.B \(haM
+and ESC is
+.BR \(ha[ .
+DEL, 0x7F, is
+.BR \(ha? .
+.IP \(bu 2
+A byte from 0x80 to 0xFF is
+.B M\-
+followed by the byte 0x80 below it, written as itself if printable and
+in
+.B \(ha
+form otherwise, so 0x8A is
+.B M\-\(haJ
+and 0xFF is
+.BR M\-\(ha? .
+Text in UTF-8 appears byte by byte: the encoding of
+.B e
+with an acute accent, 0xC3 0xA9, is
+.BR M\-CM\-) .
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-vn ,
+and may follow
+.I file
+operands.
+.B \-\-
+ends the options.
+.TP
+.B \-n
+Number every output line, as described under
+.BR "Line numbers" .
+.TP
+.B \-b
+Number only nonempty lines.
+Empty lines are written without a number and are not counted.
+Without
+.BR \-v ,
+.BR \-t ,
+.BR \-e ,
+or
+.BR \-A ,
+a line holding only a CR is empty.
+Overrides
+.BR \-n .
+.TP
+.B \-v
+Show nonprinting characters, as described under
+.BR "Nonprinting characters" .
+.TP
+.B \-t
+Like
+.BR \-v ,
+and also show each tab as
+.BR \(haI .
+.TP
+.B \-e
+Like
+.BR \-v ,
+and also write
+.B $
+before each LF.
+A last line without an LF gets no
+.BR $ .
+.TP
+.B \-A
+Same as
+.BR \-vte .
+.TP
+.B \-u
+Accepted for compatibility and ignored.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit.
+It is recognized only as the first argument.
+.SH ENVIRONMENT
+.TP
+.B POSIXLY_CORRECT
+When set, the first
+.I file
+operand ends the options, so that later arguments such as
+.B \-n
+are file names.
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the operands are expanded, as needed when run from
+.BR cmd.exe .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+operands as the shell expanded them.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+output to a console is not converted, as described in
+.BR NOTES ,
+and the console interprets the bytes in its own code page.
+.PP
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+An invalid option, a
+.I file
+could not be opened or read, or standard output could not be written.
+.TP
+.B 141
+Standard output is a pipe that was closed before all output was written.
+.SH EXAMPLES
+Reassemble a file cut into pieces by
+.BR split :
+.PP
+.RS 4
+.EX
+$ cat backup.zip.?? >backup.zip
+.EE
+.RE
+.PP
+Number the lines of a source file:
+.PP
+.RS 4
+.EX
+$ cat \-n main.c
+.EE
+.RE
+.PP
+Reveal CR line endings, tabs, and trailing spaces:
+.PP
+.RS 4
+.EX
+$ printf \(aqone\er\entwo\etthree \en\(aq | cat \-A
+one\(haM$
+two\(haIthree $
+.EE
+.RE
+.PP
+Write a file from a here-document:
+.PP
+.RS 4
+.EX
+$ cat >config.h <<EOF
+> #define VERSION "1.0"
+> EOF
+.EE
+.RE
+.SH NOTES
+Differences from GNU cat:
+.IP \(bu 2
+There are no long options, and no
+.BR \-E ,
+.BR \-T ,
+or
+.BR \-s .
+.IP \(bu 2
+With
+.B \-n
+or
+.B \-b
+alone, line endings change, as described under
+.BR "Line numbers" .
+.IP \(bu 2
+With
+.BR \-v ,
+.BR \-t ,
+.BR \-e ,
+or
+.BR \-A ,
+line numbers are followed by two spaces, not a tab.
+.PP
+Standard input and output are binary, so without options CR LF line
+endings and Ctrl-Z characters are copied unchanged.
+.PP
+File names may use drive letters and backslashes.
+They may contain any Unicode characters on Windows 10 version 1903 and
+later, and are limited to the system code page on earlier versions.
+The device names
+.IR /dev/null ,
+.IR /dev/zero ,
+.IR /dev/urandom ,
+.IR /dev/stdin ,
+.I /dev/tty
+(the console), and
+.I /dev/fd/N
+work as on Unix.
+A directory operand fails with
+.BR "Permission denied" ,
+or with
+.B \-n
+or
+.B \-b
+alone,
+.BR "Is a directory" .
+.PP
+Lines typed at a console arrive with CR LF line endings.
+To end the input, type Ctrl-Z at the start of a line and press Enter.
+Ctrl-D is an ordinary character.
+.PP
+When standard output is a console, text is converted for display from
+the ANSI code page, which is UTF-8 on Windows 10 version 1903 and later.
+Escape sequences, such as those for color, take effect, and busybox
+emulates them on consoles without virtual terminal support.
+Without options, output is written in blocks as it is read, and a block
+that contains a NUL byte is written as is, with no conversion or
+emulation.
+.SH SEE ALSO
+.BR busybox (1),
+.BR dos2unix (1),
+.BR head (1),
+.BR less (1),
+.BR nl (1),
+.BR split (1),
+.BR tac (1),
+.BR tee (1),
+.BR xxd (1)

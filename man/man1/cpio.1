@@ -1,0 +1,671 @@
+.TH CPIO 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+cpio \- create, list, and extract newc cpio archives
+.SH SYNOPSIS
+.B cpio \-o \-H newc
+.RB [ \-0L ]
+.RB [ \-F
+.IR file ]
+.RB [ \-R
+.IR owner ]
+.RI [ options ]
+.br
+.B cpio \-i
+.RB [ \-dmuv ]
+.RB [ \-F
+.IR file ]
+.RB [ \-R
+.IR owner ]
+.RI [ options ]
+.RI [ pattern ...]
+.br
+.B cpio \-t
+.RB [ \-v ]
+.RB [ \-F
+.IR file ]
+.RB [ \-R
+.IR owner ]
+.RI [ options ]
+.RI [ pattern ...]
+.SH DESCRIPTION
+.B cpio
+creates, lists, and extracts archives in the SVR4 cpio format with ASCII
+headers, known as
+.BR newc .
+This is the busybox
+.BR cpio .
+Its three modes are chosen by
+.BR \-o ,
+.BR \-i ,
+and
+.BR \-t :
+.TP
+.B \-o
+Create an archive.
+It reads a list of file names from standard input and writes the archive
+to standard output.
+.TP
+.B \-i
+Extract the files in an archive read from standard input.
+.TP
+.B \-t
+List the entries in an archive read from standard input.
+.PP
+.B \-F
+names a file to use instead of standard input or output.
+Archives are never compressed or decompressed, so a compressed archive
+goes through a program such as
+.BR gzip (1)
+or
+.BR zcat (1).
+.SS Creating
+Each line of standard input names one file, and a CR before the LF is
+removed.
+With
+.BR \-0 ,
+names end with NUL bytes instead, and nothing else is removed.
+Empty names are skipped, and leading
+.B ./
+components are removed.
+Other names are stored as given, with backslashes, drive letters, and
+.B ..\&
+components unchanged.
+.PP
+A directory is stored as an entry of its own, without its contents, so
+the list usually comes from
+.BR find (1).
+A symbolic link is stored as a link, unless
+.B \-L
+is given.
+.PP
+Each entry holds the file's name, type, permissions, owner, inode number,
+link count, modification time, and size, followed by its contents, or for
+a symbolic link, the link's target.
+The names of a file with a link count above 1 are held back and written
+at the end of the archive in reverse order, with the contents only on the
+last one, which is the name that was listed first.
+The archive ends with an entry named
+.BR TRAILER!!! ,
+and is not padded to a multiple of 512 bytes.
+.PP
+A name that does not exist or cannot be read, a file of 4 GiB or more,
+or a file that becomes shorter while it is read ends the command with an
+error.
+The archive is then incomplete and has no trailer.
+.SS Reading
+.B \-i
+and
+.B \-t
+read entries up to the
+.B TRAILER!!!\&
+entry and ignore anything after it.
+An archive that ends between entries without a trailer is accepted.
+They read
+.B newc
+headers, which begin with
+.BR 070701 ,
+and
+.B crc
+headers, which begin with
+.BR 070702 ,
+without checking the checksums.
+Other cpio formats are rejected.
+Leading slashes are removed from each name.
+.PP
+With
+.I pattern
+operands, only the entries whose names match at least one pattern are
+extracted or listed.
+A pattern that matches nothing is not an error.
+A pattern is a shell wildcard that must match the whole name.
+It is case-sensitive.
+.B *
+and
+.B ?\&
+also match
+.B /
+and a leading period.
+A backslash quotes the next character, so a backslash in a name must be
+doubled in a pattern.
+.SS Listing
+.B \-t
+prints the name of each entry on a line of its own.
+With
+.BR \-v ,
+each line holds the permissions in the form used by
+.BR "ls \-l" ,
+the user and group IDs separated by a slash, the size right-aligned in 9
+columns, the modification time as local time in the form
+.IR "YYYY\-MM\-DD hh:mm:ss" ,
+and the name.
+A symbolic link is shown with a size of 0, and its name is followed by
+.B \->
+and the target.
+.PP
+After the trailer, both
+.B \-t
+and
+.B \-i
+print the size of the archive on standard error as
+.IB n " blocks\fR,"
+counting 512-byte blocks and rounding up.
+Nothing is printed for an archive with no trailer.
+.SS Extracting
+Each entry is created under its name, relative to the current
+directory.
+When a file of that name exists and its modification time is the same as
+or later than the entry's, the file is kept, and for an entry that is not
+a directory the message
+.IB name " not created: newer or same age file exists"
+is printed.
+Otherwise the file is removed and replaced.
+With
+.BR \-u ,
+it is removed regardless of its age, unless the entry is a directory,
+which then leaves it in place.
+Failing to remove a file ends the command.
+.PP
+By type:
+.IP \(bu 2
+A regular file is created with the archived contents.
+.IP \(bu 2
+A directory is created.
+An error creating it is reported without ending the command.
+.IP \(bu 2
+A symbolic link is created as described in
+.BR NOTES .
+.IP \(bu 2
+A hard link, a regular file entry with a link count above 1 and no
+contents, is created after all other entries, as a link to the entry
+with the same inode number that has the contents, or as an empty file if
+there is none.
+It fails if a
+.I pattern
+leaves out the entry with the contents.
+.IP \(bu 2
+A device node, FIFO, or socket cannot be created on Windows, and is
+reported and skipped.
+.PP
+The parent directory of each entry must exist, unless
+.B \-d
+is given.
+New files and directories get the current time, unless
+.B \-m
+is given.
+The archived owner is ignored.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-idv ,
+and may follow the
+.I pattern
+operands unless
+.B POSIXLY_CORRECT
+is set.
+An option's argument may be attached, as in
+.BR \-Fsrc.cpio ,
+or be the next argument.
+Long options may be abbreviated to a unique prefix, and take their
+argument after
+.B =
+or as the next argument.
+.B \-\-
+ends the options.
+One of
+.BR \-i ,
+.BR \-o ,
+and
+.B \-t
+is required, or the usage message is printed.
+If several are given,
+.B \-o
+overrides the others, and
+.B \-t
+overrides
+.BR \-i .
+Options that do not apply to the mode are ignored.
+.TP
+.BR \-t ", " \-\-list
+List the entries.
+.TP
+.BR \-i ", " \-\-extract
+Extract the entries.
+.TP
+.BR \-o ", " \-\-create
+Create an archive.
+Requires
+.BR "\-H newc" .
+.TP
+\fB\-H\fR \fIformat\fR, \fB\-\-format=\fR\fIformat\fR
+Set the archive format for
+.BR \-o .
+Only
+.B newc
+is supported, and any
+.I format
+that begins with
+.B n
+is taken as
+.BR newc .
+Without
+.BR \-o ,
+the format is ignored, since
+.B newc
+and
+.B crc
+archives are recognized by their headers.
+.TP
+.B \-d
+With
+.BR \-i ,
+create the missing parent directories of each entry.
+Only
+.B /
+separates directory names here.
+.TP
+.B \-m
+With
+.BR \-i ,
+set the access and modification times of each extracted file and
+directory, but not symbolic link, to the archived modification time.
+A directory's times change again when files are extracted into it later.
+.TP
+.BR \-v ", " \-\-verbose
+With
+.BR \-t ,
+print a long listing.
+With
+.BR \-i ,
+print the name of each entry on standard output after processing it,
+including entries not created because a newer file exists, but not hard
+links without contents.
+Names are printed in the form of a plain
+.B \-t
+listing.
+With
+.BR \-o ,
+it has no effect.
+.TP
+.B \-u
+With
+.BR \-i ,
+replace existing files regardless of their age.
+.TP
+\fB\-F\fR \fIfile\fR, \fB\-\-file=\fR\fIfile\fR
+With
+.B \-t
+or
+.BR \-i ,
+read the archive from
+.I file
+instead of standard input.
+With
+.BR \-o ,
+create or truncate
+.I file
+and write the archive to it instead of standard output.
+.TP
+\fB\-R\fR \fIowner\fR, \fB\-\-owner=\fR\fIowner\fR
+With
+.BR \-o ,
+store
+.I owner
+in place of each file's owner.
+With
+.B \-t
+or
+.BR \-i ,
+use it in place of each entry's owner, which matters only for the IDs
+that
+.B \-tv
+shows.
+.I owner
+is
+.IR user ,
+which sets the user ID,
+.BI : group\fR,
+which sets the group ID,
+.IB user :\fR,
+which sets both to the user's ID, or
+.IB user : group\fR.
+A
+.I user
+is a decimal ID,
+.BR root ,
+which is 0, or the name of the current user, which is 4095.
+A
+.I group
+must be a decimal ID.
+Any other name is an error.
+.TP
+.B \-L
+With
+.BR \-o ,
+store the file that a symbolic link or junction refers to, instead of
+the link.
+.TP
+.BR \-0 ", " \-\-null
+With
+.BR \-o ,
+read names that end with NUL bytes, as written by
+.BR "find \-print0" ,
+instead of lines.
+.TP
+.B \-\-ignore\-devno
+With
+.BR \-o ,
+store device numbers as 0.
+Device numbers are always 0 on Windows, so this has no effect.
+.TP
+.B \-\-renumber\-inodes
+With
+.BR \-o ,
+store inode numbers counting from 1 in the order the files are first
+named in the list, instead of the files' own.
+The names of a hard-linked file share one number.
+.TP
+.B \-\-quiet
+Do not print the block count.
+.TP
+.B \-\-to\-stdout
+With
+.BR \-i ,
+write the contents of each matching entry to standard output, one after
+another, instead of creating anything.
+With
+.BR \-v ,
+the names are mixed into the same output.
+.TP
+.B \-\-help
+As the first argument, print a usage message on standard output and
+exit.
+The message shows the short options and only the long options
+.B \-\-ignore\-devno
+and
+.BR \-\-renumber\-inodes .
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the command line are expanded at startup into matching file
+names, even if quoted, for callers such as
+.B cmd.exe
+that do not expand them, so a
+.I pattern
+such as
+.B *.c
+may become a list of file names.
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+patterns as the shell passed them.
+.TP
+.B BB_UMASK
+An octal file mode creation mask applied at startup.
+The default is
+.BR 0002 .
+With
+.BR \-o ,
+its group and other write bits are removed from the stored permissions.
+If it includes the owner write bit,
+.BR 0200 ,
+the
+.I file
+created by
+.B \-F
+is read-only.
+.TP
+.B POSIXLY_CORRECT
+If set, options must precede the
+.I pattern
+operands.
+.TP
+.B TZ
+The time zone of the times printed by
+.BR "\-t \-v" .
+The format is that of the Microsoft C runtime, such as
+.BR EST5EDT .
+When it is unset, the Windows time zone setting applies.
+.PP
+As for all busybox applets, critical-error dialogs depend on
+.BR BB_CRITICAL_ERROR_DIALOGS ,
+and output to a console depends on
+.BR BB_TERMINAL_MODE ,
+.BR BB_SKIP_ANSI_EMULATION ,
+.BR LC_ALL ,
+.BR LC_CTYPE ,
+and
+.BR LANG ;
+see
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success, including when some entries were reported and not created: a
+directory that could not be made, a device node, FIFO, or socket, or a
+file kept because a newer one exists.
+.TP
+.B 1
+An invalid command line, reported with a usage message on standard
+error, an unknown
+.B \-R
+user or group, or an error that ends the command: a damaged or truncated
+archive, or a file or link that could not be read, created, or removed.
+.PP
+Errors are reported on standard error as
+.PP
+.RS 4
+.EX
+cpio: \fImessage\fR
+.EE
+.RE
+.SH EXAMPLES
+Archive a directory tree:
+.PP
+.RS 4
+.EX
+$ find src | cpio \-o \-H newc >src.cpio
+.EE
+.RE
+.PP
+List it in detail:
+.PP
+.RS 4
+.EX
+$ cpio \-tv <src.cpio
+drwxrwxr\-x 4095/4095         0 2026\-10\-19 20:43:04 src
+\-rw\-rw\-r\-\- 4095/4095        29 2026\-10\-19 20:43:04 src/main.c
+\-rw\-rw\-r\-\- 4095/4095        13 2026\-10\-19 20:43:04 src/Makefile
+2 blocks
+.EE
+.RE
+.PP
+Extract only the C sources, creating their directories.
+The quotes keep the shell from expanding the pattern:
+.PP
+.RS 4
+.EX
+$ cpio \-id \(aq*.c\(aq <src.cpio
+.EE
+.RE
+.PP
+Archive names that may contain newlines:
+.PP
+.RS 4
+.EX
+$ find src \-print0 | cpio \-o0 \-H newc >src.cpio
+.EE
+.RE
+.PP
+Copy a directory tree into an existing directory, replacing files that
+are already there.
+This stands in for the pass-through mode:
+.PP
+.RS 4
+.EX
+$ find src | cpio \-o \-H newc | (cd dest && cpio \-idu)
+.EE
+.RE
+.PP
+Build a compressed Linux initramfs image whose files belong to root:
+.PP
+.RS 4
+.EX
+$ cd rootfs
+$ find . | cpio \-o \-H newc \-R 0:0 | gzip >../initramfs.gz
+.EE
+.RE
+.PP
+Print one file from that image:
+.PP
+.RS 4
+.EX
+$ zcat initramfs.gz | cpio \-i \-\-to\-stdout \-\-quiet init
+.EE
+.RE
+.SH NOTES
+Differences from GNU
+.BR cpio :
+.IP \(bu 2
+Only
+.B newc
+archives are written, and
+.B "\-H newc"
+is required.
+Only
+.B newc
+and
+.B crc
+archives are read.
+.IP \(bu 2
+There is no pass-through mode,
+.BR \-p ,
+and options not described above, such as
+.BR \-A ,
+.BR \-B ,
+.BR \-a ,
+.BR \-c ,
+.BR \-f ,
+.BR \-l ,
+and
+.BR \-r ,
+are invalid.
+.IP \(bu 2
+.B \-o
+prints no block count, and does not pad the archive to a multiple of 512
+bytes.
+.IP \(bu 2
+.B \-R
+accepts only a colon between
+.I user
+and
+.IR group ,
+not a period.
+.IP \(bu 2
+.B \-t
+and
+.B \-v
+do not list the names of a hard-linked file that have no contents.
+.PP
+Without
+.BR \-u ,
+extracting a directory entry where an older directory exists fails with
+.BR "can't remove old file" ,
+since removing a directory this way fails with
+.BR "Permission denied" .
+This includes the
+.B .\&
+entry written by
+.BR "find ." ,
+when the current directory is older.
+.B \-u
+avoids it.
+.PP
+Names are stored and extracted byte for byte: UTF-8 on Windows 10
+version 1903 and later, and the system code page on earlier versions.
+Backslashes are not converted to slashes.
+Names are not checked when extracting.
+A name with a drive letter, such as
+.IR C:/x ,
+a leading backslash, or
+.B ..\&
+components is extracted at that location, even outside the current
+directory, so list an archive from an untrusted source with
+.B \-t
+first.
+A name that is not a valid Windows file name, or a path longer than
+.BR MAX_PATH ,
+260 characters, fails like any other directory or file that cannot be
+created.
+.PP
+Listings, including those of
+.BR \-v ,
+show each control character as
+.BR ? ,
+and on Windows 10 version 1903 and later, each byte of a non-ASCII
+character as well.
+.PP
+With
+.BR \-o ,
+the stored attributes come from busybox-w32's emulation of Unix file
+information:
+.IP \(bu 2
+Everyone may read, and write unless the file is read-only, less the
+group and other write bits of the umask.
+Directories, and files whose names end in
+.BR .bat ,
+.BR .cmd ,
+.BR .com ,
+.BR .exe ,
+or
+.BR .sh ,
+or that begin with
+.B #!\&
+or are PE executables other than DLLs, are executable.
+.IP \(bu 2
+A file owned by the current user has user and group ID 4095.
+For a file of another owner the ID is 0, or the relative ID of the
+owner's account when that is from 500 to 4094.
+.IP \(bu 2
+Device numbers are 0.
+Inode numbers are the low 32 bits of the file index.
+Hard links are recognized by the whole file index alone, whatever the
+volume.
+.IP \(bu 2
+Symbolic link targets are stored with slashes for backslashes.
+Junctions are stored as symbolic links to their absolute targets, such
+as
+.IR C:/dir .
+.IP \(bu 2
+Junctions and symbolic links to directories have a link count of 2, so
+they are written at the end of the archive, as hard-linked files are.
+.IP \(bu 2
+Modification times are stored in 32 bits, so only times from 1970 to
+2106 are kept.
+.PP
+When extracting, the owner write permission alone has an effect: a file
+without it is made read-only.
+Directories are never read-only, and nothing is made executable.
+A hard link needs a file system that supports them, such as NTFS.
+A symbolic link is created as a Windows symbolic link, which requires
+Developer Mode or administrator rights, with backslashes for slashes in
+its target.
+It is a directory link only if its target is an existing directory when
+the link is made.
+A link whose target begins with
+.B /
+or contains
+.BR .. ,
+or that cannot be made at once, is made after all other entries, and
+failing then ends the command with
+.BR "can't create symlink" .
+.PP
+Standard input and output are in binary mode, so archives pass through
+unchanged.
+.SH SEE ALSO
+.BR busybox (1),
+.BR find (1),
+.BR gzip (1),
+.BR sh (1),
+.BR tar (1),
+.BR zcat (1)

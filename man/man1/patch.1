@@ -1,0 +1,513 @@
+.TH PATCH 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+patch \- apply a unified diff to files
+.SH SYNOPSIS
+.B patch
+.RB [ \-ENR ]
+.RB [ \-p
+.IR N ]
+.RB [ \-i
+.IR patchfile ]
+.RB [ \-\-dry\-run ]
+.RI [ file
+.RI [ patchfile ]]
+.SH DESCRIPTION
+.B patch
+applies the changes in a unified diff, the format that
+.BR diff (1)
+writes, to the files that the diff names.
+It is the
+.BR busybox (1)
+applet, which is much simpler than GNU
+.BR patch ;
+see
+.BR NOTES .
+.PP
+The diff is read from standard input, from the file named by
+.BR \-i ,
+or from the second operand,
+.IR patchfile ,
+which is used only when there is a first operand.
+A
+.I patchfile
+of
+.B \-
+is standard input.
+Only unified diffs are understood.
+Outside a hunk, a line that starts with
+.B \-\-\-
+or
+.B +++
+and a space is a file header, and a line that starts with
+.B "@@ \-"
+after a
+.B +++
+line is a hunk header.
+Every other line outside a hunk is ignored, so text before a diff and
+the extra header lines of a git diff do nothing.
+A git diff that only renames a file or changes its mode has no effect,
+and neither has a binary patch.
+.PP
+A hunk ends when it has as many lines as its header counts.
+An empty line in a hunk is a context line for an empty line.
+If a line that does not start with a space,
+.BR + ,
+.BR \- ,
+or
+.B \e
+comes first, the hunk fails, and if the diff ends first, the hunk is
+ignored.
+.SS "File names"
+The file to change is named on the
+.B +++
+line of its header.
+The exception is a file that the diff empties, described below, which is
+named on the
+.B \-\-\-
+line.
+A name ends at the first tab, so a time stamp after a tab is not part of
+it, and a name may contain spaces.
+A time stamp that starts with a year from 1901 to 1970 makes the name
+.IR /dev/null ,
+which stands for a file that does not exist.
+.PP
+Leading directories are removed from the name as
+.B \-p
+says.
+If
+.I file
+is given, it is the file for every section of the diff, and the names in
+the diff are not used, not even to recognize
+.IR /dev/null .
+.SS "Applying hunks"
+.B patch
+ignores the line numbers in hunk headers.
+It copies the file to a temporary file in the same directory.
+For each hunk, in order, it searches forward from the end of the
+previous hunk for a place where the hunk's context lines and removed
+lines occur together, and writes the hunk's context lines and added
+lines there.
+Lines must be equal exactly, except that a CR before an LF is ignored.
+There are no offsets, no fuzz, and no leniency about white space.
+Hunks therefore must be in the same order in the diff as in the file.
+A hunk with no trailing context lines, or with fewer trailing than
+leading context lines, matches only at the end of the file.
+Every hunk that
+.B "diff \-U0"
+writes is such a hunk.
+.PP
+When all the hunks of a file have applied, the temporary file replaces
+the file.
+When a hunk cannot be applied,
+.B patch
+reports it, leaves the file unchanged, even if earlier hunks applied,
+skips the rest of the diff's hunks for that file, and goes on to the
+next file.
+The exit status is then 1.
+.SS "Creating and removing files"
+A file is created when the
+.B \-\-\-
+line names
+.IR /dev/null ,
+or when the old range of its first hunk is exactly
+.BR \-0,0 ,
+as in
+.BR "@@ \-0,0 +1,3 @@" .
+.B patch
+creates any missing directories above it, and the file must not already
+exist, even as an empty file.
+.B "diff \-U0"
+also writes
+.B \-0,0
+for lines added at the top of a file, and
+.B patch
+then stops with an error because the file exists.
+.PP
+The diff empties a file when the
+.B +++
+line names
+.IR /dev/null ,
+or when the new range of its first hunk is exactly
+.BR +0,0 .
+.B patch
+truncates the file to zero length, or with
+.B \-E
+removes it.
+It does not compare the file with the hunks, so any file with that name
+is emptied or removed, and it ignores the rest of the file's hunks.
+.B "diff \-U0"
+also writes
+.B +0,0
+for lines removed from the top of a file, so such a diff empties the
+whole file.
+.SS Messages
+.B patch
+prints one line on standard output for each file it processes, with the
+name as left by
+.BR \-p :
+.TP
+.BI "patching file " name
+The file is patched, or emptied.
+.TP
+.BI "creating " name
+The file is created.
+.TP
+.BI "removing " name
+The file is removed because of
+.BR \-E .
+.PP
+The other messages go to standard error:
+.TP
+.BI "Possibly reversed hunk " n " at " line
+Hunk
+.I n
+of the file, counting from 1, cannot be applied, and a line that it adds
+was found in the file where it would add it.
+.I line
+is one more than the number of lines in the file.
+.TP
+.BI "Hunk " n " FAILED " old / new .\&
+Hunk
+.I n
+of the file could not be applied.
+.I old
+and
+.I new
+are the start lines in its header.
+The lines of the hunk follow, as they are in the diff.
+Only the first failed hunk of a file is reported.
+.TP
+.BI "patch: " message
+An error.
+.B patch
+ends at once.
+Files that are already finished stay changed, and a file in progress is
+left unchanged, with its temporary file beside it.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-Np0 .
+An option's argument may be attached, as in
+.BR \-p1 ,
+or be the next argument.
+Long options may be abbreviated to a unique prefix, and the argument of
+a long option may follow
+.B =
+or be the next argument.
+Options may follow the operands, unless
+.B POSIXLY_CORRECT
+is set.
+.B \-\-
+ends the options.
+Options not listed here are errors.
+.TP
+\fB\-p\fR \fIN\fR, \fB\-\-strip=\fIN\fR
+Remove the first
+.I N
+components from the file names in the diff.
+A component is a name and the slashes after it, and a leading slash is a
+component by itself, so
+.B \-p1
+turns
+.I /a/b/c
+into
+.IR a/b/c ,
+and
+.I a/b/c
+into
+.IR b/c .
+The last component is never removed, so a name with
+.I N
+or fewer components keeps its last one.
+Without
+.BR \-p ,
+every directory is removed, leaving the last component: the file is
+looked for in the current directory.
+.B \-p0
+keeps the names as they are.
+.I N
+is a decimal number, and a negative
+.I N
+makes
+.B patch
+hang.
+.TP
+\fB\-i\fR \fIpatchfile\fR, \fB\-\-input=\fIpatchfile\fR
+Read the diff from
+.I patchfile
+instead of standard input.
+A
+.I patchfile
+of
+.B \-
+is standard input.
+This takes the place of a
+.I patchfile
+operand, which is then ignored.
+.TP
+.BR \-R ", " \-\-reverse
+Reverse the diff: remove the lines it adds, and restore the lines it
+removes.
+The file is still the one on the
+.B +++
+line.
+See
+.B NOTES
+for diffs that create or remove files.
+.TP
+.BR \-N ", " \-\-forward
+Skip a hunk that is already applied, rather than fail.
+When the file matches a hunk up to its first added line (a
+.B +
+line, or with
+.B \-R
+a
+.B \-
+line), and the next line of the file equals that line,
+.B patch
+takes the hunk as applied: it skips the hunk if the rest of the file
+matches the patched text, and fails it otherwise.
+.BR diff (1)
+writes the removed lines of a change first, so a hunk whose first change
+replaces lines is recognized only with
+.BR \-R .
+A hunk that adds a line equal to the one after it, such as a second
+.BR } ,
+fails, although it applies without
+.BR \-N .
+.TP
+.BR \-E ", " \-\-remove\-empty\-files
+Remove a file that the diff empties, instead of leaving it empty, and
+print
+.BR removing .
+.TP
+.B \-\-dry\-run
+Change nothing: create, truncate, remove, and replace no files, and
+leave no temporary files.
+The messages are as usual, a failed hunk still sets exit status 1, and
+a file to be patched must exist.
+.TP
+.BR \-u ", " \-\-unified
+Accepted and ignored.
+Only unified diffs are understood anyway.
+.TP
+.BR \-f ", " \-\-force
+Accepted and ignored.
+.B patch
+never asks a question.
+.TP
+.B \-g
+Accepted and ignored.
+It takes no argument, so the
+.B \-g0
+form that other implementations accept is an error.
+.TP
+.BI "\-\-get " n
+Accepted and ignored, with its argument.
+.TP
+.B \-\-backup\-if\-mismatch
+Accepted and ignored.
+.B patch
+makes no backup files.
+.TP
+.B \-\-no\-backup\-if\-mismatch
+Accepted and ignored.
+.TP
+.B \-\-help
+As the first argument, print a usage message on standard output and
+exit with status 0.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the operands are expanded when
+.B patch
+starts, as needed when it is run from
+.BR cmd.exe .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+operands as the shell expanded them.
+.TP
+.B BB_UMASK
+The file mode creation mask, in octal.
+When it includes the owner write bit,
+.BR 200 ,
+the files that
+.B patch
+patches or creates are read-only.
+.TP
+.B POSIXLY_CORRECT
+If set, the first operand ends the options.
+.PP
+Variables that affect every busybox applet are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Every hunk applied or was skipped by
+.BR \-N ,
+or the diff had none.
+A hunk that the end of the diff cuts short is ignored.
+.TP
+.B 1
+A hunk failed, or an error ended the program: an invalid command line,
+with a usage message on standard error, an argument of
+.B \-p
+that is not a number, a hunk header whose old and new ranges are both
+empty, a file that cannot be opened, or one that cannot be created
+because it exists.
+.SH EXAMPLES
+Apply a diff made from a source tree, from the top of the tree:
+.PP
+.RS 4
+.EX
+$ patch \-p1 <fix.patch
+patching file src/main.c
+patching file src/util.c
+.EE
+.RE
+.PP
+Check that a diff applies, then apply it:
+.PP
+.RS 4
+.EX
+$ patch \-\-dry\-run \-p1 \-i fix.patch && patch \-p1 \-i fix.patch
+.EE
+.RE
+.PP
+Undo a diff:
+.PP
+.RS 4
+.EX
+$ patch \-R \-p1 \-i fix.patch
+.EE
+.RE
+.PP
+Apply a diff to a file with a different name than the diff gives:
+.PP
+.RS 4
+.EX
+$ diff \-u hello.c.orig hello.c >hello.diff
+$ patch hello.c.new hello.diff
+.EE
+.RE
+.PP
+Patch a file that has CR LF line endings, and restore them:
+.PP
+.RS 4
+.EX
+$ patch dos.txt dos.diff
+$ unix2dos dos.txt
+.EE
+.RE
+.SH NOTES
+Differences from GNU
+.BR patch :
+.IP \(bu 2
+Only unified diffs are understood.
+.IP \(bu 2
+Hunks are found by content alone, with no fuzz and no offsets.
+.IP \(bu 2
+A failed hunk gives up on its whole file, where GNU
+.B patch
+applies the other hunks.
+.IP \(bu 2
+Neither backup nor reject files are made, and a failed hunk is only
+printed.
+.IP \(bu 2
+It asks no questions, and warns about a reversed hunk only when the
+hunk fails.
+.IP \(bu 2
+The exit status is never 2.
+.IP \(bu 2
+Options such as
+.BR \-b ,
+.BR \-d ,
+.BR \-F ,
+.BR \-l ,
+.BR \-o ,
+.BR \-r ,
+and
+.B \-s
+are errors.
+.PP
+With
+.BR \-R ,
+no file is ever created, and the file named on the
+.B \-\-\-
+line is emptied, or removed with
+.BR \-E ,
+when the
+.B +++
+line names
+.I /dev/null
+or the old range of the first hunk is
+.BR \-0,0 .
+So
+.B \-R
+cannot undo a diff that creates or removes a file.
+Reversing a creation empties or removes a file named like
+.I /dev/null
+after
+.B \-p
+is applied, such as
+.I null
+without
+.BR \-p ,
+and fails when there is no such file.
+Reversing a removal empties or removes the file that it should restore,
+and fails when there is none.
+.PP
+Files are read and written in binary mode.
+A CR before an LF is ignored in the diff and in the file when lines are
+compared, so a diff with CR LF line endings applies to a file with LF
+endings, and the reverse.
+Every line that
+.B patch
+writes itself ends with LF, though.
+The part of a file after the last hunk is copied unchanged, so a file
+with CR LF line endings comes out with LF endings up to the end of the
+last hunk and CR LF endings after it.
+.BR unix2dos (1)
+makes them the same again.
+.PP
+A line in a hunk that is followed by the marker
+.B \e No newline at end of file
+is written without a newline.
+A last line that lacks a newline gets one when
+.B patch
+writes it and its line in the hunk has no such marker.
+.PP
+A name in the diff may be a Windows path.
+Only a forward slash separates the components that
+.B \-p
+removes, so a backslash is part of a component, and a drive letter such
+as
+.B C:
+is a component of its own.
+Missing directories are created only above a name that has a forward
+slash.
+.I /dev/null
+is recognized by that spelling only, and not as
+.IR nul .
+File names, including those in the diff, are UTF-8 and may contain any
+Unicode characters on Windows 10 version 1903 and later, and are limited
+to the system code page on earlier versions.
+.PP
+The temporary file is named after the file with six more characters.
+It replaces the file by a rename, so the result is a new file: it is
+not read-only, even if the old one was, and other hard links to the old
+file keep the old content.
+If the rename fails, as when another program has the file open, the file
+stays unchanged and the result stays in the temporary file, with no
+message and exit status 0.
+.PP
+The file is read one octet at a time up to the end of the last hunk,
+which is slow for a large file: a hunk near the end of a file of 7 MB
+takes several seconds, and a failed hunk always reads the rest of the
+file.
+.SH SEE ALSO
+.BR busybox (1),
+.BR diff (1),
+.BR unix2dos (1)

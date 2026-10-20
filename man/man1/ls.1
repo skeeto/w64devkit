@@ -1,0 +1,805 @@
+.TH LS 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.SH NAME
+ls \- list directory contents
+.SH SYNOPSIS
+.B ls
+.RI [ options ]
+.RI [ file ...]
+.SH DESCRIPTION
+.B ls
+lists the files named by its
+.I file
+operands, and the entries of the directories among them.
+With no
+.IR file ,
+it lists the current directory.
+This
+.B ls
+is the busybox applet; see
+.BR busybox (1).
+.PP
+Operands that are not directories are listed first, as one group.
+Each directory follows, with its entries.
+Both are sorted; see
+.BR Sorting .
+When there is more than one operand, or with
+.BR \-R ,
+each directory's entries are preceded by a line holding its name and a
+colon.
+A blank line separates the groups.
+An operand that cannot be examined is reported on standard error and
+skipped, and the rest are still listed.
+.PP
+An operand that is a symbolic link is followed, so that the directory it
+names is listed, unless
+.BR \-l ,
+.BR \-i ,
+.BR \-s ,
+or
+.B \-F
+is given, in which case the link itself is listed.
+.B \-H
+and
+.B \-L
+follow links whatever else is given.
+.PP
+Entries whose names begin with a dot are not listed, and neither are
+entries with the hidden attribute.
+.B \-a
+and
+.B \-A
+list them.
+An operand is always listed.
+.SS Formats
+.B \-1
+writes one name per line,
+.B \-C
+writes columns filled from the top down,
+.B \-x
+writes columns filled from the left across, and
+.B \-l
+writes the long format, one file per line.
+Of
+.BR \-1 ,
+.BR \-C ,
+.BR \-x ,
+and
+.BR \-l ,
+the last one given applies, except that
+.B \-l
+prevails over
+.BR \-1 .
+With none of them, the format is
+.B \-C
+when standard output is a console, and
+.B \-1
+otherwise.
+.PP
+In the column formats, each column is as wide as the longest name plus
+two spaces, and as many columns are written as fit in the line width,
+which
+.B \-w
+sets.
+The indicators of
+.B \-F
+and
+.B \-p
+are not counted in a name's length.
+.PP
+In every format, a name is preceded by its inode number with
+.BR \-i ,
+and then by its allocated size, in units of 1024 bytes, with
+.BR \-s .
+.SS Long format
+Each line has these fields, separated by spaces, followed by the name:
+.IP \(bu 2
+The mode: a type character, then three triples of
+.BR r ,
+.BR w ,
+and
+.B x
+for owner, group, and other, with
+.B \-
+for a permission that is absent.
+The type is
+.B \-
+for a file,
+.B d
+for a directory,
+.B l
+for a symbolic link, and
+.B c
+for a device.
+.IP \(bu 2
+The number of links.
+.IP \(bu 2
+The owner and the group, as names, or as numbers with
+.BR \-n .
+With
+.BR \-g ,
+only the group.
+.IP \(bu 2
+The size in bytes, or as
+.B \-h
+writes it.
+A device has its major and minor numbers, separated by a comma, instead.
+.IP \(bu 2
+The time: the modification time, or with
+.B \-c
+or
+.B \-u
+another.
+It is local time.
+A time within the last six months is written as an abbreviated month,
+the day, and the hour and minute.
+Any other time, including one more than 15 minutes in the future, is
+written as the month, the day, and the year.
+.B \-\-full\-time
+writes
+.I yyyy\-mm\-dd hh:mm:ss zone
+instead, with the zone as a signed offset from UTC such as
+.BR \-0500 ,
+and no fraction of a second.
+.PP
+A symbolic link's name is followed by
+.B \->
+and its target.
+.PP
+The listing of a directory with
+.B \-l
+or
+.B \-s
+starts with a line
+.B total
+.IR n ,
+the allocated sizes of its entries added up and rounded up to a unit of
+1024 bytes.
+A directory that cannot be opened still gets the line, as
+.BR "total 0" .
+No such line comes before files named as operands.
+.SS Sorting
+Entries are sorted by name, comparing bytes, so that
+.B Z
+comes before
+.BR a .
+.BR \-S ,
+.BR \-t ,
+.BR \-v ,
+and
+.B \-X
+sort by another key, and entries that compare equal on it are sorted by
+name.
+If more than one of them is given, the first in the order
+.BR \-S " or " \-t ,
+.BR \-v ,
+.B \-X
+applies, and
+.B \-S
+and
+.B \-t
+cancel each other, so the last of those two given applies.
+.B \-r
+reverses the result.
+.B \-\-group\-directories\-first
+takes effect before any key.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-lah ,
+and may follow the operands unless
+.B POSIXLY_CORRECT
+is set.
+.B \-\-
+ends the options.
+The argument of
+.B \-w
+or
+.B \-T
+may be attached, as in
+.BR \-w80 ,
+or be the next argument.
+A long option may be abbreviated to a unique prefix.
+.TP
+.B \-1
+Write one name per line.
+This is the default when standard output is not a console.
+.TP
+.B \-a
+List all entries: those whose names begin with a dot, including
+.B .\&
+and
+.BR .. ,
+and those with the hidden attribute.
+.TP
+.B \-A
+Like
+.BR \-a ,
+but leave out the
+.B .\&
+and
+.B ..\&
+entries.
+.TP
+.BR \-aa ", " \-AA
+Like
+.B \-a
+and
+.BR \-A ,
+but omit files that have both the hidden and the system attribute.
+The option must be given twice: neither
+.B \-aA
+nor
+.B "\-a \-A"
+counts.
+.TP
+.B \-C
+Write columns, filled from the top down.
+This is the default when standard output is a console.
+.TP
+.B \-x
+Write columns, filled from the left across.
+.TP
+.B \-d
+List a directory itself, not its contents.
+Every operand is listed as a file.
+Cancels
+.BR \-R .
+.TP
+.B \-L
+Follow all symbolic links: show the file a link points to in place of
+the link.
+A link whose target cannot be examined is an error, and is not listed.
+.TP
+.B \-H
+Follow symbolic links named as operands, even with
+.BR \-l ,
+.BR \-i ,
+.BR \-s ,
+or
+.BR \-F .
+Of
+.B \-H
+and
+.BR \-L ,
+the last one given applies.
+.TP
+.B \-R
+List subdirectories, recursively, after the entries of their parent.
+A symbolic link is not entered, unless
+.B \-L
+is given.
+.TP
+.B \-p
+Append
+.B /
+to the names of directories.
+.TP
+.B \-F
+Append an indicator to names:
+.B /
+for a directory,
+.B *
+for an executable file, and
+.B @
+for a symbolic link.
+The usage message also lists
+.B |
+and
+.BR = ,
+for pipes and sockets, which do not occur.
+In the long format, a link's name gets no indicator, and its target gets
+the one for the target's own type.
+.TP
+.B \-l
+Write the long format; see
+.BR Formats .
+.TP
+.B \-g
+Write the long format with one name column, the group, in place of the
+owner and group columns.
+Implies
+.BR \-l .
+.TP
+.B \-i
+Write the inode number before each name.
+.TP
+.B \-n
+Write numeric owner and group, in place of names.
+Implies
+.BR \-l .
+.TP
+.B \-s
+Write the allocated size of each file, in units of 1024 bytes, before
+its name.
+.TP
+.B \-c
+Use the creation time, in place of the modification time, in the long
+format and as the key of
+.BR \-t .
+Without
+.BR \-l ,
+it also implies
+.BR \-t .
+Of
+.B \-c
+and
+.BR \-u ,
+the last one given applies.
+.TP
+.B \-u
+Use the last access time, as
+.B \-c
+uses the creation time.
+.TP
+.B \-\-full\-time
+Write the full date and time in the long format.
+Implies
+.BR \-l .
+.TP
+.B \-h
+Write sizes in the long format, and the allocated sizes of
+.BR \-s ,
+as a number with one decimal digit and a suffix:
+.BR K ,
+.BR M ,
+.BR G ,
+.BR T ,
+.BR P ,
+.BR E ,
+.BR Z ,
+or
+.B Y
+for the largest power of 1024 that fits, as in
+.BR 1.4M .
+A size below 1024 is a plain number.
+The number on a
+.B total
+line has no decimal digit.
+.TP
+.B \-\-group\-directories\-first
+List directories before other entries.
+With
+.BR \-r ,
+they come last.
+.TP
+.B \-S
+Sort by size, largest first.
+.TP
+.B \-X
+Sort by extension, which is the text of the name from its first dot
+onward.
+Names with no dot come first.
+.TP
+.B \-v
+Sort by version: runs of digits in names compare as numbers, so that
+.B f9
+comes before
+.BR f10 .
+.TP
+.B \-t
+Sort by time, newest first.
+The time is the modification time, or the one
+.B \-c
+or
+.B \-u
+selects.
+.TP
+.B \-r
+Reverse the sort order.
+.TP
+.BI "\-w " width
+Fit the column formats to
+.I width
+characters.
+The default is one less than
+.B COLUMNS
+when that is set, or else than the width of the console window of
+standard output, or failing that of standard error.
+Without either, it is 79.
+A
+.I width
+of 0 means no limit.
+.TP
+.B \-Q
+Enclose names in double quotes.
+In a name, a double quote or backslash is preceded by a backslash,
+characters 7 to 13 are written as
+.BR \ea ,
+.BR \eb ,
+.BR \et ,
+.BR \en ,
+.BR \ev ,
+.BR \ef ,
+and
+.BR \er ,
+and any other byte below 32 or above 126 is written as a backslash and
+three octal digits.
+Overrides
+.BR \-q .
+.TP
+.B \-q
+Write
+.B ?\&
+in place of each character in a name that is not printable.
+This is the default when standard output is a console.
+.TP
+.B \-k
+Accepted for compatibility and ignored.
+.TP
+.BI "\-T " cols
+Accepted for compatibility, and its argument is ignored.
+.TP
+\fB\-\-color\fR[\fB=\fIwhen\fR]
+Write names in color; see
+.BR NOTES .
+.I when
+is one of:
+.RS
+.TP
+.BR always ", " yes ", " force
+Use color.
+.TP
+.BR auto ", " tty ", " if\-tty
+Use color when standard output is a console and
+.B TERM
+is not
+.BR dumb .
+.TP
+.BR never ", " no ", " none
+Use no color.
+.RE
+.IP
+Any word that begins with
+.B n
+means no color, and a unique prefix of any other value is accepted.
+Another value leaves the default.
+Without
+.IR when ,
+the value is
+.BR always .
+It must be attached, as in
+.BR \-\-color=never .
+.IP
+Color is on by default when standard output is a console, unless
+.B TERM
+is
+.BR dumb ,
+.B LS_COLORS
+is empty or
+.BR none ,
+or
+.B NO_COLOR
+is set and not empty.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument.
+.SH ENVIRONMENT
+.TP
+.B BB_FIX_BACKSLASH
+When it is
+.BR 1 ,
+backslashes in the operands are changed to forward slashes, so that the
+names written have forward slashes.
+.TP
+.B BB_UMASK
+The file mode creation mask, in octal.
+Its bits
+.B 020
+and
+.B 002
+remove the write permission of group and of other from the modes
+.B ls
+writes; see
+.BR NOTES .
+.TP
+.B COLUMNS
+The width of the output, in place of the width of the console window; see
+.BR \-w .
+A value outside the range 2 to 29999 is taken as 80.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+When names are UTF-8 (see
+.BR NOTES )
+and the first of these that is set has the value
+.BR C ,
+a byte of a name above 127 counts as not printable for
+.BR \-q .
+.TP
+.B LS_COLORS
+When it is empty or
+.BR none ,
+color is not on by default.
+Its value is otherwise ignored: the colors are fixed.
+.TP
+.B NO_COLOR
+When it is set and not empty, color is not on by default.
+It does not affect
+.BR \-\-color .
+.TP
+.B POSIXLY_CORRECT
+When set, the first operand ends the options.
+.TP
+.B TERM
+When it is
+.BR dumb ,
+color is not on by default, and
+.B \-\-color=auto
+gives none.
+.TP
+.B TZ
+The time zone for the times written in the long format.
+.PP
+Variables that affect every busybox applet, such as
+.B BB_GLOBBING
+and
+.BR BB_TERMINAL_MODE ,
+are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+An operand or an entry of a directory could not be examined, a
+directory could not be opened, or an option or the argument of
+.B \-w
+was invalid.
+.TP
+.B 141
+Standard output is a pipe that was closed before all output was written.
+.PP
+After a failure to examine or open something,
+.B ls
+reports it on standard error and carries on.
+A file that cannot be examined is reported as
+.PP
+.RS 4
+.EX
+ls: \fIname\fR: \fIreason\fR
+.EE
+.RE
+.PP
+A directory that cannot be opened is reported as
+.PP
+.RS 4
+.EX
+ls: can\(aqt open \(aq\fIname\fR\(aq: \fIreason\fR
+.EE
+.RE
+.PP
+An invalid option prints a message and the usage on standard error.
+.SH EXAMPLES
+List a directory in the long format:
+.PP
+.RS 4
+.EX
+$ ls \-l
+total 44
+\-rw\-rw\-r\-\-    1 user     user             5 Oct 17 09:05 Makefile
+drwxrwxr\-x    2 user     user             0 Oct 19 08:20 build
+\-rw\-rw\-r\-\-    1 user     user            26 Oct 19 08:12 main.c
+\-rwxrwxr\-x    1 user     user         30720 Oct 19 08:20 main.exe
+drwxrwxr\-x    2 user     user             0 Oct 19 08:20 src
+\-rw\-rw\-r\-\-    1 user     user           412 Oct 18 17:40 util.c
+.EE
+.RE
+.PP
+Mark directories and executables, in a console:
+.PP
+.RS 4
+.EX
+$ ls \-F
+Makefile  build/    main.c    main.exe* src/      util.c
+.EE
+.RE
+.PP
+List the largest files first, with sizes people can read:
+.PP
+.RS 4
+.EX
+$ ls \-lSh
+.EE
+.RE
+.PP
+List a directory itself, not its contents:
+.PP
+.RS 4
+.EX
+$ ls \-ld build
+.EE
+.RE
+.PP
+List everything, including hidden files, newest first:
+.PP
+.RS 4
+.EX
+$ ls \-lat
+.EE
+.RE
+.PP
+Page a colored listing, keeping the colors:
+.PP
+.RS 4
+.EX
+$ ls \-\-color=always \-lR | less \-R
+.EE
+.RE
+.PP
+List the root of a drive:
+.PP
+.RS 4
+.EX
+$ ls C:/
+.EE
+.RE
+.SH NOTES
+Modes are made up from file attributes, not from the access control
+list.
+Every file is readable, and writable unless it has the read-only
+attribute.
+A file is executable if its name ends in
+.BR .com ,
+.BR .exe ,
+.BR .sh ,
+.BR .bat ,
+or
+.BR .cmd ,
+in any case.
+Otherwise, unless its name ends in
+.B .dll
+or its data is held remotely, as for a cloud file not yet downloaded,
+.B ls
+reads its first bytes, and the file is executable if it begins with
+.B #!\&
+or is a PE program that is not a DLL.
+This makes the listing of many files slower, though
+.B ls
+tries to leave the access time unchanged.
+A directory is readable, writable, and searchable.
+For a file or directory, the three triples of a mode are the same,
+except that the write permission of group and of other is removed when
+the file mode creation mask has its bit.
+The default mask is
+.BR 002 ,
+so other cannot write; see
+.B BB_UMASK
+in
+.BR busybox (1).
+For a file owned by another account, the permissions of other are raised
+to those of the owner when the file's access control list gives the
+current user read, write, and execute access, except in an elevated
+process.
+.PP
+The devices that busybox emulates, such as
+.IR /dev/null ,
+may be named as operands, though
+.I /dev
+itself cannot be listed.
+Each is a character device owned by the current user, with the mode
+.BR crw\-rw\-rw\- ,
+the numbers 0, 0, and the time of the Unix epoch.
+Symbolic links, junctions, volume mount points, and app execution
+aliases are all shown as symbolic links.
+A link has every permission, and its size is the length of its target's
+name.
+.PP
+There are no groups: the group of a file is its owner.
+A file owned by the current user shows that user's name, with spaces
+replaced by underscores, or 4095 with
+.BR \-n .
+The owner of another local or domain account is shown as the number
+that ends its security identifier, when that is from 500 to 4094.
+Any other owner, such as Administrators, SYSTEM, or TrustedInstaller, is
+shown as
+.B root
+or 0.
+A file whose security descriptor cannot be opened is owned by root, and
+has no permissions for other.
+.PP
+The number of links of a file is its number of hard links.
+That of a directory is 2 plus its number of subdirectories, not counting
+symbolic links and junctions, and a link to a directory shows the count
+of its target.
+The inode number is the file index that Windows reports, which is 0 for
+a device.
+.PP
+The modification time is the last write time.
+Windows has no time of last change to a file's status, so
+.B \-c
+uses the creation time.
+.PP
+Allocated sizes estimate the space on disk.
+Windows gives no cluster size, so
+.B ls
+assumes 4096 bytes and rounds every nonempty file up to a multiple of
+that.
+A compressed or sparse NTFS file counts the space it occupies, which can
+be much less than its length.
+A symbolic link counts as 4096 bytes.
+A directory counts the size Windows reports for it, rounded up in the
+same way, which is 0 for a small NTFS directory.
+.PP
+Names are UTF-8 on Windows 10 version 1903 or later; see
+.BR busybox (1).
+They sort by byte value, so that uppercase letters come before lowercase
+ones, and accented letters after
+.BR z .
+.PP
+Each colored name is written between a sequence that selects its color
+and the sequence
+.B ESC[m
+that resets it.
+The sequences are
+.B ESC[1;32m
+for an executable file,
+.B ESC[1;34m
+for a directory,
+.B ESC[1;36m
+for a symbolic link,
+.B ESC[1;35m
+for a device, and
+.B ESC[0;0m
+for any other file.
+In the long format, the target of a link is colored for its own type,
+or with
+.B ESC[1;31m
+when it does not exist.
+.PP
+Operands may use
+.B /
+or
+.BR \e ,
+and are written as given.
+A directory name of 258 bytes or more cannot be listed.
+A bare drive such as
+.B C:
+lists the current directory of that drive, and
+.B C:/
+lists its root.
+.PP
+A console is a Windows console window; a pipe or a file is not one.
+.PP
+When started from
+.BR cmd.exe ,
+.B ls
+expands wildcards in its operands; see
+.BR busybox (1).
+.PP
+Differences from GNU
+.BR ls :
+.IP \(bu 2
+Options
+.BR \-b ,
+.BR \-f ,
+.BR \-G ,
+.BR \-I ,
+.BR \-m ,
+.BR \-N ,
+.BR \-o ,
+.BR \-U ,
+and
+.BR \-Z ,
+and every long option but
+.BR \-\-color ,
+.BR \-\-full\-time ,
+and
+.BR \-\-group\-directories\-first ,
+do not exist.
+.IP \(bu 2
+The colors are fixed.
+.IP \(bu 2
+Names are sorted bytewise, whatever the locale.
+.IP \(bu 2
+Lines end with LF, not CRLF.
+.IP \(bu 2
+Columns are separated with spaces, never tabs.
+.SH SEE ALSO
+.BR busybox (1),
+.BR chmod (1),
+.BR du (1),
+.BR find (1),
+.BR less (1),
+.BR ln (1),
+.BR lsattr (1),
+.BR stat (1)

@@ -1,0 +1,240 @@
+.TH PRINTENV 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+printenv \- print environment variables
+.SH SYNOPSIS
+.B printenv
+.RI [ name ...]
+.SH DESCRIPTION
+.B printenv
+writes environment variables to standard output.
+With no
+.IR name ,
+it writes every variable, one per line, as
+.IB name = value\fR.
+The order is that of the process's environment: the order Windows
+supplied the variables, followed by any that busybox added.
+.PP
+With one or more
+.IR name s,
+it writes the value of each variable in turn, followed by a LF, without
+the name.
+A name that is not set writes nothing and makes the exit status 1, and
+the remaining names are still looked up.
+A name may be repeated, and its value is written each time.
+An empty name is never found.
+A name that contains
+.B =
+is matched against a variable's name and value together: with
+.B FOO
+set to
+.BR a=b ,
+.B printenv FOO=a
+writes
+.BR b .
+.PP
+Values are written as they are, without quoting, so a value that
+contains newlines spans several lines.
+A variable with an empty value writes an empty line and counts as
+found, so the exit status tells an empty variable from one that is not
+set.
+.PP
+Names are not case-sensitive:
+.B printenv path
+writes the value of
+.BR PATH .
+.SH OPTIONS
+.B printenv
+parses no options.
+Apart from a first argument of
+.BR \-\-help ,
+every argument, including
+.B \-\-
+and
+.BR \-\-version ,
+is a name.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument, and any further arguments
+are ignored.
+.SH ENVIRONMENT
+The variables named as operands are read.
+So are the following, which affect the lookup or the output.
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+the C runtime expands wildcards in the arguments when busybox starts,
+quoted arguments too.
+So when it is unset, as when
+.B printenv
+is run from
+.B cmd.exe
+or another program outside busybox,
+.B printenv P*
+looks up the names of the matching files and not the pattern.
+A pattern that matches nothing is left as it is.
+When the variable is unset, busybox then sets it to
+.BR 0 ,
+so the listing includes
+.BR BB_GLOBBING=0 .
+.TP
+.BR BB_TERMINAL_MODE ", " BB_SKIP_ANSI_EMULATION
+When standard output is a console, decide whether the console or busybox
+interprets the escape sequences in the values, such as for color.
+See
+.BR busybox (1).
+.TP
+.B CONEMUPID
+When it is set and neither of the above is, busybox uses terminal mode
+0: it turns virtual terminal output off and emulates escape sequences
+itself.
+.TP
+.B HOME
+When it is unset,
+.B printenv HOME
+writes the user's profile directory, with forward slashes, though the
+listing does not include it.
+The name must be in capitals:
+.B printenv home
+writes nothing.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+output to a console is not converted, as described in
+.BR NOTES ,
+and the console interprets the bytes in its own code page.
+.TP
+.B TMPDIR
+When it is unset,
+.B printenv TMPDIR
+writes the value of
+.BR TMP ,
+or else of
+.BR TEMP ,
+though the listing does not include it.
+As with
+.BR HOME ,
+the name must be in capitals.
+.PP
+Variables that affect every busybox applet are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Every named variable was found, or no names were given.
+.TP
+.B 1
+A named variable is not set, with no message.
+Also standard output could not be written, with a message such as
+.B "printenv: standard output: Bad file descriptor"
+on standard error.
+.TP
+.B 141
+Standard output is a pipe that was closed before the output was written,
+and the output is too long for the C library's buffer.
+No message is written.
+Shorter output fails when
+.B printenv
+exits, with status 1.
+.SH EXAMPLES
+Write the value of one variable:
+.PP
+.RS 4
+.EX
+$ printenv PATH
+.EE
+.RE
+.PP
+Test whether a variable is set, even if its value is empty:
+.PP
+.RS 4
+.EX
+$ printenv EDITOR >/dev/null && echo set
+.EE
+.RE
+.PP
+Write several values, one per line, in the order asked.
+The missing variable writes nothing and sets the status:
+.PP
+.RS 4
+.EX
+$ FOO=1 BAR=2 printenv BAR FOO MISSING
+2
+1
+$ echo $?
+1
+.EE
+.RE
+.PP
+List the busybox-w32 variables that are set:
+.PP
+.RS 4
+.EX
+$ printenv | grep \(aq^BB_\(aq
+BB_GLOBBING=0
+.EE
+.RE
+.PP
+Write the environment with a NUL after each variable.
+.B printenv
+cannot do this, but
+.B env
+can:
+.PP
+.RS 4
+.EX
+$ env \-0
+.EE
+.RE
+.SH NOTES
+Differences from GNU
+.BR printenv :
+there are no options, so no
+.B \-0
+or
+.BR \-\-null ,
+and there is no
+.BR \-\-version .
+.B \-\-help
+works only as the first argument.
+.PP
+Lines end with a bare LF, not CR LF.
+.PP
+Variables whose names begin with
+.BR = ,
+such as the
+.B =C:
+and
+.B =ExitCode
+entries that
+.B cmd.exe
+keeps, are not visible to
+.BR printenv ,
+neither in the listing nor by name.
+.PP
+Run from the kit's shell,
+.B printenv
+runs inside the shell process instead of starting a new one.
+It sees the variables the shell has exported, and assignments on its own
+command line, as in
+.BR "FOO=1 printenv FOO" ,
+but not the shell's unexported variables.
+The listing is in the shell's own order.
+The shell changes some of what it imports from Windows, such as the
+case of names and the separators in values; see
+.BR sh (1).
+.PP
+busybox makes its ANSI code page UTF-8 on Windows 10 version 1903 and
+later, so names and values may contain any Unicode character, and are
+written to a file or pipe as UTF-8.
+On older systems they are limited to the ANSI code page.
+Output to a console is converted from the ANSI code page to the
+console's code page.
+Escape sequences in values, such as those for color, take effect, and
+busybox emulates them on consoles without virtual terminal support.
+.SH SEE ALSO
+.BR busybox (1),
+.BR env (1),
+.BR sh (1)

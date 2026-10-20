@@ -1,0 +1,470 @@
+.TH TIME 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+time \- run a program and report how long it took
+.SH SYNOPSIS
+.B time
+.RB [ \-pa ]
+.RB [ \-f
+.IR fmt ]
+.RB [ \-o
+.IR file ]
+.I prog
+.RI [ arg ...]
+.SH DESCRIPTION
+.B time
+runs
+.I prog
+with the arguments
+.IR arg ,
+waits for it to exit, and writes a report of its elapsed time and the CPU
+time it used.
+.I prog
+shares the standard input, standard output, and standard error of
+.BR time .
+The report goes to standard error, or with
+.B \-o
+to a file, and
+.B time
+exits with the status of
+.IR prog .
+.PP
+.I prog
+is found as for any command that busybox runs; see
+.B Running commands
+in
+.BR busybox (1).
+.SS Report
+The default report has three lines, with a tab after each label:
+.PP
+.RS 4
+.EX
+real	0m 1.02s
+user	0m 0.01s
+sys	0m 0.00s
+.EE
+.RE
+.PP
+.B real
+is the elapsed time, and
+.B user
+and
+.B sys
+are the time that
+.I prog
+spent in user mode and in the kernel.
+Times are truncated to hundredths of a second.
+With
+.BR \-p ,
+the times are in seconds and a space follows each label:
+.PP
+.RS 4
+.EX
+real 1.02
+user 0.01
+sys 0.00
+.EE
+.RE
+.PP
+If
+.I prog
+exits with a nonzero status, or is terminated by a signal, one more line
+comes first, in the same place as the report and for every format:
+.B Command exited with non-zero status
+.I n
+or
+.B Command terminated by signal
+.IR n .
+.SS Format
+The format of
+.B \-f
+and
+.B TIME
+is text in which a percent sign starts a directive and a backslash starts
+an escape.
+Other text is written as it is, and
+.B time
+ends the report with a newline.
+The directives are:
+.TP
+.B %%
+A percent sign.
+.TP
+.B %C
+.I prog
+and its arguments, separated by single spaces, as
+.B time
+received them and without quoting.
+.TP
+.B %E
+The elapsed time as minutes and seconds with hundredths, such as
+.BR "0m 1.02s" .
+From one hour on, it is hours, minutes, and whole seconds, such as
+.BR "1h 2m 03s" .
+.TP
+.B %e
+The elapsed time in seconds with hundredths, without minutes, such as
+.B 1.02
+or
+.BR 125.50 .
+.TP
+.B %S
+The system CPU time in seconds with hundredths.
+.TP
+.B %T
+The system CPU time in the form of
+.BR %E .
+.TP
+.B %U
+The user CPU time in seconds with hundredths.
+.TP
+.B %u
+The user CPU time in the form of
+.BR %E .
+.TP
+.B %x
+The exit status of
+.I prog
+in decimal, or 0 if a signal terminated it.
+.PP
+Any other character after a percent sign is written as a question mark
+followed by that character, so
+.B %P
+gives
+.BR ?P .
+A format that ends in a lone percent sign ends the report with a
+question mark and no newline.
+.PP
+The escapes are
+.B \en
+for a newline,
+.B \et
+for a tab, and
+.B \e\e
+for a backslash.
+Any other character after a backslash is written as a question mark, a
+backslash, and that character.
+A format that ends in a lone backslash ends the report with a question
+mark, a backslash,
+.I prog
+as given, and a newline.
+.PP
+An empty format writes only a newline.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-pa ,
+and an option's argument may be attached, as in
+.BR \-f%e ,
+or be the next argument.
+Option parsing stops at the first operand, which is
+.IR prog :
+everything after it belongs to
+.IR prog ,
+even an argument that looks like an option.
+.B \-\-
+ends the options.
+At least one operand is required.
+.TP
+.B \-p
+Use the POSIX report, shown above.
+It overrides
+.B \-f
+and
+.BR TIME .
+.TP
+.BI "\-f " fmt
+Use
+.I fmt
+as the format of the report; see
+.BR Format .
+It overrides
+.BR TIME .
+.TP
+.BI "\-o " file
+Write the report to
+.I file
+instead of standard error.
+.B time
+creates
+.I file
+if it does not exist, and truncates it unless
+.B \-a
+is given.
+It opens
+.I file
+before it starts
+.IR prog ,
+so the file exists even if
+.I prog
+cannot be started.
+.TP
+.B \-a
+Append to the
+.B \-o
+file instead of truncating it.
+It has no effect without
+.BR \-o .
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument, and any further arguments
+are ignored.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+busybox expands wildcards in the arguments of
+.B time
+itself when it starts, which includes those meant for
+.IR prog ,
+as needed when run from
+.BR cmd.exe .
+If the variable is not set then, busybox sets it to
+.BR 0 ,
+so
+.IR prog 's
+environment has
+.BR BB_GLOBBING=0 .
+.TP
+.B BB_OVERRIDE_APPLETS
+Says which names run an applet and which run a program from
+.B PATH
+when
+.I prog
+is looked up; see
+.BR busybox (1).
+.TP
+.B PATH
+Where
+.I prog
+is looked up when it is not an applet and its name has no directory.
+Directories are separated by semicolons.
+.TP
+.B TIME
+The format of the report, when neither
+.B \-f
+nor
+.B \-p
+is given.
+.PP
+Variables that affect every busybox applet are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+.I prog
+exited with status 0, or
+.B \-\-help
+printed the usage message.
+.TP
+.B 1
+An invalid option, an option without its argument, or no
+.I prog
+operand, with a usage message on standard error.
+Also the
+.B \-o
+file could not be opened, or
+.I prog
+could not be started.
+.PP
+For the last two, standard error gets one of
+.PP
+.RS 4
+.EX
+time: can\(aqt open \(aq\fIfile\fR\(aq: \fIreason\fR
+time: can\(aqt execute \fIprog\fR: \fIreason\fR
+.EE
+.RE
+.PP
+Otherwise the status is that of
+.IR prog ,
+which may also be 1.
+If a signal terminated
+.IR prog ,
+it is the signal number, not 128 plus it; see
+.BR NOTES .
+.SH EXAMPLES
+Time a command:
+.PP
+.RS 4
+.EX
+$ time sleep 1
+real	0m 1.02s
+user	0m 0.01s
+sys	0m 0.00s
+.EE
+.RE
+.PP
+Use the POSIX format:
+.PP
+.RS 4
+.EX
+$ time \-p sleep 1
+real 1.02
+user 0.00
+sys 0.00
+.EE
+.RE
+.PP
+Print the command and its elapsed seconds:
+.PP
+.RS 4
+.EX
+$ time \-f \(aq%C: %e seconds\(aq sleep 1
+sleep 1: 1.01 seconds
+.EE
+.RE
+.PP
+Add a line per build to a log, apart from the build's own output:
+.PP
+.RS 4
+.EX
+$ time \-a \-o build.log \-f \(aq%C %E\(aq make
+.EE
+.RE
+.PP
+Time a pipeline.
+Only the elapsed time is meaningful, because the work is done in
+processes started by
+.BR sh :
+.PP
+.RS 4
+.EX
+$ time \-f %e sh \-c \(aqsort big.txt | uniq \-c >counts.txt\(aq
+.EE
+.RE
+.PP
+Choose a format for every run in a shell:
+.PP
+.RS 4
+.EX
+$ export TIME=\(aq%C took %E\(aq
+$ time sleep 1
+sleep 1 took 0m 1.01s
+.EE
+.RE
+.SH NOTES
+.B time
+reads the CPU times of
+.I prog
+from Windows once it exits.
+They are the times of that one process: unlike on Unix, the processes it
+starts are not counted, even those it waits for.
+For a script, they are those of its interpreter, and for a batch file
+those of
+.BR cmd.exe ,
+not of the programs they run.
+When
+.I prog
+is an empty batch file,
+.B time
+prints
+.BR "time: wait: Invalid argument" ,
+and its report and exit status are meaningless.
+.PP
+The elapsed time comes from the system clock, not a monotonic clock, so
+changing the clock while
+.I prog
+runs changes the result.
+It is kept in 32 bits of milliseconds and wraps after about 49.7 days.
+.PP
+The Unix build of this applet also has
+.B \-v
+and the directives
+.BR %c ,
+.BR %D ,
+.BR %F ,
+.BR %I ,
+.BR %K ,
+.BR %k ,
+.BR %M ,
+.BR %O ,
+.BR %P ,
+.BR %p ,
+.BR %R ,
+.BR %r ,
+.BR %s ,
+.BR %t ,
+.BR %W ,
+.BR %w ,
+.BR %X ,
+and
+.BR %Z ,
+for the CPU percentage, memory use, page faults, and other counts.
+This build has none of them:
+.B \-v
+is an invalid option, and each such directive is written as a question
+mark and its letter.
+.PP
+Unlike the Unix build,
+.B time
+does not ignore Ctrl+C while it waits.
+A Ctrl+C in the console ends
+.B time
+as well as
+.IR prog ,
+and no report is written.
+.PP
+The exit code of a Windows process has 32 bits.
+Busybox treats some codes as signals:
+.B 0xc0000005
+(an access violation) is signal 11,
+.B 0xc000013a
+(Ctrl+C) is signal 2, and a code whose low three bytes are zero is the
+signal in its top byte, when
+.B kill \-l
+lists that number.
+The last is how busybox ends a process that it signals, as
+.BR kill (1)
+does.
+For these,
+.B time
+exits with the signal number.
+.PP
+Any other code above 255, such as the NTSTATUS value of a crash, becomes
+its low byte, or 255 when that is zero.
+When it reduces a code,
+.B time
+first writes this to standard error, even when
+.B \-o
+is given:
+.PP
+.RS 4
+.EX
+time: \fImessage\fR Error 0x\fIcode\fR
+.EE
+.RE
+.PP
+Here
+.I message
+is the system's description of the code, and
+.I code
+is in lowercase hexadecimal.
+Without a description,
+.I message
+and the space after it are left out.
+The reduced status is the one that
+.B Command exited with non-zero status
+and
+.B %x
+show.
+.PP
+.B time
+is an ordinary command, and the kit's shell has no
+.B time
+keyword.
+A shell builtin or function that is not also an applet cannot be timed:
+.B time cd /
+fails with status 1.
+A pipeline after
+.B time
+belongs to the shell, so
+.B time a | b
+times only
+.BR a .
+.SH SEE ALSO
+.BR busybox (1),
+.BR env (1),
+.BR kill (1),
+.BR sh (1),
+.BR timeout (1)

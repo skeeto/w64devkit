@@ -1,0 +1,253 @@
+.TH DIRNAME 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+dirname \- strip the last component from a path
+.SH SYNOPSIS
+.B dirname
+.I path
+.SH DESCRIPTION
+.B dirname
+prints
+.I path
+without its last component, followed by a newline: the name of the
+directory that contains
+.IR path .
+It works on the string alone and does not access the file system, so
+.I path
+need not exist.
+.PP
+Both slash and backslash separate components, and a run of separators
+counts as one.
+Trailing separators are ignored, and then the last component and the
+separators before it are removed.
+Other separators are kept as they are, so
+.B a//b/c/
+gives
+.BR a//b .
+No component is special, so
+.B a/..\&
+gives
+.BR a .
+If nothing remains, the result is
+.B .\&
+for a relative path, including an empty one, and a single separator for
+an absolute path, so
+.B /usr
+gives
+.BR / .
+.PP
+A drive, an ASCII letter and a colon at the start of
+.IR path ,
+is kept, and the rest of
+.I path
+is handled as above.
+So
+.B C:/foo
+gives
+.BR C:/ ,
+and the drive-relative
+.B C:foo
+gives
+.BR C:. ,
+which names the current directory of drive C.
+.PP
+A path that begins with two separators, of either kind, is a UNC path.
+Its first two components after them, normally a host and a share, are a
+root that is kept like a drive, and the result is never shorter than
+that root and a separator.
+So
+.B //host/share/dir
+and
+.B //host/share
+both give
+.BR //host/share/ .
+Device paths are UNC paths too:
+.B \e\e?\eC:\edir
+gives
+.BR \e\e?\eC:\e .
+.PP
+A separator that
+.B dirname
+adds after a root is a copy of one in
+.IR path :
+the one that follows the drive or, for any other absolute path, the
+first character.
+So
+.B C:\eusr
+gives
+.BR C:\e ,
+and
+.B //host/share\edir
+gives
+.BR //host/share/ .
+.SH OPTIONS
+.B \-\-help
+is the only option, so any other argument that begins with a dash,
+such as
+.B \-h
+or
+.BR \-\-version ,
+is a
+.IR path .
+A first argument of
+.B \-\-
+is skipped, which matters only for a
+.I path
+of
+.B \-\-
+or
+.BR \-\-help .
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument, and any further arguments
+are then ignored.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+the C runtime expands the wildcards
+.B *
+and
+.B ?\&
+in the last component of each argument when busybox starts, even in
+quoted arguments, as needed for commands typed in
+.BR cmd.exe .
+A pattern that matches nothing is left as it is.
+When the variable is unset, busybox sets it to
+.BR 0 ,
+so that busybox programs it starts do not expand their arguments again.
+.PP
+Variables that affect every busybox program, such as
+.B BB_TERMINAL_MODE
+and
+.B LC_ALL
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+Invalid command line: no
+.IR path ,
+or more than one, with a usage message on standard error.
+.TP
+.B 141
+Standard output is a pipe whose reader has exited, and the result is
+4096 bytes or longer.
+No message is printed.
+.TP
+.B 255
+Standard output could not be written, as when it is closed or is a pipe
+whose reader has exited, and the result is shorter than 4096 bytes.
+No message is printed.
+.SH EXAMPLES
+Print the directory of a file:
+.PP
+.RS 4
+.EX
+$ dirname C:/w64devkit/bin/gcc.exe
+C:/w64devkit/bin
+.EE
+.RE
+.PP
+Strip a Windows path, quoted to protect the backslashes:
+.PP
+.RS 4
+.EX
+$ dirname \(aqC:\eUsers\eme\eDocuments\e\(aq
+C:\eUsers\eme
+.EE
+.RE
+.PP
+A name with no directory part is in the current directory:
+.PP
+.RS 4
+.EX
+$ dirname main.c
+\&.
+.EE
+.RE
+.PP
+The directory of a file in a root is the root:
+.PP
+.RS 4
+.EX
+$ dirname C:/pagefile.sys
+C:/
+$ dirname //server/share/dir
+//server/share/
+.EE
+.RE
+.PP
+Create the directory of an output file before writing it:
+.PP
+.RS 4
+.EX
+$ out=build/x64/app.exe
+$ mkdir \-p "$(dirname "$out")"
+$ cc \-o "$out" main.c
+.EE
+.RE
+.SH NOTES
+Differences from Unix
+.BR dirname :
+.IP \(bu 2
+Backslashes are separators, and drives and UNC paths have roots.
+.IP \(bu 2
+Leading double separators begin a UNC path, so
+.B dirname //usr
+prints
+.BR //usr/ ,
+and
+.B dirname //
+prints
+.BR /// .
+.IP \(bu 2
+It takes exactly one
+.IR path ,
+as POSIX specifies, not several as GNU
+.B dirname
+does.
+.IP \(bu 2
+There is no
+.BR \-z ,
+and no long option other than
+.BR \-\-help .
+.IP \(bu 2
+A write error gives no message.
+When the result is 4096 bytes or longer, a write error other than to a
+pipe whose reader has exited goes unreported, with status 0.
+.PP
+The wildcard expansion described under
+.B BB_GLOBBING
+can turn one argument into several.
+Started from
+.BR cmd.exe ,
+.B dirname *.c
+fails with a usage message when more than one file matches.
+.PP
+On Windows 10 version 1903 and later,
+.I path
+may contain any Unicode characters.
+On older versions it is limited to the ANSI code page, and in a
+double-byte code page, such as Shift JIS, the second byte of a character
+is never taken for a separator.
+.PP
+The output line ends with LF, not CRLF.
+.PP
+The kit's
+.B sh
+runs
+.B dirname
+inside the shell process, without starting a new one, except where the
+shell needs a separate process anyway, as for a command substitution or
+a pipeline.
+Exit status 141 then ends the shell too.
+.SH SEE ALSO
+.BR basename (1),
+.BR busybox (1),
+.BR realpath (1),
+.BR sh (1)

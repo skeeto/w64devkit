@@ -1,0 +1,240 @@
+.TH RESET 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+reset \- reset the console's text attributes and clear its screen
+.SH SYNOPSIS
+.B reset
+.RB [ \-\-help ]
+.SH DESCRIPTION
+.B reset
+cleans up a console that a program has left in a bad state.
+When standard output is a console, it does three things in order:
+.IP 1. 4
+It writes
+.RB ESC\  [m ,
+which resets the text attributes, such as color and bold.
+.IP 2. 4
+It writes
+.RB ESC\  [?1049l ,
+which leaves the alternate screen buffer.
+.IP 3. 4
+It moves the cursor to the top left corner of the console's screen
+buffer, then fills the whole buffer with spaces.
+.PP
+When standard output is not a console, such as a file, a pipe, or the
+.B NUL
+device, nothing is written and nothing is changed.
+Whether standard input or standard error is a console does not matter.
+.PP
+When the console has virtual terminal processing enabled, it interprets
+the two sequences; see
+.BR BB_TERMINAL_MODE .
+Otherwise busybox emulates them through the console API.
+The third step always uses the console API.
+.PP
+The fill, and an emulated
+.RB ESC\  [m ,
+use the text attributes that the console had when this busybox process
+first used it.
+The kit's
+.B sh
+runs
+.B reset
+within itself, so in an interactive shell these are the attributes from
+before its first prompt, not any that a program has set since.
+Run as a process of its own, as from
+.BR cmd.exe ,
+.B reset
+first uses the console when it writes the two sequences, so the fill
+uses whatever colors a program left behind, and an emulated
+.RB ESC\  [m
+changes nothing.
+.PP
+An emulated
+.RB ESC\  [?1049l
+leaves only an alternate buffer that the same process entered with an
+emulated
+.RB ESC\  [?1049h ,
+such as one written by the shell's own
+.B echo
+or
+.BR printf ,
+and not one that another program entered.
+.SH OPTIONS
+.B reset
+takes no options.
+It ignores its arguments, unless the first is
+.BR \-\-help .
+.TP
+.B \-\-help
+Print a usage message on standard output and exit.
+The message describes the Unix build; see
+.BR NOTES .
+.SH ENVIRONMENT
+Run as a process of its own,
+.B reset
+reads these variables only when standard output is a console.
+When the shell runs
+.B reset
+itself, the shell's current mode applies, and an assignment before the
+command, as in
+.BR "BB_TERMINAL_MODE=0 reset" ,
+has no effect on it.
+.TP
+.B BB_TERMINAL_MODE
+How busybox handles escape sequences written to a console.
+With
+.B 0
+or
+.BR 2 ,
+it disables the console's virtual terminal processing and emulates the
+sequences itself.
+With
+.B 1
+or
+.BR 3 ,
+it enables virtual terminal processing and passes the sequences
+through, even if the console cannot interpret them.
+With
+.BR 4 ,
+it passes them through if the console already has virtual terminal
+processing enabled, and otherwise emulates them.
+With
+.BR 5 ,
+it enables virtual terminal processing if the console supports it, and
+otherwise emulates the sequences.
+A number outside 0 to 5 means
+.BR 5 ,
+and text that is not a number means
+.BR 0 .
+.TP
+.B BB_SKIP_ANSI_EMULATION
+Used when
+.B BB_TERMINAL_MODE
+is unset:
+.B 1
+means mode
+.BR 1 ,
+.B 2
+means mode
+.BR 5 ,
+and any other value means mode
+.BR 0 .
+.TP
+.B CONEMUPID
+When neither of the above is set, the mode is
+.BR 5 ,
+or
+.B 0
+if
+.B CONEMUPID
+is set, as under ConEmu, or when running under Wine.
+.PP
+The busybox startup code also reads
+.BR BB_CRITICAL_ERROR_DIALOGS ,
+.BR BB_GLOBBING ,
+and
+.BR BB_UMASK ,
+and console output reads
+.BR LC_ALL ,
+.BR LC_CTYPE ,
+and
+.BR LANG ,
+none of which changes what
+.B reset
+does; see
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+Errors from the console are ignored.
+.TP
+.B 141
+The
+.B \-\-help
+message was written to a pipe whose reader has exited.
+.SH EXAMPLES
+Clean up after a program that left the console in odd colors:
+.PP
+.RS 4
+.EX
+$ reset
+.EE
+.RE
+.PP
+Standard output is not a console, so nothing is written:
+.PP
+.RS 4
+.EX
+$ reset >out.txt
+$ wc \-c <out.txt
+0
+.EE
+.RE
+.SH NOTES
+Differences from the ncurses
+.BR reset :
+.IP \(bu 2
+It takes no options or terminal type, ignores its arguments instead of
+rejecting them, and does not use
+.B TERM
+or terminfo.
+.IP \(bu 2
+It does not reset the terminal modes as the Unix build does with
+.BR "stty sane" ,
+although its usage message says it does.
+The console's input mode is not changed.
+.IP \(bu 2
+It does not make a hidden cursor visible.
+.PP
+Unlike
+.BR clear ,
+which writes its sequence even to a pipe or file,
+.B reset
+writes nothing unless standard output is a console.
+.B clear
+clears only the visible window, and
+.B reset
+clears the whole screen buffer.
+.PP
+In a classic console window the screen buffer holds the scrollback, so
+.B reset
+erases the history, and the window then shows the top of the buffer.
+A terminal that keeps its own scrollback, such as Windows Terminal,
+keeps it: there,
+.B reset
+clears only the visible screen.
+.PP
+Run as a process of its own,
+.B reset
+also adjusts the console as any busybox command does when it first
+writes an escape sequence there: it turns virtual terminal processing on
+or off as
+.B BB_TERMINAL_MODE
+says, clears
+.BR DISABLE_NEWLINE_AUTO_RETURN ,
+replaces an output mode of 0 with processed output and line wrapping,
+and changes code page 850 to 858; see
+.BR busybox (1).
+An interactive
+.B sh
+sets the output mode the same way before each prompt.
+.PP
+The kit's
+.B sh
+runs
+.B reset
+inside the shell process, without starting a new one, except where the
+shell needs a separate process anyway, as for a command substitution or
+a pipeline.
+In a command substitution standard output is a pipe, so
+.B reset
+does nothing there.
+When it runs inside the shell and its
+.B \-\-help
+message goes to a pipe whose reader has exited, it ends the shell
+itself with status 141.
+.SH SEE ALSO
+.BR busybox (1),
+.BR clear (1),
+.BR sh (1)

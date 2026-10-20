@@ -1,0 +1,363 @@
+.TH WHICH 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.SH NAME
+which \- locate commands in PATH
+.SH SYNOPSIS
+.B which
+.RB [ \-a ]
+.IR command ...
+.SH DESCRIPTION
+.B which
+prints where each
+.I command
+is found.
+It searches the directories of
+.B PATH
+in order and prints the first executable file that matches, or with
+.B \-a
+every match, one path per line.
+A command that is not found prints nothing.
+At least one
+.I command
+is required.
+.SS Commands
+A
+.I command
+that contains a slash or a backslash, or begins with a drive letter and
+a colon, as in
+.B ./tool
+or
+.BR C:tool ,
+is a path, and
+.B PATH
+is not searched.
+The path is tested as it stands, and then as described under
+.BR "Executable files" ,
+relative to the current directory when it is relative.
+If no file matches, and the directory part is exactly
+.IR /bin ,
+.IR /usr/bin ,
+.IR /sbin ,
+or
+.IR /usr/sbin ,
+the last component is looked up as a command instead, so that
+.B /bin/sh
+finds a program named
+.B sh
+in
+.BR PATH .
+.SS Executable files
+A match is a file, not a directory, that busybox considers executable.
+That is a file whose name ends in
+.BR .com ,
+.BR .exe ,
+.BR .sh ,
+.BR .bat ,
+or
+.BR .cmd ,
+in any case.
+It is also a file of at least 4 bytes with any other name, except one
+ending in
+.BR .dll ,
+that begins with
+.B #!\&
+or is a Windows program, a PE image that is not a DLL.
+A cloud placeholder, such as an online-only OneDrive file, is judged by
+its name alone.
+.PP
+In each directory
+.B which
+tries the command as given, then with
+.BR .com ,
+.BR .exe ,
+.BR .sh ,
+.BR .bat ,
+and
+.B .cmd
+appended, in that order.
+Only the first match in a directory is reported.
+No suffix is appended to a command that already ends in one of these
+suffixes, in any case, or in a period.
+.B PATHEXT
+is not consulted.
+.SS PATH
+.B PATH
+is a list of directories separated by semicolons.
+A directory may be written with slashes or backslashes, and one trailing
+separator is ignored.
+An empty element, as from a leading or doubled semicolon, stands for the
+current directory.
+The current directory is not searched otherwise.
+When
+.B PATH
+is unset, the directories are
+.I C:/Windows/System32
+and
+.IR C:/Windows .
+.PP
+busybox drops a single trailing semicolon from
+.B PATH
+when it starts in a Windows environment, as from
+.BR cmd.exe .
+A
+.B PATH
+set afterward, as in the kit's shell, keeps it, and then it ends with an
+empty element.
+.SS Output
+Each line is the directory as written in
+.BR PATH ,
+less one trailing separator, a slash, and the command with the suffix
+that matched, if one was added.
+The path is not made absolute or canonical: a relative element gives a
+relative path, and an empty element gives the command alone.
+The command keeps the case in which it was typed, and an added suffix is
+lowercase, whatever the case of the file's name.
+A command that is a path is printed as given, with a suffix added if
+needed.
+Every backslash is printed as a slash.
+.SS Applets in the shell
+The kit's shell runs an applet itself, without searching
+.BR PATH ,
+when a command names one.
+When the shell runs
+.B which
+under that name,
+.B which
+also reports applets, and its message for an unknown option begins with
+.B Which:
+instead of
+.BR which: .
+A command that names an applet is printed as the name alone, with no
+directory, except
+.BR busybox ,
+which is printed as the path of
+.IR busybox.exe .
+A name with a suffix, such as
+.BR ls.exe ,
+is a file, not an applet.
+.PP
+With
+.BR \-a ,
+the matches in
+.B PATH
+follow the applet.
+Without
+.BR \-a ,
+the first applet ends the search for every remaining command, so
+.B which ls cat
+prints only
+.BR ls .
+The exit status counts only the commands before that one.
+.PP
+A path such as
+.B /bin/ls
+that matches no file, and whose last component names an applet, is
+printed as that component alone, even for
+.BR busybox .
+It does not end the search, and
+.B PATH
+is not searched for it, even with
+.BR \-a .
+.PP
+Started any other way, as from
+.BR cmd.exe ,
+as
+.B /bin/which
+or
+.B busybox which
+in the shell, or by
+.B env
+or
+.BR xargs ,
+.B which
+searches
+.B PATH
+alone.
+It does so too when the shell runs it with standard input, output, or
+error closed, as in
+.BR "which ls 2>&\-" .
+.SH OPTIONS
+Options are recognized anywhere on the command line, so
+.B which ls \-a
+is the same as
+.BR "which \-a ls" ,
+unless
+.B POSIXLY_CORRECT
+is set.
+.B \-\-
+ends the options.
+.TP
+.B \-a
+Print every match of each command, not only the first.
+Every element of
+.B PATH
+is searched, and a directory that is listed twice is reported twice.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument, and any further arguments
+are then ignored.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+the C runtime expands wildcards in the arguments when
+.B which
+starts, as needed when run from
+.BR cmd.exe .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+operands as the shell expanded them.
+.TP
+.B BB_OVERRIDE_APPLETS
+Read when the kit's shell runs
+.BR which :
+an applet that it tells the shell not to use is not reported as an
+applet.
+The value is described in
+.BR busybox (1).
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+output to a console is not converted, as described in
+.BR NOTES ,
+and the console interprets the bytes in its own code page.
+.TP
+.B PATH
+The directories to search, as described above.
+.TP
+.B POSIXLY_CORRECT
+When set, the first
+.I command
+ends the options, so that later arguments such as
+.B \-a
+are commands.
+.PP
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Every command searched for was found.
+.TP
+.B 1
+A command was not found, no command was given, or an option was
+unknown.
+For the last two, a usage message is printed on standard error.
+A command that is not found gets no message.
+.TP
+.B 141
+Standard output is a pipe whose reader has exited, detected only when
+the output fills a buffer before
+.B which
+finishes.
+No message is printed.
+.SH EXAMPLES
+Find a program:
+.PP
+.RS 4
+.EX
+$ which gcc
+C:/w64devkit/bin/gcc.exe
+.EE
+.RE
+.PP
+In the kit's shell, show both the applet and the program file of a
+command, in the order the shell prefers them:
+.PP
+.RS 4
+.EX
+$ which \-a ls
+ls
+C:/w64devkit/bin/ls.exe
+.EE
+.RE
+.PP
+Test for a program in a script:
+.PP
+.RS 4
+.EX
+$ which ninja >/dev/null || echo ninja not found
+.EE
+.RE
+.PP
+Show which file a path names, since a suffix may be added:
+.PP
+.RS 4
+.EX
+$ which ./build
+\&./build.sh
+.EE
+.RE
+.PP
+Search the current directory before the directories of
+.BR PATH ,
+as
+.B cmd.exe
+does:
+.PP
+.RS 4
+.EX
+$ PATH=";$PATH" which tool
+tool.exe
+.EE
+.RE
+.SH NOTES
+Differences from a Unix
+.BR which :
+.IP \(bu 2
+The only options are
+.B \-a
+and
+.BR \-\-help .
+.IP \(bu 2
+A file is executable by its name or its first bytes, since Windows has no
+execute permission.
+.IP \(bu 2
+Suffixes are appended to commands, and
+.B PATHEXT
+is ignored.
+.IP \(bu 2
+Output uses forward slashes, and
+.B PATH
+is separated by semicolons.
+.IP \(bu 2
+In the kit's shell, applets are reported, and a command after an applet
+may be skipped.
+.PP
+Unlike
+.B cmd.exe
+and
+.BR where.exe ,
+.B which
+does not search the current directory first.
+The shell's
+.B type
+and
+.B command \-v
+also report builtins and functions, which
+.B which
+does not.
+.PP
+On Windows 10 version 1903 and later,
+.I command
+and
+.B PATH
+may contain any Unicode characters.
+On older versions they are limited to the ANSI code page, and in a
+double-byte code page, such as Shift JIS, the second byte of a character
+may be taken for a backslash.
+.PP
+Lines end with LF, not CRLF.
+When standard output is a console, the result is converted for display
+from the ANSI code page, which is UTF-8 on Windows 10 version 1903 and
+later.
+An error writing standard output gives no message and, except as
+described for status 141, does not change the exit status.
+.SH SEE ALSO
+.BR busybox (1),
+.BR sh (1)

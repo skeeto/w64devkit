@@ -1,0 +1,343 @@
+.TH LSATTR 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.SH NAME
+lsattr \- list Windows file attributes
+.SH SYNOPSIS
+.B lsattr
+.RB [ \-Radl ]
+.RI [ file ...]
+.SH DESCRIPTION
+.B lsattr
+lists the Windows file attributes of each
+.IR file ,
+such as read-only, hidden, and compressed.
+With no
+.IR file ,
+it lists the current directory.
+.BR chattr (1)
+changes some of the attributes.
+.PP
+A
+.I file
+that is a directory is not listed itself.
+Its entries are listed instead, without descending into subdirectories;
+see
+.B \-d
+and
+.BR \-R .
+A symbolic link or junction is listed itself, never its target or the
+entries of its target, even when it is named on the command line,
+unless that name ends in a slash or backslash.
+A junction, or a symbolic link to a directory, named that way, as in
+.IR jn/ ,
+is treated as a plain directory: its entries are listed, and with
+.B \-d
+its first attribute position shows
+.B R
+and
+.B \-l
+shows
+.BR Reparse_Point .
+.PP
+Each line of output is an attribute field, a space, and a name.
+The name of a
+.I file
+is printed as given.
+The name of an entry in a directory is the name of the directory, a
+slash, and the name of the entry, with the slash omitted if the
+directory's name already ends in one or is a bare drive, as in
+.IR C:main.c .
+A trailing backslash does not count: the entries of
+.I proj\e
+are named like
+.IR proj\e/main.c .
+Names are never converted, so backslashes and drive letters stay as
+typed.
+Entries are listed in the order the file system returns them;
+.B lsattr
+does not sort.
+Entries whose names begin with a dot are skipped unless
+.B \-a
+is given.
+The hidden and system attributes do not hide an entry.
+.PP
+Files are processed in order.
+A file that cannot be found, or an entry that cannot be examined, is
+reported on standard error as
+.PP
+.RS 4
+.EX
+lsattr: can\(aqt stat \(aq\fIfile\fR\(aq: \fIreason\fR
+.EE
+.RE
+.PP
+and the remaining files are still processed.
+A device, such as
+.IR /dev/null ,
+has no attributes and is reported as
+.PP
+.RS 4
+.EX
+lsattr: reading \fIfile\fR
+.EE
+.RE
+.PP
+This message may end with a reason left over from an earlier failure,
+which does not apply.
+A directory that cannot be opened is skipped without a message.
+.SS Attribute field
+The field has one position for each attribute shown, in the order below.
+A position holds the attribute's letter if the file has the attribute and
+a hyphen if it does not, so a file with none of them shows 11 hyphens.
+.TP
+.BR j ", " l ", " A ", " R
+The first position.
+It is
+.B j
+for a junction,
+.B l
+for a symbolic link,
+.B A
+for an app execution link, such as those in
+.IR $LOCALAPPDATA/Microsoft/WindowsApps ,
+and
+.B R
+for any other reparse point, such as a cloud storage placeholder.
+.TP
+.B o
+Offline.
+.TP
+.B e
+Encrypted.
+.TP
+.B c
+Compressed.
+.TP
+.B S
+Sparse.
+.TP
+.B r
+Read-only.
+.TP
+.B h
+Hidden.
+.TP
+.B s
+System.
+.TP
+.B a
+Archive.
+.TP
+.B t
+Temporary.
+.TP
+.B n
+Not content indexed.
+.PP
+No other attribute is shown.
+A directory has no letter of its own.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-aR ,
+and may follow the operands unless
+.B POSIXLY_CORRECT
+is set.
+.B \-\-
+ends the options, for a
+.I file
+whose name begins with a dash.
+.TP
+.B \-R
+Recurse: list the entries of each subdirectory found in a directory
+that is listed.
+After the line for the subdirectory,
+.B lsattr
+prints a blank line, the subdirectory's name followed by a colon, the
+subdirectory's entries, and another blank line, and then goes on with
+the rest of the parent's entries.
+The directory named on the command line gets no such heading.
+The
+.B .\&
+and
+.B ..\&
+entries, symbolic links, and junctions are not entered, and a
+subdirectory whose name begins with a dot is entered only with
+.BR \-a .
+The heading of a subdirectory that cannot be opened is still printed,
+followed by no entries.
+With
+.BR \-d ,
+nothing is entered.
+.TP
+.B \-a
+List entries whose names begin with a dot, including the
+.B .\&
+and
+.B ..\&
+entries.
+Both are listed in every directory, even the root directory of a drive,
+where the file system does not return them.
+.TP
+.B \-d
+List a directory named on the command line itself, instead of its
+entries.
+.TP
+.B \-l
+Print the names of the attributes instead of the attribute field.
+Each line is the file's name padded with spaces to 28 bytes, a space,
+and the names of the attributes the file has, separated by a comma and a
+space, in the order of the attribute field.
+A name of 28 bytes or more is followed by just the one space.
+The names, in that order, are
+.BR Reparse_Point ,
+.BR Offline ,
+.BR Encrypted ,
+.BR Compressed ,
+.BR Sparse ,
+.BR Read_Only ,
+.BR Hidden ,
+.BR System ,
+.BR Archive ,
+.BR Temporary ,
+and
+.BR Not_Indexed .
+A symbolic link, junction, or app execution link shows
+.BR Symbolic_Link ,
+.BR Junction ,
+or
+.B App_Exec_Link
+instead of
+.BR Reparse_Point .
+A file with none of the attributes shows
+.BR \-\-\- .
+.TP
+.B \-\-help
+As the first argument, print a usage message on standard output and
+exit.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the operands are expanded, as needed when run from
+.BR cmd.exe .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+operands as the shell expanded them.
+.TP
+.B POSIXLY_CORRECT
+If set, the first operand ends the options.
+.PP
+Variables that busybox-w32 reads in every applet, such as those that
+control console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+Files that could not be found or listed do not affect the status.
+.TP
+.B 1
+An invalid option, with a usage message on standard error.
+.SH EXAMPLES
+Show the attributes of a directory itself, and of a file in it:
+.PP
+.RS 4
+.EX
+$ lsattr \-d proj proj/main.c
+\-\-\-\-\-\-\-\-\-\-\- proj
+\-\-\-\-\-\-\-\-a\-\- proj/main.c
+.EE
+.RE
+.PP
+List a directory tree.
+The listing of a subdirectory comes right after its own line:
+.PP
+.RS 4
+.EX
+$ lsattr \-R proj
+\-\-\-\-\-\-\-\-\-\-\- proj/include
+\&
+proj/include:
+\-\-\-\-\-r\-\-a\-\- proj/include/util.h
+\&
+\-\-\-\-\-\-\-\-a\-\- proj/main.c
+.EE
+.RE
+.PP
+Show attribute names instead of letters:
+.PP
+.RS 4
+.EX
+$ lsattr \-l proj/include/util.h
+proj/include/util.h          Read_Only, Archive
+.EE
+.RE
+.PP
+List the files with the hidden attribute in a tree, dot files included:
+.PP
+.RS 4
+.EX
+$ lsattr \-aR | grep \(aq^......h.... \(aq
+.EE
+.RE
+.PP
+Find the symbolic links and junctions in a tree:
+.PP
+.RS 4
+.EX
+$ lsattr \-R src | grep \(aq^[jl]\(aq
+.EE
+.RE
+.SH NOTES
+Differences from the e2fsprogs
+.B lsattr
+on Linux:
+.IP \(bu 2
+The attributes are Windows file attributes, not ext2 inode flags, and
+the letters mean different things:
+.B a
+is archive, not append-only, and
+.B s
+is system, not secure deletion.
+.IP \(bu 2
+There is no
+.B \-p
+or
+.BR \-v ;
+both are invalid options.
+.IP \(bu 2
+Errors on individual files do not change the exit status.
+.PP
+Of the attributes that
+.B lsattr
+shows,
+.BR chattr (1)
+can change only
+.BR r ,
+.BR h ,
+.BR s ,
+.BR a ,
+.BR t ,
+and
+.BR n .
+.PP
+File names may use drive letters and backslashes.
+A bare drive such as
+.I C:
+names the current directory of that drive.
+On Windows 10 version 1903 or later, file names may contain any Unicode
+characters, and on older systems only those of the system code page.
+A path of 260 or more characters, counting the current directory when the
+path is relative, cannot be examined and is reported as
+.B can\(aqt stat
+like a missing file.
+.PP
+The padding for
+.B \-l
+counts bytes, not characters, so a name with non-ASCII characters is
+followed by fewer spaces.
+.SH SEE ALSO
+.BR busybox (1),
+.BR chattr (1),
+.BR ls (1)

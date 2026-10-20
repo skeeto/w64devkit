@@ -1,0 +1,1088 @@
+.TH SED 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+sed \- stream editor for filtering and transforming text
+.SH SYNOPSIS
+.B sed
+.RI [ options ]
+.I script
+.RI [ file ...]
+.br
+.B sed
+.RI [ options ]
+.BI "\-e " script
+\&...\&
+.RI [ file ...]
+.br
+.B sed
+.RI [ options ]
+.BI "\-f " scriptfile
+\&...\&
+.RI [ file ...]
+.SH DESCRIPTION
+.B sed
+reads text from each
+.IR file ,
+applies a script of editing commands to it a line at a time, and writes
+the result to standard output.
+With
+.BR \-i ,
+it instead replaces each
+.I file
+with the result.
+This is the busybox
+.BR sed .
+It has most of the POSIX
+.B sed
+and some GNU extensions, but not all of them; see
+.BR NOTES .
+.PP
+With no
+.I file
+operands, or for a
+.I file
+named
+.BR \- ,
+.B sed
+reads standard input.
+The files are read as one stream: line numbers keep counting from one
+file to the next, and
+.B $
+is the last line of the last file.
+With
+.BR \-i ,
+each file is a stream of its own.
+A
+.I file
+that cannot be opened is reported on standard error and skipped, the
+other files are still read, and the exit status is 1.
+.PP
+The script comes from the
+.B \-e
+and
+.B \-f
+options.
+When there are none, it is the first operand.
+The scripts of several options make one script, as if joined by
+newlines, with every
+.B \-e
+script before any
+.B \-f
+file, whatever their order on the command line.
+A line of script that ends in a backslash continues on the next line or
+in the next option, joined to it by a newline in place of the backslash.
+.PP
+For each input line,
+.B sed
+copies the line, without its terminator, into the
+.IR "pattern space" ,
+runs the commands of the script on it in order, and then writes the
+pattern space and the terminator, unless
+.B \-n
+was given or a command deleted it.
+A second buffer, the
+.IR "hold space" ,
+starts out empty and keeps its contents from line to line.
+Some commands read further lines into the pattern space during the
+cycle.
+.PP
+A line ends at an LF or at a NUL byte, and may be any length.
+A CR directly before the LF is removed, so CRLF text is processed as if
+it had LF line endings, unless
+.B \-b
+is given.
+The automatic write, the
+.B p
+flag of
+.BR s ,
+and
+.B w
+end the line with the terminator it was read with, or with an LF after
+.B G
+or
+.BR x .
+A last line that had no terminator is written without one, and an LF is
+added before any later output.
+Text written by
+.BR a ,
+.BR i ,
+.BR c ,
+.BR r ,
+.BR = ,
+.BR p ,
+and
+.B P
+always ends with an LF.
+.SS Script syntax
+Commands are separated by newlines or semicolons, and blanks, newlines,
+and extra semicolons before a command are skipped.
+The separator may be left out after
+.B y
+and after a command that takes no argument, as in
+.BR pd .
+A command is an optional address or range, an optional
+.BR ! ,
+and a command letter with its arguments, with blanks allowed before the
+command letter and around the
+.BR ! .
+A script given with
+.B \-e
+or as an operand may contain newlines.
+.PP
+The commands
+.BR a ,
+.BR i ,
+.BR c ,
+.BR r ,
+and
+.BR w ,
+and the
+.B w
+flag of
+.BR s ,
+take the rest of the line, so no semicolon or
+.B }
+can follow them on it.
+A label, for the commands
+.BR : ,
+.BR b ,
+.BR t ,
+and
+.BR T ,
+ends at a blank, newline, or semicolon, so it includes a
+.B }
+that follows it directly.
+.PP
+A
+.B #
+where a command could start begins a comment that runs to the end of
+the line.
+A comment whose text starts with
+.BR n ,
+such as
+.B #n
+or
+.BR #note ,
+acts like
+.BR \-n ,
+wherever in the script it appears.
+.SS Addresses
+A command may be preceded by one address, which selects the lines that
+match it, or by two addresses separated by a comma, which select a range
+of lines.
+Without an address, a command applies to every line.
+An address is one of:
+.TP
+.I n
+Line number
+.IR n ,
+counting from 1.
+The count runs across files, but restarts for each file with
+.BR \-i .
+A lone 0 is the same as no address.
+.TP
+.B $
+The last line of the input, or with
+.BR \-i ,
+of each file.
+.TP
+.BI / regex /
+Any line whose pattern space contains a match for
+.IR regex .
+.TP
+\fB\e%\fIregex\fB%\fR
+The same, with
+.B %
+or any other character in place of the slashes.
+.PP
+A range starts at a line selected by the first address and ends at the
+first line after it selected by the second address.
+If the second address is a number that is not greater than the number of
+the first line, the range is that line alone.
+A second address that is a regular expression is first tried on the line
+after the start of the range.
+The second address may also be
+.BI + n \fR,
+which ends the range
+.I n
+lines after the first, or
+.BR $ .
+A range whose end is never found extends to the end of the input.
+After a range has ended, a new one starts at the next line selected by
+the first address.
+.PP
+A
+.B !\&
+after the address or range selects the lines that it does not select.
+Only one
+.B !\&
+is allowed.
+.SS Regular expressions
+Regular expressions are POSIX basic or extended regular expressions, as
+implemented by the GNU regex code built into busybox, with its
+extensions.
+Extended expressions are used with
+.B \-r
+or
+.BR \-E .
+In a basic expression,
+.BR \e+ ,
+.BR \e? ,
+and
+.B \e|
+are the repetition, optional, and alternation operators that
+.BR + ,
+.BR ? ,
+and
+.B |
+are in an extended expression, and
+.BR + ,
+.BR ? ,
+.BR | ,
+.BR { ,
+.BR } ,
+.BR ( ,
+and
+.B )
+match themselves.
+In an extended expression, a backslash makes these characters match
+themselves.
+An interval is
+.BI \e{ m , n \e}
+in a basic expression and
+.BI { m , n }
+in an extended one, and a group is
+.BI \e( expr \e)
+or
+\fB(\fIexpr\fB)\fR.
+Both kinds accept back-references
+.B \e1
+to
+.BR \e9 ,
+.B \ew
+for a word character, which is an ASCII letter, digit, or underscore,
+.B \eW
+for any other character,
+.B \es
+and
+.B \eS
+for whitespace and anything else,
+.B \eb
+and
+.B \eB
+for a word boundary and its absence,
+.B \e<
+and
+.B \e>
+for the start and end of a word, and
+.B \e\(ga
+and
+.B \e\(aq
+for the start and end of the pattern space.
+.PP
+Before a regular expression is compiled,
+.B sed
+converts
+.BR \en ,
+.BR \et ,
+and
+.B \er
+to LF, tab, and CR, including inside a bracket expression.
+In an
+.B s
+command it also replaces a backslash and the delimiter by the bare
+delimiter, so in
+.B s|a\e|b|X|
+the expression is
+.BR a|b ,
+which matches those three characters in a basic expression and is an
+alternation in an extended one.
+In an address the backslash stays, and the regular expression compiler
+sees it.
+A delimiter inside a bracket expression does not end the regular
+expression.
+.PP
+The pattern space can hold several lines joined by LF.
+A
+.B .\&
+or a bracket expression that excludes characters also matches an LF,
+and
+.B ^
+and
+.B $
+match only at the start and end of the pattern space, not at an LF.
+.PP
+Matching works on bytes.
+A
+.B .\&
+or a bracket expression matches one byte, not one non-ASCII character,
+and character classes such as
+.B [:alpha:]
+and the case folding of the
+.B I
+flag cover only ASCII letters.
+.PP
+An empty regular expression, as in
+.B //
+or
+.BR s//x/ ,
+stands for the last regular expression used.
+For
+.B s
+that is the last one used when the command runs, and for an address, the
+last address regular expression before it in the script, ignoring those
+of
+.B s
+commands.
+.PP
+With the
+.B g
+flag or a number
+.IR N ,
+each match after the first is searched for in the rest of the pattern
+space as if it began there, though not at the start of a line.
+So
+.BR \e\(ga ,
+.BR \eb ,
+.BR \eB ,
+and
+.B \e<
+can match differently there:
+.B s/\e<a/X/g
+changes
+.B aaa
+to
+.BR XXX .
+.SS Commands
+Each command may have the addresses described above, except as noted.
+.TP
+.B =
+Write the current line number and an LF to the output.
+.TP
+.B {
+Start a block: the commands up to the matching
+.B }
+run only for the selected lines.
+Blocks nest.
+A
+.B {
+with no matching
+.B }
+is an error only when its block is skipped.
+.TP
+.B }
+End a block.
+A
+.B }
+with no matching
+.B {
+does nothing.
+.TP
+\fB:\fIlabel\fR
+Define a label, the word after the colon with leading blanks skipped.
+It does nothing when reached.
+If a label is defined twice, the first one is used.
+.TP
+\fBa\fR \fItext\fR
+Queue
+.I text
+to be written after the current line, at the end of the cycle or when
+.B n
+or
+.B N
+reads the next line.
+Takes at most one address.
+.IP
+The text may follow the command on the same line, or start on the next
+line after a backslash at the end of the line.
+Blanks after the command letter are skipped.
+If they are followed by a backslash or a newline, that is removed too,
+and any blanks after it are kept.
+The text continues over lines that end in a backslash, which is removed
+and the newline kept.
+It ends at the end of the line, so semicolons and braces are part of it.
+In the text,
+.BR \en ,
+.BR \et ,
+and
+.B \er
+stand for LF, tab, and CR, and a backslash before any other character is
+removed.
+The text is written followed by an LF.
+.TP
+\fBb\fR [\fIlabel\fR]
+Branch to
+.IR label ,
+or to the end of the script when there is none, where the pattern space
+is written as usual.
+A label that is not defined is an error only when the branch is run.
+.TP
+\fBc\fR \fItext\fR
+Delete the pattern space and write
+.IR text ,
+which has the form described under
+.BR a ,
+then start the next cycle.
+With a range, the text is written once, at the end of the range, and
+nothing is written if the input ends first.
+Otherwise it is written for every selected line.
+.TP
+.B d
+Delete the pattern space and start the next cycle, without writing
+anything.
+.TP
+.B D
+If the pattern space contains no LF, act like
+.BR d .
+Otherwise delete the text up to and including the first LF and run the
+script again on what is left, without writing the pattern space and
+without reading a new line.
+.TP
+.B g
+Replace the pattern space with the hold space.
+.TP
+.B G
+Append an LF and the hold space to the pattern space.
+.TP
+.B h
+Replace the hold space with the pattern space.
+.TP
+.B H
+Append an LF and the pattern space to the hold space.
+.TP
+\fBi\fR \fItext\fR
+Write
+.I text
+now, before the current line.
+The text has the form described under
+.BR a .
+Takes at most one address.
+.TP
+.B n
+Write the pattern space unless
+.B \-n
+is given, then replace it with the next input line.
+If there is no next line, the input ends there, without running the
+rest of the script.
+.TP
+.B N
+Append an LF and the next input line to the pattern space.
+If there is no next line,
+.B sed
+writes the pattern space unless
+.B \-n
+is given, and the input ends there, without running the rest of the
+script.
+.TP
+.B p
+Write the pattern space and an LF.
+.TP
+.B P
+Write the pattern space up to the first LF, or all of it if there is
+none, and an LF.
+.TP
+.B q
+Write the pattern space unless
+.B \-n
+is given, write any queued text, and end the input without reading more
+of it.
+There is no exit code argument.
+With
+.B \-i
+it ends only the current file, and with a
+.B \-
+operand only the current part of the input, as described in
+.BR NOTES .
+.TP
+\fBr\fR \fIfile\fR
+Queue the contents of
+.I file
+to be written after the current line, like
+.BR a .
+The file name is the rest of the line, with leading blanks skipped.
+A file that cannot be opened is silently ignored.
+Each line of the file is written followed by an LF, so a missing final
+LF is added and a CR before an LF is removed.
+Takes at most one address.
+.TP
+\fBs/\fIregex\fB/\fIreplacement\fB/\fR[\fIflags\fR]
+Replace the first match of
+.I regex
+in the pattern space with
+.IR replacement .
+The slashes may be any other character, and then a backslash before that
+character in the regular expression or the replacement stands for the
+character itself.
+.IP
+In the replacement,
+.B &
+and
+.B \e0
+stand for the matched text, and
+.B \e1
+to
+.B \e9
+for the text matched by that parenthesized subexpression, or for
+nothing if it did not match.
+Also
+.BR \en ,
+.BR \et ,
+and
+.B \er
+stand for LF, tab, and CR, and a backslash followed by a newline stands
+for a newline.
+A backslash before any other character stands for that character, so
+.B \e&
+is a literal ampersand and
+.B \e\e
+a backslash.
+.IP
+The flags can be combined.
+Blanks between them are skipped, and they end at a newline, semicolon,
+.BR } ,
+or comment.
+.RS
+.TP
+.B g
+Replace every match.
+.TP
+.I N
+Replace only the
+.IR N th
+match.
+A number of 0 is the same as
+.BR g .
+It is ignored if the regular expression starts with
+.BR ^ .
+If both
+.B g
+and a number are given, the later one counts.
+.TP
+.B p
+If a replacement was made, write the pattern space.
+.TP
+.BR i ", " I
+Ignore case.
+.TP
+.BI w " file"
+If a replacement was made, write the pattern space to
+.IR file ,
+as the
+.B w
+command does.
+This flag takes the rest of the line.
+.RE
+.TP
+\fBt\fR [\fIlabel\fR]
+Branch like
+.B b
+if an
+.B s
+command has replaced something since the start of the cycle or the last
+.B n
+or
+.BR t .
+The next
+.B t
+or
+.B T
+then sees no replacement.
+.TP
+\fBT\fR [\fIlabel\fR]
+Branch like
+.B b
+if no
+.B s
+command has replaced anything since the start of the cycle or the last
+.B n
+or
+.BR t .
+.TP
+\fBw\fR \fIfile\fR
+Write the pattern space and its terminator to
+.IR file .
+The file name is the rest of the line, with leading blanks skipped.
+.B sed
+creates or truncates the file when it reads the script, before any input,
+even if the command never runs.
+Commands that name the same file share it.
+The names
+.IR /dev/stdout ,
+.IR /dev/stderr ,
+and
+.I /dev/null
+work.
+.I /dev/stdout
+is a second stream on standard output with a buffer of its own, so what
+is written to it can come out of order with the other output.
+.TP
+.B x
+Exchange the pattern space and the hold space.
+.TP
+\fBy/\fIsource\fB/\fIdest\fB/\fR
+Replace each byte of
+.I source
+in the pattern space by the corresponding byte of
+.IR dest .
+The strings are bytes, not characters.
+If they differ in length, the extra bytes of the longer one are ignored,
+and if
+.I source
+repeats a byte, the first occurrence counts.
+In both strings,
+.BR \en ,
+.BR \et ,
+.BR \er ,
+and a backslash and the delimiter are escapes, but any other backslash
+is an ordinary byte, so
+.B \e\e
+is two backslashes.
+A
+.B [
+in
+.I source
+starts a bracket expression, as in a regular expression, and a delimiter
+inside it does not end
+.IR source ,
+so
+.B y/[/x/
+is an error.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-nr ,
+and may follow operands unless
+.B POSIXLY_CORRECT
+is set.
+An option's argument may be attached, as in
+.BR \-fscript.sed ,
+or be the next argument, except for the optional suffix of
+.BR \-i ,
+which must be attached.
+Long options may be abbreviated to any unique prefix.
+.B \-\-
+ends the options.
+.TP
+\fB\-e\fR \fIscript\fR, \fB\-\-expression\fR=\fIscript\fR
+Add
+.I script
+to the commands to run.
+.TP
+\fB\-f\fR \fIscriptfile\fR, \fB\-\-file\fR=\fIscriptfile\fR
+Add the commands in
+.I scriptfile
+to the commands to run.
+Lines may end with CR LF.
+A
+.I scriptfile
+of
+.B \-
+is standard input.
+.TP
+\fB\-i\fR[\fIsuffix\fR], \fB\-\-in\-place\fR[=\fIsuffix\fR]
+Edit the files in place instead of writing to standard output.
+Each
+.I file
+is replaced by the output for it, which is written to a temporary file
+in the same directory first.
+There must be at least one
+.IR file ,
+and a
+.I file
+named
+.B \-
+is not standard input.
+.IP
+With a
+.IR suffix ,
+the original is first renamed to the file name followed by
+.IR suffix ,
+replacing any such file.
+The suffix is appended as given: a
+.B *
+in it is not replaced by the file name, and a slash in it does not
+select a directory.
+Because
+.B \-i
+takes the rest of its argument, in
+.B \-in
+the
+.B n
+is the suffix.
+.TP
+\fB\-n\fR, \fB\-\-quiet\fR, \fB\-\-silent\fR
+Do not write the pattern space at the end of the cycle.
+.TP
+\fB\-r\fR, \fB\-E\fR, \fB\-\-regexp\-extended\fR
+Use extended regular expressions.
+.TP
+\fB\-b\fR, \fB\-\-binary\fR
+Keep the CR of a CR LF line ending as part of the line, so that regular
+expressions see it, and write it back.
+Without it the CR is removed, so CRLF text is written with LF line
+endings.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument, and later arguments are
+ignored.
+.TP
+.B \-\-version
+Print
+.B This is not GNU sed version 4.0
+and exit with status 0, so that configure scripts accept this
+.BR sed .
+It is recognized only as the first argument, and later arguments are
+ignored.
+.SH ENVIRONMENT
+.TP
+.B POSIXLY_CORRECT
+When set, the first non-option argument ends the options, so that later
+arguments such as
+.B \-n
+are file names.
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+the C runtime replaces each argument containing wildcards with the names
+of the files it matches, if any, even when the argument is quoted.
+When it is unset, busybox sets it to
+.B 0
+for its child processes, so commands run from the busybox shell, which
+expands wildcards itself, receive their arguments as given.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+output to a console is not converted, as described in
+.BR NOTES ,
+and the console interprets the bytes in its own code page.
+.PP
+Variables that affect every busybox applet, such as
+.B BB_UMASK
+for the files that
+.B w
+and
+.B \-i
+create, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+A usage error, an invalid script or regular expression, an error found
+only when a command runs, such as a branch to an undefined label, a
+script file, input file, or
+.B w
+file that could not be opened, or an
+.B \-i
+file that could not be replaced.
+Input files that cannot be opened are skipped, and the others are still
+processed.
+.TP
+.B 4
+Standard output or another output file could not be written.
+.TP
+.B 141
+Standard output is a pipe whose reader has exited.
+.PP
+Errors are reported on standard error, beginning with
+.BR sed: .
+A usage error also prints the usage message.
+.SH EXAMPLES
+Replace every
+.B foo
+with
+.BR bar :
+.PP
+.RS 4
+.EX
+$ sed \(aqs/foo/bar/g\(aq in.txt >out.txt
+.EE
+.RE
+.PP
+Edit source files in place, keeping each original with a
+.B .bak
+suffix:
+.PP
+.RS 4
+.EX
+$ sed \-i.bak \(aqs/colour/color/g\(aq *.c *.h
+.EE
+.RE
+.PP
+Print lines 10 through 20:
+.PP
+.RS 4
+.EX
+$ sed \-n \(aq10,20p\(aq log.txt
+.EE
+.RE
+.PP
+Print the first 10 lines and stop reading:
+.PP
+.RS 4
+.EX
+$ sed 10q log.txt
+.EE
+.RE
+.PP
+Remove trailing blanks and delete empty lines:
+.PP
+.RS 4
+.EX
+$ sed \-e \(aqs/[[:space:]]*$//\(aq \-e \(aq/^$/d\(aq notes.txt
+.EE
+.RE
+.PP
+Delete everything from a line holding
+.B BEGIN
+through the next line holding
+.BR END :
+.PP
+.RS 4
+.EX
+$ sed \(aq/^BEGIN$/,/^END$/d\(aq data.txt
+.EE
+.RE
+.PP
+Insert a line before each match:
+.PP
+.RS 4
+.EX
+$ sed \(aq/^int main/i /* entry point */\(aq main.c
+.EE
+.RE
+.PP
+Reverse the order of the lines:
+.PP
+.RS 4
+.EX
+$ sed \-n \(aq1!G;h;$p\(aq file.txt
+.EE
+.RE
+.PP
+Change the backslashes in a list of Windows paths to slashes:
+.PP
+.RS 4
+.EX
+$ sed \(aqs/\e\e/\e//g\(aq paths.txt
+.EE
+.RE
+.PP
+Convert CRLF line endings to LF, then LF line endings to CRLF:
+.PP
+.RS 4
+.EX
+$ sed \(aq\(aq dos.txt >unix.txt
+$ sed \(aqs/$/\er/\(aq unix.txt >dos.txt
+.EE
+.RE
+.PP
+Edit a file in place without changing its CRLF line endings:
+.PP
+.RS 4
+.EX
+$ sed \-b \-i \(aqs/foo/bar/\(aq win.txt
+.EE
+.RE
+.SH NOTES
+Differences from GNU
+.BR sed :
+.IP \(bu 2
+GNU options such as
+.BR \-s ,
+.BR \-z ,
+.BR \-u ,
+.BR \-\-posix ,
+and
+.B \-\-debug
+are invalid.
+.IP \(bu 2
+The commands
+.BR e ,
+.BR F ,
+.BR Q ,
+.BR R ,
+.BR v ,
+.BR W ,
+and
+.B z
+are reported as unsupported commands.
+The command
+.B l
+is accepted and does nothing.
+.IP \(bu 2
+An address cannot be
+.IB first ~ step\fR,
+nor can a range end in
+.BI ~ n\fR.
+A range that starts at line 0, as in
+.BR 0,/regex/ ,
+never matches.
+There are no
+.B I
+and
+.B M
+modifiers after an address.
+.IP \(bu 2
+The
+.B s
+command has no
+.BR m ,
+.BR M ,
+or
+.B e
+flag, and no case conversion: in a replacement,
+.BR \eU ,
+.BR \eL ,
+.BR \eu ,
+.BR \el ,
+and
+.B \eE
+stand for the letters.
+Escapes such as
+.B \ex41
+and
+.B \ea
+are not recognized either, in replacements and in the text of
+.BR a ,
+.BR i ,
+and
+.BR c .
+.IP \(bu 2
+The commands
+.BR a ,
+.BR i ,
+and
+.B r
+accept only one address, and
+.B q
+takes no exit code.
+.IP \(bu 2
+A comment that starts with
+.B n
+turns on
+.BR \-n ,
+and every
+.B \-e
+script is read before any
+.B \-f
+file.
+.IP \(bu 2
+In
+.BR s ,
+a number and
+.B g
+do not combine:
+.B 2g
+replaces every match, and
+.B g2
+only the second.
+.IP \(bu 2
+When the strings of
+.B y
+differ in length, the extra bytes are ignored, not an error.
+.PP
+Standard input and output are binary.
+Because
+.B sed
+removes the CR of every CR LF line ending it reads, and writes LF alone,
+it converts a CRLF file to an LF file, with
+.B \-i
+too, unless
+.B \-b
+is given.
+To write CRLF line endings, add the CR with
+.B s/$/\er/
+or pass the output through
+.BR unix2dos (1).
+The text of
+.BR a ,
+.BR i ,
+and
+.BR c ,
+and the replacement of
+.BR s ,
+treat a backslash as an escape, so write each backslash of a Windows
+path in them twice.
+File names after
+.B r
+and
+.B w
+and in
+.B s///w
+are taken as they are.
+.PP
+With
+.BR \-i ,
+the new file is created afresh and renamed over the old one, so it does
+not inherit the old file's attributes, such as read-only, and is
+created read-only when the mask in
+.B BB_UMASK
+has the owner write bit.
+The hold space is kept from one file to the next.
+A
+.B q
+ends only the current file, and the next file is still processed.
+Windows cannot replace a file that is still open, so a
+.B q
+that runs on a line other than the last of a file makes the replacement
+fail.
+.B sed
+reports
+.BR "can't move" ,
+exits with status 1, and leaves the file unchanged.
+For example,
+.B sed \-i 2q
+fails on a file with more than 2 lines.
+.PP
+Without
+.BR \-i ,
+each
+.B \-
+operand other than the last ends a part of the input, and the parts are
+processed one after another, each as if it were all the input.
+Line numbers start at 1 again in each part, although a line number
+address that has already matched does not match again, and
+.B $
+is the last line of the part.
+A
+.B q
+ends only its part, and the next part first reads what that part left
+unread, except for one line, which is lost.
+.PP
+File names may use drive letters and backslashes.
+They may contain any Unicode characters on Windows 10 version 1903 and
+later, and are limited to the system code page on earlier versions.
+The scripts given on the command line are in the same encoding, and
+script files are read as bytes.
+The device names
+.IR /dev/null ,
+.IR /dev/stdin ,
+.IR /dev/stdout ,
+.IR /dev/stderr ,
+and
+.I /dev/tty
+(the console) work as on Unix, and
+.I /dev/zero
+and
+.I /dev/urandom
+can be read but not written.
+A directory operand fails with
+.BR "Is a directory" .
+.PP
+When standard output is a console, bytes above 0x7F are converted for
+display from the ANSI code page, which is UTF-8 on Windows 10 version
+1903 and later, to the console's code page, and escape sequences in the
+output take effect.
+.SH SEE ALSO
+.BR awk (1),
+.BR busybox (1),
+.BR dos2unix (1),
+.BR ed (1),
+.BR grep (1),
+.BR sh (1),
+.BR tr (1),
+.BR unix2dos (1)

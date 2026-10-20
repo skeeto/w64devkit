@@ -1,0 +1,507 @@
+.TH TIMEOUT 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+timeout \- run a program with a time limit
+.SH SYNOPSIS
+.B timeout
+.RB [ \-s
+.IR signal ]
+.RB [ \-k
+.IR killsecs ]
+.I secs
+.I prog
+.RI [ arg ...]
+.SH DESCRIPTION
+.B timeout
+starts
+.I prog
+with the arguments
+.IR arg ...
+and waits for it.
+If
+.I prog
+ends within
+.I secs
+seconds, so does
+.BR timeout ,
+with the exit status of
+.IR prog .
+Otherwise
+.B timeout
+sends
+.I prog
+a signal, by default
+.BR TERM ,
+and exits.
+With
+.BR \-k ,
+it does not exit at once, but waits
+.I killsecs
+seconds more for
+.I prog
+to end, and sends
+.B KILL
+if it has not.
+This
+.B timeout
+is a busybox applet; see
+.BR busybox (1).
+.PP
+.B timeout
+writes nothing itself on success, and
+.I prog
+shares its standard input, output, and error.
+Errors are reported on standard error with a
+.B timeout:
+prefix.
+.PP
+.I prog
+is started as the kit's shell starts an external command: an applet of
+that name runs in a new busybox process, and any other name without a
+directory part is looked up in
+.BR PATH ;
+see
+.B Running commands
+in
+.BR busybox (1).
+A file that begins with
+.B #!\&
+runs under the interpreter it names.
+A shell function, or a shell built-in that is not also an applet, is not
+found.
+.PP
+.I secs
+and
+.I killsecs
+are durations: a decimal number of seconds, optionally followed by a
+unit suffix that is
+.B s
+for seconds, the default,
+.B m
+for minutes,
+.B h
+for hours, or
+.B d
+for days.
+A duration may have a fractional part, as in
+.B 0.5
+or
+.BR 1.5h .
+It may not have a sign, an exponent, or white space.
+A duration without a period must not exceed 4294967295 once its suffix is
+applied.
+The wait is counted in whole milliseconds, and begins once
+.I prog
+has been created.
+See
+.BR sleep (1)
+for the syntax and its error messages, but unlike
+.BR sleep ,
+.B timeout
+does not accept
+.BR inf .
+.SH OPTIONS
+Options are recognized only before
+.IR secs ,
+and the first argument that is not an option is
+.IR secs .
+Everything after
+.I prog
+belongs to it, even arguments that begin with
+.BR \- .
+An option's argument may be attached, as in
+.BR \-sKILL ,
+or be the next argument.
+An option given twice takes its last value.
+.B \-\-
+ends the options.
+.TP
+.BI "\-s " signal
+Send
+.I signal
+instead of
+.BR TERM .
+A signal is a name, in any mix of uppercase and lowercase and with an
+optional
+.B SIG
+prefix, or a number.
+The signals are those of
+.BR kill (1):
+.B EXIT
+(0),
+.B HUP
+(1),
+.B INT
+(2),
+.B QUIT
+(3),
+.B ILL
+(4),
+.B FPE
+(8),
+.B KILL
+(9),
+.B SEGV
+(11),
+.B PIPE
+(13),
+.B TERM
+(15),
+and
+.B ABRT
+(22).
+Any other name or number is rejected before
+.I prog
+starts.
+.IP
+Every signal except 0 ends
+.IR prog ,
+within the limits given in
+.BR NOTES .
+They differ in the exit code
+.I prog
+gets and in how
+.B KILL
+is delivered, as described in
+.BR kill (1).
+Signal 0 sends nothing, so
+.I prog
+keeps running.
+.TP
+.BI "\-k " killsecs
+After sending the first signal, wait up to
+.I killsecs
+seconds for
+.I prog
+to end.
+If it is still running, send
+.B KILL
+and exit with status 137.
+If it ends in time, exit with its own exit status, not 124 or 137; see
+.BR NOTES .
+.I killsecs
+is a duration, like
+.IR secs .
+The default, 0, waits for nothing and sends no second signal, as if
+.B \-k
+were not given.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument.
+Later among the options it is an unknown option.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the arguments of
+.B timeout
+are expanded when it starts, as needed when run from
+.BR cmd.exe .
+That includes the arguments of
+.IR prog .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so a busybox
+.I prog
+does not expand them again.
+.TP
+.B BB_OVERRIDE_APPLETS
+Applets that are not run when named as
+.IR prog ,
+so that a program in
+.B PATH
+runs instead; see
+.BR busybox (1).
+.TP
+.B PATH
+Where
+.I prog
+is looked up when it is not an applet and has no directory part.
+.PP
+The startup code shared by all applets also reads
+.B BB_CRITICAL_ERROR_DIALOGS
+and
+.BR BB_UMASK ,
+neither of which affects how
+.B timeout
+waits.
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.I n
+.I prog
+ended by itself within
+.I secs
+seconds, or within
+.I killsecs
+seconds after being sent a signal.
+The status is the low 8 bits of its Windows exit code.
+Since
+.I prog
+may exit with any value, the ones below do not prove that
+.B timeout
+produced them.
+.TP
+.B 124
+.I secs
+seconds passed and the signal was sent.
+.B timeout
+does not wait for
+.I prog
+to end, and does not know whether the signal worked.
+This status is never used with a
+.I killsecs
+above 0.
+.TP
+.B 125
+.B timeout
+itself failed: an invalid option or option argument, an unknown signal,
+an invalid duration, or a missing
+.I secs
+or
+.IR prog .
+.TP
+.B 126
+.I prog
+was found, but Windows refused to run it because of an access error.
+.TP
+.B 127
+.I prog
+was not found, or could not be started for any other reason, such as a
+file with a
+.B .exe
+suffix that is not a program.
+A directory, or a file that is not executable, is not found.
+.TP
+.B 137
+.B KILL
+was sent last: either
+.I secs
+seconds passed with
+.B \-s KILL
+and without
+.BR \-k ,
+or
+.I prog
+was still running
+.I killsecs
+seconds after the first signal.
+.PP
+These errors are reported on standard error as
+.PP
+.RS 4
+.EX
+timeout: invalid number \(aq\fIargument\fR\(aq
+timeout: number \fIargument\fR is not in 0..4294967295 range
+timeout: unknown signal \(aq\fIname\fR\(aq
+timeout: unknown option \-\- \fIc\fR
+timeout: option requires an argument \-\- \fIc\fR
+timeout: can\(aqt execute \(aq\fIprog\fR\(aq: \fIreason\fR
+.EE
+.RE
+.PP
+An option error is followed by the usage message.
+A missing
+.I secs
+or
+.IR prog ,
+or a duration with a period that is not a number, such as a lone
+.BR .\& ,
+is reported with the usage message alone.
+.SH EXAMPLES
+Stop a build that takes more than ten minutes:
+.PP
+.RS 4
+.EX
+$ timeout 10m make
+.EE
+.RE
+.PP
+Run a test for at most 5 seconds, and report when it times out:
+.PP
+.RS 4
+.EX
+$ timeout 5 ./test.exe; test $? \-eq 124 && echo timed out
+.EE
+.RE
+.PP
+End a program after half a second, without letting it clean up:
+.PP
+.RS 4
+.EX
+$ timeout \-s KILL 0.5 ./probe.exe
+.EE
+.RE
+.PP
+Send
+.B TERM
+after a minute, and
+.B KILL
+5 seconds later if the program is still running:
+.PP
+.RS 4
+.EX
+$ timeout \-k 5 1m ./server.exe
+.EE
+.RE
+.SH NOTES
+Differences from GNU
+.BR timeout :
+.IP \(bu 2
+The only options are
+.B \-s
+and
+.BR \-k .
+There are no long options, and no
+.BR \-\-foreground ,
+.BR \-\-preserve\-status ,
+or
+.BR \-v .
+.IP \(bu 2
+A
+.I secs
+of 0 does not disable the limit.
+The signal is sent at once.
+.IP \(bu 2
+Only the signals above exist.
+.IP \(bu 2
+Only the process that
+.B timeout
+started is signaled, not its children or other descendants, and there
+are no process groups.
+A shell script that runs
+.BR sleep (1)
+as a separate process is ended, but the
+.B sleep
+keeps running.
+.IP \(bu 2
+Without
+.BR \-k ,
+.B timeout
+exits as soon as it has sent the signal, and
+.I prog
+may still be running for a moment, or indefinitely.
+.IP \(bu 2
+With
+.BR \-k ,
+a
+.I prog
+that ends after the signal gives its own exit status, which is 0 when
+the signal ended it, since its Windows exit code is the signal number
+shifted left 24 bits, such as
+.B 0x0F000000
+for
+.BR TERM .
+GNU
+.B timeout
+reports 124.
+.PP
+The exit status holds 8 bits, so the exit code of
+.I prog
+is reduced modulo 256: 300 becomes 44, and 256 becomes 0, which looks
+like success.
+Nor does
+.B timeout
+translate a crash or a signal as
+.BR sh (1)
+does: a
+.I prog
+that crashes with the access violation 0xC0000005 gives 5, not 139, and
+one ended by a signal gives 0, not 128 plus the signal number.
+.PP
+.B timeout
+does not report a failure to send a signal.
+A signal other than
+.B KILL
+is delivered asynchronously, by a thread injected into
+.IR prog ,
+which requires
+.B timeout
+and
+.I prog
+to be both 32-bit or both 64-bit.
+When they are not, as with a 32-bit program started by the 64-bit
+kit's
+.BR timeout ,
+every signal except
+.B KILL
+does nothing: after
+.I secs
+seconds
+.B timeout
+exits with status 124 and
+.I prog
+keeps running.
+Use
+.B \-s KILL
+for such a program, or
+.B \-k
+to follow up with
+.BR KILL .
+.PP
+The wait is passed to Windows in milliseconds, in 32 bits, and is not
+checked, so it wraps around modulo 4294967296 milliseconds, which is 49
+days, 17 hours, 2 minutes, and 47.296 seconds.
+A
+.I secs
+of
+.B 50d
+times out after about 7 hours.
+Keep durations under 49 days.
+.PP
+If
+.B timeout
+ends while
+.I prog
+is running, as when
+.BR kill (1)
+ends it with a signal other than
+.BR KILL ,
+it first sends
+.B TERM
+to
+.IR prog .
+Ending it with
+.B KILL
+gives it no chance to, and leaves
+.I prog
+running.
+.PP
+.I prog
+may be given with forward slashes or backslashes, and with a drive
+letter.
+A
+.I prog
+with a directory part is not looked up in
+.BR PATH ,
+except in
+.IR /bin ,
+.IR /usr/bin ,
+.IR /sbin ,
+or
+.IR /usr/sbin :
+there an applet of the same base name runs even if the file exists,
+and a missing file is looked up in
+.B PATH
+by its base name.
+The suffix
+.BR .com ,
+.BR .exe ,
+.BR .sh ,
+.BR .bat ,
+or
+.B .cmd
+may be left off.
+.B timeout
+does not ask Windows to elevate a
+.I prog
+that requires administrator rights, and fails to start it.
+.SH SEE ALSO
+.BR busybox (1),
+.BR kill (1),
+.BR sh (1),
+.BR sleep (1)

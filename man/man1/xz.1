@@ -1,0 +1,300 @@
+.TH XZ 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.SH NAME
+xz, unxz, xzcat \- decompress .xz files
+.SH SYNOPSIS
+.B xz
+.RB { \-d | \-t }
+.RB [ \-cfkqv ]
+.RI [ file ...]
+.br
+.B unxz
+.RB [ \-cdfkqtv ]
+.RI [ file ...]
+.br
+.B xzcat
+.RB [ \-cdfkqtv ]
+.RI [ file ...]
+.SH DESCRIPTION
+.B xz
+decompresses files in the
+.B .xz
+format of XZ Utils.
+It cannot compress.
+.B unxz
+is
+.BR "xz \-d" ,
+and
+.B xzcat
+is
+.BR "xz \-dc" .
+.PP
+Each
+.I file
+must end in
+.BR .xz ,
+which is removed to name the output file in the same directory, so
+.I notes.txt.xz
+decompresses to
+.IR notes.txt .
+On success the input file is deleted, unless
+.B \-k
+is given.
+A file with any other suffix is skipped with an error.
+The output file must not already exist, unless
+.B \-f
+is given.
+It is read-only if the input file is, and its modification time is the
+time of decompression.
+.PP
+With
+.BR \-c ,
+or as
+.BR xzcat ,
+the data of each
+.I file
+is written in turn to standard output, the input files are kept, and
+their names need no suffix.
+With no
+.I file
+operands, or for a
+.I file
+named
+.BR \- ,
+.B xz
+reads standard input and writes standard output.
+When standard input is a console,
+.B xz
+exits with an error unless
+.B \-f
+is given.
+.PP
+An input may hold several concatenated
+.B .xz
+streams, which are decoded in sequence.
+A file that cannot be opened, has the wrong suffix, has an existing
+output file, or fails to decode is reported on standard error, and the
+remaining files are still processed.
+When decoding fails, the partial output file is deleted and the input
+file is kept.
+With
+.BR \-c ,
+data decoded before the failure has already been written.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-dk ,
+and may follow the
+.I file
+operands unless
+.B POSIXLY_CORRECT
+is set.
+.B \-\-
+ends the options.
+There are no long options other than
+.BR \-\-help .
+.TP
+.B \-d
+Decompress.
+.B xz
+requires
+.B \-d
+or
+.BR \-t ,
+and
+.B unxz
+and
+.B xzcat
+ignore it.
+.TP
+.B \-c
+Write to standard output and keep the input files.
+.TP
+.B \-f
+Replace an existing output file, even a read-only one, and allow reading
+compressed data from a console.
+.TP
+.B \-k
+Keep the input files instead of deleting them.
+.TP
+.B \-t
+Test: decompress each
+.I file
+and discard the output.
+Input files are kept, and their names need no suffix.
+See
+.B NOTES
+for the damage a test cannot detect.
+.TP
+.B \-q
+Accepted and ignored.
+.TP
+.B \-v
+After decompressing a file to a new file, print a line such as
+.B "notes.txt.xz: 71% \- replaced with notes.txt"
+on standard error, even with
+.BR \-k .
+The percentage is the size reduction relative to the decompressed size,
+rounded up.
+When the
+.B .xz
+file is larger than its contents, it wraps around to a huge number.
+Nothing is printed with
+.B \-c
+or
+.BR \-t ,
+or for standard input.
+.TP
+.B \-\-help
+As the first argument, print a usage message on standard output and
+exit.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the arguments, such as
+.BR *.xz ,
+are expanded at startup, for use from
+.BR cmd.exe .
+When it is unset, it is set to
+.B 0
+for child processes, so the kit's shell, which expands wildcards itself,
+turns this off for the commands it runs.
+.TP
+.B BB_UMASK
+An octal file mode creation mask for output files.
+Only the owner write bit has an effect: a mask such as
+.B 222
+creates output files read-only.
+.TP
+.B POSIXLY_CORRECT
+When set, options must come before the
+.I file
+operands, and a later argument that begins with
+.B \-
+is a file name.
+.PP
+Variables that affect every busybox applet are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Every file was decompressed or tested.
+.TP
+.B 1
+An invalid option,
+.B xz
+without
+.B \-d
+or
+.BR \-t ,
+or an error with any input.
+.SH EXAMPLES
+Decompress a file, replacing it:
+.PP
+.RS 4
+.EX
+$ unxz notes.txt.xz
+.EE
+.RE
+.PP
+Decompress a file and keep the original:
+.PP
+.RS 4
+.EX
+$ unxz \-k notes.txt.xz
+.EE
+.RE
+.PP
+Extract a source tarball:
+.PP
+.RS 4
+.EX
+$ xzcat project\-1.0.tar.xz | tar xf \-
+.EE
+.RE
+.PP
+Check that downloaded archives decode:
+.PP
+.RS 4
+.EX
+$ xz \-t *.tar.xz
+.EE
+.RE
+.SH NOTES
+This
+.B xz
+is the busybox decoder, based on XZ Embedded.
+Unlike XZ Utils, it verifies only CRC32 integrity checks.
+CRC64 checks, the XZ Utils default, and SHA-256 checks are skipped
+without a warning, so
+.B \-t
+detects damage to such a file only where it breaks decoding.
+.PP
+Only LZMA2 data without other filters decodes.
+A file made with a BCJ or delta filter, such as with the XZ Utils option
+.BR \-\-x86 ,
+fails as corrupted data, as does one with a dictionary larger than
+64 MiB.
+The XZ Utils presets, including
+.BR \-9 ,
+use at most 64 MiB.
+Every decoding failure is reported as
+.BR "corrupted data" ,
+without the file name.
+.PP
+Where a stream may begin, zero bytes are skipped, and any byte other
+than
+.BR 0xFD ,
+the first byte of the
+.B .xz
+signature, ends decoding without error.
+So data after the last stream is ignored unless its first nonzero byte
+is
+.BR 0xFD .
+Input whose first nonzero byte is not
+.BR 0xFD ,
+including empty input, decodes to nothing and succeeds.
+As a result,
+.B unxz
+replaces a file with the
+.B .xz
+suffix that is empty or holds another format, such as gzip, with an
+empty file.
+Zero bytes at the end of the input, which the format allows as stream
+padding, are reported as corrupted data.
+.PP
+Only the suffix
+.B .xz
+is recognized, not
+.BR .txz ,
+and it must be lowercase, though Windows file names are otherwise not
+case sensitive.
+Use
+.B \-c
+to decompress files with other names.
+A read-only input file is deleted after decompression like any other.
+.PP
+A
+.B \-
+operand after a
+.I file
+operand does not read standard input.
+With
+.B \-c
+or
+.BR \-t ,
+it decodes nothing and succeeds.
+Otherwise it fails with
+.BR "read error" ,
+and
+.B xz
+exits without processing the
+.I file
+operands after it.
+.SH SEE ALSO
+.BR busybox (1),
+.BR bzip2 (1),
+.BR gzip (1),
+.BR lzma (1),
+.BR tar (1),
+.BR zstd (1)

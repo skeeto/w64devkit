@@ -1,0 +1,203 @@
+.TH BASE64 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+base64 \- encode or decode base64
+.SH SYNOPSIS
+.B base64
+.RB [ \-w
+.IR col ]
+.RI [ file ]
+.br
+.B base64 \-d
+.RI [ file ]
+.SH DESCRIPTION
+.B base64
+encodes
+.I file
+as base64 on standard output, or with
+.B \-d
+decodes it.
+With no
+.IR file ,
+or when it is
+.BR \- ,
+it reads standard input.
+.PP
+Encoding uses the standard alphabet of RFC 4648: uppercase letters,
+lowercase letters, digits,
+.BR + ,
+and
+.BR / .
+Each 3 input bytes become 4 characters, and the output is padded with
+.B =
+to a multiple of 4 characters.
+The output is broken into lines of
+.I col
+characters, set by
+.BR \-w ,
+and each line, including a shorter last line, ends in LF.
+Empty input produces no output.
+.PP
+Decoding writes the bytes that the input encodes.
+Characters outside the alphabet are skipped, including spaces, line
+breaks, NUL bytes, and the
+.B \-
+and
+.B _
+of the URL-safe alphabet, so base64url input does not decode correctly.
+An
+.B =
+is padding only where it completes a group of 4 characters, and is
+otherwise skipped.
+Decoding continues after padding, so encodings joined with line breaks
+between them decode to the joined data.
+If the input ends inside a group, as unpadded input may,
+.B base64
+writes what it has decoded and fails with
+.BR "truncated input" .
+.SH OPTIONS
+Options may be grouped and may follow
+.IR file .
+The argument of
+.B \-w
+may be attached, as in
+.BR \-w0 ,
+or be the next argument.
+.B \-\-
+ends the options.
+.TP
+.B \-d
+Decode instead of encode.
+.TP
+.B \-i
+Accepted and ignored.
+Decoding always skips characters outside the alphabet.
+.TP
+.BI "\-w " col
+Wrap encoded lines at
+.I col
+characters.
+The default is 76, and 0 disables wrapping, in which case no newline at
+all is written.
+.I col
+is a decimal number from 0 to 2147483647.
+Ignored with
+.BR \-d .
+.TP
+.B \-\-help
+When it is the first argument, print a usage message on standard output
+and exit.
+.SH ENVIRONMENT
+.TP
+.B POSIXLY_CORRECT
+If set, options must precede
+.IR file .
+.PP
+Variables that busybox-w32 reads in every applet, such as those that
+control console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+Invalid command line,
+.I file
+could not be opened or read, truncated input, or an error writing
+standard output.
+.TP
+.B 141
+Standard output is a pipe that was closed while
+.B base64
+was writing to it.
+A closed pipe found only when the output is flushed at exit gives status
+1 instead.
+.SH EXAMPLES
+Encode a file:
+.PP
+.RS 4
+.EX
+$ base64 hello.txt
+SGVsbG8sIHdvcmxkIQo=
+.EE
+.RE
+.PP
+Decode a file:
+.PP
+.RS 4
+.EX
+$ base64 \-d hello.b64 >hello.txt
+.EE
+.RE
+.PP
+Encode a file as a single line with no final newline:
+.PP
+.RS 4
+.EX
+$ base64 \-w0 icon.png >icon.txt
+.EE
+.RE
+.PP
+Make a random 32-byte key:
+.PP
+.RS 4
+.EX
+$ head \-c 32 /dev/urandom | base64
+.EE
+.RE
+.SH NOTES
+Differences from GNU base64:
+.IP \(bu 2
+There are no long options, such as
+.B \-\-decode
+or
+.BR \-\-wrap ,
+and no
+.BR \-\-version .
+.IP \(bu 2
+.B \-d
+skips characters outside the alphabet whether or not
+.B \-i
+is given, where GNU fails without
+.BR \-i .
+.PP
+Encoded lines end with LF, not CRLF.
+Input is read in binary mode, so files are encoded byte for byte.
+.PP
+When standard output is a console, decoded data passes through the
+busybox-w32 console layer as text, so binary data does not display
+faithfully.
+Redirect it to a file or a pipe.
+.PP
+Decoding reads the input in pieces that end at a character with code 32
+(space) or less, or after 80 characters, and has two bugs:
+.IP \(bu 2
+A group of 4 characters that continues into the next piece decodes
+wrongly, or fails as truncated input, when a skipped character falls
+inside the group before the break.
+This includes an
+.B =
+that ends a line before the
+.B =
+that starts the next, which an encoder writes for some inputs when it
+wraps at an odd width, such as
+.BR "\-w 3" .
+The last byte of such encoded data is lost without an error.
+.IP \(bu 2
+Characters that follow
+.B =
+padding with no space or line break in between, as in
+.BR YQ==YQ== ,
+can fail as truncated input.
+.PP
+.I file
+may be a Windows path, with a drive letter and either kind of slash, or
+a busybox-w32 device name such as
+.I /dev/null
+or
+.IR /dev/urandom .
+.SH SEE ALSO
+.BR base32 (1),
+.BR busybox (1),
+.BR uudecode (1),
+.BR uuencode (1)

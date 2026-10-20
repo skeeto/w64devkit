@@ -1,0 +1,224 @@
+.TH SUM 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+sum \- print a 16-bit checksum and block count of files
+.SH SYNOPSIS
+.B sum
+.RB [ \-rs ]
+.RI [ file ...]
+.SH DESCRIPTION
+.B sum
+prints a 16-bit checksum and the size in blocks of each
+.IR file ,
+by one of two traditional algorithms.
+With no
+.I file
+operands, or for a
+.I file
+named
+.BR \- ,
+it reads standard input.
+.PP
+The options choose the algorithm and the block size.
+Bytes are unsigned in both.
+.TP
+BSD
+Used by default and with
+.BR \-r .
+The checksum starts at zero.
+For each byte it is rotated right by one bit within 16 bits, the byte is
+added, and the result is cut to 16 bits.
+The size is in blocks of 1024 bytes.
+.TP
+System V
+Used with
+.BR \-s .
+The checksum is the sum of all the bytes, kept to 32 bits.
+It is reduced to 16 bits by adding its high half to its low half, and
+then again to absorb the carry.
+The size is in blocks of 512 bytes.
+.PP
+A size is rounded up to a whole block, so empty input has size 0.
+.PP
+Each BSD line is the checksum as 5 digits with leading zeros, a space,
+the size right-aligned in at least 5 columns, a space, and the file name
+as given
+on the command line.
+The name is printed only when there is more than one operand.
+With one operand, or none, nothing follows the last space.
+.PP
+Each System V line is the checksum, a space, the size, a space, and the
+name.
+The name is always printed, as
+.B \-
+when standard input is read because there are no operands.
+.PP
+A file that cannot be opened or read is reported on standard error and
+has no output line.
+The remaining files are still processed.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-rs ,
+and may follow the operands unless
+.B POSIXLY_CORRECT
+is set.
+.B \-\-
+ends the options.
+There are no long options besides
+.BR \-\-help .
+.TP
+.B \-r
+Use the BSD algorithm and 1024-byte blocks.
+This is the default.
+It wins over
+.B \-s
+wherever the two appear, so
+.B \-sr
+and
+.B \-rs
+both select it.
+.TP
+.B \-s
+Use the System V algorithm and 512-byte blocks.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument.
+.SH ENVIRONMENT
+.TP
+.B BB_CRITICAL_ERROR_DIALOGS
+When it is
+.BR 1 ,
+Windows shows its critical-error dialog for an operand on a drive with
+no disk in it.
+Otherwise the file fails to open.
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the operands are expanded as the program starts, as needed
+when run from
+.BR cmd.exe .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+operands as the shell expanded them.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+output to a console is not converted, and the console interprets the
+bytes of file names in its own code page.
+.TP
+.B POSIXLY_CORRECT
+If set, the first operand ends the options.
+.PP
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Every file was summed, or
+.B \-\-help
+was given.
+.TP
+.B 1
+A file could not be opened or read, or the command line was invalid.
+An invalid option also prints a usage message on standard error.
+.TP
+.B 141
+Standard output is a pipe whose reader exited before all output was
+written.
+If the pipe breaks only when the output still buffered at exit is
+written, or standard output fails in any other way, the status is not
+affected.
+.PP
+A file that cannot be opened is reported on standard error as
+.PP
+.RS 4
+.EX
+sum: can\(aqt open \(aq\fIfile\fR\(aq: \fIreason\fR
+.EE
+.RE
+.PP
+and an error while reading as
+.PP
+.RS 4
+.EX
+sum: \fIfile\fR: \fIreason\fR
+.EE
+.RE
+.SH EXAMPLES
+Checksum the output of a command with the System V algorithm:
+.PP
+.RS 4
+.EX
+$ printf abc | sum \-s
+294 1 \-
+.EE
+.RE
+.PP
+Checksum two files, which makes the BSD form print their names:
+.PP
+.RS 4
+.EX
+$ sum a.txt b.txt
+16556     1 a.txt
+36979     1 b.txt
+.EE
+.RE
+.PP
+Print only the checksum of one file:
+.PP
+.RS 4
+.EX
+$ sum a.txt | cut \-d\(aq \(aq \-f1
+16556
+.EE
+.RE
+.SH NOTES
+Both checksums are weak.
+They miss many changes and do not resist tampering.
+Use
+.BR sha256sum (1)
+or another digest where it matters.
+.PP
+.B \-s
+is GNU
+.BR sum 's
+.BR \-\-sysv .
+.PP
+Files and standard input are read as binary, so the checksum covers the
+exact bytes.
+A text file with CR LF line endings has a different checksum from a copy
+with LF line endings.
+Output lines end with LF.
+.PP
+Standard input is not closed after it is read.
+A second
+.B \-
+operand reads what remains, which at end of file is nothing, so its
+checksum and size are 0.
+.PP
+A directory operand fails with
+.BR "Permission denied" .
+.PP
+.I file
+may be a Windows path, with a drive letter and either kind of slash, or
+a busybox-w32 device name such as
+.IR /dev/null .
+It is printed exactly as given.
+On Windows 10 version 1903 or later, file names may contain any Unicode
+characters, and on older systems only those of the system code page.
+.PP
+Wildcards are expanded by the C runtime when busybox starts, even in
+quoted operands; see
+.BR BB_GLOBBING .
+A pattern that matches nothing is left as it is, and fails with
+.BR "Invalid argument" .
+.SH SEE ALSO
+.BR busybox (1),
+.BR cksum (1),
+.BR md5sum (1),
+.BR sha256sum (1)

@@ -1,0 +1,409 @@
+.TH DF 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+df \- report the size and free space of drives
+.SH SYNOPSIS
+.B df
+.RB [ \-PkmhHTa ]
+.RB [ \-B
+.IR size ]
+.RB [ \-t
+.IR type ]
+.RI [ file ...]
+.SH DESCRIPTION
+.B df
+prints the size, used space, and available space of drives on standard
+output.
+It prints a header line, then a line for each drive it reports.
+.PP
+With no
+.I file
+operands, it reports each drive letter, in alphabetical order, whose
+drive is fixed, removable, CD-ROM, or network and whose volume
+information can be read.
+A drive of another type, such as a RAM disk, and a drive that cannot be
+read, such as one with no disk in it, are left out.
+So is a drive whose size is 0, unless
+.B \-a
+is given.
+.PP
+With operands,
+.B df
+reports one drive for each
+.IR file ,
+in order.
+An operand that starts with a drive letter and a colon, such as
+.B D:
+or
+.IR d:/src ,
+selects that drive.
+Any other operand, such as a relative path or one starting with a slash,
+selects the drive of the current directory.
+The operand must exist, but is otherwise not examined.
+A drive named this way is reported even when its size is 0.
+It is also reported when its type is not listed above, with an empty
+Type.
+.SS Output format
+The header names the fields of each line:
+.TP
+.B Filesystem
+The drive, such as
+.BR C: ,
+or, when the root of the drive resolves to another path, as for a
+network drive, that path, as in
+.IR //server/share .
+.TP
+.B Type
+Only with
+.BR \-T :
+the name Windows gives the file system, such as
+.BR NTFS ,
+.BR FAT32 ,
+or
+.BR exFAT .
+.TP
+.B 1K\-blocks
+The size of the drive.
+Its header is the unit, so it varies as described below, and with
+.B \-h
+or
+.B \-H
+it is
+.BR Size .
+.TP
+.B Used
+The size minus the free space.
+.TP
+.B Available
+The free space available to the current user.
+It can be less than the free space of the drive when disk quotas apply.
+.TP
+.B Use%
+Used as a percentage of Used plus Available, rounded to the nearest
+whole number.
+With
+.B \-P
+the header is
+.BR Capacity .
+.TP
+.B Mounted on
+The root directory of the drive, such as
+.IR C:/ .
+.PP
+Sizes are numbers of blocks of 1024 bytes, each rounded to the nearest
+whole number, unless
+.BR \-B ,
+.BR \-h ,
+.BR \-H ,
+.BR \-m ,
+or
+.B POSIXLY_CORRECT
+selects another unit.
+Without
+.B \-h
+or
+.BR \-H ,
+the size header gives the block size as a plain number when it is under
+1024, as in
+.BR 512\-blocks .
+Otherwise it is a whole number of K, M, or G, each 1024 times the last,
+so that
+.B \-B 1500
+is headed
+.BR 2K\-blocks .
+With
+.B \-P
+it is always a plain number, as in
+.BR 1500\-blocks .
+.PP
+A space separates the fields.
+Filesystem is padded to 20 columns, Type to 10, and numbers are
+right-aligned in 9, or in 3 for the percentage, which is followed by a
+percent sign.
+A number wider than 9 columns shifts the fields after it.
+A Filesystem value wider than 20 columns, or a Type value wider than 10,
+is followed by a line break, and the remaining fields continue on the
+next line in their usual columns.
+With
+.B \-P
+such a value stays on the line, followed by one extra space for each
+column over the limit.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-hT ,
+and may follow the operands unless
+.B POSIXLY_CORRECT
+is set.
+An option's argument may be attached, as in
+.BR \-B1M ,
+or be the next argument.
+.B \-\-
+ends the options.
+Of
+.BR \-B ,
+.BR \-k ,
+and
+.BR \-m ,
+the last one given applies, and
+.B \-h
+or
+.B \-H
+overrides all three.
+.TP
+.B \-P
+POSIX output format: a block size in the size header is in bytes, the
+percentage is headed
+.BR Capacity ,
+and long Filesystem and Type values do not wrap.
+The unit does not change.
+.TP
+.B \-k
+Use blocks of 1024 bytes.
+This is the default, unless
+.B POSIXLY_CORRECT
+is set.
+.TP
+.B \-m
+Use blocks of 1048576 bytes.
+.TP
+.B \-h
+Print sizes in human-readable form: a number with one decimal place and
+a
+.BR K ,
+.BR M ,
+.BR G ,
+.BR T ,
+or larger suffix for a power of 1024, as in
+.BR 932.7G .
+A size of zero is printed as
+.BR 0 .
+.TP
+.B \-H
+The same as
+.BR \-h .
+Sizes still use powers of 1024.
+.TP
+.B \-T
+Print the Type field.
+.TP
+.BI "\-t " type
+Report only drives whose file system name, as printed by
+.BR \-T ,
+is exactly
+.IR type ,
+including case, such as
+.BR NTFS .
+This applies to operands too, and other drives are skipped without an
+error.
+Only the last
+.B \-t
+applies.
+.TP
+.B \-a
+Also list drives whose size is 0.
+.TP
+.BI "\-B " size
+Use blocks of
+.I size
+bytes.
+.I size
+is a decimal number with an optional suffix, or a suffix alone, which
+counts as 1 of that unit:
+.BR K ,
+.BR k ,
+.BR KiB ,
+or
+.B kiB
+for 1024;
+.BR M ,
+.BR m ,
+.BR MiB ,
+or
+.B miB
+for 1048576;
+.BR G ,
+.BR g ,
+.BR GiB ,
+or
+.B giB
+for 1073741824;
+.B KB
+for 1000;
+.B MB
+for 1000000; and
+.B GB
+for 1000000000.
+The result must be from 1 to 4294967295, so
+.B 4G
+is too large.
+An invalid
+.I size
+is an error even with
+.B \-h
+or
+.BR \-H ,
+but not when a later
+.B \-k
+or
+.B \-m
+overrides
+.BR \-B .
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument.
+.SH ENVIRONMENT
+.TP
+.B BB_CRITICAL_ERROR_DIALOGS
+When it is
+.BR 1 ,
+Windows may show its critical-error dialog for a drive with no disk in
+it.
+Otherwise busybox suppresses the dialog, and
+.B df
+treats the drive as unreadable.
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the operands are expanded, as needed when run from
+.BR cmd.exe .
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+console output is not converted to the console code page, and when the
+ANSI code page is UTF-8, each non-ASCII byte in the Filesystem and Type
+fields is replaced by a question mark.
+Otherwise, with a UTF-8 code page, only invalid UTF-8 and nonprintable
+characters are replaced, and a wide character counts as two columns when
+padding.
+.TP
+.B POSIXLY_CORRECT
+When set, the default block size is 512 bytes, and the first operand
+ends the options.
+.PP
+Variables that affect every busybox applet, such as
+.BR BB_TERMINAL_MODE ,
+are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success, even when
+.B \-t
+leaves nothing to report.
+.TP
+.B 1
+An invalid option, with a usage message on standard error; an invalid
+.B \-B
+size; an operand that does not exist or has no drive; or a drive whose
+space cannot be read.
+The first two end
+.B df
+before it prints anything.
+After the others the remaining operands or drives are still reported.
+.PP
+An operand that does not exist or has no drive is reported on standard
+error as the first line below, and a drive whose space cannot be read as
+the second, where
+.I root
+is the root of the drive, such as
+.IR D:/ :
+.PP
+.RS 4
+.EX
+df: \fIfile\fR: can\(aqt find mount point
+df: \fIroot\fR: \fIreason\fR
+.EE
+.RE
+.SH EXAMPLES
+Show the space on every drive in human-readable form:
+.PP
+.RS 4
+.EX
+$ df \-h
+Filesystem                Size      Used Available Use% Mounted on
+C:                      932.7G    718.6G    214.1G  77% C:/
+D:                      466.1G    245.9G    220.2G  53% D:/
+F:                       10.9T      6.3T      4.6T  58% F:/
+.EE
+.RE
+.PP
+Show the drive that holds the current directory:
+.PP
+.RS 4
+.EX
+$ df .
+.EE
+.RE
+.PP
+Print the space available on drive
+.BR D: ,
+in MiB, for use in a script.
+The
+.B \-P
+option keeps a long Filesystem value on the same line:
+.PP
+.RS 4
+.EX
+$ df \-P \-m D: | awk \(aqNR == 2 { print $4 }\(aq
+225460
+.EE
+.RE
+.PP
+List only the NTFS drives, with their types:
+.PP
+.RS 4
+.EX
+$ df \-T \-t NTFS
+.EE
+.RE
+.SH NOTES
+Differences from GNU
+.BR df :
+.IP \(bu 2
+Only drive letters are listed.
+Volumes mounted in folders, and network shares without a drive letter,
+are not.
+.IP \(bu 2
+The drive comes from the text of the operand, not from where the file
+is.
+A UNC operand, such as
+.IR //server/share/dir ,
+reports the drive of the current directory, and when the current
+directory is a UNC path, every operand without a drive letter fails.
+A path through a junction, symbolic link, or volume mount point to
+another volume reports the drive that the path starts on.
+.IP \(bu 2
+There is no
+.B \-i
+for inodes, no
+.BR \-l ,
+.BR \-x ,
+or
+.BR \-\-total ,
+and no long options other than
+.BR \-\-help .
+.IP \(bu 2
+.B \-H
+uses powers of 1024, not 1000.
+.IP \(bu 2
+.B \-t
+cannot be repeated to select several types.
+.PP
+Windows reports sizes in bytes, but not the block size.
+.B df
+assumes blocks of 4 KiB for a drive under 16 TiB, and 8, 16, 32, or
+64 KiB for a drive under 32, 64, or 128 TiB, or larger.
+The size, the free space, and the available space are each rounded down
+to whole blocks of this size before conversion to the output unit, so
+even
+.B \-B 1
+does not give exact byte counts.
+.PP
+Operands may use drive letters in either case and backslashes.
+Lines end with LF, not CRLF.
+.SH SEE ALSO
+.BR busybox (1),
+.BR du (1),
+.BR stat (1)

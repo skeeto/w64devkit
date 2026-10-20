@@ -1,0 +1,1418 @@
+.TH AWK 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+awk \- pattern scanning and text processing language
+.SH SYNOPSIS
+.B awk
+.RB [ \-F
+.IR fs ]
+.RB [ \-v
+\fIvar\fB=\fIvalue\fR]...\&
+.I program
+.RI [ operand ...]
+.br
+.B awk
+.RB [ \-F
+.IR fs ]
+.RB [ \-v
+\fIvar\fB=\fIvalue\fR]...\&
+.RB { \-f
+.I progfile
+.RB "| " \-e
+.IR text }...\&
+.RI [ operand ...]
+.br
+.B awk
+.RB [ \-F
+.IR fs ]
+.RB [ \-v
+\fIvar\fB=\fIvalue\fR]...\&
+.B \-E
+.I progfile
+.RI [ file ...]
+.SH DESCRIPTION
+.B awk
+reads text as a sequence of records, normally lines, splits each record
+into fields, and runs a program of pattern-action rules on each record.
+This is the busybox
+.BR awk ,
+which implements the POSIX language with some gawk extensions.
+.PP
+The program is the first operand, unless it comes from
+.BR \-f ,
+.BR \-e ,
+or
+.BR \-E .
+Each remaining operand of the form
+\fIvar\fB=\fIvalue\fR,
+where
+.I var
+is a variable name, assigns
+.I value
+to
+.I var
+when
+.B awk
+reaches it in the list of operands, after the
+.B BEGIN
+rules have run.
+Any other operand names an input file, and the files are read in order.
+An operand of
+.BR \- ,
+or the absence of file operands, means standard input.
+Output goes to standard output unless redirected.
+.SS Program structure
+A program is a sequence of rules and function definitions:
+.PP
+.RS 4
+.EX
+\fIpattern\fR { \fIstatements\fR }
+function \fIname\fR(\fIparameter\fR, ...) { \fIstatements\fR }
+.EE
+.RE
+.PP
+For each record,
+.B awk
+runs the statements of every rule whose pattern matches, in program
+order.
+A rule without a pattern matches every record, and a pattern without an
+action prints the record.
+The patterns are:
+.TP
+.B BEGIN
+Matches once, before any input is read.
+A program with only
+.B BEGIN
+rules exits after running them, without reading input.
+.TP
+.B END
+Matches once, after the input is exhausted or an
+.B exit
+statement runs.
+.BR $0 ,
+.BR NF ,
+and
+.B NR
+keep their values from the last record.
+.TP
+.I expression
+Matches when the expression is true: a nonzero number, or a non-empty
+string.
+A regular expression constant alone, as in
+.BR /x/ ,
+means
+.BR "$0 ~ /x/" .
+.TP
+\fIpattern1\fB, \fIpattern2\fR
+Matches every record from one that matches
+.I pattern1
+through the next that matches
+.IR pattern2 ,
+inclusive, and then starts looking for
+.I pattern1
+again.
+.PP
+There may be several
+.B BEGIN
+and
+.B END
+rules, run in program order, and each needs its opening brace on the same
+line.
+.PP
+Statements are separated by newlines or semicolons and grouped with
+braces.
+A newline may also follow a comma, a brace, a semicolon, or a binary
+operator such as
+.BR && .
+A backslash at the end of a line joins it to the next, and
+.B #
+starts a comment that runs to the end of the line.
+.PP
+.B func
+is a synonym for
+.BR function .
+Parameters are local to the function.
+A caller may pass fewer arguments than there are parameters, and the
+rest serve as local variables.
+Scalars are passed by value and arrays by reference.
+In a call, the
+.B (
+must follow the name immediately.
+Functions may be recursive and may be called before their definition.
+.SS Values
+Every value is a string or a double-precision number, and is converted
+as needed.
+An uninitialized variable is both 0 and the empty string.
+.PP
+Numeric constants are decimal, with an optional fraction and exponent,
+hexadecimal with a
+.B 0x
+prefix, or octal with a leading 0.
+Octal applies only to constants in the program.
+.PP
+String constants are enclosed in double quotes and recognize the escapes
+.BR \e\(dq ,
+.BR \e\e ,
+.BR \e/ ,
+.BR \ea ,
+.BR \eb ,
+.BR \ee ,
+.BR \ef ,
+.BR \en ,
+.BR \er ,
+.BR \et ,
+.BR \ev ,
+.B \e
+followed by 1 to 3 octal digits, and
+.B \ex
+followed by 1 or 2 hex digits.
+A backslash before any other character is dropped.
+The same escapes apply to the values of
+.B \-v
+and operand assignments, and to the argument of
+.BR \-F .
+.PP
+Fields, the values read by
+.BR getline ,
+the elements of
+.B ARGV
+and
+.B ENVIRON
+and of arrays made by
+.BR split ,
+and values assigned on the command line are strings, and each one that
+looks like a number, ignoring leading and trailing blanks, is also
+numeric.
+Two values compare as numbers when both are numeric, and otherwise as
+strings, byte by byte.
+A string used as a number takes the value of its longest numeric prefix,
+so
+.B \(dq12abc\(dq
+is 12 and
+.B \(dqabc\(dq
+is 0.
+.PP
+A number with an integer value from \-2^63 up to, but not including, 2^63
+converts to a string as an integer.
+Other numbers convert with the format in
+.BR CONVFMT ,
+or in
+.B OFMT
+when written by
+.BR print .
+.PP
+Arrays are associative and indexed by strings.
+The subscript
+.B a[i, j]
+is
+.I i
+and
+.I j
+joined by
+.BR SUBSEP .
+.SS Expressions
+The operators, from highest to lowest precedence:
+.TP
+.BI ( expr )
+Grouping.
+.TP
+.BI $ expr
+Field reference.
+.TP
+.BR ++ " " \-\-
+Increment and decrement, as a prefix or postfix.
+.TP
+.BR ^ " " **
+Exponentiation.
+.TP
+.BR ! " " + " " \-
+Logical not, unary plus, and negation.
+.TP
+.BR * " " / " " %
+Multiplication, division, and remainder.
+The remainder has the sign of the dividend, and division or remainder by
+zero is a fatal error.
+.TP
+.BR + " " \-
+Addition and subtraction.
+.TP
+.I "expr expr"
+String concatenation.
+.TP
+.BR < " " <= " " != " " == " " > " " >=
+Comparison, giving 1 or 0.
+.TP
+.BR ~ " " !~
+Regular expression match and non-match.
+The right operand is a regular expression.
+.TP
+.B in
+.IB subscript " in " array
+is 1 if
+.I array
+has an element with that subscript, without creating one.
+A parenthesized list, as in
+.BR "(i, j) in a" ,
+is a multiple subscript.
+.TP
+.B &&
+Logical and, evaluating its right operand only when needed.
+.TP
+.B ||
+Logical or, likewise.
+.TP
+.B ?:
+Conditional.
+.TP
+.BR = " " += " " \-= " " *= " " /= " " %= " " ^= " " **=
+Assignment, grouping right to left.
+.PP
+Binary operators other than assignment group left to right.
+.SS Regular expressions
+Regular expressions are POSIX extended regular expressions, with the GNU
+operators
+.B \e<
+and
+.B \e>
+for the start and end of a word,
+.B \eb
+for a word boundary,
+.B \eB
+for a position that is not a word boundary,
+.B \ew
+and
+.B \eW
+for word and non-word characters,
+.B \es
+and
+.B \eS
+for space and non-space characters, and
+.B \e\(ga
+and
+.B \e\(aq
+for the start and end of the string.
+.PP
+A regular expression constant is written between slashes.
+The escapes of string constants are processed in it, except that a
+backslash before any other character is kept, so
+.B \e.\&
+matches a period and
+.B \e/
+a slash.
+In a constant,
+.B \eb
+is a backspace.
+.PP
+Where a regular expression is expected, any other expression is
+converted to a string and compiled as a dynamic regular expression.
+In a string constant, the backslashes must be doubled, as in
+.BR \(dq\e\e.\(dq .
+A string that is not a valid extended regular expression is compiled as
+a basic regular expression.
+.PP
+While
+.B IGNORECASE
+is true, matching ignores the case of ASCII letters.
+.SS Records and fields
+Records are separated by
+.BR RS :
+.IP \(bu 2
+A single character, newline by default, separates records.
+.IP \(bu 2
+An empty string separates records at one or more blank lines, and makes
+newline a field separator in addition to a single-character or regular
+expression
+.BR FS .
+With a regular expression,
+.B NF
+is then wrong; see
+.BR NOTES .
+Leading newlines in the input are skipped.
+.IP \(bu 2
+A longer string is a regular expression.
+.PP
+Each record is
+.BR $0 ,
+and is split into the fields
+.BR $1 ,
+.BR $2 ,
+\&... through
+.BI $ NF
+by
+.BR FS :
+.IP \(bu 2
+A single space, the default, separates fields at runs of spaces, tabs,
+and newlines, and ignores those at the start and end.
+.IP \(bu 2
+Any other single character separates fields literally, even one special
+in regular expressions, such as
+.BR | .
+While
+.B IGNORECASE
+is true, a letter matches either case.
+.IP \(bu 2
+An empty string makes each byte a field.
+.IP \(bu 2
+A longer string is a regular expression.
+.PP
+An assignment to
+.B FS
+applies from the next record.
+A reference to a field beyond
+.B NF
+gives the empty string.
+Assigning to a field, or to
+.BR NF ,
+rebuilds
+.B $0
+from the fields joined by
+.BR OFS ,
+and assigning to a field beyond
+.B NF
+first adds empty fields.
+Assigning to
+.B $0
+splits it again.
+A negative field number or
+.B NF
+is a fatal error.
+.SS Statements
+.TP
+\fBif (\fIcondition\fB) \fIstatement\fR [\fBelse \fIstatement\fR]
+Run the first
+.I statement
+if
+.I condition
+is true, and otherwise the second, if any.
+.TP
+\fBwhile (\fIcondition\fB) \fIstatement\fR
+Run
+.I statement
+while
+.I condition
+is true.
+.TP
+\fBdo \fIstatement \fBwhile (\fIcondition\fB)\fR
+Run
+.IR statement ,
+then repeat while
+.I condition
+is true.
+.TP
+\fBfor (\fIinit\fB; \fIcondition\fB; \fIstep\fB) \fIstatement\fR
+Evaluate
+.IR init ,
+then run
+.I statement
+and evaluate
+.I step
+while
+.I condition
+is true.
+Each of the three expressions may be empty, and an empty
+.I condition
+is true.
+.TP
+\fBfor (\fIvar \fBin \fIarray\fB) \fIstatement\fR
+Run
+.I statement
+with
+.I var
+set to each subscript that
+.I array
+has when the loop starts, in no particular order.
+.TP
+.BR break ", " continue
+Leave the innermost loop, or start its next iteration.
+.TP
+.B next
+Stop processing the current record and read the next.
+.TP
+.B nextfile
+Stop processing the current input file and go on to the next.
+.TP
+\fBexit\fR [\fIexpr\fR]
+Run the
+.B END
+rules, then exit with status
+.IR expr ,
+or with the status of an earlier
+.BR exit ,
+or 0.
+In an
+.B END
+rule, exit immediately.
+.TP
+\fBreturn\fR [\fIexpr\fR]
+Return from a function with the value of
+.IR expr ,
+or with the empty string, which does not compare equal to 0.
+A function that ends without
+.B return
+also returns the empty string.
+.TP
+\fBdelete \fIarray\fB[\fIsubscript\fB]\fR
+Remove an element.
+Without a subscript,
+.BI delete " array"
+removes them all.
+.TP
+\fBprint\fR [\fIexpr\fR, ...] [\fIredirection\fR]
+Write the values separated by
+.B OFS
+and followed by
+.BR ORS ,
+or
+.B $0
+when there are none.
+Numbers are written as described under
+.BR Values .
+.TP
+\fBprintf \fIformat\fR[, \fIexpr\fR, ...] [\fIredirection\fR]
+Write the values formatted by
+.I format
+as described under
+.BR Formats .
+.PP
+An expression may also be a statement, and braces group statements into
+one.
+The values of
+.B print
+and
+.B printf
+may be enclosed in parentheses, and outside parentheses a
+.B >
+is a redirection:
+.TP
+.BI > " file"
+Write to
+.IR file ,
+truncating it when it is first opened.
+It stays open, so later output to it follows.
+.TP
+.BI >> " file"
+Append to
+.IR file .
+.TP
+.BI | " command"
+Write to the standard input of
+.IR command ,
+which runs in
+.BR "sh\ \-c" .
+.PP
+Each distinct
+.I file
+or
+.I command
+is opened once and stays open until closed with
+.BR close .
+At exit,
+.B awk
+closes every pipe and waits for its command.
+The names
+.BR /dev/stdin ,
+.BR /dev/stdout ,
+and
+.B /dev/stderr
+refer to the standard streams.
+.SS Input
+.B getline
+reads one record at a time, from the main input or from a file or
+command named in the expression:
+.TP
+.B getline
+Read the next record of the main input into
+.BR $0 ,
+and set
+.BR NF ,
+.BR NR ,
+.BR FNR ,
+and
+.BR RT .
+.TP
+.BI "getline " var
+Read the next record of the main input into
+.IR var ,
+and set
+.BR NR ,
+.BR FNR ,
+and
+.BR RT .
+.TP
+.BI "getline < " file
+Read the next record of
+.I file
+into
+.BR $0 ,
+and set
+.B NF
+and
+.BR RT .
+.TP
+.BI "getline " var " < " file
+Read the next record of
+.I file
+into
+.IR var ,
+and set
+.BR RT .
+.TP
+.IB command " | getline"
+Read the next record of the output of
+.IR command ,
+which runs in
+.BR "sh\ \-c" ,
+into
+.BR $0 ,
+and set
+.B NF
+and
+.BR RT .
+.TP
+.IB command " | getline " var
+Read the next record of the output of
+.I command
+into
+.IR var ,
+and set
+.BR RT .
+.PP
+.B getline
+returns 1 after reading a record, 0 at the end of the input, and \-1 if
+.I file
+cannot be opened or read, setting
+.BR ERRNO .
+A file or command stays open, and successive calls read successive
+records, until it is closed with
+.BR close .
+.SS Formats
+.B printf
+and
+.B sprintf
+copy their format to the output, replacing each conversion specification
+with the next value.
+A specification is a
+.BR % ,
+optional flags
+.BR \- ,
+.BR + ,
+space,
+.BR # ,
+and
+.BR 0 ,
+an optional width, an optional precision after a period, and a
+conversion character:
+.TP
+.B c
+A number as the byte with that value, modulo 256, or the first byte of
+a string.
+.TP
+.BR d ", " i ", " o ", " u ", " x ", " X
+The value converted to a 32-bit
+.BR int ,
+in decimal, octal, unsigned decimal, or hexadecimal.
+.TP
+.BR e ", " E ", " f ", " F ", " g ", " G ", " a ", " A
+The value as a floating-point number, as in C, except that
+.B F
+prints nothing.
+.TP
+.B s
+The value as a string.
+.TP
+.B %
+A literal
+.BR % ,
+consuming no value.
+.PP
+A missing value is the empty string or 0.
+Any other letter ends the specification, which is written unchanged and
+still consumes a value, so length modifiers such as
+.B l
+are not supported.
+A width or precision of
+.B *
+is a fatal error.
+.SS Functions
+Arithmetic:
+.TP
+.BI atan2( y ", " x )
+The arctangent of
+.IR y / x
+in radians, from \-pi to pi.
+.TP
+\fBcos(\fIx\fB)\fR, \fBsin(\fIx\fB)\fR
+The cosine and sine of
+.I x
+radians.
+.TP
+\fBexp(\fIx\fB)\fR, \fBlog(\fIx\fB)\fR
+The exponential and natural logarithm.
+.TP
+.BI int( x )
+.I x
+truncated toward zero.
+.TP
+.B rand()
+A random number from 0 up to, but not including, 1.
+The sequence is the same in every run until
+.B srand
+is called.
+.TP
+.BI sqrt( x )
+The square root.
+.TP
+\fBsrand(\fR[\fIx\fR]\fB)\fR
+Seed
+.B rand
+with
+.IR x ,
+or with the current time in seconds, and return the previous seed,
+initially 1.
+.PP
+Strings:
+.TP
+\fBgensub(\fIr\fB, \fIs\fB, \fIh\fR [\fB, \fIt\fR]\fB)\fR
+Return a copy of
+.IR t ,
+or of
+.BR $0 ,
+in which matches of the regular expression
+.I r
+are replaced by
+.IR s ;
+.I t
+is not changed.
+If
+.I h
+is a positive number, only match number
+.I h
+is replaced, and otherwise, as with
+.BR \(dqg\(dq ,
+every match.
+In
+.IR s ,
+.B &
+and
+.B \e0
+stand for the matched text,
+.B \e1
+through
+.B \e9
+for the text matched by that parenthesized subexpression, and
+.B \e&
+for a literal
+.BR & .
+.TP
+\fBgsub(\fIr\fB, \fIs\fR [\fB, \fIt\fR]\fB)\fR
+Replace every match of
+.I r
+in the variable, field, or element
+.IR t ,
+or in
+.BR $0 ,
+by
+.IR s ,
+and return the number of replacements.
+In
+.IR s ,
+.B &
+stands for the matched text,
+.B \e&
+for a literal
+.BR & ,
+and
+.B \e\e
+for a backslash.
+.TP
+.BI index( s ", " t )
+The position of the first occurrence of
+.I t
+in
+.IR s ,
+counting from 1, or 0 if there is none or
+.I t
+is empty.
+.TP
+\fBlength\fR[\fB(\fIs\fB)\fR]
+The length of
+.IR s ,
+or of
+.B $0
+without an argument.
+For an array, the number of elements.
+.TP
+.BI match( s ", " r )
+The position of the leftmost longest match of
+.I r
+in
+.IR s ,
+or 0.
+Set
+.B RSTART
+to the position and
+.B RLENGTH
+to the length of the match, or \-1.
+.TP
+\fBsplit(\fIs\fB, \fIa\fR [\fB, \fIfs\fR]\fB)\fR
+Delete the elements of array
+.IR a ,
+split
+.I s
+into
+\fIa\fB[1]\fR
+through
+\fIa\fB[\fIn\fB]\fR
+by
+.IR fs ,
+or by
+.BR FS ,
+and return
+.IR n .
+.I fs
+is interpreted as
+.B FS
+is, and may be a regular expression constant.
+.TP
+\fBsprintf(\fIformat\fR [\fB, \fIexpr\fR ...]\fB)\fR
+The string that
+.B printf
+would write.
+.TP
+\fBsub(\fIr\fB, \fIs\fR [\fB, \fIt\fR]\fB)\fR
+Like
+.BR gsub ,
+for the first match only.
+.TP
+\fBsubstr(\fIs\fB, \fIm\fR [\fB, \fIn\fR]\fB)\fR
+Up to
+.I n
+bytes of
+.I s
+starting at position
+.IR m ,
+or the rest of
+.IR s .
+Fractions in
+.I m
+and
+.I n
+are truncated, and an
+.I m
+before the start counts as 1 without shortening the result.
+.TP
+\fBtolower(\fIs\fB)\fR, \fBtoupper(\fIs\fB)\fR
+.I s
+with ASCII letters converted to lowercase or uppercase.
+.PP
+Bit operations, on 32-bit unsigned integers:
+.TP
+.BI and( a ", " b )
+Bitwise and.
+.TP
+.BI compl( a )
+Bitwise complement.
+.TP
+\fBlshift(\fIa\fB, \fIn\fB)\fR, \fBrshift(\fIa\fB, \fIn\fB)\fR
+.I a
+shifted left or right by
+.I n
+bits.
+.TP
+.BI or( a ", " b )
+Bitwise or.
+.TP
+.BI xor( a ", " b )
+Bitwise exclusive or.
+.PP
+Time:
+.TP
+.BI mktime( spec )
+The time in seconds since 1970-01-01 00:00:00 UTC of the local time
+given by the string
+.IR spec ,
+\(dq\fIYYYY MM DD HH MM SS\fR\(dq.
+An optional seventh number is positive for daylight saving time, 0 for
+standard time, or negative to determine it.
+Out-of-range values are normalized, so month 13 is January of the next
+year.
+The result is \-1 when
+.I spec
+has fewer than six numbers or a month of 0, or gives a time before the
+epoch.
+.TP
+\fBstrftime(\fR[\fIformat\fR [\fB, \fIt\fR]]\fB)\fR
+The time
+.IR t ,
+in seconds since the epoch, or the current time, formatted in local time
+by the C function
+.BR strftime .
+The default
+.I format
+is
+.BR "\(dq%a %b %d %H:%M:%S %Z %Y\(dq" .
+A result longer than 239 bytes is the empty string.
+See
+.B NOTES
+for the conversions.
+.TP
+.B systime()
+The current time in seconds since the epoch.
+.PP
+Input and output:
+.TP
+.BI close( name )
+Close the file or pipe that
+.I name
+opened, so that the next use of
+.I name
+opens it again.
+Return 0 on success, or \-1 and set
+.B ERRNO
+if
+.I name
+is not open.
+.TP
+\fBfflush(\fR[\fIname\fR]\fB)\fR
+Flush standard output, or the output file or pipe
+.IR name ,
+or all output if
+.I name
+is the empty string.
+.TP
+.BI system( command )
+Flush all output, run
+.I command
+in
+.BR "sh\ \-c" ,
+wait for it, and return its exit status, from 0 to 255.
+An empty
+.I command
+returns 0 without running anything.
+.SS Variables
+.TP
+.B ARGC
+The number of elements in
+.BR ARGV .
+.TP
+.B ARGIND
+The index in
+.B ARGV
+of the current input file.
+.TP
+.B ARGV
+.B ARGV[0]
+is
+.BR awk ,
+and
+.B ARGV[1]
+through
+.B ARGV[ARGC\-1]
+are the operands after the program.
+Changes made before the input is read change the input files, and empty
+elements are skipped.
+.TP
+.B CONVFMT
+The format for converting non-integral numbers to strings, by default
+.BR %.6g .
+.TP
+.B ENVIRON
+The environment, indexed by variable name.
+Unlike Windows environment variable names, the subscripts are
+case-sensitive.
+Changing it does not affect the commands that
+.B awk
+runs.
+.TP
+.B ERRNO
+The C
+.B errno
+value from the last failed
+.B getline
+or
+.BR close ,
+a number rather than a message.
+.TP
+.B FILENAME
+The name of the current input file,
+.B \-
+for standard input, or empty in
+.BR BEGIN .
+.TP
+.B FNR
+The number of the current record within the current file.
+.TP
+.B FS
+The field separator, by default a single space.
+.TP
+.B IGNORECASE
+When true, regular expression matching, string comparison,
+.BR index ,
+and single-character field separators ignore the case of ASCII letters.
+.TP
+.B NF
+The number of fields in the current record.
+.TP
+.B NR
+The number of records read so far.
+.TP
+.B OFMT
+The format for numbers written by
+.BR print ,
+by default
+.BR %.6g .
+.TP
+.B OFS
+The output field separator, by default a single space.
+.TP
+.B ORS
+The output record separator, by default a newline.
+.TP
+.B RLENGTH
+The length of the text matched by
+.BR match ,
+or \-1.
+.TP
+.B RS
+The record separator, by default a newline.
+.TP
+.B RSTART
+The position of the text matched by
+.BR match ,
+or 0.
+.TP
+.B RT
+The text that ended the last record read, such as the newline or the
+text that a regular expression
+.B RS
+matched.
+.TP
+.B SUBSEP
+The separator of multiple subscripts, by default
+.BR \(dq\e034\(dq .
+.SH OPTIONS
+Options must come before the program and the other operands, and option
+parsing stops at the first operand or at
+.BR \-\- .
+An option's argument may be attached, as in
+.BR \-F: ,
+or be the next argument.
+When
+.BR \-f ,
+.BR \-e ,
+or
+.B \-E
+gives the program, the first operand is an input file.
+.TP
+\fB\-v \fIvar\fB=\fIvalue\fR
+Assign
+.I value
+to the variable
+.I var
+before the program runs.
+.TP
+.BI "\-F " fs
+Set
+.B FS
+to
+.IR fs ,
+after processing escapes, so
+.B \-F \(aq\et\(aq
+gives a tab.
+.TP
+.BI "\-f " progfile
+Read the program from
+.IR progfile ,
+where
+.B \-
+means standard input.
+.TP
+.BI "\-E " progfile
+Read the program from
+.I progfile
+as
+.B \-f
+does, then stop option parsing.
+Every remaining operand is an input file, even one of the form
+\fIvar\fB=\fIvalue\fR.
+.TP
+.BI "\-e " text
+Use
+.I text
+as program text.
+.TP
+.BI "\-W " option
+Ignored, with a warning.
+.TP
+.B \-\-help
+As the first argument, print a usage message on standard output and
+exit with status 0.
+.PP
+.B \-f
+and
+.B \-e
+may be given several times and mixed, and their programs are combined
+in order.
+Each must be complete on its own, but functions are shared, so one can
+be a library of functions for the others.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+the C runtime replaces each argument containing wildcards with the names
+of the files it matches, if any, even when the argument is quoted.
+From
+.BR cmd.exe ,
+a program containing
+.B *
+or
+.B ?\&
+is replaced if it happens to match file names.
+When it is unset, busybox sets it to
+.B 0
+for its child processes, so commands run from the busybox shell, which
+expands wildcards itself, receive their arguments as given.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+output to a console is not converted, as described in
+.BR NOTES ,
+and the console interprets the bytes in its own code page.
+.TP
+.B TZ
+The time zone of
+.B mktime
+and
+.BR strftime ,
+in the format of the Microsoft C runtime, such as
+.B UTC0
+or
+.BR EST5EDT .
+When it is unset, the Windows time zone setting applies.
+.PP
+.B awk
+copies the whole environment into
+.BR ENVIRON ,
+and the commands it runs inherit it.
+Variables that affect every busybox applet are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+Invalid usage, a syntax error, or a fatal error, such as division by
+zero or a file that cannot be opened.
+.PP
+An
+.B exit
+statement with an expression sets the status to its value converted to
+an integer, modulo 256.
+.PP
+Errors in the program are reported on standard error as
+.PP
+.RS 4
+.EX
+awk: \fIsource\fR:\fIline\fR: \fImessage\fR
+.EE
+.RE
+.PP
+where
+.I source
+is the
+.B \-f
+file name, or
+.B cmd. line
+for program text from the command line.
+.SH EXAMPLES
+Print the first field of the rows of a CSV file whose second field is at
+least 100:
+.PP
+.RS 4
+.EX
+$ cat stock.csv
+name,qty
+bolt,120
+nut,80
+washer,300
+$ awk \-F, \(aqNR > 1 && $2 >= 100 { print $1 }\(aq stock.csv
+bolt
+washer
+.EE
+.RE
+.PP
+Total the sizes in a long directory listing:
+.PP
+.RS 4
+.EX
+$ ls \-l | awk \(aq{ s += $5 } END { print s }\(aq
+.EE
+.RE
+.PP
+List the symbols that an object file needs from elsewhere:
+.PP
+.RS 4
+.EX
+$ nm \-u main.o | awk \(aq{ print $2 }\(aq
+__main
+puts
+.EE
+.RE
+.PP
+Show where lines are longer than 72 bytes:
+.PP
+.RS 4
+.EX
+$ awk \(aqlength > 72 { print FILENAME ":" FNR }\(aq *.c
+.EE
+.RE
+.PP
+Count the words in a file, most frequent first:
+.PP
+.RS 4
+.EX
+$ awk \(aq{ for (i = 1; i <= NF; i++) n[$i]++ }
+    END { for (w in n) print n[w], w }\(aq notes.txt | sort \-rn
+.EE
+.RE
+.PP
+Pass a value from the shell, compared as a number:
+.PP
+.RS 4
+.EX
+$ awk \-v max="$LIMIT" \(aq$2 > max\(aq data.txt
+.EE
+.RE
+.PP
+Combine a library of functions with a program on the command line:
+.PP
+.RS 4
+.EX
+$ awk \-f lib.awk \-e \(aq{ print trim($0) }\(aq input.txt
+.EE
+.RE
+.PP
+Print the date:
+.PP
+.RS 4
+.EX
+$ awk \(aqBEGIN { print strftime("%Y\-%m\-%d") }\(aq
+.EE
+.RE
+.SH NOTES
+Input files, standard input, program files, and the output of commands
+read by
+.B getline
+are read in text mode: CR LF becomes LF, and a Ctrl-Z byte ends the
+input.
+Program text on the command line is not, and a CR in it is a syntax
+error.
+Output has bare LF line endings, and is flushed after every
+.B print
+and
+.B printf
+statement.
+.PP
+Commands run by
+.BR system ,
+.BR "print |" ,
+and
+.B "| getline"
+run in busybox
+.BR "sh\ \-c" ,
+not
+.BR cmd.exe .
+.B close
+of a pipe returns 0 once its command finishes, not the command's exit
+status.
+A command that cannot be found is reported by the shell, so
+.B "| getline"
+sees the end of input rather than returning \-1.
+.PP
+File names may use drive letters and either kind of slash.
+Besides
+.BR /dev/stdin ,
+.BR /dev/stdout ,
+and
+.BR /dev/stderr ,
+the name
+.B /dev/null
+works, and
+.B /dev/tty
+is the console.
+As an operand or as the argument of
+.BR \-f ,
+.B \-
+means standard input, but after
+.B <
+or
+.B >
+it names a file, so use
+.B /dev/stdin
+or
+.B /dev/stdout
+there.
+.PP
+Strings are byte strings.
+.BR length ,
+.BR substr ,
+.BR index ,
+.BR match ,
+and
+.B printf
+widths count bytes, so a non-ASCII UTF-8 character counts as two to
+four.
+In a regular expression,
+.B .\&
+and bracket expressions match single bytes.
+On Windows 10 version 1903 and later, busybox runs with UTF-8 as its code
+page, so program text and file names from the command line are UTF-8.
+On earlier versions they are in the ANSI code page.
+When standard output is a console, output is converted from that code
+page to the console's for display.
+Strings cannot contain NUL bytes, and with a single-character
+.BR RS ,
+a NUL byte in the input also ends a record.
+.PP
+Numbers are formatted by the Microsoft C runtime, so exponents have
+three digits, as in
+.BR 1e+020 ;
+infinity and NaN print as
+.BR 1.#INF ,
+.BR \-1.#INF ,
+.BR 1.#QNAN ,
+or
+.BR \-1.#IND ;
+and the
+.B %F
+conversion prints nothing.
+Strings such as
+.BR 0x1A ,
+.BR inf ,
+and
+.B nan
+are numeric, so input fields like them compare as numbers.
+Integer
+.B printf
+conversions use a 32-bit
+.BR int ,
+so print larger integers with
+.BR %.0f .
+.PP
+.B mktime
+returns a 32-bit value, so it wraps around for times after 03:14:07 UTC
+on 19 January 2038.
+.B strftime
+supports the conversions of the Microsoft C runtime, plus
+.BR %e ,
+.BR %s ,
+.BR %T ,
+.BR %z ,
+and a
+.B \-
+flag that removes the padding of
+.BR d ,
+.BR H ,
+.BR I ,
+.BR j ,
+.BR m ,
+.BR M ,
+.BR S ,
+.BR U ,
+.BR w ,
+.BR W ,
+.BR y ,
+and
+.BR Y ,
+as in
+.BR %\-d .
+A format with any other conversion, such as
+.B %F
+or
+.BR %D ,
+gives the empty string.
+When
+.B TZ
+is unset,
+.B %Z
+gives the Windows name of the time zone, such as
+.BR "Eastern Standard Time" .
+.B strftime
+treats a time before the epoch or after the year 3000 as 0.
+.PP
+Differences from POSIX awk and gawk:
+.IP \(bu 2
+.B ^
+and
+.B **
+group left to right, so
+.B 2^3^2
+is 64.
+.IP \(bu 2
+An assignment in either branch of
+.B ?:
+is a syntax error unless it is in parentheses, as in
+.BR "c ? (a = 1) : (b = 2)" .
+.IP \(bu 2
+.IB command " | getline"
+does not change
+.B NR
+or
+.BR FNR .
+.IP \(bu 2
+.B substr
+truncates fractional positions and lengths instead of rounding them.
+.IP \(bu 2
+An input file that cannot be opened is a fatal error, and the
+.B END
+rules do not run.
+.IP \(bu 2
+With an empty
+.BR RS ,
+a last record followed by a single newline keeps that newline, which
+adds an empty field when
+.B FS
+is a single character other than space.
+.IP \(bu 2
+With an empty
+.B RS
+and a regular expression
+.BR FS ,
+newlines in a record separate fields but are not counted in
+.BR NF ,
+so the fields at the end of the record are lost.
+.IP \(bu 2
+.B ERRNO
+is a number.
+.IP \(bu 2
+There are no long options other than
+.BR \-\-help ,
+and
+.B \-W
+is ignored.
+.PP
+Extensions to POSIX awk, all from gawk, include
+.BR \-e ,
+.BR \-E ,
+.BR ARGIND ,
+.BR ERRNO ,
+.BR IGNORECASE ,
+.BR RT ,
+regular expression
+.BR RS ,
+.BR func ,
+.BR ** ,
+.BR **= ,
+.B length
+of an array,
+.BR gensub ,
+the bit and time functions, and hexadecimal and octal constants.
+.SH SEE ALSO
+.BR busybox (1),
+.BR cut (1),
+.BR grep (1),
+.BR sed (1),
+.BR sh (1),
+.BR sort (1)

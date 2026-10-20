@@ -1,0 +1,422 @@
+.TH TR 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+tr \- translate, squeeze, or delete characters
+.SH SYNOPSIS
+.B tr
+.RB [ \-cCds ]
+.I string1
+.RI [ string2 ]
+.SH DESCRIPTION
+.B tr
+copies standard input to standard output and changes it on the way.
+Depending on the options, it translates the bytes of
+.I string1
+to the corresponding bytes of
+.IR string2 ,
+deletes the bytes of
+.IR string1 ,
+or squeezes each run of a repeated byte to a single byte.
+It takes no file operands, so redirect or pipe the input.
+.PP
+By default
+.B tr
+translates.
+Each input byte that is in
+.I string1
+becomes the byte at the same position in
+.IR string2 .
+If
+.I string2
+is shorter, its last byte stands for the rest.
+If it is longer, the extra bytes are ignored.
+If it expands to nothing, as a backwards range does, the bytes of
+.I string1
+become the digit
+.BR 0 .
+If a byte occurs more than once in
+.IR string1 ,
+its last occurrence counts.
+All other bytes are copied unchanged, and so is everything when there is
+no
+.IR string2 .
+.PP
+.B tr
+works on bytes, not characters.
+A character that takes several bytes, such as one in UTF-8, is handled
+as separate bytes; see
+.BR NOTES .
+.SS Strings
+Each byte of
+.I string1
+and
+.I string2
+stands for itself, except in the constructs below.
+.TP
+.IB first \- last
+Every byte from
+.I first
+through
+.IR last ,
+by byte value.
+A range with
+.I last
+below
+.I first
+is empty, which is not an error.
+Either end may be an escape.
+A dash at the start or end of a string is an ordinary byte, but a first
+operand that starts with one, other than a lone dash, needs
+.B \-\-
+before it, or it is read as options.
+.TP
+.B \e
+Starts an escape, one of:
+.RS
+.TP
+.BR \ea ", " \eb ", " \ee ", " \ef ", " \en ", " \er ", " \et ", " \ev
+The bell (0x07), backspace (0x08), escape (0x1B), form feed (0x0C),
+newline (0x0A), carriage return (0x0D), tab (0x09), and vertical tab
+(0x0B).
+.TP
+.B \e\e
+A backslash.
+.TP
+.BI \e ooo
+The byte with octal value
+.IR ooo ,
+from one to three digits, stopping before the value would exceed 255.
+.TP
+.BI \ex hh
+The byte with hexadecimal value
+.IR hh ,
+one or two digits.
+.RE
+.IP
+Any other backslash, including one at the end of a string, is an
+ordinary byte, and the byte after it is read as usual, so
+.B \e8
+is a backslash and an 8.
+A backslash, or an escape for one, before a dash is the exception; see
+.BR NOTES .
+.TP
+.BI [: class :]
+Every byte of the class, in ascending order.
+The classes are
+.BR alnum ,
+.BR alpha ,
+.BR blank ,
+.BR cntrl ,
+.BR digit ,
+.BR graph ,
+.BR lower ,
+.BR print ,
+.BR punct ,
+.BR space ,
+.BR upper ,
+and
+.BR xdigit .
+They have their meanings in the C locale: only ASCII bytes are in a
+class, and bytes from 0x80 up are in none.
+Class names are lowercase.
+Anything else after
+.B [:
+is not a class, and the
+.B [
+is an ordinary byte.
+.TP
+.BI [= c =]
+The single byte
+.IR c ,
+taken literally.
+Use it for a byte that means something else, such as a dash in the
+middle of a string,
+.BR [=\-=] ,
+or a backslash,
+.BR [=\e=] .
+A
+.B [=
+not followed by exactly one byte and
+.B =]
+makes
+.B tr
+print its usage message and exit with status 1.
+.PP
+A bracket that starts neither of those is an ordinary byte, so
+.B [a\-z]
+is the range
+.B a\-z
+with a bracket at each end.
+The POSIX repeats
+.BI [ c * n ]
+and
+.BI [ c *]
+are not supported, and are ordinary bytes too.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-cd .
+They must come before the operands: the first operand ends the options,
+so a later
+.B \-d
+is another operand.
+.B \-\-
+ends the options, and is needed when
+.I string1
+starts with a dash and is not a lone dash.
+There must be one or two operands.
+Otherwise
+.B tr
+prints its usage message on standard error and exits with status 1.
+.TP
+.BR \-c ", " \-C
+Use the complement of
+.I string1
+in its place everywhere: every byte value from 0 to 255 that is not in
+it, in ascending order, newline included.
+The two options are the same.
+.TP
+.B \-d
+Delete the bytes of
+.I string1
+instead of translating them.
+All other bytes are copied.
+A
+.I string2
+is allowed but translates nothing; it matters only to
+.BR \-s .
+.TP
+.B \-s
+Squeeze runs.
+After translation and deletion, a run of one repeated output byte is
+replaced by a single byte if that byte is in
+.IR string2 ,
+or in
+.I string1
+when there is no
+.IR string2 .
+A deleted byte does not end a run, so
+.B tr \-ds b a
+turns
+.B abab
+into
+.BR a .
+.TP
+.B \-\-help
+Print a usage message on standard output and exit.
+It is recognized only as the first argument.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the operands are expanded when
+.B tr
+starts, as needed when it is run from
+.BR cmd.exe .
+The wildcards are
+.BR * " and " ? ,
+even when quoted, so a string containing one is replaced by the names
+of the files that match it, as described in
+.BR busybox (1).
+A string that matches no file is left as it is.
+To prevent this, write
+.B *
+as
+.B \e052
+and
+.B ?\&
+as
+.BR \e077 .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+operands as the shell expanded them.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+output to a console is not converted, as described in
+.BR NOTES ,
+and the console interprets the bytes in its own code page.
+.PP
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+An invalid option, the wrong number of operands, an empty
+.IR string2 ,
+a malformed equivalence class, a read or write error, or out of memory.
+.TP
+.B 141
+Standard output is a pipe that was closed before all output was written.
+.SH EXAMPLES
+Change lowercase letters to uppercase:
+.PP
+.RS 4
+.EX
+$ echo hello | tr a\-z A\-Z
+HELLO
+.EE
+.RE
+.PP
+Do the same with classes:
+.PP
+.RS 4
+.EX
+$ tr \(aq[:lower:]\(aq \(aq[:upper:]\(aq <in.txt >out.txt
+.EE
+.RE
+.PP
+Remove the CRs from a file with CR LF line endings:
+.PP
+.RS 4
+.EX
+$ tr \-d \(aq\er\(aq <dos.txt >unix.txt
+.EE
+.RE
+.PP
+Change backslashes in a list of paths to forward slashes:
+.PP
+.RS 4
+.EX
+$ tr \(aq\e\e\(aq / <paths.txt
+.EE
+.RE
+.PP
+Write the words of a text one per line, by changing each run of
+characters that are not letters or digits to a newline:
+.PP
+.RS 4
+.EX
+$ tr \-cs \(aq[:alnum:]\(aq \(aq\en\(aq <text.txt
+.EE
+.RE
+.PP
+Keep only printable ASCII characters and newlines:
+.PP
+.RS 4
+.EX
+$ tr \-cd \(aq[:print:]\en\(aq <data.bin >text.txt
+.EE
+.RE
+.PP
+Change underscores and dashes to spaces.
+The last byte of
+.I string2
+fills out the rest, and a dash at the end of a string is literal:
+.PP
+.RS 4
+.EX
+$ tr \(aq_\-\(aq \(aq \(aq <names.txt
+.EE
+.RE
+.SH NOTES
+Differences from GNU
+.BR tr :
+.IP \(bu 2
+.B \-C
+is the same as
+.BR \-c .
+POSIX has
+.B \-C
+complement characters and
+.B \-c
+complement byte values, but here both complement byte values.
+.IP \(bu 2
+There is no
+.BR \-t ,
+and there are no long options except
+.BR \-\-help .
+.IP \(bu 2
+These are errors in GNU
+.BR tr ,
+but not here: a lone
+.I string1
+without
+.B \-d
+or
+.BR \-s ,
+which copies the input; a
+.I string2
+with
+.B \-d
+but not
+.BR \-s ,
+which is ignored; a range that runs backwards, which is empty; and an
+unknown class name, which is ordinary text.
+.IP \(bu 2
+Options are not recognized after the first operand, where GNU
+.B tr
+still accepts them.
+.PP
+A backslash before a dash does not work as in GNU
+.BR tr .
+When a backslash, or an escape for one such as
+.B \e\e
+or
+.BR \e134 ,
+comes right before a dash,
+.B tr
+adds a dash and then reads on from the byte after the first backslash.
+So
+.B \e\-
+is two dashes, not one, which moves the later bytes out of line with the
+other string,
+.B \e\e\-
+is three dashes with no backslash, and a final
+.B \e134\-
+is the bytes
+.BR \-134\- .
+Instead, write a dash as
+.B \e055
+or
+.BR [=\-=] ,
+or last in the string, and a backslash before a dash as
+.BR [=\e=] .
+.PP
+Strings reach
+.B tr
+as UTF-8 on Windows 10 version 1903 and later, and in the system code
+page on earlier versions, but
+.B tr
+works on bytes either way.
+In UTF-8, the character e with an acute accent is the bytes 0xC3 0xA9,
+and using it as
+.I string1
+translates each of the two bytes alone.
+Ranges and classes cannot select non-ASCII characters.
+NUL bytes are ordinary, and
+.B \e0
+puts one in a string.
+.PP
+Standard input and output are binary, so CR LF line endings and Ctrl-Z
+characters are copied unchanged.
+A CR is a byte like any other, and
+.B tr\ \-d\ \(aq\er\(aq
+removes it.
+.PP
+Lines typed at a console arrive with CR LF line endings.
+To end the input, type Ctrl-Z at the start of a line and press Enter.
+Ctrl-D is an ordinary character.
+Text typed at a console is converted from the console's input code page
+to the ANSI code page, except when the ANSI code page is UTF-8, when it
+stays in the console's code page, so a typed non-ASCII character does
+not arrive as UTF-8.
+.PP
+When standard output is a console, text is converted for display from
+the ANSI code page, which is UTF-8 on Windows 10 version 1903 and later.
+Escape sequences, such as those for color, take effect, and busybox
+emulates them on consoles without virtual terminal support.
+A block of output that contains a NUL byte is written as is, with no
+conversion or emulation.
+.SH SEE ALSO
+.BR busybox (1),
+.BR dos2unix (1),
+.BR sed (1),
+.BR sh (1),
+.BR unix2dos (1)

@@ -1,0 +1,210 @@
+.TH UPTIME 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+uptime \- show how long the system has been running
+.SH SYNOPSIS
+.B uptime
+.RB [ \-s ]
+.br
+.B uptime \-\-help
+.SH DESCRIPTION
+.B uptime
+writes one line to standard output: the current local time, the time
+that has passed since Windows started, and the load averages.
+With
+.BR \-s ,
+it writes instead the date and time at which Windows started.
+It takes a single sample and exits.
+.PP
+The default line has these parts, in order:
+.IP \(bu 2
+A space and the current local time as
+.IR HH : MM : SS
+on a 24-hour clock.
+.IP \(bu 2
+.B up
+and the time since Windows started.
+If that is a day or more, it starts with the number of whole days,
+unpadded, a space, the word
+.B day
+or
+.BR days ,
+a comma, and a space.
+Then, if the hours left over are not zero, come the hours, padded on
+the left with a blank to 2 characters, a colon, and the minutes as 2
+digits.
+Otherwise come the minutes, 0 to 59 and unpadded, a space, and
+.BR min ,
+as in
+.BR "7 min" .
+Seconds are not shown.
+.IP \(bu 2
+A comma, two spaces, and
+.B load average:
+followed by three figures with two decimal places, separated by a comma
+and a space.
+The figures are always
+.BR 0.00 ,
+because this port computes no load average.
+.PP
+No count of users is printed.
+For example, after one day, 5 hours, and 42 minutes the line is
+.PP
+.RS 4
+.EX
+ 21:26:06 up 1 day,  5:42,  load average: 0.00, 0.00, 0.00
+.EE
+.RE
+.PP
+With
+.BR \-s ,
+the output is the start time as
+.IR YYYY \- MM \- DD
+.IR HH : MM : SS
+in local time, with no leading space and nothing else.
+.SH OPTIONS
+Operands are ignored.
+Options may follow operands unless
+.B POSIXLY_CORRECT
+is set.
+.B \-\-
+ends the options.
+Apart from
+.BR \-\-help ,
+there are no long options.
+.TP
+.B \-s
+Print the time at which Windows started, as described above, instead of
+the usual line.
+It is computed as the current time less the time since Windows started
+in whole seconds, so two runs can differ by a second, and a change to
+the clock since Windows started changes the result.
+.TP
+.B \-\-help
+As the first argument, print a usage message on standard output and
+exit with status 0.
+Later arguments are ignored.
+The message does not mention
+.BR \-s .
+.SH ENVIRONMENT
+.TP
+.B TZ
+The local time zone, for the current time and for
+.BR \-s .
+If it is unset or empty, the Windows time zone setting applies.
+The format is that of the Microsoft C runtime, such as
+.B EST5EDT
+or
+.BR JST\-9 ;
+it is described in
+.BR date (1).
+A zone database name is misread: with
+.BR Europe/Paris ,
+the zone is
+.B Eur
+at UTC, with daylight saving time named
+.B ope
+on the United States rules.
+.TP
+.B POSIXLY_CORRECT
+If set, the first operand ends the options, so that a later
+.B \-s
+is an operand and is ignored.
+.PP
+The variables that busybox reads for every applet, such as
+.BR BB_GLOBBING ,
+are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success, or
+.B \-\-help
+was given.
+.TP
+.B 1
+An unknown option.
+A message naming the option, and then a usage message, are written to
+standard error.
+.PP
+An error writing standard output is not detected, and the status is 0.
+.SH EXAMPLES
+Show the time, the uptime, and the load:
+.PP
+.RS 4
+.EX
+$ uptime
+ 21:26:06 up 1 day,  5:42,  load average: 0.00, 0.00, 0.00
+.EE
+.RE
+.PP
+Show when Windows started:
+.PP
+.RS 4
+.EX
+$ uptime \-s
+2026-10-18 15:43:41
+.EE
+.RE
+.PP
+Convert the start time to seconds since the epoch:
+.PP
+.RS 4
+.EX
+$ date \-d "$(uptime \-s)" +%s
+.EE
+.RE
+.PP
+Test in a script whether Windows has been running for a day or more:
+.PP
+.RS 4
+.EX
+$ uptime | grep \-q day && echo up for a day or more
+.EE
+.RE
+.SH NOTES
+The time since Windows started is
+.B GetTickCount64
+divided by 1000, dropping the fraction.
+It does not come from
+.IR /proc/uptime .
+On Windows XP, which lacks
+.BR GetTickCount64 ,
+it is
+.BR GetTickCount ,
+which returns to zero every 49.7 days, so a longer uptime is shown
+short by a multiple of that period and
+.B \-s
+is wrong by the same amount.
+.PP
+The count includes time spent in sleep and hibernation.
+With fast startup, which is on by default in Windows 8 and later,
+shutting down and starting again does not reset it; a restart does.
+.PP
+Differences from the procps
+.B uptime
+on Linux:
+.IP \(bu 2
+The only option is
+.BR \-s .
+There is no
+.BR \-p ,
+.BR \-h ,
+.BR \-V ,
+or long option other than
+.BR \-\-help .
+Operands are ignored.
+.IP \(bu 2
+The load averages are always 0.00.
+.IP \(bu 2
+The number of users, which busybox prints when it is built with
+.I utmp
+support, is never printed, because this build has none.
+.PP
+The line ends with LF, not CRLF.
+The output is the same on a console and when redirected, and has no
+escape sequences.
+.SH SEE ALSO
+.BR busybox (1),
+.BR date (1),
+.BR free (1),
+.BR ps (1)

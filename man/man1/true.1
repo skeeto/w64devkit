@@ -1,0 +1,122 @@
+.TH TRUE 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+true \- do nothing, successfully
+.SH SYNOPSIS
+.B true
+.RI [ argument ...]
+.SH DESCRIPTION
+.B true
+exits with status 0.
+It does nothing else: it reads no input, writes no output, and ignores
+its arguments.
+It does not use the standard streams, so a closed one makes no
+difference.
+This
+.B true
+is a busybox applet; see
+.BR busybox (1).
+.PP
+Nothing on the command line is an option.
+.BR \-\-help ,
+.BR \-\-version ,
+and
+.B \-\-
+are ignored like any other argument.
+The shell still expands the arguments and performs the redirections
+before it runs
+.BR true ,
+so
+.BI "true >" file
+creates or truncates
+.IR file .
+.SH ENVIRONMENT
+.B true
+reads no environment variables.
+The startup code shared by all applets reads
+.BR BB_CRITICAL_ERROR_DIALOGS ,
+.BR BB_GLOBBING ,
+and
+.BR BB_UMASK ,
+and may trim a trailing semicolon from
+.BR PATH .
+None of these changes what
+.B true
+does; see
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Always.
+.SH EXAMPLES
+Show the exit status of
+.BR true :
+.PP
+.RS 4
+.EX
+$ true; echo $?
+0
+.EE
+.RE
+.PP
+Create an empty file, or empty an existing one:
+.PP
+.RS 4
+.EX
+$ true >empty.txt
+.EE
+.RE
+.PP
+Keep a script that uses
+.B set \-e
+going when a command is allowed to fail:
+.PP
+.RS 4
+.EX
+$ set \-e
+$ grep \-q error log.txt || true
+.EE
+.RE
+.SH NOTES
+Unlike the GNU
+.BR true ,
+this one has no
+.B \-\-help
+or
+.B \-\-version
+and never prints anything.
+.B busybox \-\-help true
+prints the busybox version and
+.B No help available
+on standard output, and exits with status 0.
+.PP
+In the kit's shell,
+.B true
+is a builtin, so typing it does not start the applet.
+The shell's
+.B :
+builtin runs the same code.
+Applets that run a command run this applet inside their own process, as
+.B find \-exec
+does, or start
+.I busybox.exe
+to run it, as
+.B env
+does.
+.B BB_OVERRIDE_APPLETS
+can make them run a program from
+.B PATH
+instead; see
+.BR busybox (1).
+From
+.BR cmd.exe ,
+the launcher
+.I true.exe
+or
+.B busybox true
+runs it.
+.SH SEE ALSO
+.BR busybox (1),
+.BR env (1),
+.BR false (1),
+.BR find (1),
+.BR sh (1)

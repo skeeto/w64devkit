@@ -1,0 +1,299 @@
+.TH BASENAME 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+basename \- strip the directory and suffix from a path
+.SH SYNOPSIS
+.B basename
+.I path
+.RI [ suffix ]
+.br
+.B basename \-a
+.RB [ \-s
+.IR suffix ]
+.IR path ...
+.br
+.B basename \-s
+.I suffix
+.IR path ...
+.SH DESCRIPTION
+.B basename
+prints the last component of
+.IR path ,
+followed by a newline, with an optional
+.I suffix
+removed.
+It works on the string alone and does not access the file system.
+.PP
+Both slash and backslash separate components.
+Trailing separators are removed, and the result is what follows the last
+separator that is left, so
+.B a/b//
+and
+.B a\eb
+both give
+.BR b .
+An empty
+.I path
+gives an empty line.
+A path of separators alone gives its first character, so
+.B ///
+gives
+.BR / .
+.PP
+A drive, an ASCII letter and a colon at the start of
+.IR path ,
+is not a component, so the drive-relative
+.B C:foo
+gives
+.BR foo .
+When only separators follow the drive, the result is the drive and the
+first separator:
+.B C:/
+gives
+.BR C:/ ,
+.B C:\e\e
+gives
+.BR C:\e ,
+and a bare
+.B C:
+gives
+.BR C: .
+A colon anywhere else is an ordinary character.
+.PP
+A UNC path begins with two separators, a host name, a separator, and a
+share name.
+The host and the share together are a root, which is never split, so
+.B //host/share
+and
+.B //host/share/
+both give
+.BR //host/share ,
+and
+.B //host/share/dir
+gives
+.BR dir .
+Device paths are UNC paths too:
+.B \e\e?\eC:\e
+gives
+.BR \e\e?\eC: .
+The result for two separators and a host without a share, such as
+.BR //usr ,
+is unspecified.
+.PP
+If
+.I suffix
+is given, and the result ends with it and is longer than it, the suffix
+is removed from the end, even from a root, so
+.B C:/
+with a
+.I suffix
+of
+.B /
+gives
+.BR C: .
+The comparison is exact, so it is case-sensitive.
+A result equal to the suffix is left whole, and an empty suffix removes
+nothing.
+.PP
+With neither
+.B \-a
+nor
+.BR \-s ,
+there is one
+.I path
+and an optional second operand, the
+.IR suffix .
+Any further operand is an error.
+With either option, every operand is a
+.IR path ,
+and each result is written on its own line, in order.
+.SH OPTIONS
+Options may be grouped, as in
+.BR "\-as .c" ,
+and the argument of
+.B \-s
+may be attached, as in
+.BR \-s.c .
+Option parsing stops at the first operand, so a later
+.B \-a
+or
+.B \-s
+is an operand.
+.B \-\-
+ends the options, for a
+.I path
+that begins with a dash.
+.TP
+.B \-a
+Treat every operand as a
+.IR path .
+.TP
+.BI "\-s " suffix
+Remove
+.I suffix
+from each
+.IR path .
+Implies
+.BR \-a .
+If given more than once, the last
+.I suffix
+is used.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument, and any further arguments
+are then ignored.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+the C runtime expands the wildcards
+.B *
+and
+.B ?\&
+in the last component of each argument when
+.B basename
+starts, even in quoted arguments, as needed for commands typed in
+.BR cmd.exe .
+A pattern that matches nothing is left as it is.
+When the variable is unset, busybox sets it to
+.BR 0 ,
+so that busybox programs it starts, such as from the kit's shell, do
+not expand their arguments again.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+output to a console is not converted, as described in
+.BR NOTES ,
+and the console interprets the bytes in its own code page.
+.PP
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+Invalid command line, with a usage message on standard error: no
+.IR path ,
+more than two operands without
+.B \-a
+or
+.BR \-s ,
+an unknown option, or
+.B \-s
+without an argument.
+.IP
+It is also the status when standard output cannot be written, as when
+it is closed.
+No message is printed, and any remaining operands are skipped.
+.TP
+.B 141
+Standard output is a pipe whose reader has exited.
+No message is printed.
+.SH EXAMPLES
+Strip the directory and the suffix:
+.PP
+.RS 4
+.EX
+$ basename C:/w64devkit/bin/gcc.exe .exe
+gcc
+.EE
+.RE
+.PP
+Strip a Windows path, quoted to protect the backslashes:
+.PP
+.RS 4
+.EX
+$ basename \(aqC:\eUsers\eme\eDocuments\e\(aq
+Documents
+.EE
+.RE
+.PP
+List the C sources in a directory by name, without the suffix:
+.PP
+.RS 4
+.EX
+$ basename \-s .c src/*.c
+.EE
+.RE
+.PP
+Compile each C source in a directory into an object file of the same
+name in the current directory:
+.PP
+.RS 4
+.EX
+$ for f in src/*.c; do
+>     cc \-c \-o "$(basename "$f" .c).o" "$f"
+> done
+.EE
+.RE
+.SH NOTES
+Differences from GNU basename:
+.IP \(bu 2
+Backslashes are separators, and drives and UNC shares are roots.
+.IP \(bu 2
+A path that begins with two separators, a host, and a share is a UNC
+path, so
+.B basename //usr/lib
+prints
+.BR //usr/lib ,
+not
+.BR lib .
+.IP \(bu 2
+There is no
+.BR \-z ,
+and no long option other than
+.BR \-\-help ,
+so
+.B \-\-version
+is an error.
+.IP \(bu 2
+Options are not recognized after the first operand.
+.IP \(bu 2
+A write error gives no message.
+.PP
+.I suffix
+is compared case-sensitively although Windows file names are not, so
+.B basename \-s .c MAIN.C
+prints
+.BR MAIN.C .
+.PP
+The wildcard expansion described under
+.B BB_GLOBBING
+can turn one argument into several.
+Started from
+.BR cmd.exe ,
+.B basename *.c
+takes the second match for a
+.I suffix
+when two files match, and fails with a usage message when more do.
+.PP
+On Windows 10 version 1903 and later,
+.I path
+may contain any Unicode characters.
+On older versions it is limited to the ANSI code page, and in a
+double-byte code page, such as Shift JIS, the second byte of a character
+may be taken for a backslash.
+.PP
+Lines end with LF, not CRLF.
+When standard output is a console, the result is converted for display
+from the ANSI code page, which is UTF-8 on Windows 10 version 1903 and
+later.
+.PP
+The kit's
+.B sh
+runs
+.B basename
+inside the shell process, without starting a new one, except where the
+shell needs a separate process anyway, as for a command substitution or
+a pipeline.
+.SH SEE ALSO
+.BR busybox (1),
+.BR dirname (1),
+.BR realpath (1),
+.BR sh (1)

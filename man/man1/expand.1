@@ -1,0 +1,216 @@
+.TH EXPAND 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+expand \- convert tabs to spaces
+.SH SYNOPSIS
+.B expand
+.RB [ \-i ]
+.RB [ \-t
+.IR N ]
+.RI [ file ...]
+.SH DESCRIPTION
+.B expand
+copies files to standard output, replacing each tab with the spaces that
+reach the next tab stop.
+Tab stops are every 8 columns, or every
+.I N
+columns with
+.BR \-t .
+It reads each
+.I file
+in order, and reads standard input when there are no
+.I file
+operands, or for a
+.I file
+named
+.BR \- .
+.PP
+Bytes other than tabs and NULs are copied unchanged, including carriage
+returns.
+Line endings are not converted, and a last line without a newline gets
+none.
+.BR unexpand (1)
+converts in the other direction.
+.PP
+A tab pads the text before it on the line to the next multiple of
+.I N
+columns, and a tab that is already at a tab stop moves to the following
+one.
+After a tab, the count continues from that tab stop.
+Text is measured in columns, not bytes.
+In UTF-8 text, a wide character such as an ideograph is 2 columns, a
+combining or other zero-width character is 0, and an invalid sequence
+is 1.
+In single-byte text, every byte is 1 column; see
+.BR ENVIRONMENT .
+Every control character is 1 column, including backspace, carriage
+return, and escape.
+Backspace does not move the column back, and the bytes of an escape
+sequence count.
+.PP
+A NUL byte is deleted from the output and starts the count over, as if
+a new line began there.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-it4 ,
+and the argument of
+.B \-t
+may be attached, as in
+.BR \-t4 ,
+or be the next argument.
+Long options may be abbreviated to a unique prefix, and the argument of
+.B \-\-tabs
+may follow
+.B =
+or be the next argument.
+Options may follow operands, unless
+.B POSIXLY_CORRECT
+is set.
+.B \-\-
+ends the options.
+If
+.B \-t
+is repeated, the last one applies.
+.TP
+.BR \-i ", " \-\-initial
+Convert only tabs at the start of a line.
+Conversion stops at the first character that is not a space or tab, and
+later tabs are copied unchanged.
+Spaces and tabs before it count toward the column.
+.TP
+\fB\-t\fR \fIN\fR, \fB\-\-tabs=\fIN\fR
+Set tab stops every
+.I N
+columns.
+The default is 8.
+.I N
+is a decimal integer from 1 to 4294967295, with no sign, prefix, or
+suffix, and a leading zero does not make it octal.
+It is a single number, not a list.
+Any other value is an error, reported before any input is read.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the operands are expanded when
+.B expand
+starts, as needed when it is run from
+.BR cmd.exe .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+operands as the shell expanded them.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+The first of these that is set, even to an empty value, decides how text
+is measured.
+If its value is
+.BR C ,
+text is single bytes, each 1 column, and output to a console is not
+converted.
+Otherwise text is UTF-8 when the ANSI code page is UTF-8, and single
+bytes when it is not.
+.TP
+.B POSIXLY_CORRECT
+If set, the first operand ends the options.
+.PP
+Variables that affect every busybox applet are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+An unknown option, a missing option argument, or an invalid
+.IR N ;
+a
+.I file
+that could not be opened or read, including a directory; or a failure
+writing standard output.
+.TP
+.B 141
+Standard output is a pipe whose reader has exited.
+.PP
+Error messages begin with
+.B expand:
+and go to standard error.
+An unknown option or a missing option argument also prints the usage
+message.
+The remaining files are still processed after one cannot be opened or
+read.
+.SH EXAMPLES
+Expand the tabs in a stream:
+.PP
+.RS 4
+.EX
+$ printf \(aqa\etb\en\etc\en\(aq | expand
+a       b
+        c
+.EE
+.RE
+.PP
+Put tab stops every 4 columns, writing a new file:
+.PP
+.RS 4
+.EX
+$ expand \-t 4 main.c >main4.c
+.EE
+.RE
+.PP
+Replace indentation tabs in a file, leaving the tabs inside lines:
+.PP
+.RS 4
+.EX
+$ expand \-i main.c >main.tmp && mv main.tmp main.c
+.EE
+.RE
+.PP
+Expand several files into one:
+.PP
+.RS 4
+.EX
+$ expand a.txt b.txt >both.txt
+.EE
+.RE
+.SH NOTES
+Differences from GNU expand:
+.IP \(bu 2
+.B \-t
+takes one number, not a list of tab stops.
+.IP \(bu 2
+There is no
+.BI \- N
+form of
+.BR \-t ,
+and there is no
+.BR \-\-version .
+.IP \(bu 2
+Backspace is one column.
+GNU expand moves the column back.
+.IP \(bu 2
+NUL bytes are deleted.
+GNU expand keeps them.
+.PP
+A tab interval above 2147483647 is accepted but does not pad correctly,
+because the padding width is a signed int.
+.PP
+Files and standard streams are binary, with no CRLF translation.
+The ANSI code page of busybox is UTF-8 on Windows 10 version 1903 and
+later, so text is UTF-8 there unless one of the variables above says
+otherwise.
+.PP
+Each
+.I file
+may be a Windows path, with a drive letter and either kind of slash, or
+a busybox-w32 device name such as
+.IR /dev/null .
+On Windows 10 version 1903 or later, file names may contain any Unicode
+characters, and on older systems only those of the system code page.
+.SH SEE ALSO
+.BR busybox (1),
+.BR unexpand (1)

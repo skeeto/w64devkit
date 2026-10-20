@@ -1,0 +1,517 @@
+.TH TS 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+ts \- add a timestamp to each line of standard input
+.SH SYNOPSIS
+.B ts
+.RB [ \-is ]
+.RI [ format ]
+.SH DESCRIPTION
+.B ts
+copies standard input to standard output, writing a timestamp and a
+space before each line.
+It reads no files; to stamp a file, redirect it to standard input.
+This
+.B ts
+is a busybox applet; see
+.BR busybox (1).
+.PP
+A line ends at an LF, which is copied with the line.
+A line may be of any length.
+A last line without an LF is written without one.
+The timestamp is taken when the line has been completely read, so a
+program that writes its output in bursts gets nearly equal timestamps
+within a burst.
+Empty input produces no output.
+.PP
+Apart from console code page conversion, described under NOTES, the
+bytes of a line are copied unchanged, including CR and Ctrl-Z, with one
+exception.
+A NUL byte is not copied.
+It ends a line, and what follows it starts a new line with its own
+timestamp and no line break before it.
+.SS Timestamps
+Without
+.B \-i
+and
+.BR \-s ,
+the timestamp is the local date and time, by default
+.BR "%b %d %H:%M:%S" ,
+as in
+.BR "Oct 19 21:21:39" .
+With either option it is an elapsed time, by default
+.BR %H:%M:%S ,
+as in
+.BR 00:00:03 ;
+see
+.BR "Elapsed times" .
+The
+.I format
+operand replaces the default.
+.SS Formats
+In
+.IR format ,
+each conversion beginning with
+.B %
+is replaced, and everything else is copied.
+Weekday and month names are in English.
+These conversions are supported:
+.TP
+.B %%
+A percent sign.
+.TP
+.BR %a ", " %A
+The weekday name, abbreviated to 3 letters or in full.
+.TP
+.BR %b ", " %B
+The month name, abbreviated to 3 letters or in full.
+.TP
+.B %c
+The date and time as
+.BR "10/19/26 21:25:19" :
+month, day, and two-digit year, then the time.
+.TP
+.B %d
+The day of the month, 01 to 31.
+.TP
+.B %e
+The day of the month, 1 to 31, padded with a space.
+.TP
+.B %H
+The hour, 00 to 23.
+.TP
+.B %I
+The hour, 01 to 12.
+.TP
+.B %j
+The day of the year, 001 to 366.
+.TP
+.B %m
+The month, 01 to 12.
+.TP
+.B %M
+The minute, 00 to 59.
+.TP
+.B %p
+.B AM
+or
+.BR PM .
+.TP
+.B %s
+Seconds since 1970-01-01 00:00:00 UTC.
+With
+.B \-i
+or
+.BR \-s ,
+the elapsed seconds.
+.TP
+.B %S
+The second, 00 to 59.
+.TP
+.B %T
+The same as
+.BR %H:%M:%S .
+.TP
+.B %U
+The week of the year, 00 to 53, with weeks starting on Sunday.
+.TP
+.B %w
+The weekday, 0 to 6, with Sunday as 0.
+.TP
+.B %W
+The week of the year, 00 to 53, with weeks starting on Monday.
+.TP
+.B %x
+The date as
+.BR 10/19/26 .
+.TP
+.B %X
+The time as
+.BR 21:25:19 .
+.TP
+.B %y
+The year within the century, 00 to 99.
+.TP
+.B %Y
+The year.
+.TP
+.B %z
+The UTC offset as
+.BI + hhmm
+or
+.BI \- hhmm\fR.
+.TP
+.B %Z
+The time zone name.
+By default it is the Windows name, such as
+.BR "Eastern Daylight Time" .
+With
+.B TZ
+it is the name in
+.BR TZ ,
+and with
+.B \-i
+or
+.B \-s
+it is
+.BR UTC .
+.PP
+A
+.B \-
+after the
+.B %
+removes the padding of
+.BR %d ,
+.BR %H ,
+.BR %I ,
+.BR %j ,
+.BR %m ,
+.BR %M ,
+.BR %S ,
+.BR %U ,
+.BR %w ,
+.BR %W ,
+.BR %y ,
+and
+.BR %Y ,
+so
+.B %\-d
+is
+.B 5
+on the fifth.
+A
+.B #
+does the same, and also gives long forms:
+.B %#x
+is
+.BR "Monday, October 19, 2026" ,
+and
+.B %#c
+adds the time.
+Before the other conversions
+.B #
+has no effect, except that
+.BR %#e ,
+.BR %#s ,
+and
+.B %#T
+are unsupported, and
+.B %#z
+is the time zone name, as
+.BR %Z .
+.PP
+No other conversion, flag, or field width is supported.
+If
+.I format
+has one, or the timestamp would be longer than 1023 bytes, the
+timestamp is empty, and each line begins with only the space, or with
+the fractional seconds and the space when there are any.
+An empty
+.I format
+does the same.
+.SS Fractional seconds
+When
+.I format
+ends in
+.B %.S
+or
+.BR %.s ,
+.B ts
+treats the ending as
+.B %S
+or
+.BR %s ,
+and then writes a period and the microseconds as 6 digits after the
+whole timestamp, even when the timestamp is empty.
+So
+.B %H:%M:%.S
+gives
+.BR 21:21:50.644360 ,
+and
+.B %.s
+gives
+.BR 1792459310.688698 .
+With
+.B \-i
+or
+.BR \-s ,
+the digits are the microseconds of the elapsed time.
+.B %.\&
+is supported only at the end of
+.IR format ;
+anywhere else it is an unsupported conversion.
+.SS Elapsed times
+With
+.B \-i
+or
+.BR \-s ,
+.B ts
+sets
+.B TZ
+to
+.B UTC0
+for itself, whatever it was, and formats the elapsed time as if it were
+the time since 1970-01-01 00:00:00 UTC.
+No time elapsed is 00:00:00 on January 1, 1970.
+So
+.B %H
+wraps to 00 every 24 hours,
+.B %d
+and
+.B %j
+are 01 and 001 during the first 24 hours, and
+.B %Y
+is 1970.
+Use
+.B %s
+or
+.B %.s
+for the total seconds.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-is ,
+and may follow the
+.I format
+operand unless
+.B POSIXLY_CORRECT
+is set.
+.B \-\-
+ends the options.
+At most one operand is accepted.
+.TP
+.B \-s
+Print the time since
+.B ts
+started instead of the time of day.
+The count starts just before
+.B ts
+begins to read its input.
+See
+.BR "Elapsed times" .
+.TP
+.B \-i
+Print the time since the previous line was read instead of the time of
+day.
+For the first line it is the time since
+.B ts
+started.
+See
+.BR "Elapsed times" .
+With
+.BR \-s ,
+.B \-i
+applies and
+.B \-s
+has no effect.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the operand are expanded, as needed when run from
+.BR cmd.exe .
+A
+.I format
+with a wildcard is replaced by the names of the files it matches, if
+there are any.
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+operands as the shell expanded them.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+text written to a console is not converted from the ANSI code page to
+the console code page, and the console interprets the bytes in its own
+code page.
+They do not change the names of days and months.
+.TP
+.B POSIXLY_CORRECT
+When set, the first operand ends the options, so that a later
+.B \-s
+is a second operand, which is an error.
+.TP
+.B TZ
+The local time zone for the default timestamp.
+With
+.B \-i
+or
+.BR \-s ,
+.B ts
+sets it to
+.B UTC0
+for itself.
+The format is that of the Microsoft C runtime: a three-letter zone name,
+the hours to add to local time to give UTC, optionally followed by
+minutes and seconds after colons, and an optional three-letter daylight
+saving zone name, as in
+.BR EST5EDT ,
+.BR JST\-9 ,
+or
+.BR IST\-5:30 .
+The offset is read from the fourth character, so a longer standard name
+is misread: in
+.B CEST\-2
+the zone is
+.B CES
+at UTC and the daylight saving name is
+.BR T\-2 .
+A longer daylight saving name is cut to three letters.
+Daylight saving time in a
+.B TZ
+that names it follows the United States rules, whatever the zone.
+A value in another form is not rejected but misread in the same way:
+.B Europe/Paris
+is the zone
+.B Eur
+at UTC, with a daylight saving zone named
+.BR ope ,
+and a value beginning with a colon is read like any other.
+Only an empty value is ignored, and then the Windows time zone setting
+applies, as it does when
+.B TZ
+is unset.
+.PP
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success: the input was read to its end, even if it was empty.
+.TP
+.B 1
+An invalid option or more than one operand, with a usage message on
+standard error.
+Also out of memory.
+.TP
+.B 141
+Standard output is a pipe that was closed while
+.B ts
+was writing to it.
+.PP
+A pipe is noticed only when a write to it fails.
+Output is buffered, so
+.B ts
+can finish with status 0 without noticing one.
+A read error is treated as the end of the input, and a write error
+other than a closed pipe is not reported.
+.SH EXAMPLES
+Stamp the output of a build with the time of day:
+.PP
+.RS 4
+.EX
+$ make 2>&1 | ts \(aq%H:%M:%S\(aq
+.EE
+.RE
+.PP
+Show how long after the start each line arrived:
+.PP
+.RS 4
+.EX
+$ (echo a; sleep 1; echo b; sleep 2; echo c) | ts \-s
+00:00:00 a
+00:00:01 b
+00:00:03 c
+.EE
+.RE
+.PP
+List the five lines of a build that took longest to appear, with the
+seconds each waited:
+.PP
+.RS 4
+.EX
+$ make 2>&1 | ts \-i \(aq%.s\(aq | sort \-rn | head \-n 5
+.EE
+.RE
+.PP
+Write microsecond timestamps with the date:
+.PP
+.RS 4
+.EX
+$ echo hello | ts \(aq%Y\-%m\-%dT%H:%M:%.S\(aq
+2026\-10\-19T21:25:19.353488 hello
+.EE
+.RE
+.PP
+Stamp in UTC instead of the local time:
+.PP
+.RS 4
+.EX
+$ make 2>&1 | TZ=UTC0 ts \(aq%Y\-%m\-%d %H:%M:%S\(aq
+.EE
+.RE
+.SH NOTES
+Differences from the
+.B ts
+of moreutils:
+.IP \(bu 2
+There are no
+.B \-r
+or
+.BR \-m ,
+only
+.B \-i
+and
+.BR \-s .
+.IP \(bu 2
+Fractional seconds are only
+.B %.S
+or
+.B %.s
+at the end of
+.IR format ,
+with 6 digits, and there is no
+.BR %.T .
+.IP \(bu 2
+The conversions are only those under
+.BR Formats ,
+those of the Microsoft C runtime plus a few that busybox adds.
+Others that glibc supports, such as
+.BR %F ,
+.BR %D ,
+.BR %R ,
+.BR %k ,
+.BR %l ,
+and
+.BR %u ,
+make the timestamp empty.
+.PP
+The timestamp and the line are separated by one space, which cannot be
+changed.
+.PP
+.B ts
+never flushes standard output.
+When it is a pipe or a file, lines are held until the buffer fills or
+.B ts
+exits, so a program reading the output sees them late.
+The timestamps are not affected.
+.PP
+The times come from the Windows system clock, not a monotonic clock, so
+changing the clock while
+.B ts
+runs disturbs
+.B \-i
+and
+.BR \-s .
+The microseconds are no more precise than that clock.
+.PP
+Standard input and output are binary, so CR LF line endings are copied
+unchanged, with the timestamp before the line and the CR LF after it.
+Lines typed at a console arrive with CR LF line endings.
+To end the input, type Ctrl-Z at the start of a line and press Enter.
+Text typed at a console is converted from the console's input code page
+to the ANSI code page, except when the ANSI code page is UTF-8, when it
+stays in the console's code page.
+.PP
+When standard output is a console, text is converted for display from
+the ANSI code page, which is UTF-8 on Windows 10 version 1903 and later,
+and escape sequences, such as those for color, take effect.
+.SH SEE ALSO
+.BR busybox (1),
+.BR date (1)

@@ -1,0 +1,225 @@
+.TH UNAME 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+uname \- print system information
+.SH SYNOPSIS
+.B uname
+.RB [ \-amnrspvio ]
+.br
+.B uname \-\-help
+.SH DESCRIPTION
+.B uname
+prints one line on standard output that describes the operating system
+and the machine it runs on.
+Each option selects a field.
+The line holds the selected fields in a fixed order, whatever the order
+of the options: kernel name
+.RB ( \-s ),
+host name
+.RB ( \-n ),
+release
+.RB ( \-r ),
+version
+.RB ( \-v ),
+machine
+.RB ( \-m ),
+processor
+.RB ( \-p ),
+hardware platform
+.RB ( \-i ),
+and OS name
+.RB ( \-o ).
+A single space separates the fields, and a newline ends the line.
+.PP
+With no options,
+.B uname
+prints the kernel name, as
+.B \-s
+does.
+The fields describe Windows, not a Unix kernel; each option below gives
+its value.
+.SH OPTIONS
+Short options can be grouped, as in
+.BR \-sr .
+Each long option is a synonym for a short one, and may be abbreviated to
+any unique prefix, so
+.B \-\-mach
+means
+.BR \-\-machine .
+A prefix that fits several options, such as
+.BR \-\-kernel ,
+is an error.
+.B \-\-
+ends the options.
+Repeating an option has no effect.
+.B uname
+takes no operands, and an operand is an error.
+.TP
+.BR \-a ", " \-\-all
+Print every field except the processor and hardware platform, whose
+values are unknown.
+Other field options given with
+.B \-a
+have no effect.
+.TP
+.BR \-m ", " \-\-machine
+Print the processor architecture that busybox runs as:
+.B x86_64
+in the 64-bit kit and
+.B i686
+in the 32-bit kit; see
+.BR NOTES .
+.TP
+.BR \-n ", " \-\-nodename
+Print the host name, as the Winsock
+.B gethostname
+function reports it.
+If the name cannot be read, this prints
+.BR unknown .
+.TP
+.BR \-r ", " \-\-kernel\-release ", " \-\-release
+Print the Windows version as the major and minor numbers separated by a
+period, such as
+.B 5.1
+on Windows XP,
+.B 6.1
+on Windows 7, and
+.B 10.0
+on Windows 10 and 11.
+.TP
+.BR \-s ", " \-\-kernel\-name
+Print the kernel name, which is always
+.BR Windows_NT .
+This is the default.
+.TP
+.BR \-p ", " \-\-processor
+Print the processor type, which is always
+.BR unknown .
+.TP
+.BR \-v ", " \-\-kernel\-version
+Print the Windows build number in decimal, such as
+.BR 26200 .
+Windows 11 builds start at 22000.
+.TP
+.BR \-i ", " \-\-hardware\-platform
+Print the hardware platform, which is always
+.BR unknown .
+.TP
+.BR \-o ", " \-\-operating\-system
+Print the operating system name, which is always
+.BR MS/Windows .
+.TP
+.B \-\-help
+When it is the first argument, print a usage message on standard output
+and exit with status 0, ignoring the other arguments.
+In any other position it is an unknown option.
+It cannot be abbreviated:
+.B \-\-h
+means
+.BR \-\-hardware\-platform .
+.SH ENVIRONMENT
+.B uname
+reads no environment variables of its own.
+The variables that busybox reads for every applet, such as
+.BR BB_GLOBBING ,
+are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+An unknown or ambiguous option, an argument given to a long option, an
+operand, or an error writing standard output.
+For all but the write error, a usage message is written to standard
+error, and for an option error a line naming the option comes first.
+A write error is reported on standard error without a usage message.
+.SH EXAMPLES
+Print the kernel name and the architecture:
+.PP
+.RS 4
+.EX
+$ uname \-sm
+Windows_NT x86_64
+.EE
+.RE
+.PP
+Print the Windows version and build number:
+.PP
+.RS 4
+.EX
+$ uname \-rv
+10.0 26200
+.EE
+.RE
+.PP
+Test for a build number of Windows 11 or later:
+.PP
+.RS 4
+.EX
+$ [ "$(uname \-v)" \-ge 22000 ] && echo Windows 11
+Windows 11
+.EE
+.RE
+.PP
+Name a build directory after the architecture, with a long option:
+.PP
+.RS 4
+.EX
+$ mkdir \-p "build/$(uname \-\-machine)"
+.EE
+.RE
+.SH NOTES
+Unlike GNU
+.BR uname ,
+it has no
+.B \-\-version
+option, and its
+.B \-\-help
+works only as the first argument.
+.PP
+The values come from the Windows API.
+The release and version are those of
+.BR GetVersionEx ,
+and the machine comes from
+.BR GetSystemInfo .
+Windows 10 and Windows 11 both have release 10.0; the build number
+tells them apart.
+Windows reports the true version because the manifest of
+.I busybox.exe
+declares support for Windows 10.
+.PP
+.B GetSystemInfo
+reports the architecture the process runs as, not that of the machine.
+So on 64-bit Windows the 32-bit kit, which runs under WOW64, prints
+.BR i686 ,
+and on ARM64 Windows the 64-bit kit, which runs under x64 emulation,
+prints
+.BR x86_64 .
+.PP
+The kit's busybox has no
+.B hostname
+applet;
+.B "uname \-n"
+prints the host name.
+.PP
+The kit's
+.B arch
+is the same as
+.BR "uname \-m" ;
+see
+.BR arch (1).
+.PP
+The output line ends with LF, not CRLF.
+.PP
+The kit's
+.B sh
+runs
+.B uname
+inside the shell process, without starting a new one, except where the
+shell needs a separate process anyway, as for a command substitution or
+a pipeline.
+.SH SEE ALSO
+.BR arch (1),
+.BR busybox (1),
+.BR sh (1)

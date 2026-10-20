@@ -1,0 +1,377 @@
+.TH BZIP2 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+bzip2, bunzip2, bzcat \- compress or decompress files in the bzip2 format
+.SH SYNOPSIS
+.B bzip2
+.RB [ \-cfkqsvz ]
+.RB [ \-1 " ... " \-9 ]
+.RI [ file ...]
+.br
+.B bzip2
+.BR \-d | \-t
+.RB [ \-cfkqv ]
+.RI [ file ...]
+.br
+.B bunzip2
+.RB [ \-cdfkqtv ]
+.RI [ file ...]
+.br
+.B bzcat
+.RB [ \-cdfkqtv ]
+.RI [ file ...]
+.SH DESCRIPTION
+.B bzip2
+compresses files in the bzip2 format, which sorts blocks of input with
+the Burrows-Wheeler transform and then applies Huffman coding.
+.B bunzip2
+decompresses them, and
+.B bzcat
+decompresses them to standard output.
+.B bunzip2
+is the same as
+.BR "bzip2 \-d" ,
+and
+.B bzcat
+is the same as
+.BR "bunzip2 \-c" .
+.PP
+Each
+.I file
+is replaced:
+.B bzip2
+appends
+.B .bz2
+to its name, and
+.B bunzip2
+removes that suffix.
+The input file is deleted once its output is complete.
+.B bunzip2
+skips a name that does not end in
+.BR .bz2 ,
+reporting
+.BR "unknown suffix \- ignored" .
+An existing output file is an error unless
+.B \-f
+is given.
+.PP
+With no
+.I file
+operands, or for a
+.I file
+named
+.BR \- ,
+the command reads standard input and writes standard output.
+With
+.BR \-c ,
+and always for
+.BR bzcat ,
+all output goes to standard output, the input files are kept, and
+compressed file names need not end in
+.BR .bz2 .
+.PP
+When a file fails, the error is reported on standard error, the partial
+output file is removed, the input file is kept, and the remaining files
+are still processed.
+Output already written to standard output remains.
+Reading standard input from a console without
+.BR \-f ,
+or failing to delete an input file, ends the command at once.
+.PP
+The options
+.B \-1
+to
+.B \-9
+set the block size to 100,000 to 900,000 bytes.
+Larger blocks usually compress better and need more memory.
+The block size is recorded in the compressed data, so decompression
+needs no option.
+.PP
+Concatenated bzip2 streams, such as the output of several
+.B bzip2 \-c
+commands appended to one file, decompress as one.
+Data after the last stream is ignored unless it begins with
+.BR BZ ,
+which is then an error.
+.SS Diagnostics
+Damaged input is reported with one of these messages:
+.TP
+.B invalid magic
+The input does not begin with
+.BR BZ .
+.TP
+.B CRC error
+The checksum of a block or of the whole stream does not match.
+For a stream with no data, the file still counts as a success.
+.TP
+.BI "bunzip error " n
+.I n
+is
+.B \-2
+for a damaged stream or block header,
+.B \-3
+for a truncated or unreadable file,
+.B \-5
+for corrupt data, or
+.B \-7
+for a block in the obsolete randomized format.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-kv ,
+and may follow file operands unless
+.B POSIXLY_CORRECT
+is set.
+.B \-\-
+ends the options.
+There are no long options.
+.B bunzip2
+and
+.B bzcat
+accept only
+.BR \-c ,
+.BR \-d ,
+.BR \-f ,
+.BR \-k ,
+.BR \-q ,
+.BR \-t ,
+and
+.BR \-v ,
+as does
+.B bzip2
+when
+.B \-d
+or
+.B \-t
+is given.
+.TP
+.BR \-1 " ... " \-9
+Compress with a block size of the given multiple of 100,000 bytes.
+The default is
+.BR \-9 .
+When several are given, the lowest wins.
+.TP
+.B \-d
+Decompress.
+.B bunzip2
+and
+.B bzcat
+ignore it.
+.TP
+.B \-c
+Write to standard output and keep the input files.
+Compressing several files produces a series of streams, which
+decompress as one.
+.TP
+.B \-f
+Remove an existing output file before writing it, and read standard
+input even when it is a console.
+Without
+.BR \-f ,
+reading standard input from a console fails with
+.BR "compressed data not read from terminal" .
+.TP
+.B \-k
+Keep the input files.
+.TP
+.B \-t
+Test: decompress each file and discard the output, keeping the input
+files.
+The
+.B .bz2
+suffix is not required.
+Overrides
+.BR \-c .
+.TP
+.B \-q
+Accepted and ignored.
+.TP
+.B \-s
+The same as
+.BR \-2 .
+.TP
+.B \-v
+After converting each
+.I file
+to an output file, print its name, a percentage, and the output name
+on standard error, even with
+.BR \-k .
+When decompressing, the percentage is the space saved by compression,
+or a huge number if the compressed file is the larger.
+When compressing, it is computed wrongly and is usually a huge number.
+Nothing is printed for standard input, or with
+.B \-c
+or
+.BR \-t .
+.TP
+.B \-z
+Compress.
+It has no effect, since
+.B bzip2
+compresses unless given
+.B \-d
+or
+.BR \-t .
+.TP
+.B \-\-help
+As the first argument, print a usage message on standard output and
+exit.
+The message omits some options.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the command line are expanded at startup, for callers such
+as
+.B cmd.exe
+that do not expand them.
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell do not expand
+their arguments again.
+.TP
+.B BB_UMASK
+An octal file mode creation mask applied at startup.
+If it includes the owner write bit,
+.BR 0200 ,
+output files are created read-only.
+.TP
+.B POSIXLY_CORRECT
+If set, options must precede the file operands.
+.PP
+Startup and messages written to a console also depend on
+.BR BB_CRITICAL_ERROR_DIALOGS ,
+.BR BB_SKIP_ANSI_EMULATION ,
+.BR BB_TERMINAL_MODE ,
+.BR LANG ,
+.BR LC_ALL ,
+and
+.BR LC_CTYPE ,
+as for every busybox applet; see
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+Invalid option, or an error with any file.
+.SH EXAMPLES
+Compress a file, replacing it with
+.IR notes.txt.bz2 :
+.PP
+.RS 4
+.EX
+$ bzip2 notes.txt
+.EE
+.RE
+.PP
+Decompress a file and report the space saved:
+.PP
+.RS 4
+.EX
+$ bunzip2 \-v numbers.txt.bz2
+numbers.txt.bz2: 77% \- replaced with numbers.txt
+.EE
+.RE
+.PP
+Check the integrity of all compressed files in a directory:
+.PP
+.RS 4
+.EX
+$ bzip2 \-t *.bz2
+.EE
+.RE
+.PP
+Compress with the smallest blocks, keeping the original:
+.PP
+.RS 4
+.EX
+$ bzip2 \-c \-1 build.log >build.log.bz2
+.EE
+.RE
+.PP
+Compress two files into one, then decompress the result:
+.PP
+.RS 4
+.EX
+$ bzip2 \-c part1.txt part2.txt >whole.bz2
+$ bzcat whole.bz2 >whole.txt
+.EE
+.RE
+.PP
+List the contents of a compressed tar archive:
+.PP
+.RS 4
+.EX
+$ bzcat src.tar.bz2 | tar \-tf \-
+.EE
+.RE
+.SH NOTES
+Differences from bzip2 1.0:
+.IP \(bu 2
+There are no long options, such as
+.BR \-\-stdout ,
+and no
+.B \-L
+or
+.BR \-V .
+.IP \(bu 2
+.B \-s
+selects 200,000-byte blocks when compressing, and is rejected when
+decompressing, rather than reducing the memory used to decompress.
+.IP \(bu 2
+Of several level options, the lowest wins, not the last.
+.IP \(bu 2
+.B \-q
+has no effect, and
+.B \-v
+prints a different report, only for files converted to an output
+file.
+.IP \(bu 2
+.B bunzip2
+recognizes only the
+.B .bz2
+suffix, compared case-sensitively, so
+.I FILE.BZ2
+is skipped.
+It does not handle the
+.BR .bz ,
+.BR .tbz ,
+or
+.B .tbz2
+suffixes, and does not decompress other names to
+.IB name .out\fR.
+.IP \(bu 2
+.B bzip2
+compresses a file even if its name already ends in
+.BR .bz2 .
+.IP \(bu 2
+The output file gets the current time, not the input's modification
+time.
+.IP \(bu 2
+Standard input is not read from a console without
+.BR \-f ,
+when compressing as well as when decompressing, but compressed data is
+written to a console without complaint.
+.IP \(bu 2
+The
+.B BZIP2
+and
+.B BZIP
+environment variables are ignored.
+.IP \(bu 2
+Blocks in the obsolete randomized format are rejected.
+.PP
+Standard input and output are in binary mode.
+Output names are formed from the input path as written, so drive
+letters and backslashes work, and the suffix test looks only at the text
+after the last period.
+A read-only input file is still deleted, and its output is also
+read-only.
+Paths may contain any Unicode characters on Windows 10 version 1903 and
+later, and are limited to the system code page on earlier versions.
+.SH SEE ALSO
+.BR busybox (1),
+.BR gzip (1),
+.BR tar (1),
+.BR zstd (1)

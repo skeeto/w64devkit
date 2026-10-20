@@ -1,0 +1,212 @@
+.TH WHOAMI 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+whoami \- print the name of the current user
+.SH SYNOPSIS
+.B whoami
+.SH DESCRIPTION
+.B whoami
+prints the name of the current user, followed by a newline, on standard
+output.
+It takes no operands.
+This
+.B whoami
+is a busybox applet; see
+.BR busybox (1).
+.PP
+Windows has no Unix user ids, so busybox supplies fixed ones, and
+.B whoami
+prints the name of the effective user:
+.IP \(bu 2
+In a process that is elevated and has the Administrators group enabled,
+such as one started by
+.BR su (1),
+the user is
+.BR root .
+.IP \(bu 2
+In any other process the user is the Windows account, named as the
+Windows API function
+.B GetUserName
+returns it.
+The name has no domain, keeps the case that Windows gives it, and has
+each space replaced by an underscore.
+.PP
+This is the same name that
+.B "id \-un"
+prints; see
+.BR id (1).
+The name does not come from the environment, so setting
+.BR LOGNAME ,
+.BR USER ,
+or
+.B USERNAME
+does not change it.
+.SH OPTIONS
+Apart from
+.BR \-\-help ,
+.B whoami
+takes no options.
+Any other argument, including
+.BR \-\- ,
+a lone
+.BR \- ,
+and
+.BR \-\-version ,
+is rejected with a usage message on standard error and exit status 1.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument, and any further arguments
+are then ignored.
+.SH ENVIRONMENT
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+output to a console is not converted, as described in
+.BR NOTES ,
+and the console interprets the bytes in its own code page.
+.PP
+Variables that affect every busybox applet are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+An argument other than a first
+.BR \-\-help ,
+or a failure to get the name.
+.TP
+.B 255
+The output could not be written.
+No message is printed.
+.PP
+A rejected argument is reported with a usage message on standard error.
+A failure to get the name is reported on standard error as
+.PP
+.RS 4
+.EX
+whoami: unknown uid 4095
+.EE
+.RE
+.SH EXAMPLES
+Print the name of the current user:
+.PP
+.RS 4
+.EX
+$ whoami
+alice
+.EE
+.RE
+.PP
+For an account named
+.BR "Jane Doe" ,
+each space becomes an underscore:
+.PP
+.RS 4
+.EX
+$ whoami
+Jane_Doe
+.EE
+.RE
+.PP
+In an elevated process, such as one started with Run as administrator:
+.PP
+.RS 4
+.EX
+$ whoami
+root
+.EE
+.RE
+.PP
+Run the Windows program, which prints the domain as well.
+The shell runs the applet for a bare
+.BR whoami ,
+so name the program by its path:
+.PP
+.RS 4
+.EX
+$ c:/windows/system32/whoami
+.EE
+.RE
+.PP
+Tell whether the process is elevated:
+.PP
+.RS 4
+.EX
+$ [ "$(id \-u)" = 0 ] && echo elevated
+.EE
+.RE
+.SH NOTES
+Differences from GNU
+.BR whoami :
+.IP \(bu 2
+There is no
+.BR \-\-version ,
+and
+.B \-\-help
+is recognized only as the first argument.
+.IP \(bu 2
+There is no user database to read.
+The one user is the account that Windows reports for the process, or
+.B root
+when the process is elevated.
+.PP
+An elevated process is
+.B root
+whatever its Windows account is named.
+An account that is really named
+.B root
+is therefore not told apart from an elevated process by its name, whereas
+.B "id \-u"
+prints 0 only when the process is elevated.
+A command started by
+.BR drop ,
+.BR cdrop ,
+or
+.B pdrop
+runs with reduced privileges and is not root, even from an elevated
+process, so
+.B whoami
+prints the account name there.
+.PP
+Windows has its own
+.BR whoami.exe ,
+which prints the domain as well, as in
+.IR domain \e account ,
+and has options of its own.
+The kit's shell runs
+.B whoami
+as an applet without consulting
+.BR PATH ,
+so it runs the busybox one, unless
+.B BB_OVERRIDE_APPLETS
+says otherwise; see
+.BR busybox (1).
+It does so inside its own process, without starting another; see
+.BR sh (1).
+From
+.BR cmd.exe ,
+the order of directories in
+.B PATH
+decides which one runs.
+.PP
+The user name is read in the ANSI code page, which is UTF-8 on Windows 10
+version 1903 and later, so on those versions it may contain any Unicode
+characters.
+On older versions it is limited to the system code page.
+A name of 100 bytes or more cannot be read, and fails as described in
+.BR "EXIT STATUS" .
+.PP
+The output line ends with LF, not CRLF.
+When standard output is a console, a name with non-ASCII characters is
+converted for display from the ANSI code page, unless the variables in
+.B ENVIRONMENT
+say otherwise.
+.SH SEE ALSO
+.BR busybox (1),
+.BR id (1),
+.BR logname (1),
+.BR sh (1),
+.BR su (1)

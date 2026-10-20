@@ -1,0 +1,574 @@
+.TH CP 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.SH NAME
+cp \- copy files and directories
+.SH SYNOPSIS
+.B cp
+.RI [ options ]
+.I source dest
+.br
+.B cp
+.RI [ options ]
+.IR source ...\&
+.I directory
+.br
+.B cp
+.RI [ options ]
+.BI "\-t " directory
+.IR source ...\&
+.SH DESCRIPTION
+.B cp
+copies files, and with
+.B \-R
+directories, to another name or into a directory.
+It is the
+.BR busybox (1)
+applet, which has fewer options than GNU
+.BR cp ;
+see
+.BR NOTES .
+.SS Operands
+With
+.BR \-t ,
+every operand is a
+.I source
+and is copied into
+.IR directory .
+Otherwise, with two operands,
+.I source
+is copied to
+.I dest
+itself, except that when
+.I dest
+is an existing directory, or a symbolic link or junction to one,
+.I source
+is copied into it.
+.B \-T
+always copies to
+.IR dest .
+With more than two operands, the last is
+.IR directory .
+.PP
+A copy into
+.I directory
+is named after the last component of
+.IR source ,
+with trailing slashes and backslashes removed, so
+.B cp \-r src/ out
+makes
+.I out/src
+when
+.I out
+exists.
+.B cp
+does not check beforehand that
+.I directory
+exists or is a directory: the copy of each
+.I source
+then fails on its own.
+.PP
+It is an error for a destination to be the same file as its source.
+.B cp
+compares the volume and file index, so names that differ only in case,
+and hard links to one file, are detected.
+.SS What is copied
+A regular file is copied to a new file.
+A directory is copied only with
+.BR \-R :
+it is created if it does not exist, or merged with the existing
+directory if it does, and all its entries, hidden ones included, are
+copied into it.
+Without
+.BR \-R ,
+a directory is reported as omitted, and the exit status is 1.
+.PP
+A symbolic link is followed, and the file it points to is copied, unless
+.BR \-d ,
+.BR \-P ,
+.BR \-R ,
+or
+.B \-a
+is given and
+.B \-L
+is not.
+Then the link itself is copied, as a new symbolic link with the same
+target, except that
+.B \-H
+still follows a link named as an operand.
+Junctions and app execution aliases are symbolic links for this purpose.
+.PP
+Without
+.BR \-R ,
+any other source that is not a directory is copied by reading it, so a
+device or standard input can be a source.
+With
+.BR \-R ,
+a source that is not a regular file, directory, or symbolic link, such
+as a device, cannot be copied and is an error.
+.SS Existing destinations
+.B cp
+never writes into an existing destination file.
+It creates the destination as a new file, and when the name is taken it
+deletes the old file, even a read-only one, and creates it again.
+So other hard links to the old file keep its contents, a symbolic link
+at the destination is replaced rather than followed, and the old file's
+attributes are lost.
+A file that cannot be deleted, such as a running program, is not
+replaced, but loses any read-only attribute, and the copy fails with
+.BR "File exists" .
+.B \-n
+and
+.B \-u
+skip some existing destinations, and
+.B \-i
+asks first.
+.PP
+A new file has the read-only attribute of its source and the current
+time as its modification time; see
+.BR \-p .
+.SS Output
+.B cp
+reports each error on standard error as
+.BI "cp: " message
+and goes on with the remaining entries and operands.
+Prompts go to standard error.
+Only
+.B \-v
+writes to standard output.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-rv .
+They may follow operands unless
+.B POSIXLY_CORRECT
+is set.
+The argument of
+.B \-t
+may be attached, as in
+.BR \-tbin .
+A long option may be abbreviated to any unambiguous prefix, and takes
+its argument after
+.B =
+or as the next argument.
+.B \-\-
+ends the options.
+.TP
+.BR \-a ", " \-\-archive
+Same as
+.BR \-dpR .
+.TP
+.BR \-R ", " \-r ", " \-\-recursive
+Copy directories recursively.
+Implies
+.BR \-d .
+.TP
+.BR \-d ", " \-P ", " \-\-no\-dereference
+Copy symbolic links as links, not the files they point to, including
+links named as operands unless
+.B \-H
+is given.
+Overridden by
+.BR \-L ,
+wherever it appears.
+.TP
+.BR \-L ", " \-\-dereference
+Follow every symbolic link, including those found while recursing, and
+copy the file it points to.
+Overrides
+.BR \-d ,
+.BR \-P ,
+and the
+.B \-d
+implied by
+.B \-R
+and
+.BR \-a .
+.TP
+.B \-H
+Follow symbolic links named as operands.
+With
+.BR \-R ,
+links found while recursing are still copied as links.
+Has no effect when links are followed anyway.
+.TP
+.B \-p
+Preserve attributes.
+Set the access and modification times of each copied file and directory
+to the source's modification time, in whole seconds, and its read-only
+attribute to the source's.
+A directory gets its time after its contents are copied, and never
+becomes read-only.
+Ownership is not changed.
+A failure to set these is reported but does not change the exit status.
+.TP
+.BR \-f ", " \-\-force
+Has no effect.
+An existing destination is always replaced, as described above.
+.TP
+.BR \-i ", " \-\-interactive
+Before replacing an existing destination file, write
+.BI "cp: overwrite \(aq" dest "\(aq?\&"
+on standard error and read a line from standard input.
+The destination is replaced only if the first character of the line
+that is not a space or tab is
+.B y
+or
+.BR Y ,
+and otherwise it is skipped, which is not an error.
+Existing directories are merged without asking.
+The prompt appears whenever creating the destination fails, so it can
+also appear for a destination that does not exist, and a
+.B y
+then reports the error.
+.B \-i
+and
+.B \-n
+override each other, and the last one given wins.
+.TP
+.BR \-n ", " \-\-no\-clobber
+Skip, without a message, each source whose destination exists.
+This includes directories: with
+.BR \-R ,
+an existing destination directory is skipped whole, and nothing is
+copied into it.
+.TP
+.BR \-l ", " \-\-link
+Make hard links instead of copying files.
+With
+.BR \-R ,
+directories are created and the files in them linked.
+The file system must support hard links, and both names must be on the
+same volume.
+Cannot be combined with
+.BR \-s .
+.TP
+.BR \-s ", " \-\-symbolic\-link
+Make symbolic links instead of copying files.
+With
+.BR \-R ,
+directories are created and the files in them linked.
+Each link's target is
+.I source
+as written, so a relative
+.I source
+is resolved relative to the directory containing the link, not to the
+current directory.
+Cannot be combined with
+.BR \-l .
+.TP
+.BR \-T ", " \-\-no\-target\-directory
+Copy to
+.I dest
+itself, never into it.
+With
+.BR \-R ,
+a source directory is copied to
+.IR dest ,
+and merged with it if it is an existing directory.
+A source that is not a directory, and a
+.I dest
+that is, is an error.
+Requires exactly two operands, and is ignored with
+.BR \-t .
+.TP
+\fB\-t\fR \fIdirectory\fR, \fB\-\-target\-directory\fR=\fIdirectory\fR
+Copy every operand into
+.IR directory .
+.TP
+.BR \-u ", " \-\-update
+Skip a source that is not a directory when its destination exists and
+is not older, comparing modification times in whole seconds.
+Directories are always entered, so their contents are compared one by
+one.
+.TP
+.BR \-v ", " \-\-verbose
+Write
+.BI \(aq source "\(aq \-> \(aq" dest \(aq
+on standard output for each file, directory, and symbolic link copied.
+A directory is written after its contents.
+Links made by
+.B \-l
+or
+.BR \-s ,
+skipped files, and copies of devices are not written.
+.TP
+.B \-\-remove\-destination
+Has no effect.
+An existing destination is always replaced, as described above.
+.TP
+.B \-\-parents
+Copy each source to the path formed by appending it, as written, to
+.IR directory ,
+creating any missing directories on the way.
+Leading slashes of
+.I source
+are dropped, and a drive letter makes the creation of the directories
+fail.
+When creating them fails,
+.B cp
+stops at once, without copying the remaining sources.
+With two operands,
+.I dest
+must be an existing directory.
+With more operands, or with
+.BR \-t ,
+.I directory
+is created when it does not exist.
+An existing destination file is deleted before its source is opened, so
+it is lost if the source cannot be opened.
+With
+.BR \-v ,
+.BI "removed \(aq" dest \(aq
+is written for each one deleted.
+.TP
+.B \-\-help
+As the first argument only, write a usage message on standard output
+and exit with status 0.
+The message omits the long options and
+.BR \-v .
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the arguments are expanded when busybox starts, for a caller
+such as
+.B cmd.exe
+that does not expand them.
+When it is unset, busybox sets it to
+.B 0
+for the programs it starts, so commands run from the kit's shell get the
+shell's expansion only.
+.TP
+.B BB_UMASK
+An octal file mode creation mask, applied before
+.B cp
+runs.
+Only its owner write bit,
+.BR 0200 ,
+matters here: new files are then created read-only, unless
+.B \-p
+sets the attribute from the source.
+.TP
+.B POSIXLY_CORRECT
+If set, the first operand ends the options.
+.PP
+Messages written to a console also depend on
+.BR BB_SKIP_ANSI_EMULATION ,
+.BR BB_TERMINAL_MODE ,
+.BR LANG ,
+.BR LC_ALL ,
+and
+.BR LC_CTYPE ,
+as for every busybox applet; see
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success, including sources skipped by
+.BR \-n ,
+.BR \-u ,
+or an answer to
+.BR \-i .
+.TP
+.B 1
+An invalid command line, with a usage message on standard error, or any
+operand or directory entry that could not be copied.
+.SH EXAMPLES
+Keep a copy of a file before editing it, with its modification time:
+.PP
+.RS 4
+.EX
+$ cp \-p config.h config.h.orig
+.EE
+.RE
+.PP
+Copy the C sources into a directory, listing each copy:
+.PP
+.RS 4
+.EX
+$ cp \-v *.c backup
+\(aqhello.c\(aq \-> \(aqbackup/hello.c\(aq
+\(aqmain.c\(aq \-> \(aqbackup/main.c\(aq
+.EE
+.RE
+.PP
+Copy a directory tree with its times and symbolic links:
+.PP
+.RS 4
+.EX
+$ cp \-a src src.orig
+.EE
+.RE
+.PP
+Merge one directory into another, replacing only the files that are
+newer in the source:
+.PP
+.RS 4
+.EX
+$ cp \-ruT assets build/assets
+.EE
+.RE
+.PP
+Copy only the files that do not exist in the destination:
+.PP
+.RS 4
+.EX
+$ cp \-n *.txt backup
+.EE
+.RE
+.PP
+Copy headers into a directory tree of their own, keeping their relative
+paths:
+.PP
+.RS 4
+.EX
+$ cp \-\-parents \-t include src/*/*.h
+.EE
+.RE
+.PP
+Copy a program to a Windows path:
+.PP
+.RS 4
+.EX
+$ cp hello.exe c:/tools/
+.EE
+.RE
+.SH NOTES
+Differences from GNU
+.BR cp :
+.IP \(bu 2
+An existing destination file is deleted and created again, rather than
+overwritten in place, even when it is read-only.
+No prompt is shown unless
+.B \-i
+is given.
+.IP \(bu 2
+.B \-f
+and
+.B \-\-remove\-destination
+have no effect.
+.IP \(bu 2
+.B \-n
+skips an existing destination directory, instead of merging into it.
+.IP \(bu 2
+A destination directory that is missing, or is not a directory, is not
+detected before copying starts.
+.IP \(bu 2
+Hard links among the sources are not kept, even with
+.BR \-a :
+each name is copied as a separate file.
+.IP \(bu 2
+Copying a directory into itself copies it once, then stops with
+.B recursion detected
+and exit status 1.
+.IP \(bu 2
+.B \-p
+sets the access time to the modification time, drops fractions of a
+second, and does not change ownership.
+.IP \(bu 2
+.B \-v
+writes a directory after its contents, and nothing for links made by
+.B \-l
+or
+.BR \-s .
+.IP \(bu 2
+Options not listed above, such as
+.BR \-b ,
+.BR \-c ,
+.BR \-S ,
+.BR \-x ,
+.BR \-Z ,
+.BR \-\-backup ,
+.BR \-\-preserve ,
+.BR \-\-no\-preserve ,
+.BR \-\-reflink ,
+.BR \-\-sparse ,
+and
+.BR \-\-strip\-trailing\-slashes ,
+are invalid.
+.PP
+Apart from the times set by
+.BR \-p ,
+only a file's data and its read-only attribute are copied.
+Alternate data streams, such as the
+.B Zone.Identifier
+stream that marks downloaded files, other attributes, such as hidden,
+and security descriptors are not: a new file or directory gets the
+permissions it inherits from its parent directory.
+.PP
+With
+.BR \-R ,
+.BR \-d ,
+.BR \-P ,
+or
+.BR \-a ,
+and without
+.BR \-L ,
+a symbolic link, junction, or app execution alias is copied as a
+symbolic link to the same target, never as a junction or alias.
+Creating a symbolic link, here or with
+.BR \-s ,
+needs Developer Mode or an elevated administrator, and otherwise fails
+with
+.BR "Permission denied" .
+.PP
+The Unix device names that busybox accepts, such as
+.I /dev/null
+and
+.IR /dev/stdin ,
+work as a destination, and as a source without
+.BR \-R ;
+see
+.BR busybox (1).
+With
+.BR \-R ,
+copying from a device fails with
+.BR "Function not implemented" .
+.I /dev/zero
+and
+.I /dev/urandom
+have no end, and a copy of either runs until the disk is full.
+.PP
+Paths may have drive letters and backslashes.
+Names in a directory are joined with
+.BR / ,
+so
+.B cp \-v x \(aqc:\etools\(aq
+writes names such as
+.IR c:\etools/x .
+A bare drive such as
+.I c:
+names the current directory of that drive, so
+.B cp x c:
+writes
+.IR c:x ,
+and
+.B cp \-r c: dir
+copies that directory to
+.I dir
+when
+.I dir
+does not exist.
+Names may contain any Unicode character on Windows 10 version 1903 and
+later, and are limited to the system code page on earlier versions.
+A full path of 260 or more characters, or 248 or more for a directory
+that
+.B cp
+creates, counting the current directory for a relative path, fails.
+With
+.BR \-R ,
+a source directory that cannot be listed, such as one whose full path is
+258 or 259 characters, is created empty with no error message, though
+.B \-v
+lists it, and the exit status is 1.
+.PP
+From
+.BR cmd.exe ,
+.B cp
+expands wildcards in its arguments itself; see
+.BR BB_GLOBBING .
+Data are copied byte for byte, with no newline translation.
+.SH SEE ALSO
+.BR busybox (1),
+.BR install (1),
+.BR ln (1),
+.BR mv (1)

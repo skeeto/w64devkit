@@ -1,0 +1,208 @@
+.TH DOS2UNIX 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+dos2unix, unix2dos \- convert text between DOS and Unix line endings
+.SH SYNOPSIS
+.B dos2unix
+.RB [ \-u | \-d ]
+.RI [ file ...]
+.br
+.B unix2dos
+.RB [ \-u | \-d ]
+.RI [ file ...]
+.SH DESCRIPTION
+.B dos2unix
+converts DOS line endings, a carriage return (CR) followed by a line
+feed (LF), to Unix line endings, a lone LF.
+.B unix2dos
+converts the other way.
+Each
+.I file
+is converted in place.
+With no
+.I file
+operands, the command reads standard input and writes standard output.
+.PP
+The conversion works on bytes.
+.B dos2unix
+deletes every CR, and
+.B unix2dos
+deletes every CR and writes a CR before every LF.
+So a CR that is not followed by LF is deleted in both directions,
+.B unix2dos
+leaves CR LF pairs unchanged, and converting a file twice has no further
+effect.
+All other bytes are copied unchanged.
+.PP
+Each
+.I file
+is written to a temporary file next to it, named
+.I file
+with six characters appended, which then replaces
+.IR file .
+If
+.I file
+is a symbolic link, the file it refers to is converted in this way and
+the link is kept.
+Files are converted in order, and the first error stops the command,
+leaving the remaining files unconverted.
+A
+.I file
+named
+.B \-
+is a file, not standard input.
+.SH OPTIONS
+The command's name selects the default direction, and an option
+overrides it.
+.B \-u
+and
+.B \-d
+cannot be combined: giving both is a usage error.
+Options may follow
+.I file
+operands, unless
+.B POSIXLY_CORRECT
+is set.
+.B \-\-
+ends the options.
+.TP
+.B \-u
+Convert to Unix line endings, as
+.B dos2unix
+does by default.
+.TP
+.B \-d
+Convert to DOS line endings, as
+.B unix2dos
+does by default.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument.
+.SH ENVIRONMENT
+.TP
+.B POSIXLY_CORRECT
+When set, the first
+.I file
+operand ends the options, so that later arguments such as
+.B \-d
+are file names.
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the operands are expanded, as needed when run from
+.BR cmd.exe .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+operands as the shell expanded them.
+.TP
+.B BB_UMASK
+When it has the owner write bit,
+.BR 200 ,
+each converted
+.I file
+is read-only.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+output to a console is not converted to the console's code page.
+.PP
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+Invalid usage, or a
+.I file
+could not be opened, written, or replaced.
+.TP
+.B 141
+Standard output is a pipe that was closed before all output was written.
+.SH EXAMPLES
+Convert C sources to Unix line endings in place:
+.PP
+.RS 4
+.EX
+$ dos2unix *.c *.h
+.EE
+.RE
+.PP
+Do the same for a whole source tree:
+.PP
+.RS 4
+.EX
+$ find src \-name \(aq*.[ch]\(aq \-exec dos2unix {} +
+.EE
+.RE
+.PP
+Write a copy of a file with DOS line endings, leaving the original
+unchanged:
+.PP
+.RS 4
+.EX
+$ unix2dos <notes.txt >notes\-dos.txt
+.EE
+.RE
+.SH NOTES
+Differences from the standalone
+.B dos2unix
+and
+.B unix2dos
+commands common on Linux:
+.IP \(bu 2
+Binary files are not detected and skipped, so they are corrupted.
+.IP \(bu 2
+Every CR is deleted, not only those before LF, so text with old Mac line
+endings loses its line breaks.
+.IP \(bu 2
+Text in UTF-8 or another ASCII-compatible encoding converts correctly,
+and a byte order mark is copied unchanged, but UTF-16 text is corrupted.
+.IP \(bu 2
+Besides
+.BR \-\-help ,
+the only options are
+.B \-u
+and
+.BR \-d .
+There is no option to write a new file or to keep the date.
+.PP
+Standard input and output are in binary mode, so line endings are
+exactly as described above.
+Without
+.I file
+operands, an error writing standard output is not reported, and the
+exit status is 0 unless the output was a closed pipe.
+.PP
+A converted
+.I file
+is always a new file, even when nothing changed.
+It gets the current modification time, attributes such as read-only and
+hidden are not kept, and other hard links to the original keep the old
+contents.
+A read-only
+.I file
+is converted anyway.
+If
+.I file
+cannot be replaced, for example because another program has it open,
+the command fails and leaves the temporary file behind.
+A read error partway through a
+.I file
+is taken as its end, so the part read before it replaces
+.I file
+and no error is reported.
+.PP
+File names may use drive letters and backslashes.
+They may contain any Unicode characters on Windows 10 version 1903 and
+later, and are limited to the system code page on earlier versions.
+.SH SEE ALSO
+.BR busybox (1),
+.BR tr (1),
+.BR xxd (1)

@@ -1,0 +1,691 @@
+.TH TEST 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+test, [, [[ \- evaluate a conditional expression
+.SH SYNOPSIS
+.B test
+.I expression
+.br
+.B [
+.I expression
+.B ]
+.br
+.B [[
+.I expression
+.B ]]
+.SH DESCRIPTION
+.B test
+evaluates
+.I expression
+and reports the result in its exit status: 0 if it is true, 1 if it is
+false, and 2 if it is invalid.
+It reads no input and writes nothing to standard output.
+.PP
+.B [
+is the same command with a required last argument that is a lone
+.BR ] ,
+which is not part of the expression.
+.B [[
+is the same with a closing
+.BR ]] ,
+and accepts the extensions described under
+.BR "Double brackets" .
+.PP
+The kit's shell has all three as builtins that run this same code, so
+scripts see the behavior described here; see
+.BR sh (1).
+Outside the shell, the
+.I test.exe
+launcher runs the
+.B busybox
+applet; see
+.BR busybox (1).
+There is no launcher for
+.BR [ ,
+which is run as
+.BR "busybox [" ,
+and the
+.B [[
+applet is not built, so
+.B [[
+exists only in the shell.
+.PP
+.B test
+has no options.
+Arguments such as
+.B \-\-help
+are ordinary words of the expression, so
+.B test \-\-help
+is true because its one argument is not empty.
+.PP
+Each operator, operand, and parenthesis is a separate argument.
+In the shell, quote or escape the characters it treats specially, such
+as
+.BR ( ,
+.BR ) ,
+.BR < ,
+and
+.BR > .
+Strings are compared as bytes.
+.SS Number of arguments
+An expression of up to four arguments is first resolved by counting
+them, mostly as POSIX specifies.
+So an operand that looks like an operator is safe:
+.B [ \-f = \-f ]
+compares two strings, and
+.B [ ! = ! ]
+is true.
+.TP
+.B 0
+False.
+.TP
+.B 1
+True if the argument is not empty, whatever it is, so
+.B [ \-f ]
+and
+.B [ ! ]
+are true.
+.TP
+.B 2
+If the first argument is
+.BR ! ,
+true if the second is empty.
+Otherwise the first must be a unary operator and the second is its
+operand, or the expression is invalid.
+.TP
+.B 3
+If the second argument is a binary operator other than
+.B \-a
+or
+.BR \-o ,
+the result of that operator applied to the first and third, even when
+the first is
+.B !\&
+or
+.BR ( .
+Otherwise, if the first is
+.BR ! ,
+the negation of the two-argument expression of the rest.
+.TP
+.B 4
+If the first argument is
+.BR ! ,
+the negation of the three-argument expression of the rest, except that
+when the third is
+.B \-a
+or
+.BR \-o ,
+the
+.B !\&
+applies to the second alone, where POSIX negates the whole.
+.PP
+Any other expression uses the full grammar under
+.BR "Combining expressions" ,
+apart from a quirk with parentheses described in
+.BR NOTES .
+.SS File tests
+These take a
+.I file
+operand.
+Every test except
+.B \-L
+and
+.B \-h
+follows symbolic links and applies to the target.
+A file that cannot be examined for any reason, such as a missing path or
+denied access, is treated as nonexistent, and its tests are false.
+A name that ends in a directory separator can only be a directory.
+.TP
+.BI "\-b " file
+True if
+.I file
+is a block special file.
+Always false, since there are none.
+.TP
+.BI "\-c " file
+True if
+.I file
+is a character special file.
+These are the emulated devices
+.IR /dev/null ,
+.IR /dev/tty ,
+.IR /dev/zero ,
+.IR /dev/urandom ,
+.IR /dev/stdin ,
+.IR /dev/stdout ,
+and
+.IR /dev/stderr ,
+and
+.I /dev/fd/N
+for each open file descriptor number
+.IR N .
+.TP
+.BI "\-d " file
+True if
+.I file
+is a directory.
+.TP
+.BI "\-e " file
+True if
+.I file
+exists.
+.TP
+.BI "\-f " file
+True if
+.I file
+is a regular file: it exists and is neither a directory nor one of the
+emulated devices.
+.TP
+.BI "\-G " file
+True if
+.I file
+exists and its group is the user's group.
+busybox gives a file the same ID for its owner and its group, so this is
+the same as
+.BR \-O .
+.TP
+.BI "\-g " file
+True if
+.I file
+has its set-group-ID bit set.
+Always false.
+.TP
+.BI "\-k " file
+True if
+.I file
+has its sticky bit set.
+Always false.
+.TP
+\fB\-L\fR \fIfile\fR, \fB\-h\fR \fIfile\fR
+True if
+.I file
+is a symbolic link, a directory junction or volume mount point, or an
+app execution alias.
+It does not follow the link.
+.TP
+.BI "\-O " file
+True if
+.I file
+exists and is owned by the effective user.
+See
+.BR NOTES .
+.TP
+.BI "\-p " file
+True if
+.I file
+is a named pipe.
+Always false.
+.TP
+.BI "\-r " file
+True if
+.I file
+exists and is readable.
+See
+.BR NOTES .
+.TP
+.BI "\-S " file
+True if
+.I file
+is a socket.
+Always false.
+.TP
+.BI "\-s " file
+True if
+.I file
+exists and its size is not zero.
+A directory has size zero.
+.TP
+.BI "\-t " fd
+True if file descriptor
+.I fd
+is open on a console.
+A pipe, a file, and the NUL device are not consoles.
+The argument must be a decimal number.
+.TP
+.BI "\-u " file
+True if
+.I file
+has its set-user-ID bit set.
+Always false.
+.TP
+.BI "\-w " file
+True if
+.I file
+exists and is writable.
+See
+.BR NOTES .
+.TP
+.BI "\-x " file
+True if
+.I file
+exists and is executable.
+See
+.BR NOTES .
+.SS String tests
+.TP
+.BI "\-n " string
+True if
+.I string
+is not empty.
+.TP
+.BI "\-z " string
+True if
+.I string
+is empty.
+.TP
+.I string
+True if
+.I string
+is not empty.
+This is the one-argument form, and the same as
+.BR \-n .
+.TP
+\fIstring1\fR \fB=\fR \fIstring2\fR, \fIstring1\fR \fB==\fR \fIstring2\fR
+True if the strings are equal.
+.TP
+\fIstring1\fR \fB!=\fR \fIstring2\fR
+True if the strings are not equal.
+.TP
+\fIstring1\fR \fB<\fR \fIstring2\fR
+True if
+.I string1
+sorts before
+.IR string2 ,
+comparing bytes.
+.TP
+\fIstring1\fR \fB>\fR \fIstring2\fR
+True if
+.I string1
+sorts after
+.IR string2 ,
+comparing bytes.
+.SS Integer comparisons
+Each operand is a decimal integer, with optional leading white space, an
+optional sign, and optional trailing white space.
+It is a signed 64-bit value.
+An operand that is not a number, such as an empty string or one in
+hexadecimal, is the error
+.BR "bad number" ,
+and one that does not fit is the error
+.BR "out of range" ;
+both end the command with status 2.
+.TP
+\fIn1\fR \fB\-eq\fR \fIn2\fR
+True if the numbers are equal.
+.TP
+\fIn1\fR \fB\-ne\fR \fIn2\fR
+True if they are not equal.
+.TP
+\fIn1\fR \fB\-ge\fR \fIn2\fR
+True if
+.I n1
+is greater than or equal to
+.IR n2 .
+.TP
+\fIn1\fR \fB\-gt\fR \fIn2\fR
+True if
+.I n1
+is greater than
+.IR n2 .
+.TP
+\fIn1\fR \fB\-le\fR \fIn2\fR
+True if
+.I n1
+is less than or equal to
+.IR n2 .
+.TP
+\fIn1\fR \fB\-lt\fR \fIn2\fR
+True if
+.I n1
+is less than
+.IR n2 .
+.SS File comparisons
+.TP
+\fIfile1\fR \fB\-ef\fR \fIfile2\fR
+True if both files exist and are the same file: the same volume and
+file index.
+See
+.BR NOTES .
+.TP
+\fIfile1\fR \fB\-nt\fR \fIfile2\fR
+True if both files exist and
+.I file1
+was modified later than
+.IR file2 ,
+comparing times in whole seconds.
+.TP
+\fIfile1\fR \fB\-ot\fR \fIfile2\fR
+True if both files exist and
+.I file1
+was modified earlier than
+.IR file2 ,
+comparing times in whole seconds.
+.SS Combining expressions
+From highest precedence to lowest:
+.TP
+\fB(\fR \fIexpression\fR \fB)\fR
+True if
+.I expression
+is true.
+Parentheses group.
+.TP
+\fB!\fR \fIexpression\fR
+True if
+.I expression
+is false.
+.TP
+\fIexpression1\fR \fB\-a\fR \fIexpression2\fR
+True if both are true.
+.TP
+\fIexpression1\fR \fB\-o\fR \fIexpression2\fR
+True if either is true.
+.PP
+Both operands of
+.B \-a
+and
+.B \-o
+are always evaluated, so an error in the right one ends the command with
+status 2 even when the left one decides the result.
+.SS Double brackets
+.B [[
+accepts the operators above, except that:
+.IP \(bu 2
+.B &&
+and
+.B ||
+replace
+.B \-a
+and
+.BR \-o ,
+with the same precedence.
+They need no quoting in the shell.
+.B \-a
+and
+.B \-o
+are not operators there, and are reported as unknown operands.
+.IP \(bu 2
+.B =
+and
+.B ==
+match the string on the left against the shell pattern on the right,
+with the wildcards
+.BR * ,
+.BR ? ,
+and
+.BR [] ,
+and
+.B !=
+is true when it does not match.
+Quoting the pattern does not turn off pattern matching.
+To match a wildcard literally, precede it with a backslash and quote
+both, as in
+.BR \(aqa\e*\(aq .
+.IP \(bu 2
+\fIstring\fR \fB=~\fR \fIregex\fR
+is true if
+.I string
+contains a match for the extended regular expression
+.IR regex .
+The match is not anchored, and captures are not kept.
+An invalid expression ends the command with status 2 and no message.
+.PP
+Apart from passing
+.B &&
+and
+.B ||
+through, the shell treats
+.B [[
+as an ordinary command.
+Word splitting and pathname expansion still apply to its arguments, so
+quote expansions, and quote
+.BR < ,
+.BR > ,
+.BR ( ,
+and
+.B )
+as for
+.BR [ .
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+the C runtime expands wildcards, even in quoted arguments, when
+.I test.exe
+starts, which serves commands typed in
+.BR cmd.exe .
+So
+.B "test.exe \-f \(dq*.c\(dq"
+typed there fails with an unknown operand error when more than one file
+matches.
+Set it to
+.B 0
+to prevent that.
+.TP
+.B BB_UMASK
+The file mode creation mask, in octal, by default
+.BR 002 .
+Without its
+.B 002
+bit, a file owned by someone else is writable unless it is read-only;
+see
+.BR NOTES .
+The shell's
+.B umask
+command sets it.
+.PP
+Variables that affect every busybox applet are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+The expression is true.
+.TP
+.B 1
+The expression is false, or there are no arguments.
+.TP
+.B 2
+The expression is invalid.
+A message on standard error says why:
+.BR "argument expected" ,
+.BR "bad number" ,
+.BR "closing paren expected" ,
+.BR "missing ]" ,
+.BR "missing ]]" ,
+.BR "out of range" ,
+or
+.BR "unknown operand" ,
+usually after the argument at fault.
+It begins with the command name, or in the shell with the shell's name,
+such as
+.BR sh .
+An invalid regular expression after
+.B =~
+gives no message.
+.SH EXAMPLES
+Run a command only if a file exists:
+.PP
+.RS 4
+.EX
+$ [ \-f config.h ] && echo found
+.EE
+.RE
+.PP
+Create a directory unless one that can be written already exists:
+.PP
+.RS 4
+.EX
+$ [ \-d build \-a \-w build ] || mkdir build
+.EE
+.RE
+.PP
+Test a variable for emptiness.
+Quote it: unquoted, an empty value leaves the single argument
+.BR \-n ,
+which is true:
+.PP
+.RS 4
+.EX
+$ x=
+$ [ \-n $x ] && echo unquoted is true
+unquoted is true
+$ [ \-n "$x" ] || echo quoted is false
+quoted is false
+.EE
+.RE
+.PP
+Compare numbers:
+.PP
+.RS 4
+.EX
+$ [ "$n" \-ge 10 ] && echo at least ten
+.EE
+.RE
+.PP
+Rebuild unless the object file exists and is newer than the source:
+.PP
+.RS 4
+.EX
+$ [ main.o \-nt main.c ] || gcc \-c main.c
+.EE
+.RE
+.PP
+Match a pattern.
+The quotes keep the shell from expanding it:
+.PP
+.RS 4
+.EX
+$ name=main.c
+$ [[ $name == "*.c" ]] && echo C source
+C source
+.EE
+.RE
+.SH NOTES
+Differences from GNU
+.B test
+and bash:
+.IP \(bu 2
+.B \-nt
+and
+.B \-ot
+are false unless both files exist, where bash makes
+.B \-nt
+true when only the first exists, and
+.B \-ot
+when only the second does.
+They compare whole seconds.
+.IP \(bu 2
+The bash unary operators
+.BR \-a ,
+.BR \-N ,
+.BR \-o ,
+.BR \-R ,
+and
+.B \-v
+are not supported.
+.PP
+File names follow Windows rules.
+Either slash separates components, drive letters work, and a leading
+slash is the root of the current drive.
+MSYS-style names such as
+.I /c/Users
+are not translated.
+The device names
+.B NUL
+and
+.B CON
+do not exist: use
+.IR /dev/null .
+The
+.I /dev
+names under
+.B \-c
+are recognized by spelling, not by looking at the file system, so
+they work from any directory and drive but
+.I C:/dev/null
+does not.
+Names may contain any Unicode character on Windows 10 version 1903 and
+later; see
+.BR busybox (1).
+.PP
+Permissions come from a Unix-style mode that busybox builds for each file
+from its attributes and name, and tests against the effective user ID.
+Any file is readable.
+A directory is writable, and so is a regular file without the read-only
+attribute.
+A directory is executable, and so is a regular file whose name ends in
+.BR .com ,
+.BR .exe ,
+.BR .sh ,
+.BR .bat ,
+or
+.B .cmd
+in any case, or whose contents begin with
+.B #!\&
+or are a PE executable that is not a DLL.
+For other names, except
+.BR .dll ,
+that check reads the start of the file, unless its data is not stored
+locally.
+A file owned by someone else is writable only if, in addition, its
+access control list grants the user full access or the umask lacks the
+bit
+.B 002
+that removes write permission for others; see
+.BR BB_UMASK .
+A file whose security information cannot be opened is none of readable,
+writable, or executable.
+.PP
+An elevated administrator process has user ID 0, as
+.BR id (1)
+shows, and then, as root would on Unix,
+.B \-r
+and
+.B \-w
+are true for every file that can be examined, and
+.B \-x
+for every executable one.
+The user ID is otherwise 4095.
+.B \-O
+compares the effective user ID with the owner found in the file's
+security information, which busybox maps to a number: 4095 for the
+current user, the relative ID of another local or domain account if
+that is from 500 to 4094, and 0 for any other owner, such as SYSTEM or
+the Administrators group, or when the information cannot be read.
+An emulated device, or a file whose data is not stored locally, belongs
+to the current user.
+So an elevated process owns the files that map to 0, and not those owned
+by its own account.
+.PP
+.B \-ef
+compares the volume serial number and file index, so hard links, and a
+link or junction and its target, are the same file.
+The emulated devices, files whose data is not stored locally, and any
+other files whose identity cannot be read all compare equal to each
+other.
+.PP
+When the whole expression, after any leading
+.BR ! ,
+is a unary test in parentheses, such as
+.B ( \-n x )
+or
+.BR "! ( \-d dir )" ,
+it fails with
+.B closing paren expected
+and status 2.
+So does a unary operator or
+.B !\&
+alone in parentheses, such as
+.BR "( \-n )" ,
+which POSIX makes a test of a non-empty string.
+Leave out the parentheses.
+A longer expression, such as
+.B ( ! \-d dir )
+or
+.BR "( \-n x ) \-a y" ,
+is not affected.
+.SH SEE ALSO
+.BR busybox (1),
+.BR expr (1),
+.BR find (1),
+.BR id (1),
+.BR sh (1)

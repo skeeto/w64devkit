@@ -1,0 +1,323 @@
+.TH PIDOF 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+pidof \- list the process IDs of running programs by name
+.SH SYNOPSIS
+.B pidof
+.RB [ \-s ]
+.RB [ \-o
+.IR pid ]...\&
+.RI [ name ...]
+.SH DESCRIPTION
+.B pidof
+writes the process ID of each running process whose name is one of the
+.I name
+operands.
+It takes the operands in order, and for each one writes the IDs of the
+processes with that name.
+The IDs go on one line of standard output, separated by spaces.
+When no ID is written, nothing is written, not even a newline, and the
+exit status is 1.
+It reads no input.
+Its messages go to standard error.
+.PP
+This
+.B pidof
+is a busybox applet; see
+.BR busybox (1).
+A
+.I name
+is an exact process name, not a pattern.
+To select processes by pattern, use
+.BR pgrep (1).
+.PP
+The IDs for one name are in the reverse of the order in which Windows
+lists the processes, which need not be sorted by ID.
+A process that matches several operands is written once for each, so
+.B pidof sh sh
+writes every shell twice.
+The list of processes is read again for each operand, and covers every
+process on the system, including those of other users.
+.PP
+The process running
+.B pidof
+is named
+.BR pidof ,
+so
+.B pidof pidof
+writes its own ID.
+.SS Process names
+Only the name of a process is matched, never its path or command line.
+The name is the file name of its executable as Windows reports it,
+including the extension, such as
+.BR explorer.exe .
+The comparison is case-sensitive, although Windows file names are not,
+and the extension is part of the name, so
+.B make
+does not match
+.BR make.exe .
+An operand with a directory part, such as
+.BR /bin/sh ,
+matches nothing.
+.PP
+A process running the same build of busybox is named after its applet
+instead, such as
+.B sh
+or
+.BR sleep .
+A script whose
+.B #!\&
+line names an applet is named after the script file, except that a shell
+script run from the kit's shell is named after the shell, such as
+.BR sh .
+The kit's command launchers, such as
+.B sleep.exe
+and
+.BR pidof.exe ,
+appear under their own names, each alongside the busybox process it
+started, so
+.B pidof sleep
+finds the busybox process and
+.B pidof sleep.exe
+finds the launcher.
+A busybox process of a different build, or one that
+.B pidof
+cannot open, is named after its executable file instead, such as
+.BR busybox.exe .
+.PP
+Only the first 15 bytes of a long name are compared.
+A process name of 15 or more bytes matches any operand that agrees with
+it in its first 15 bytes, however the two differ after that.
+So
+.B pidof x86_64\-w64\-mingw32\-gcc.exe
+also finds
+.BR x86_64\-w64\-mingw32\-g++.exe ,
+and the extension may be left off a name with 15 or more bytes before
+it.
+A shorter process name must match the whole operand.
+.PP
+The idle process, with process ID 0 and the name
+.BR "[System\ Process]" ,
+is never written.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-so ,
+and the argument of
+.B \-o
+may be attached, as in
+.BR \-o4 .
+Options may follow the names.
+.B \-\-
+ends the options, so that every later argument is a
+.IR name ,
+even one that begins with a dash.
+.TP
+.B \-s
+Write only one ID for each name: the first that would otherwise be
+written, after any omitted by
+.BR \-o .
+The limit is per name operand, not for the whole command, so
+.B pidof \-s sh sleep
+writes up to two IDs.
+.TP
+.BI "\-o " pid
+Omit the process ID
+.I pid
+from the output.
+The option may be repeated, to omit several IDs.
+.I pid
+is a decimal integer from 0 to 4294967295, or
+.BR %PPID ,
+which stands for the ID of the parent of
+.BR pidof ,
+the process that started it; see
+.BR NOTES .
+A parent that has exited has ID 1, unless Windows has since reused its
+ID.
+.IP
+A value that is neither, including a number with a sign or a
+.B 0x
+prefix, fails with
+.B invalid number
+and exit status 1.
+This happens only when
+.B pidof
+compares the value to an ID it found, so a bad value goes unnoticed if
+nothing is found, or if earlier
+.B \-o
+values omit every ID found.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the operands are expanded as file names before
+.B pidof
+sees them, even inside quotes, as needed when run from
+.BR cmd.exe .
+A name is never a pattern, so the effect is only that an operand such as
+.B app*
+is replaced by the names of matching files in the current directory,
+which are then taken as process names.
+A pattern that matches nothing is left as it is.
+A busybox process started with the variable unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+operands as the shell expanded them.
+.TP
+.B POSIXLY_CORRECT
+When it is set, even to an empty value, the C library's option parser
+stops at the first operand, so that
+.B \-s
+and
+.B \-o
+are recognized only before the first
+.IR name .
+.PP
+Variables read by the startup code shared by all applets, such as
+.B BB_CRITICAL_ERROR_DIALOGS
+and
+.BR BB_UMASK ,
+do not change what
+.B pidof
+does; see
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+At least one process ID was written, or
+.B \-\-help
+was given.
+.TP
+.B 1
+No process ID was written: no process matched, every match was omitted
+by
+.BR \-o ,
+or there was no
+.IR name .
+Also an invalid option, a
+.B \-o
+with no argument, or an invalid
+.B \-o
+value.
+.PP
+An invalid option or a missing argument is reported on standard error,
+followed by the usage message.
+An invalid
+.B \-o
+value is reported on standard error as
+.PP
+.RS 4
+.EX
+pidof: invalid number \(aq\fIvalue\fR\(aq
+.EE
+.RE
+.SH EXAMPLES
+Find a running program:
+.PP
+.RS 4
+.EX
+$ sleep 60 &
+[1] 22068
+$ pidof sleep
+22068
+.EE
+.RE
+.PP
+Test whether a program is running:
+.PP
+.RS 4
+.EX
+$ pidof gdb.exe >/dev/null && echo running
+.EE
+.RE
+.PP
+Count the running instances of a program, as the IDs are all on one
+line:
+.PP
+.RS 4
+.EX
+$ pidof sleep | wc \-w
+3
+.EE
+.RE
+.PP
+Write the IDs one per line:
+.PP
+.RS 4
+.EX
+$ pidof sleep | tr \(aq \(aq \(aq\en\(aq
+.EE
+.RE
+.PP
+List the other shells, leaving out the shell that runs the command:
+.PP
+.RS 4
+.EX
+$ pidof \-o %PPID sh
+.EE
+.RE
+.SH NOTES
+Differences from the procps
+.BR pidof ,
+and from busybox on Linux:
+.IP \(bu 2
+Only a process's name is matched.
+Busybox on Linux also matches the name a program was started with, and
+the name of its executable file, or its full path when the operand
+begins with a slash.
+.IP \(bu 2
+Names include the extension and are case-sensitive.
+.IP \(bu 2
+There are no options other than
+.B \-s
+and
+.BR \-o .
+.PP
+The list of processes is a snapshot, so a process may have exited by the
+time its ID is written.
+The applet name of a busybox process is read from the memory of that
+process, which fails for a process that Windows does not let busybox
+open, such as an elevated one or one of another user.
+Names are compared as bytes in the ANSI code page, which is UTF-8 on
+Windows 10 version 1903 or later; see
+.BR busybox (1).
+.PP
+Unlike
+.BR kill (1)
+and
+.BR killall (1),
+which the kit's shell runs without starting a process,
+.B pidof
+runs in a process of its own, whose parent is the shell.
+As the last command of
+.BR "sh \-c" ,
+or under
+.BR exec ,
+it runs in the shell's own process instead, so its parent, and so
+.BR %PPID ,
+is the parent of that shell, and that shell, now named
+.BR pidof ,
+is not found as
+.BR sh .
+When started through the kit's
+.B pidof.exe
+launcher, as from
+.BR cmd.exe ,
+the parent is the launcher instead, not the program that ran the
+launcher.
+Then
+.B %PPID
+is the ID of the launcher, and omits only a process named
+.BR pidof.exe .
+.SH SEE ALSO
+.BR busybox (1),
+.BR kill (1),
+.BR killall (1),
+.BR pgrep (1),
+.BR pkill (1),
+.BR ps (1),
+.BR sh (1)

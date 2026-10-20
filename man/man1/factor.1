@@ -1,0 +1,175 @@
+.TH FACTOR 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+factor \- print the prime factors of integers
+.SH SYNOPSIS
+.B factor
+.RI [ number ...]
+.SH DESCRIPTION
+.B factor
+writes the prime factorization of each
+.IR number ,
+or, with no operands, of each number on standard input.
+Standard input is read to the end of the file.
+Each line holds any number of numbers, separated by white space, and
+blank lines are ignored.
+With operands, standard input is not read.
+.PP
+Each
+.I number
+is a decimal integer from 0 to
+.BR 18446744073709551615 ,
+which is 2^64 \- 1.
+It may start with a plus sign, and an operand may have white space
+before that.
+A leading zero does not make a number octal:
+.B 010
+is ten.
+Anything else is invalid: a minus sign, a
+.B 0x
+prefix, an exponent or a fraction, other text after the digits (even
+white space, in an operand), an empty operand, or a value above the
+maximum.
+.PP
+The results are written to standard output in input order, one line per
+number.
+Each line has the number, a colon, and the prime factors in ascending
+order, each after a space.
+A prime that divides the number several times is repeated.
+A prime is its own only factor, and 0 and 1 have none, so their lines
+end after the colon.
+The number is written in plain decimal, without a plus sign or leading
+zeros.
+.PP
+On an invalid number,
+.B factor
+writes a usage message on standard error and exits with status 1.
+The results for the numbers before it are still written, and the
+numbers after it are not examined.
+The message does not say which number is at fault.
+.SH OPTIONS
+.B factor
+has no options.
+Apart from a first argument of
+.BR \-\-help ,
+an argument that begins with a dash is an invalid number, and
+.B \-\-
+is not special.
+.TP
+.B \-\-help
+Print the busybox version and a usage message on standard output, and
+exit with status 0.
+It is recognized only as the first argument, and any further arguments
+are then ignored.
+In any other position it is an invalid number.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the operands are expanded when
+.B factor
+starts, as needed when run from
+.BR cmd.exe .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+operands as the shell expanded them.
+.PP
+Every applet also reads
+.B BB_CRITICAL_ERROR_DIALOGS
+and
+.B BB_UMASK
+at startup, and
+.BR BB_SKIP_ANSI_EMULATION ,
+.BR BB_TERMINAL_MODE ,
+.BR CONEMUPID ,
+.BR LANG ,
+.BR LC_ALL ,
+and
+.B LC_CTYPE
+when writing to a console.
+None of these changes what
+.B factor
+writes.
+They are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success, including an empty input, or a first argument of
+.BR \-\-help .
+.TP
+.B 1
+An invalid number, with a usage message on standard error.
+.TP
+.B 141
+Standard output is a pipe whose reader has exited, found when a write
+fails.
+No message is printed.
+.SH EXAMPLES
+Factor a number:
+.PP
+.RS 4
+.EX
+$ factor 360
+360: 2 2 2 3 3 5
+.EE
+.RE
+.PP
+Factor the numbers on a line of standard input:
+.PP
+.RS 4
+.EX
+$ echo 91 1001 | factor
+91: 7 13
+1001: 7 11 13
+.EE
+.RE
+.PP
+List the primes up to 30, the numbers whose line has a single factor:
+.PP
+.RS 4
+.EX
+$ seq 2 30 | factor | awk \(aqNF == 2 { print $2 }\(aq
+.EE
+.RE
+.PP
+Print the largest prime factor of a number:
+.PP
+.RS 4
+.EX
+$ factor 600851475143 | awk \(aq{ print $NF }\(aq
+6857
+.EE
+.RE
+.SH NOTES
+Differences from GNU factor:
+.IP \(bu 2
+Numbers are limited to 64 bits.
+.IP \(bu 2
+There are no options other than
+.BR \-\-help ,
+so no
+.BR \-h ,
+.BR \-\-exponents ,
+or
+.BR \-\-version .
+.IP \(bu 2
+An invalid number ends the program, where GNU factor reports it and
+goes on to the next.
+.PP
+Factoring is by trial division.
+The slowest numbers, such as a prime near 2^64 or the product of two
+different primes near 2^32, take seconds.
+.PP
+Output lines end with LF, not CRLF.
+On standard input, a CR before the LF is removed, and a CR elsewhere is
+white space.
+.PP
+Write errors other than a closed pipe are ignored, and so is any error
+when the output buffer is flushed at exit: a short result written to a
+pipe whose reader has exited is lost, with status 0.
+.SH SEE ALSO
+.BR awk (1),
+.BR busybox (1),
+.BR seq (1)

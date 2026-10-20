@@ -1,0 +1,257 @@
+.TH PWD 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+pwd \- print the current directory
+.SH SYNOPSIS
+.B pwd
+.RB [ \-LP ]
+.SH DESCRIPTION
+.B pwd
+prints the name of the current directory, followed by a newline, on
+standard output.
+It reads no input and ignores operands.
+.PP
+The name is absolute, with a drive letter and forward slashes, as in
+.IR C:/Users/me/src .
+The root of a drive is
+.IR C:/ .
+A network share entered without a drive letter gives a UNC name, as in
+.IR //host/share/dir .
+.PP
+It is the name that Windows holds for the process's current directory,
+as set by the program that changed to it or started the process.
+.B pwd
+neither resolves links in it nor changes its case.
+When the kit's shell changes directory, it uppercases the drive letter
+or UNC host name, matches the capitalization stored on disk, and
+resolves a symbolic link or junction that is the last component of the
+new directory, so the name can differ from the shell's
+.BR PWD .
+.B cmd.exe
+keeps the drive letter as typed, which may be lowercase, and keeps a
+junction in the name.
+.PP
+The kit's
+.BR sh (1)
+has a
+.B pwd
+built-in of its own, which runs in place of this program; see
+.BR NOTES .
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-LP ,
+repeated, and given after operands, unless
+.B POSIXLY_CORRECT
+is set.
+.B \-\-
+ends the options.
+Any other option is an error.
+.TP
+.B \-L
+Print the value of
+.B PWD
+instead of the name from Windows, when
+.B PWD
+names the current directory.
+.B PWD
+must pass all of these tests:
+.RS
+.IP \(bu 2
+It begins with a forward slash.
+A name with a drive letter never qualifies.
+.IP \(bu 2
+It has no
+.B .\&
+or
+.B ..\&
+component, where components are separated by forward slashes.
+.IP \(bu 2
+It names the current directory, which is judged by whether Windows
+reports the same volume and file index for both.
+.RE
+.IP
+When any of these fails, or
+.B PWD
+is unset,
+.B \-L
+has no effect, and there is no message.
+Otherwise
+.B PWD
+is printed exactly as it is, with no cleanup.
+.IP
+The kit's shell sets
+.B PWD
+with a drive letter, except on a network share, so
+.B \-L
+usually prints the same name as without it.
+It differs when
+.B PWD
+begins with a slash, as for a name relative to the root of the drive,
+such as
+.IR /Users/me ,
+or a UNC name, such as
+.IR //host/share/dir .
+.TP
+.B \-P
+Print the name from Windows.
+This is the default.
+Giving
+.B \-P
+does not cancel
+.BR \-L :
+with both, in either order,
+.B \-L
+applies.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument, and any further arguments
+are then ignored.
+.SH ENVIRONMENT
+.TP
+.B PWD
+Read only with
+.BR \-L ,
+as described there.
+.TP
+.B POSIXLY_CORRECT
+If set, the first operand ends the options.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+output to a console is not converted, as described in
+.BR NOTES ,
+and the console interprets the bytes in its own code page.
+.PP
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+An unknown option, or a failure to get the name of the current
+directory.
+.TP
+.B 255
+The output could not be written, as when standard output is closed or is
+a pipe whose reader has exited.
+No message is printed.
+.PP
+An unknown option is reported on standard error, followed by a usage
+message.
+A failure to get the name is reported on standard error as
+.PP
+.RS 4
+.EX
+pwd: getcwd: \fIreason\fR
+.EE
+.RE
+.SH EXAMPLES
+Print the current directory:
+.PP
+.RS 4
+.EX
+$ cd C:/Windows
+$ pwd
+C:/Windows
+.EE
+.RE
+.PP
+Print it with backslashes, for a program that wants them.
+Naming
+.B busybox
+runs this program instead of the shell's built-in:
+.PP
+.RS 4
+.EX
+$ busybox pwd | tr / \(aq\e\e\(aq
+C:\eWindows
+.EE
+.RE
+.PP
+Set
+.B PWD
+to a name relative to the root of the drive.
+With
+.BR \-L ,
+it is printed when it names the current directory, and otherwise
+ignored:
+.PP
+.RS 4
+.EX
+$ cd C:/Windows
+$ PWD=/Windows busybox pwd \-L
+/Windows
+$ PWD=/Users busybox pwd \-L
+C:/Windows
+.EE
+.RE
+.SH NOTES
+The kit's
+.BR sh (1)
+runs its own
+.B pwd
+built-in, not this program, in scripts and at the prompt.
+The built-in has its own options, including
+.BR \-a ,
+which this program lacks; see
+.BR sh (1).
+This program is what the
+.I pwd.exe
+launcher in the kit's
+.I bin
+runs, as when
+.BR cmd.exe ,
+.BR env ,
+or another program starts
+.BR pwd ,
+and what
+.B busybox pwd
+runs; see
+.BR busybox (1).
+.PP
+Differences from POSIX and GNU
+.BR pwd :
+.IP \(bu 2
+The default is
+.BR \-P ,
+not
+.BR \-L ,
+and
+.B POSIXLY_CORRECT
+does not change it.
+.IP \(bu 2
+Unlike GNU
+.BR "pwd \-P" ,
+.B \-P
+does not resolve symbolic links; see
+.BR DESCRIPTION .
+.IP \(bu 2
+Operands are ignored without a warning.
+.IP \(bu 2
+There are no long options other than
+.BR \-\-help ,
+so
+.B \-\-logical
+and
+.B \-\-version
+are errors, and
+.B \-\-help
+is recognized only as the first argument.
+.PP
+On Windows 10 version 1903 and later, the name may contain any Unicode
+characters.
+On older versions it is limited to the system code page.
+.PP
+The output line ends with LF, not CRLF.
+When standard output is a console, the result is converted for display
+from the ANSI code page, which is UTF-8 on Windows 10 version 1903 and
+later.
+.SH SEE ALSO
+.BR busybox (1),
+.BR realpath (1),
+.BR sh (1)

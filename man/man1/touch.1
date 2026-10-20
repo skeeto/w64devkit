@@ -1,0 +1,509 @@
+.TH TOUCH 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+touch \- change file timestamps, or create empty files
+.SH SYNOPSIS
+.B touch
+.RB [ \-acfhm ]
+.RB [ \-d
+.IR time ]
+.RB [ \-r
+.IR reference ]
+.RB [ \-t
+.IR time ]
+.IR file ...
+.SH DESCRIPTION
+.B touch
+sets the access time and the modification time of each
+.I file
+to the current time, or to a time you give.
+A
+.I file
+that does not exist is created empty, unless
+.B \-c
+is given.
+It is the
+.BR busybox (1)
+applet, which has fewer options than GNU
+.BR touch ;
+see
+.BR NOTES .
+.PP
+The operands are processed in order.
+A
+.I file
+that cannot be touched or created is reported on standard error as
+\fBtouch:\fR \fIfile\fB:\fR \fIreason\fR,
+where
+.I reason
+is the system's message, such as
+.BR "No such file or directory" ,
+and the remaining operands are still processed.
+The exit status is then 1.
+Nothing is written to standard output.
+With no operand, or with an invalid option, it prints a usage message on
+standard error and exits with status 1.
+.PP
+Only the access time and the modification time are set.
+The creation time that Windows keeps is never changed.
+A file that
+.B touch
+creates has the current time for whichever of the two times
+.B \-a
+or
+.B \-m
+leaves unset, so
+.B "touch \-a \-d 2020\-01\-01 new"
+gives
+.I new
+an access time on 2020\-01\-01 and a modification time of the moment it
+was created.
+.SS Choosing the time
+Without
+.BR \-d ,
+.BR \-r ,
+or
+.BR \-t ,
+the time is the current time.
+With
+.BR \-r ,
+the times are those of the
+.I reference
+file, to the full resolution that Windows keeps, 100 nanoseconds, with the
+access and modification times kept apart.
+With
+.B \-d
+or
+.BR \-t ,
+both times are the given time, in whole seconds.
+If
+.B \-d
+or
+.B \-t
+is given more than once, the last one is used.
+.B \-d
+takes precedence over
+.BR \-r ,
+but the
+.I reference
+file must still exist.
+.B \-r
+and
+.B \-t
+together are a usage error.
+.SS Time formats
+.B \-d
+and
+.B \-t
+take the same forms.
+The argument must match one form entirely.
+Month names are in English.
+In the forms with separators, a field may be written with one or two
+digits, except the year, which has four, and a space may be any number of
+spaces, or none.
+A time that matches no form is reported as
+\fBtouch: invalid date \(aq\fItime\fB\(aq\fR.
+.PP
+In the forms with separators, a field that the argument does not give is
+taken from the current local time.
+That includes the time of day: a date with no time gets the hour, minute,
+and second of the moment
+.B touch
+runs, not midnight, and a time of day with no seconds gets the current
+second.
+The digits-only form at the end of the list takes omitted fields on its
+left from the current time, and omitted seconds as 0.
+.TP
+\fIhh\fB:\fImm\fR[\fB:\fIss\fR]
+A time of day on the current date.
+.TP
+\fIMM\fB.\fIDD\fB\-\fIhh\fB:\fImm\fR[\fB:\fIss\fR]
+A month, day, and time in the current year.
+.TP
+\fIYYYY\fB.\fIMM\fB.\fIDD\fB\-\fIhh\fB:\fImm\fR[\fB:\fIss\fR]
+A full date and time.
+.TP
+\fIMon\fR \fIDD\fR \fIhh\fB:\fImm\fB:\fIss\fR \fIYYYY\fR
+.I Mon
+is a month name in full or abbreviated to 3 letters, in any case.
+There is no weekday.
+.TP
+\fIYYYY\fB\-\fIMM\fB\-\fIDD\fR[ \fIhh\fR[\fB:\fImm\fR[\fB:\fIss\fR]]]
+A date, with a time of day, an hour, or neither.
+.TP
+\fIYYYY\fB\-\fIMM\fB\-\fIDD\fR \fIhh\fB:\fImm\fR[\fB:\fIss\fR] \fIzone\fR
+A date and time in another time zone, converted to the local one.
+.I zone
+is
+.BI + hhmm
+or
+.BI \- hhmm
+for an offset from UTC of up to 12 hours,
+.BI + hh
+or
+.BI \- hh
+for whole hours, or
+.B Z
+for UTC.
+The offset is truncated to a multiple of 36 seconds, so minutes that are
+not a multiple of 3 are inexact.
+.TP
+\fB@\fIseconds\fR
+Seconds since 1970\-01\-01 00:00:00 UTC, as decimal digits with an
+optional minus sign and nothing else.
+.TP
+[[[[[\fICC\fR]\fIYY\fR]\fIMM\fR]\fIDD\fR]\fIhh\fR]\fImm\fR[\fB.\fIss\fR]
+Digits only, in one of these forms:
+.IR mm ,
+.IR hhmm ,
+.IR DDhhmm ,
+.IR MMDDhhmm ,
+.IR YYMMDDhhmm ,
+or
+.IR CCYYMMDDhhmm ,
+followed by an optional
+.BI . ss\fR.
+.I YY
+is the year within 50 years of the current year.
+.PP
+A month of 0 or 13, a day of 0 or 32, an hour of 24, and a minute of 60
+are errors, except that in the digits-only form a month or day of 00 is
+carried back into the previous year or month.
+A seconds field of 60 is carried into the next minute, and so is 61 in
+the forms with separators, but 61 is an error in the digits-only form.
+A day that the month lacks, such as February 30, is carried into the next
+month.
+.PP
+A time without a zone is read in the local time zone, which is that of
+.BR TZ ,
+or else the Windows time zone setting, and whether daylight saving time
+applies is decided from the date.
+The result must lie from 1970\-01\-01 00:00:00 UTC through 3001\-01\-01
+07:59:59 UTC, or through 3000\-12\-31 23:59:59 UTC for a time that ends
+in a zone.
+A time outside that range, in any form but
+.BR @ ,
+is an invalid date.
+An
+.BI @ seconds
+outside it, including every negative value, is not an error but is taken
+to be the epoch, 1970\-01\-01 00:00:00 UTC.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-am ,
+and may follow the operands, unless
+.B POSIXLY_CORRECT
+is set.
+An option's argument may be attached, as in
+.BR \-t202601011200 ,
+or be the next argument.
+A long option may be abbreviated to any unambiguous prefix, and takes its
+argument after
+.B =
+or as the next argument.
+.B \-\-
+ends the options.
+.TP
+.BR \-c ", " \-\-no\-create
+Do not create files.
+A file that does not exist is skipped, with no message and no effect on
+the exit status.
+.TP
+.BR \-h ", " \-\-no\-dereference
+Touch a symbolic link itself instead of the file it points to.
+A file that does not exist is still created.
+It does not affect
+.BR \-r ,
+which always uses the file a link points to.
+.TP
+.B \-a
+Set only the access time, and leave the modification time unchanged.
+With
+.B \-m
+as well, both are set, as with neither.
+.TP
+.B \-m
+Set only the modification time, and leave the access time unchanged.
+.TP
+\fB\-d\fR \fItime\fR, \fB\-\-date\fR \fItime\fR
+Use
+.I time
+instead of the current time; see
+.BR "Time formats" .
+It takes precedence over
+.BR \-r .
+.TP
+.BI "\-t " time
+The same as
+.BR \-d .
+There is no long form.
+.TP
+\fB\-r\fR \fIreference\fR, \fB\-\-reference\fR \fIreference\fR
+Use the access and modification times of
+.I reference
+instead of the current time.
+If
+.I reference
+cannot be examined,
+.B touch
+reports it and exits with status 1 before touching any file.
+Incompatible with
+.BR \-t .
+.TP
+.B \-f
+Accepted and ignored.
+The usage message omits it.
+.TP
+.B \-\-help
+As the first argument only, print a usage message on standard output and
+exit with status 0.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the arguments are expanded when busybox starts, for a caller
+such as
+.B cmd.exe
+that does not expand them.
+When it is unset, busybox sets it to
+.B 0
+for the programs it starts, so commands run from the kit's shell get the
+shell's expansion only.
+.TP
+.B BB_UMASK
+The file mode creation mask, in octal, applied when
+.B touch
+starts.
+If it has the owner write bit,
+.BR 200 ,
+a file that
+.B touch
+creates is read-only.
+Its other bits have no visible effect, and existing files are not
+changed.
+In the kit's shell,
+.B touch
+uses the shell's mask instead; see
+.BR NOTES .
+.TP
+.B POSIXLY_CORRECT
+If set, the first operand ends the options.
+.TP
+.B TZ
+The local time zone, in the format of the Microsoft C runtime, such as
+.B UTC0
+or
+.BR EST5EDT ;
+see
+.BR date (1).
+.B \-d
+and
+.B \-t
+read times in it, except
+.BI @ seconds
+and times that end in a zone.
+When it is unset or empty, the Windows time zone setting applies.
+A value in another form, such as
+.BR Europe/Paris ,
+is misread, not ignored.
+In the kit's shell a change may have no effect; see
+.BR NOTES .
+.PP
+Messages written to a console also depend on
+.BR BB_SKIP_ANSI_EMULATION ,
+.BR BB_TERMINAL_MODE ,
+.BR LANG ,
+.BR LC_ALL ,
+and
+.BR LC_CTYPE ,
+and Windows error dialogs on
+.BR BB_CRITICAL_ERROR_DIALOGS ,
+as for every busybox applet; see
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success, including a missing file with
+.BR \-c ,
+and
+.B \-\-help
+as the first argument.
+.TP
+.B 1
+An invalid option, no operand,
+.B \-r
+with
+.BR \-t ,
+an invalid date, a
+.B \-r
+file that cannot be examined, or any
+.I file
+that could not be touched or created.
+.SH EXAMPLES
+Create an empty file, or set the times of a file to now:
+.PP
+.RS 4
+.EX
+$ touch notes.txt
+.EE
+.RE
+.PP
+Update a file only if it exists:
+.PP
+.RS 4
+.EX
+$ touch \-c build.stamp
+.EE
+.RE
+.PP
+Set both times of a file, in local time:
+.PP
+.RS 4
+.EX
+$ touch \-d \(aq2026\-10\-19 12:00:00\(aq report.txt
+$ touch \-t 202610191200.30 report.txt
+.EE
+.RE
+.PP
+Set the times to a time given in UTC:
+.PP
+.RS 4
+.EX
+$ touch \-d \(aq2026\-10\-19 12:00:00 Z\(aq report.txt
+.EE
+.RE
+.PP
+Give a file the times of another file:
+.PP
+.RS 4
+.EX
+$ touch \-r main.c main.o
+.EE
+.RE
+.PP
+Make a file older than everything else, so that
+.BR make (1)
+rebuilds it:
+.PP
+.RS 4
+.EX
+$ touch \-d @0 main.o
+.EE
+.RE
+.PP
+Set only the access time:
+.PP
+.RS 4
+.EX
+$ touch \-a log.txt
+.EE
+.RE
+.SH NOTES
+Differences from GNU
+.BR touch :
+.IP \(bu 2
+A time is not free-form text.
+Words such as
+.B now
+and
+.BR yesterday ,
+relative times, weekday names, a
+.B T
+between date and time, fractional seconds, time zone names, and
+.B AM
+or
+.B PM
+are errors.
+.IP \(bu 2
+A
+.B \-d
+date with no time of day gets the current time of day, not midnight.
+.IP \(bu 2
+.B \-t
+also takes the forms of
+.BR \-d ,
+and
+.B \-d
+takes the digits-only forms of
+.BR \-t .
+.IP \(bu 2
+A
+.B \-
+operand is a file name, not standard output.
+.IP \(bu 2
+There is no
+.B \-\-time
+or
+.BR \-\-version ,
+and
+.B \-\-help
+works only as the first argument.
+.PP
+Windows keeps a creation time, a last access time, and a last write time
+for each file.
+.B touch
+sets the last two.
+It works on read-only files and on directories.
+.I /dev/null
+is accepted and left alone, but a Windows device name such as
+.B nul
+cannot be touched; the error is
+.BR "Function not implemented" .
+.PP
+Paths may have a drive letter, as in
+.IR c:/dir/file ,
+and backslashes, but prefer forward slashes, since in the shell a
+backslash quotes the next character.
+Names are not case sensitive on most volumes, so
+.B touch Foo
+updates an existing
+.I foo
+instead of creating
+.IR Foo .
+A name that Windows does not allow, such as one containing
+.BR ? ,
+fails with
+.BR "Invalid argument" .
+Names may contain any Unicode character on Windows 10 version 1903 and
+later; see
+.BR busybox (1).
+.PP
+From
+.BR cmd.exe ,
+.B touch
+expands wildcards in its arguments itself; see
+.BR BB_GLOBBING .
+.PP
+The kit's
+.B sh
+runs
+.B touch
+inside the shell process, without starting a new one, except where the
+shell needs a separate process anyway, as for a command substitution or
+a pipeline.
+There
+.B touch
+uses the shell's file mode creation mask, which the shell's
+.B umask
+command sets, and ignores
+.B BB_UMASK
+given on its command line.
+The C runtime reads
+.B TZ
+once per process, at the first time conversion, so once the shell has
+converted a time, as for an earlier
+.BR "touch \-d" ,
+a change to
+.BR TZ ,
+even on the command line, does not affect later
+.B touch
+commands in that shell.
+.SH SEE ALSO
+.BR busybox (1),
+.BR date (1),
+.BR find (1),
+.BR ln (1),
+.BR ls (1),
+.BR make (1),
+.BR sh (1),
+.BR stat (1)

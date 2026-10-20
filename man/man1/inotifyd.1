@@ -1,0 +1,389 @@
+.TH INOTIFYD 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+inotifyd \- run a program when the contents of a directory change
+.SH SYNOPSIS
+.B inotifyd
+.I prog
+.IR dir [\fB:\fImask\fR]...
+.SH DESCRIPTION
+.B inotifyd
+watches directories for changes.
+When an entry in a watched directory changes in a way that the
+directory's mask selects, it runs
+.I prog
+to report the change, and waits for
+.I prog
+to exit.
+It runs until every watched directory has been deleted.
+.PP
+The name comes from the Linux inotify interface, but this
+.B inotifyd
+is a Windows implementation and differs from the Linux one; see
+.BR NOTES .
+It watches only directories, and only their direct entries, not the
+contents of their subdirectories.
+.SS Operands
+.I prog
+is the command to run for each change.
+It is a single command name or path, not split into words or run by a
+shell, so it cannot carry arguments of its own.
+A
+.I prog
+of
+.B \-
+runs nothing and prints each change instead; see
+.BR Output .
+.PP
+Each
+.I dir
+is an existing directory to watch, optionally followed by a colon and a
+.IR mask .
+A mask is a string of the event letters listed under
+.BR Events ,
+in any order and with repeats allowed.
+It selects the events reported for that directory, and with no mask all
+of them are.
+Other characters in a mask are ignored.
+A mask with no event letter, or with only
+.BR x ,
+is an error.
+.PP
+The mask follows the last colon in the operand, except that a colon in
+the second position is a drive letter's.
+Both
+.B C:/work
+and
+.B C:/work:cn
+are accepted, and the second has the mask
+.BR cn .
+A directory named by a single character cannot take a mask, because
+.B d:c
+is a path on drive D.
+Write
+.B ./d:c
+instead.
+.SS Running prog
+.I prog
+is run as
+.PP
+.RS 4
+.EX
+\fIprog event dir\fR [\fIname\fR]
+.EE
+.RE
+.PP
+once for each event, with these arguments:
+.TP
+.I event
+A letter that says what happened, from the list under
+.BR Events .
+.TP
+.I dir
+The operand as given, without the mask.
+It is not made absolute or otherwise changed, so a relative
+.I dir
+is relative to the working directory of
+.BR inotifyd ,
+which
+.I prog
+also inherits.
+.TP
+.I name
+The name of the entry that changed, without a directory part.
+It is omitted when there is none.
+.PP
+.I prog
+is found as for any command that busybox runs: an applet, a program in
+.BR PATH ,
+a file with a
+.B #!\&
+line, or a
+.B .sh
+file; see
+.B Running commands
+in
+.BR busybox (1).
+Its standard input, standard output, standard error, and working
+directory are those of
+.BR inotifyd .
+Its exit status is ignored.
+If it cannot be run, nothing is printed and
+.B inotifyd
+carries on.
+.PP
+.B inotifyd
+waits for each
+.I prog
+to exit before it looks at the next event.
+Changes made in the meantime are queued, within the limit described in
+.BR NOTES .
+.SS Events
+Each event is one of these letters.
+One action can cause several events: creating and writing a file causes
+an
+.B n
+event and then a
+.B c
+event, and a rename causes an
+.B m
+event and then a
+.B y
+event.
+.TP
+.B c
+An entry was modified: its attributes, size, last write time, last
+access time, creation time, or security descriptor changed.
+.TP
+.B d
+An entry was deleted, or was moved out of the directory to another one.
+.TP
+.B m
+An entry was renamed within the directory.
+.I name
+is the old name.
+.TP
+.B n
+An entry was created, or was moved into the directory from another one.
+.TP
+.B x
+The directory can no longer be watched, usually because it was deleted.
+This ends the watch.
+There is no
+.IR name .
+An
+.B x
+event is also reported when changes were lost, and that does not end the
+watch; see
+.BR NOTES .
+.TP
+.B y
+An entry was renamed within the directory.
+.I name
+is the new name.
+.SS Output
+With
+.B \-
+as
+.IR prog ,
+.B inotifyd
+writes each event to standard output as a line of fields separated by
+tabs: the
+.IR event ,
+the
+.IR dir ,
+and the
+.IR name ,
+which is left out, with its tab, when there is none.
+Standard output is flushed after each line, so a pipe sees the events
+as they happen.
+.SH OPTIONS
+.B inotifyd
+takes no options.
+Every argument is an operand, including one that begins with a dash, and
+.B \-\-
+has no special meaning.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the operands are expanded when busybox starts, as needed
+when run from
+.BR cmd.exe .
+A pattern that matches nothing is left as it is, and a
+.I dir
+that is such a pattern is then not a directory.
+When the variable is unset, busybox sets it to
+.B 0
+for the programs it starts, such as
+.IR prog ,
+so that they do not expand their arguments again.
+.TP
+.B BB_OVERRIDE_APPLETS
+Applets that busybox should not run when
+.I prog
+names them, so that a program in
+.B PATH
+runs instead; see
+.BR busybox (1).
+.TP
+.B PATH
+Where a
+.I prog
+with no directory part is looked up; see
+.BR busybox (1).
+.PP
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Every watched directory was deleted, or the first argument was
+.BR \-\-help .
+.TP
+.B 1
+Fewer than two operands, with a usage message on standard error; a mask
+that selects no event; a
+.I dir
+that is not an existing directory; a directory that cannot be opened for
+watching; or a failure while waiting for changes.
+.PP
+These errors are reported on standard error as
+.PP
+.RS 4
+.EX
+inotifyd: \fIdir\fR: invalid mask
+inotifyd: \fIdir\fR: not a directory
+inotifyd: add watch (\fIdir\fR) failed: \fIreason\fR
+inotifyd: watch failed: \fIreason\fR
+.EE
+.RE
+.PP
+The first of these is followed by an empty line.
+The last is reported when waiting for changes fails, as it does at once
+when there are more than 64 directories.
+.PP
+Otherwise
+.B inotifyd
+runs until it is interrupted, such as by Ctrl+C.
+.SH EXAMPLES
+Print the changes to a directory as they happen.
+Another console created
+.I work/a.txt
+and wrote to it, renamed it to
+.IR b.txt ,
+deleted it, and then deleted
+.IR work ,
+which ended
+.BR inotifyd :
+.PP
+.RS 4
+.EX
+$ inotifyd \- work
+n	work	a.txt
+c	work	a.txt
+m	work	a.txt
+y	work	b.txt
+d	work	b.txt
+x	work
+.EE
+.RE
+.PP
+Run
+.B make
+when a C source or header file in
+.I src
+is created, renamed to, or modified.
+The script ignores other names:
+.PP
+.RS 4
+.EX
+$ cat rebuild
+#!/bin/sh
+case $3 in
+*.c|*.h) make ;;
+esac
+$ inotifyd ./rebuild src:cny
+.EE
+.RE
+.PP
+Print only new entries in one directory, and only deletions in another,
+using a drive letter in the first:
+.PP
+.RS 4
+.EX
+$ inotifyd \- C:/spool:n archive:d
+.EE
+.RE
+.SH NOTES
+This
+.B inotifyd
+is built on the Windows function
+.BR ReadDirectoryChangesW .
+Differences from the Linux
+.BR inotifyd :
+.IP \(bu 2
+Only directories can be watched, not files, and a watch does not extend
+into subdirectories.
+.IP \(bu 2
+Only the events
+.BR c ,
+.BR d ,
+.BR m ,
+.BR n ,
+.BR x ,
+and
+.B y
+exist.
+The Linux events
+.BR a ,
+.BR e ,
+.BR w ,
+.BR 0 ,
+.BR r ,
+.BR D ,
+.BR M ,
+.BR u ,
+and
+.B o
+are ignored in a mask, and nothing is reported when a watched directory
+is itself renamed.
+.IP \(bu 2
+.I prog
+gets one event letter per run, never several together.
+.PP
+A rename within a directory is an
+.B m
+event and a
+.B y
+event.
+A move between two directories is a
+.B d
+event in the one it left and an
+.B n
+event in the one it entered, even when both are watched.
+.PP
+Windows holds the changes that occur while
+.I prog
+runs in a buffer of 2048 bytes for each directory.
+That is room for about 100 changes to entries with 4-character names,
+and fewer with longer names.
+When more changes arrive, all of those queued are discarded, and a
+single
+.B x
+event with no name is reported in place of them, unless the mask leaves
+out
+.BR x .
+Watching continues.
+.PP
+A deleted directory ends its watch, whether or not its mask reports
+.BR x ,
+and a new directory of the same name is not watched.
+.B inotifyd
+keeps a deleted directory open until it exits, so on older versions of
+Windows its name stays in use until then.
+A directory can be deleted or renamed while it is watched, and a
+renamed one is still watched and still reported under the
+name given on the command line.
+At most 64 directories can be watched at once.
+.PP
+Entry names are converted to bytes with the ANSI code page, which is
+UTF-8 on Windows 10 version 1903 and later because busybox declares it
+in its manifest.
+A name that takes more than 260 bytes in that encoding is reported as if
+it had no name, and one of exactly 260 bytes is followed by stray bytes.
+.PP
+A
+.I dir
+may use a drive letter and either kind of slash.
+One that is a symbolic link or a junction is rejected as not a directory
+unless it ends in a slash.
+.SH SEE ALSO
+.BR busybox (1),
+.BR sh (1)

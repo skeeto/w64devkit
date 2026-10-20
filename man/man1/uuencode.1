@@ -1,0 +1,253 @@
+.TH UUENCODE 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+uuencode \- encode a file as text in uuencode or base64 form
+.SH SYNOPSIS
+.B uuencode
+.RB [ \-m ]
+.RI [ file ]
+.I name
+.SH DESCRIPTION
+.B uuencode
+writes
+.I file
+to standard output as printable ASCII text that
+.BR uudecode (1)
+turns back into the same bytes.
+With two operands, it reads
+.I file
+and stores
+.IR name .
+With one operand, it reads standard input, and the operand is
+.IR name .
+.PP
+.I name
+is copied into the first line of the output.
+It is the name that
+.BR uudecode (1)
+gives the decoded file unless told otherwise.
+It is written exactly as given, so a directory part or a backslash
+stays.
+.PP
+The input is read in full 45-byte pieces, so every data line but the
+last encodes 45 bytes, however the input arrives.
+Lines end with LF.
+.SS Output format
+The output has a header line, data lines, and a trailer.
+The header is a keyword, the mode in octal, and
+.IR name ,
+separated by single spaces; see
+.BR Mode .
+Empty input has no data lines.
+.PP
+By default the keyword is
+.BR begin .
+A data line is a length character and then 4 characters for each 3
+input bytes, rounded up, with the last group completed by zero bits.
+The length character is the number of input bytes on the line plus 32,
+so a full line starts with
+.BR M .
+Every other character is a 6-bit value plus 32, except that 0 is
+written as a grave accent
+.RB ( \(ga )
+and not a space, so the characters run from
+.B !\&
+to
+.BR \(ga .
+The trailer is a line holding only a grave accent, which is the length
+0, and then a line holding
+.BR end .
+.PP
+With
+.BR \-m ,
+the keyword is
+.BR begin\-base64 .
+A data line has no length character.
+It is 60 characters of base64 for 45 bytes, using the alphabet
+.B A
+to
+.BR Z ,
+.B a
+to
+.BR z ,
+.B 0
+to
+.BR 9 ,
+.BR + ,
+and
+.BR / .
+The last line is padded with
+.B =
+to a multiple of 4 characters.
+The trailer is a line holding
+.BR ==== .
+.SS Mode
+Windows files have no Unix permissions, so the mode in the header is
+made up:
+.IP \(bu 2
+For a named
+.IR file ,
+it is 644, or 444 if the file is read-only.
+No execute bits are ever set, even for an
+.I .exe
+file.
+The file mode creation mask has no effect.
+.IP \(bu 2
+For standard input, it is 666 without the bits of the file mode
+creation mask.
+The mask is 002 unless
+.B BB_UMASK
+says otherwise, so the mode is 664 by default.
+The file that standard input comes from is not examined.
+.SH OPTIONS
+Options may follow the operands, unless
+.B POSIXLY_CORRECT
+is set.
+.B \-\-
+ends the options.
+.TP
+.B \-m
+Write base64 instead of the uuencode format, as described in
+.BR "Output format" .
+.TP
+.B \-\-help
+As the first argument, print a usage message on standard output and
+exit.
+.SH ENVIRONMENT
+.TP
+.B BB_UMASK
+The file mode creation mask, in octal, used for the mode of standard
+input.
+The default is
+.BR 002 .
+The
+.B umask
+command of
+.BR sh (1)
+sets and exports it.
+.TP
+.B POSIXLY_CORRECT
+If set, options must precede the operands.
+Then
+.B uuencode a \-m
+encodes the file
+.I a
+under the name
+.BR \-m ,
+where otherwise it encodes standard input as base64 under the name
+.IR a .
+.PP
+Variables that busybox-w32 reads in every applet, such as those that
+control console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+No operands, more than two operands, an unknown option, a
+.I file
+that cannot be opened or read, or an error writing standard output.
+A usage error prints the usage on standard error.
+.TP
+.B 141
+Standard output is a pipe whose reader has exited.
+.PP
+A file that cannot be opened is reported on standard error as
+.PP
+.RS 4
+.EX
+uuencode: can\(aqt open \(aq\fIfile\fR\(aq: \fIreason\fR
+.EE
+.RE
+.PP
+Output written before an error stays written, so a failure in the
+middle of the input leaves text with no trailer.
+.SH EXAMPLES
+Encode a file under its own name:
+.PP
+.RS 4
+.EX
+$ uuencode hello.txt hello.txt
+begin 644 hello.txt
+\&.2&5L;&\eL(\(aq=O<FQD(0H\(ga
+\(ga
+end
+.EE
+.RE
+.PP
+Encode as base64 instead:
+.PP
+.RS 4
+.EX
+$ uuencode \-m hello.txt hello.txt
+begin\-base64 644 hello.txt
+SGVsbG8sIHdvcmxkIQo=
+====
+.EE
+.RE
+.PP
+Encode the output of another command under the name
+.IR dump.bin :
+.PP
+.RS 4
+.EX
+$ head \-c 1024 /dev/urandom | uuencode dump.bin >dump.uu
+.EE
+.RE
+.PP
+Store only the file name, not the directory part:
+.PP
+.RS 4
+.EX
+$ uuencode build/app.exe app.exe >app.uu
+.EE
+.RE
+.PP
+Decode it, creating
+.IR app.exe :
+.PP
+.RS 4
+.EX
+$ uudecode app.uu
+.EE
+.RE
+.SH NOTES
+There are no long options other than
+.BR \-\-help ,
+so GNU's
+.B \-\-base64
+is an unknown option.
+.PP
+A
+.I file
+named
+.B \-
+is not standard input, and fails to open unless a file of that name
+exists.
+To read standard input, give one operand.
+Giving
+.I /dev/stdin
+as
+.I file
+also reads standard input, but its mode follows the rule for a named
+.IR file .
+.PP
+The input is read in binary mode and the output has LF line endings, so
+a round trip through
+.BR uudecode (1)
+reproduces the bytes exactly.
+.PP
+.I file
+may be a Windows path, with a drive letter and either kind of slash, or
+a busybox-w32 device name such as
+.IR /dev/null .
+A directory fails to open with
+.BR "Permission denied" .
+There is no limit on the size of the input.
+.SH SEE ALSO
+.BR base32 (1),
+.BR base64 (1),
+.BR busybox (1),
+.BR sh (1),
+.BR uudecode (1)

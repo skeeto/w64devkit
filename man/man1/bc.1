@@ -1,0 +1,857 @@
+.TH BC 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+bc \- arbitrary-precision calculator language
+.SH SYNOPSIS
+.B bc
+.RB [ \-ilqsvw ]
+.RI [ file ...]
+.SH DESCRIPTION
+.B bc
+runs programs in the bc language, which has arbitrary-precision decimal
+arithmetic, variables, arrays, functions, and C-like control flow.
+It reads each
+.I file
+in turn, then standard input, and runs each statement as soon as it has
+been read.
+Results go to standard output and are flushed as the statements run.
+.PP
+A
+.B quit
+or
+.B halt
+statement ends
+.B bc
+at once, so a script that should not go on to read standard input ends
+with one of them.
+A
+.I file
+named
+.B \-
+is a file of that name, not standard input.
+With
+.BR \-l ,
+.B bc
+first loads the math library, described below.
+.PP
+This is the bc applet of
+.BR busybox (1),
+which shares its code with
+.BR dc (1).
+.SS Interactive use
+When standard input is a console,
+.B bc
+prints a banner, unless
+.B \-q
+is given, and reads lines with the line editor of
+.BR sh (1),
+without a prompt, completion, or a saved history.
+Files named on the command line run first.
+An error is reported and
+.B bc
+goes on with the next line, instead of exiting.
+After an error in a
+.IR file ,
+the rest of that file is skipped, and
+.B bc
+goes on with the next file or with the console.
+But a
+.I file
+that cannot be opened, or that holds a byte that is not allowed (see
+.BR NOTES ),
+still ends
+.B bc
+with status 1.
+.PP
+Ctrl-C stops a running calculation, prints
+.BR "interrupted execution" ,
+and returns to the line editor.
+While a
+.I file
+runs, Ctrl-C ends
+.B bc
+with status 1 instead.
+At the line editor, Ctrl-C, or Ctrl-D on an empty line, ends the input.
+.PP
+When standard input is not a console, the first error ends
+.B bc
+with status 1.
+.SS Messages
+Errors and warnings go to standard error, as
+.PP
+.RS 4
+.EX
+bc: \fIfile\fR:\fIline\fR: \fImessage\fR
+.EE
+.RE
+.PP
+for a
+.IR file ,
+and as
+.PP
+.RS 4
+.EX
+bc: \fImessage\fR
+.EE
+.RE
+.PP
+for standard input.
+A message about syntax may end with
+\fBat \(aq\fItext\fB\(aq\fR,
+where
+.I text
+is the rest of the line, from the token at which the parser stopped.
+.SS Input
+Input is ASCII text; see
+.BR NOTES .
+Statements are separated by newlines or semicolons.
+White space between tokens is ignored.
+A comment is
+.B /*
+up to the next
+.BR */ ,
+which may span lines and does not nest, or
+.B #
+up to the end of the line.
+A backslash directly before a newline is skipped, so a line can continue,
+even in the middle of a number.
+A backslash anywhere else outside a string or comment is an error.
+.PP
+A name starts with a lowercase letter and continues with lowercase
+letters, digits, and underscores.
+Variables, arrays, and functions have separate name spaces, so
+.BR f ,
+.BR f[] ,
+and
+.B f()
+are three different things.
+A variable or array element that has not been set is 0.
+These words are reserved:
+.PP
+.RS 4
+.B auto break continue define else for halt ibase if last
+.B length limits obase print quit read return scale sqrt while
+.RE
+.PP
+A number is a string of the digits
+.B 0
+to
+.B 9
+and uppercase letters
+.B A
+to
+.BR Z ,
+with at most one period.
+Lowercase letters are names.
+A one-digit number, ignoring leading zeros, has the value of its digit,
+whatever
+.B ibase
+is, so
+.B A
+is always ten.
+In a longer number, a digit not less than
+.B ibase
+counts as
+.B ibase
+minus one, so
+.B ZZ
+is the largest two-digit number in the current base.
+A number is converted when the statement containing it runs, using the
+.B ibase
+in effect then, so the body of a function uses the
+.B ibase
+at the time of the call.
+.PP
+A string is text in double quotes.
+It may span lines, has no escape sequences, and so cannot contain a
+double quote.
+A string appears only as a statement or as an item of
+.BR print .
+.SS Expressions
+The operators, from the highest precedence to the lowest:
+.TP
+.B "++ \-\-"
+Add 1 to, or subtract 1 from, a variable, an array element,
+.BR ibase ,
+.BR obase ,
+.BR scale ,
+or
+.BR last .
+The value of a prefix form is the new value, and that of a postfix form
+is the old value.
+.TP
+.B "\- !"
+Unary minus and logical not.
+Not yields 1 for 0 and 0 for anything else.
+They have equal precedence, and both bind tighter than
+.BR ^ ,
+so
+.B \-2^2
+is 4.
+.TP
+.B ^
+Power, right associative.
+The exponent must be an integer, though a fraction of zeros as in
+.B 2.0
+is accepted, and it may be negative.
+.TP
+.B "* / %"
+Left associative.
+The remainder has the sign of the dividend.
+Dividing by zero is an error.
+.TP
+.B "+ \-"
+Left associative.
+.TP
+.B "= ^= *= /= %= += \-="
+Assignment, right associative, yielding the assigned value.
+The left side is a variable, an array element,
+.BR ibase ,
+.BR obase ,
+.BR scale ,
+or
+.BR last .
+Assignment binds tighter than comparison, so
+.B a = 1 < 2
+means
+.BR "(a = 1) < 2" .
+.TP
+.B "== <= >= != < >"
+Left associative, yielding 1 or 0.
+.TP
+.B "&& ||"
+Equal precedence, left associative, yielding 1 or 0.
+Both operands are always evaluated.
+.PP
+Parentheses group.
+A name followed by
+.BI ( arguments )
+calls a function, and a name followed by
+.BI [ index ]
+is an array element.
+The index is truncated to an integer, and must be from 0 to 2147483647.
+An array grows as needed.
+.PP
+The special variables are
+.B ibase
+(the input base, from 2 to 36, initially 10),
+.B obase
+(the output base, from 2 to 999, initially 10),
+.B scale
+(the number of digits kept after the point, from 0 to 4294967295,
+initially 0), and
+.B last
+(the value last printed, initially 0).
+A period alone, as in
+.BR "x = ." ,
+means
+.BR last .
+.PP
+The built-in functions are:
+.TP
+.BI length( x )
+The number of significant digits of
+.IR x :
+leading zeros are not counted, even after the point, but trailing zeros
+are, so
+.B length(0.050)
+is 2.
+.B length(0)
+is 1.
+With an array,
+.BI length( a [])
+is one more than the highest index used, read or written, and at least 1.
+.TP
+.BI scale( x )
+The number of digits after the point of
+.IR x .
+.TP
+.BI sqrt( x )
+The square root of
+.IR x ,
+with the larger of
+.B scale
+and
+.BI scale( x )
+digits after the point.
+It is an error when
+.I x
+is negative.
+.TP
+.B read()
+Reads a line from standard input, evaluates it as an expression using the
+current
+.BR ibase ,
+and yields its value.
+When the program itself comes from standard input, the line is the next
+line of it.
+An empty line, or one that is not an expression, is an error.
+.PP
+The scale of a result follows POSIX.
+For
+.B +
+and
+.BR \- ,
+it is the larger of the operand scales.
+For
+.BR * ,
+it is the smaller of the sum of the operand scales and the larger of
+.B scale
+and the operand scales.
+For
+.BR / ,
+it is
+.BR scale .
+For
+.BR ^ ,
+it is
+.B scale
+when the exponent is negative, and otherwise the smaller of the base's
+scale times the exponent and the larger of
+.B scale
+and the base's scale.
+The remainder
+.B a % b
+is
+.BR "a \- (a / b) * b" ,
+computed with the larger of
+.B scale
+plus the scale of
+.I b
+and the scale of
+.IR a .
+.SS Statements
+.TP
+.I expression
+Evaluates the expression, and unless it is an assignment, writes its
+value and a newline.
+A parenthesized assignment, such as
+.BR "(x = 5)" ,
+is written, and
+.B x++
+writes the old value.
+A call of a
+.B void
+function writes nothing, unless the function returns a value.
+.TP
+.BI \(dq string \(dq
+Writes the string unchanged, with no newline.
+.TP
+.BI "print " list
+Writes each item of the comma-separated
+.IR list ,
+a string or an expression, with no newline between or after them.
+In a string, these sequences are replaced:
+.RS
+.IP \(bu 2
+.BR \ea ,
+.BR \eb ,
+.BR \ef ,
+.BR \en ,
+.BR \er ,
+and
+.B \et
+by the control characters bell, backspace, form feed, line feed, carriage
+return, and tab;
+.IP \(bu 2
+.B \ee
+and
+.B \e\e
+by one backslash.
+.RE
+.IP
+Any other backslash is written as it is.
+.TP
+.BI { statements }
+Groups statements, which are separated by newlines or semicolons.
+.TP
+.B if (\fIcondition\fB) \fIstatement\fR [\fBelse \fIstatement\fR]
+Runs the first statement when the condition is not zero, and otherwise
+the second.
+A newline may follow the right parenthesis, and the
+.B else
+keyword, but not two newlines.
+The
+.B else
+must follow the end of the first statement on the same line, with no
+semicolon or newline between, as in
+.BR "} else {" .
+.TP
+.BI "while (" condition ") " statement
+Repeats the statement while the condition is not zero.
+.TP
+.BI "for (" init "; " condition "; " update ") " statement
+As in C: runs the
+.I init
+expression once, then repeats the statement and the
+.I update
+expression while the
+.I condition
+is not zero.
+Each of the three may be empty, and an empty condition is true.
+.TP
+.B break
+Leaves the innermost
+.B while
+or
+.B for
+loop.
+.TP
+.B continue
+Goes on to the next iteration of the innermost loop, running the
+.I update
+expression of a
+.B for
+loop.
+Outside a loop,
+.B continue
+makes
+.B bc
+crash.
+.TP
+.BI "return (" expression )
+Ends a function, with the value of the expression.
+.B return
+alone gives 0, and the parentheses may be left out.
+Allowed only in a function body.
+.TP
+.B halt
+Ends
+.B bc
+when it runs.
+.TP
+.B quit
+Ends
+.B bc
+when it is read, even in a branch that never runs.
+.TP
+.B limits
+Writes the limits of this implementation when it is read:
+.RS
+.EX
+BC_BASE_MAX     = 999
+BC_DIM_MAX      = 2147483647
+BC_SCALE_MAX    = 4294967295
+BC_STRING_MAX   = 4294967294
+MAX Exponent    = 999999999
+Number of vars  = 999999999
+.EE
+.RE
+.SS Functions
+A top-level statement defines a function:
+.PP
+.RS 4
+.EX
+define name(parameters) {
+    auto locals
+    statements
+}
+.EE
+.RE
+.PP
+Each parameter is a name for a value,
+.IB a []
+for an array that is copied when the function is called, or
+.BI * a []
+for a reference to the caller's array.
+An
+.B auto
+list, which must come first in the body, names local variables and
+arrays, which start out as 0.
+Variables are dynamically scoped: a function sees the locals and
+parameters of its callers.
+A function that ends without a
+.B return
+gives 0.
+.PP
+A function may be called before it is defined, but must exist when the
+call runs, and the call must have as many arguments as the function has
+parameters.
+An array is passed as
+.IB a [].
+Defining a function again replaces it.
+The body must be a braced block; the opening brace may be on the next
+line.
+.PP
+.BI "define void " name ()
+defines a function that gives no value, so that a call used as a
+statement writes nothing, unless a
+.B return
+in it gives a value.
+Used in an expression, such a call counts as 0.
+.B void
+is otherwise not a keyword.
+.SS Output
+A number is written in base
+.BR obase .
+Zero is
+.BR 0 ,
+a negative number starts with a minus sign, and a number below 1 starts
+with the point, as in
+.BR .5 .
+With an
+.B obase
+of 16 or less, digits are
+.B 0
+to
+.BR 9 ,
+then
+.B A
+to
+.BR F .
+With a larger one, each digit is a decimal number padded with zeros to
+the width of
+.B obase
+minus one and preceded by a space, or by the point for the first digit
+after it, so 255.5 is
+.B " 02 55.50"
+with an
+.B obase
+of 100.
+The digits after the point in another base are produced until they cover
+the scale of the number, so in base 2,
+.B .5
+prints as
+.BR .1000 .
+.PP
+A number that does not fit on a line is broken with a backslash and a
+newline.
+Each line, backslash included, then has one character fewer than the
+line length, 69 by default.
+The count includes whatever
+.B print
+wrote earlier on the line, and a number that starts past the limit is
+not broken at all.
+See
+.BR BC_LINE_LENGTH .
+.SS Math library
+.B \-l
+sets
+.B scale
+to 20 and defines these functions, which compute to the current
+.BR scale ,
+with angles in radians:
+.TP
+.BI s( x )
+Sine.
+.TP
+.BI c( x )
+Cosine.
+.TP
+.BI a( x )
+Arctangent.
+.TP
+.BI l( x )
+Natural logarithm.
+A zero or negative argument gives 1 minus 10 raised to
+.BR scale .
+.TP
+.BI e( x )
+The exponential function, e to the power
+.IR x .
+.TP
+.BI j( n , x )
+The Bessel function of integer order
+.IR n ,
+which is truncated to an integer.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-lq ,
+and may follow the
+.I file
+operands.
+Long options start with
+.B \-\-
+and take no argument; a unique prefix of one is enough.
+.B \-\-
+ends the options.
+A first argument of
+.B \-\-help
+prints a usage message on standard output and exits with status 0.
+There is no
+.BR \-h .
+.TP
+.BR \-q ", " \-\-quiet
+Do not print the banner of an interactive session.
+.TP
+.BR \-l ", " \-\-mathlib
+Load the math library, which sets
+.B scale
+to 20.
+.TP
+.BR \-s ", " \-\-standard
+Treat the following extensions to POSIX bc as errors:
+.RS
+.IP \(bu 2
+A name longer than one character.
+.IP \(bu 2
+The keywords
+.BR continue ,
+.BR else ,
+.BR halt ,
+.BR last ,
+.BR limits ,
+.BR print ,
+and
+.BR read ,
+and a period for
+.BR last .
+.IP \(bu 2
+The
+.B #
+comment, and the operators
+.BR ! ,
+.BR && ,
+and
+.BR || .
+.IP \(bu 2
+A comparison outside the condition of
+.BR if ,
+.BR while ,
+or
+.BR for ,
+or more than one comparison in a condition.
+.IP \(bu 2
+An empty expression in
+.BR for .
+.IP \(bu 2
+A
+.B return
+expression without parentheses.
+.IP \(bu 2
+A function's left brace on a line after the
+.B define
+line.
+.IP \(bu 2
+A reference parameter.
+.RE
+.IP
+Each message begins with
+.BR POSIX ,
+as in
+.BR "POSIX does not allow the \(aqprint\(aq keyword" .
+.TP
+.BR \-w ", " \-\-warn
+Write the messages of
+.B \-s
+as warnings, and go on.
+With both options,
+.B \-s
+wins.
+.TP
+.BR \-i ", " \-\-interactive
+Accepted and ignored.
+Interactive use depends only on standard input being a console.
+.TP
+.BR \-v ", " \-\-version
+Print the version on standard output, and exit with status 0.
+The output is three lines, the first of which is
+.B bc
+and the busybox version.
+It is also the banner of an interactive session.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the
+.I file
+operands are expanded, as needed when run from
+.BR cmd.exe .
+.TP
+.B BC_ENV_ARGS
+Options and file operands, separated by white space with no quoting,
+handled before the command line.
+The files are read first.
+Only the files and
+.B \-v
+have an effect; see
+.BR NOTES .
+.TP
+.B BC_LINE_LENGTH
+The line length for numbers, as a decimal number.
+A line, including its trailing backslash, has at most one character less
+than this.
+The default is 70, and
+.B 0
+never breaks lines.
+A value that is not a number, is negative, or is 1 or 2 means the default.
+.TP
+.B POSIXLY_CORRECT
+When set, has the effect of
+.BR \-s ,
+and the first
+.I file
+operand ends the options, so that later arguments such as
+.B \-q
+are file names.
+.PP
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output and
+.B COLUMNS
+for the width of the line editor, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+End of input, or a
+.B quit
+or
+.B halt
+statement.
+In an interactive session, errors in the input do not change this.
+.TP
+.B 1
+An invalid option, a
+.I file
+that cannot be opened or holds a byte that is not allowed, an error in
+the input when standard input is not a console, Ctrl-C while a
+.I file
+runs, or an error reading or writing.
+.SH EXAMPLES
+Calculate with large numbers:
+.PP
+.RS 4
+.EX
+$ echo \(aq2^100\(aq | bc
+1267650600228229401496703205376
+.EE
+.RE
+.PP
+Divide to 20 digits:
+.PP
+.RS 4
+.EX
+$ echo \(aqscale=20; 1/3\(aq | bc
+\&.33333333333333333333
+.EE
+.RE
+.PP
+Compute pi with the math library:
+.PP
+.RS 4
+.EX
+$ echo \(aq4*a(1)\(aq | bc \-l
+3.14159265358979323844
+.EE
+.RE
+.PP
+Convert between bases:
+.PP
+.RS 4
+.EX
+$ echo \(aqobase=16; 255\(aq | bc
+FF
+$ echo \(aqibase=16; FF\(aq | bc
+255
+.EE
+.RE
+.PP
+Run a program with a function:
+.PP
+.RS 4
+.EX
+$ bc <<\(aqEOF\(aq
+define f(n) {
+    if (n < 2) return (1)
+    return (n * f(n \- 1))
+}
+f(20)
+EOF
+2432902008176640000
+.EE
+.RE
+.PP
+Write several items on one line:
+.PP
+.RS 4
+.EX
+$ echo \(aqfor (i = 1; i <= 3; i++) print i, " ", i^2, "\en"\(aq | bc
+1 1
+2 4
+3 9
+.EE
+.RE
+.PP
+Keep a number from being broken across lines:
+.PP
+.RS 4
+.EX
+$ echo \(aq2^300\(aq | BC_LINE_LENGTH=0 bc
+.EE
+.RE
+.SH NOTES
+Input must be ASCII text.
+NUL bytes are ignored.
+Any other control character except tab, carriage return, and newline,
+including form feed and Ctrl-Z, and any byte from 0x7f up, such as UTF-8
+text or a byte order mark, is rejected as
+.BI "illegal character 0x" NN
+even in a comment or a string.
+The whole line is rejected before any of its statements run.
+.PP
+Files and standard input are read in binary mode, so scripts with LF or
+CRLF line ends both work, since a carriage return is white space.
+But a backslash must be followed directly by the LF, so a continued line
+in a CRLF script is an error.
+A carriage return in a string stays in the output, and Ctrl-Z does not
+end a file.
+Output lines end with LF.
+.PP
+File names may use
+.B /
+or
+.B \e
+and drive letters.
+Standard input is read after the last file and cannot be named.
+.PP
+The error for
+.B ibase
+says the range is 2 to 16, but values up to 36 are accepted.
+.PP
+Only the file operands and
+.B \-v
+of
+.B BC_ENV_ARGS
+take effect.
+Parsing the command line replaces the options it set, so
+.B \-l
+and the others are lost.
+An unrecognized option in it makes
+.B bc
+crash.
+.PP
+Ctrl-C is handled by
+.B bc
+only when standard input is a console.
+Otherwise it ends
+.B bc
+as it does any program.
+.PP
+Numbers are stored one digit per byte, so large scales and exponents use
+a lot of memory.
+.PP
+Differences from GNU bc:
+.IP \(bu 2
+A period is a synonym of
+.BR last ,
+as in BSD bc.
+.IP \(bu 2
+.B length
+accepts an array, as in
+\fBlength(\fIa\fB[])\fR.
+.IP \(bu 2
+.B !\&
+has the precedence of unary minus.
+.IP \(bu 2
+.B read()
+accepts an expression, not only a number.
+.IP \(bu 2
+.B &&
+and
+.B ||
+have equal precedence.
+.SH SEE ALSO
+.BR busybox (1),
+.BR dc (1),
+.BR sh (1)

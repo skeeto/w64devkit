@@ -1,0 +1,586 @@
+.TH EXPR 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+expr \- evaluate an expression
+.SH SYNOPSIS
+.B expr
+.IR arg ...
+.SH DESCRIPTION
+.B expr
+evaluates an expression and writes its value and a newline to standard
+output.
+It reads no input.
+The expression is the command-line arguments, and each operator,
+operand, keyword, and parenthesis must be a separate argument:
+.B expr 1+2
+is the string
+.BR 1+2 ,
+but
+.B expr 1 + 2
+is 3.
+Many operator characters are special to shells, so quote them; see
+.BR NOTES .
+.SS Values
+A value is a string or a 64-bit signed integer.
+Every argument is a string.
+Arithmetic and comparisons use a string as an integer when the whole
+string is one: optional leading white space, an optional
+.B +
+or
+.BR \- ,
+and decimal digits, with nothing after them.
+A leading zero does not make a number octal, so
+.B 010
+counts as 10.
+Hexadecimal and floating-point numbers are not integers.
+A number outside the 64-bit range is replaced by the nearest limit,
+and arithmetic that overflows wraps around without an error.
+.PP
+An integer is printed in decimal, and a string as it is, so
+.B expr 007
+prints
+.BR 007 ,
+and
+.B expr 007 + 0
+prints
+.BR 7 .
+.PP
+A value is null if it is the empty string, the string
+.BR 0 ,
+or the integer 0.
+Other strings, such as
+.B 00
+and
+.BR \-0 ,
+are not null.
+.SS Operators
+Operators are listed from the lowest precedence to the highest, and
+operators of equal precedence group from left to right.
+The comparison operators share a precedence, as do
+.B +
+and
+.BR \- ,
+and as do
+.BR * ,
+.BR / ,
+and
+.BR % .
+No operator skips an operand: in
+.BR "expr 1 \e| 1 / 0" ,
+the division by zero is reported.
+.TP
+.IB arg1 " | " arg2
+.I arg1
+if it is not null, otherwise
+.IR arg2 .
+.TP
+.IB arg1 " & " arg2
+.I arg1
+if neither argument is null, otherwise the integer 0.
+.TP
+.IB arg1 " < " arg2
+1 if the relation holds, otherwise 0.
+The comparison operators are
+.BR < ,
+.BR <= ,
+.BR = ,
+.BR == ,
+.BR != ,
+.BR >= ,
+and
+.BR > ,
+and
+.B =
+is the same as
+.BR == .
+When both arguments are integers, they are compared as integers.
+Otherwise both are compared as strings, byte by byte as unsigned values.
+An integer is then converted back to decimal text first, so
+.B 007
+compares as
+.BR 7 .
+.TP
+.IB arg1 " + " arg2
+The sum.
+Like the other arithmetic operators, it fails with the error
+.B non\-numeric argument
+unless both arguments are integers.
+.TP
+.IB arg1 " \- " arg2
+The difference.
+.TP
+.IB arg1 " * " arg2
+The product.
+.TP
+.IB arg1 " / " arg2
+The quotient, rounded toward zero.
+A zero divisor is the error
+.BR "division by zero" .
+.TP
+.IB arg1 " % " arg2
+The remainder, which has the sign of
+.IR arg1 .
+A zero divisor is the error
+.BR "division by zero" .
+.TP
+.IB string " : " regexp
+The result of matching
+.I regexp
+against the start of
+.IR string ;
+see
+.BR "Pattern matching" .
+.PP
+The keywords below bind more tightly than any operator.
+A keyword is recognized wherever an operand is expected.
+Each takes the arguments after it as its operands, and an operand is a
+word, a keyword with its own operands, or a parenthesized expression.
+So
+.B expr length abc + 1
+is 4.
+.TP
+.BI "match " string " " regexp
+The same as the
+.B :
+operator with these arguments.
+.TP
+.BI "substr " string " " pos " " length
+The substring of
+.I string
+that starts at byte
+.IR pos ,
+counting from 1, and has at most
+.I length
+bytes.
+It is empty, with no error, when
+.I pos
+or
+.I length
+is less than 1, when
+.I pos
+is beyond the end of
+.IR string ,
+or when either is not an integer.
+.TP
+.BI "index " string " " chars
+The position, counting from 1, of the first byte of
+.I string
+that is any of the bytes of
+.IR chars ,
+or 0 if there is none.
+.TP
+.BI "length " string
+The number of bytes in
+.IR string .
+.TP
+.BI "quote " token
+.I token
+as a string, even if it is a keyword or a parenthesis.
+Any other word is already a string where an operand is expected, even
+one that looks like an operator, so
+.B expr \(aq*\(aq
+prints
+.BR * .
+.TP
+.BI "( " expression " )"
+The value of
+.IR expression ,
+which overrides precedence.
+Each parenthesis must be an argument by itself, so the argument
+.B (1)
+is only a string.
+A
+.B )
+where an operand is expected is a syntax error.
+.SS Pattern matching
+The
+.B :
+operator and
+.B match
+treat
+.I regexp
+as a POSIX basic regular expression, as implemented by the GNU regex
+library that busybox carries.
+It has intervals,
+\fB\e{\fIm\fB,\fIn\fB\e}\fR,
+back-references, and bracket expressions with character classes such as
+.BR [[:digit:]] .
+It also has the GNU extensions
+.BR \e+ ,
+.BR \e? ,
+.BR \e| ,
+.BR \ew ,
+.BR \eW ,
+.BR \es ,
+.BR \eS ,
+.BR \eb ,
+.BR \eB ,
+.BR \e< ,
+.BR \e> ,
+.BR \e\(ga ,
+and
+.BR \e\(aq ,
+the last two anchoring the start and end of
+.IR string .
+The characters
+.BR + ,
+.BR ? ,
+.BR | ,
+.BR { ,
+and
+.B }
+are ordinary unless escaped.
+Matching is case sensitive, and
+.B .\&
+matches any byte, including a newline.
+.PP
+The match must begin at the first byte of
+.IR string ,
+but it need not reach the end, so end
+.I regexp
+with
+.B $
+to require that.
+The value is:
+.IP \(bu 2
+With no match, the empty string if
+.I regexp
+has a group,
+.BR \e( ...\e) ,
+and otherwise the integer 0.
+.IP \(bu 2
+With a match and a group that took part in it, the text matched by the
+first group, which may be empty.
+.IP \(bu 2
+Otherwise, the number of bytes matched, as an integer.
+.PP
+A
+.I regexp
+that begins with
+.B ^
+draws a warning on standard error:
+.PP
+.RS 4
+.EX
+expr: warning: \(aq^a\(aq: using \(aq^\(aq as the first character
+of a basic regular expression is not portable; it is ignored
+.EE
+.RE
+.PP
+Despite the message, the
+.B ^
+is the usual start anchor and the evaluation continues.
+Write a literal
+.B ^
+there as
+.BR \e^ .
+A
+.I regexp
+that does not compile is an error; see
+.BR "EXIT STATUS" .
+.SH OPTIONS
+.B expr
+has no options.
+Every argument, even one that starts with a dash, is part of the
+expression, and
+.B \-\-
+is an ordinary string, so
+.B expr \-\- 1
+is a syntax error.
+Only one argument is special.
+.TP
+.B \-\-help
+As the first argument, print a usage message on standard output and exit
+with status 0, ignoring the rest of the command line.
+To write the string
+.B \-\-help
+first in an expression, use
+.BR "quote \-\-help" .
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the arguments are expanded when
+.B expr
+starts, which can break expressions that contain
+.B *
+or
+.BR ? ;
+see
+.BR NOTES .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+arguments as the shell expanded them.
+.TP
+.BR BB_TERMINAL_MODE ", " BB_SKIP_ANSI_EMULATION
+When standard output is a console, decide whether the console or busybox
+interprets the escape sequences in the output, such as for color.
+See
+.BR busybox (1).
+.TP
+.B CONEMUPID
+When it is set and neither of the above is, busybox uses terminal mode
+0: it turns virtual terminal output off and emulates escape sequences
+itself.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+output to a console is not converted, as described in
+.BR NOTES ,
+and the console interprets the bytes in its own code page.
+.PP
+Variables that affect every busybox applet are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+The value is not null, or the first argument was
+.BR \-\-help .
+.TP
+.B 1
+The value is null.
+This is not an error.
+.TP
+.B 2
+An error.
+It is reported on standard error as
+.BI "expr: " message
+with one of these messages:
+.RS
+.TP
+.B syntax error
+An argument is missing, misplaced, or left over, or the parentheses do
+not pair.
+.TP
+.B too few arguments
+There are no arguments.
+.TP
+.B non\-numeric argument
+An arithmetic operator was given an argument that is not an integer.
+.TP
+.B division by zero
+The divisor of
+.B /
+or
+.B %
+is 0.
+.TP
+.BI "bad regex \(aq" regexp "\(aq: " reason
+The regular expression does not compile, for a reason such as an
+unmatched
+.BR \e( .
+.TP
+.BI "standard output: " reason
+Standard output could not be written, such as when it is closed or is
+a pipe whose reader has exited.
+.RE
+.SH EXAMPLES
+Add two numbers:
+.PP
+.RS 4
+.EX
+$ expr 2 + 3
+5
+.EE
+.RE
+.PP
+Quote an operator that the shell treats specially:
+.PP
+.RS 4
+.EX
+$ expr 6 \e* 7
+42
+.EE
+.RE
+.PP
+Increment a shell variable:
+.PP
+.RS 4
+.EX
+$ i=$(expr $i + 1)
+.EE
+.RE
+.PP
+Count the bytes in a string:
+.PP
+.RS 4
+.EX
+$ expr length "hello world"
+11
+.EE
+.RE
+.PP
+Take the first three bytes of a string:
+.PP
+.RS 4
+.EX
+$ expr substr abcdef 1 3
+abc
+.EE
+.RE
+.PP
+Print the part of a name after the last dot:
+.PP
+.RS 4
+.EX
+$ expr file.tar.gz : \(aq.*\e.\e(.*\e)\(aq
+gz
+.EE
+.RE
+.PP
+Test a name against a pattern with the exit status:
+.PP
+.RS 4
+.EX
+$ expr "$f" : \(aq.*\e.c$\(aq >/dev/null && echo C source
+.EE
+.RE
+.PP
+Use a default for an empty value:
+.PP
+.RS 4
+.EX
+$ name=
+$ expr "$name" \e| anonymous
+anonymous
+.EE
+.RE
+.SH NOTES
+Differences from GNU
+.BR expr :
+.IP \(bu 2
+Integers are 64-bit, with no arbitrary-precision arithmetic.
+.IP \(bu 2
+Strings are bytes, not multibyte characters.
+.IP \(bu 2
+Every error exits with status 2, where GNU uses 3 for some of them.
+.IP \(bu 2
+.B |
+and
+.B &
+always evaluate both operands, so
+.B expr 1 \e| 1 / 0
+fails instead of printing 1.
+.IP \(bu 2
+When both operands of
+.B |
+are null, the value is the second operand, such as the empty string,
+where POSIX and GNU give 0.
+.IP \(bu 2
+There is no
+.B +
+prefix to force a string, only
+.BR quote ,
+no
+.BR \-\-version ,
+and no
+.B \-\-
+to end options.
+.PP
+In the kit's shell, quote or backslash
+.BR * ,
+.BR ( ,
+.BR ) ,
+.BR < ,
+.BR > ,
+.BR & ,
+and
+.BR | ,
+and write a regular expression in single quotes so that the shell keeps
+its backslashes.
+In
+.BR cmd.exe ,
+put
+.BR < ,
+.BR > ,
+.BR & ,
+and
+.B |
+in double quotes or precede each with
+.BR ^ ,
+and write
+.B %
+as
+.B %%
+in a batch file.
+.PP
+When busybox is started from
+.B cmd.exe
+or PowerShell, the C runtime expands wildcards in its arguments, quoted
+or not, before
+.B expr
+runs.
+An argument containing
+.B *
+or
+.BR ? ,
+such as the operator in
+.BR "expr 6 * 7" ,
+is replaced by the names of the files it matches, and
+.B expr
+reports a syntax error.
+An argument that matches no file is left as it is, so whether it fails
+depends on the directory.
+Set
+.B BB_GLOBBING
+to
+.B 0
+first.
+The kit's shell does its own expansion and is not affected.
+.PP
+Arguments may contain any Unicode character on Windows 10 version 1903
+and later, and are limited to the system code page on earlier versions.
+.B expr
+works on bytes, so
+.BR length ,
+.BR substr ,
+.BR index ,
+and regular expressions count a UTF-8 character outside ASCII as 2 to 4
+bytes, and
+.B .\&
+matches one byte of it.
+Strings are ordered by byte value.
+.PP
+Dividing
+.B \-9223372036854775808
+by
+.BR \-1 ,
+with
+.B /
+or
+.BR % ,
+raises a processor exception.
+Windows ends
+.B expr
+with status
+.BR 0xC0000095 ,
+and
+.B expr
+prints no message.
+The kit's shell then prints the Windows error message and
+.B Error 0xc0000095
+on standard error, and sets
+.B $?\&
+to 149, the low byte.
+.PP
+Standard output is binary, so the newline is a bare LF.
+When standard output is a console, the output is converted for display
+from the ANSI code page, which is UTF-8 on Windows 10 version 1903 and
+later.
+Escape sequences, such as those for color, take effect, and busybox
+emulates them on consoles without virtual terminal support.
+.PP
+The shell computes integer expressions itself with
+.BR $((...)) ,
+without starting a process; see
+.BR sh (1).
+.SH SEE ALSO
+.BR awk (1),
+.BR bc (1),
+.BR busybox (1),
+.BR grep (1),
+.BR sed (1),
+.BR sh (1),
+.BR test (1)

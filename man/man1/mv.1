@@ -1,0 +1,407 @@
+.TH MV 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.SH NAME
+mv \- move or rename files and directories
+.SH SYNOPSIS
+.B mv
+.RB [ \-finTv ]
+.I source dest
+.br
+.B mv
+.RB [ \-finv ]
+.IR source ...\&
+.I directory
+.br
+.B mv
+.RB [ \-finv ]
+.BI "\-t " directory
+.IR source ...\&
+.SH DESCRIPTION
+.B mv
+renames a file or directory, or moves files and directories into a
+directory.
+It is the
+.BR busybox (1)
+applet, which has fewer options than GNU
+.BR mv ;
+see
+.BR NOTES .
+.SS Operands
+With
+.BR \-t ,
+every operand is a
+.I source
+and is moved into
+.IR directory .
+Otherwise, with two operands,
+.I source
+is renamed to
+.I dest
+itself, except that when
+.I dest
+is an existing directory, or a symbolic link or junction to one,
+.I source
+is moved into it.
+.B \-T
+always renames to
+.IR dest .
+With more than two operands, the last is
+.IR directory .
+With no operand, or with one operand and no
+.BR \-t ,
+.B mv
+writes a usage message on standard error and exits with status 1.
+.PP
+A move into
+.I directory
+is named after the last component of
+.IR source ,
+with trailing slashes and backslashes removed, so
+.B mv src/ out
+makes
+.I out/src
+when
+.I out
+exists.
+.B mv
+does not check beforehand that
+.I directory
+exists or is a directory: the move of each
+.I source
+then fails on its own, with a reason such as
+.B No such file or directory
+or
+.BR "Invalid argument" .
+.SS What is moved
+A move is a rename, not a copy: the file or directory keeps its
+contents, times, and attributes.
+A directory is moved with everything in it, and cannot be moved into
+itself, which fails with
+.BR "Invalid argument" .
+A symbolic link or junction is moved as a link, and its target is not
+touched.
+For moves to another volume, see
+.BR NOTES .
+.SS Existing destinations
+.B \-n
+skips a source whose destination exists.
+Otherwise, unless
+.B \-f
+is given,
+.B mv
+asks before replacing an existing destination if
+.B \-i
+is given, or if the destination is read-only and standard input is a
+console.
+It writes
+.BI "mv: overwrite \(aq" dest "\(aq?\&"
+on standard error and reads a line from standard input.
+The destination is replaced only if the first character of the line
+that is not a space or tab is
+.B y
+or
+.BR Y ,
+and otherwise the source is skipped, which is not an error.
+End of input counts as no.
+.PP
+An existing destination file is replaced by the moved file, even if it
+is read-only.
+The moved file keeps its own attributes, so the replacement is writable
+if the moved file is.
+An existing destination directory is never replaced: moving a file or
+directory onto one fails with
+.BR "Is a directory" ,
+even when it is empty.
+A directory moved onto an existing file does replace it.
+.SS Output
+.B mv
+reports each error on standard error as
+.BI "mv: " message
+and goes on with the remaining operands.
+A source that cannot be moved is reported as
+.BI "mv: can\(aqt rename \(aq" source "\(aq: " reason \c
+.RI .
+Prompts go to standard error.
+Only
+.B \-v
+and
+.B \-\-help
+write to standard output.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-fv ,
+and may follow operands, unless
+.B POSIXLY_CORRECT
+is set.
+The argument of
+.B \-t
+may be attached, as in
+.BR \-tbin .
+A long option may be abbreviated to any unambiguous prefix, and takes
+its argument after
+.B =
+or as the next argument.
+.B \-\-
+ends the options.
+.TP
+.BR \-f ", " \-\-force
+Do not ask before replacing an existing destination, even a read-only
+one.
+Of
+.BR \-f ,
+.BR \-i ,
+and
+.BR \-n ,
+only the last given takes effect.
+.TP
+.BR \-i ", " \-\-interactive
+Ask before replacing any existing destination, as described above.
+Only the last of
+.BR \-f ,
+.BR \-i ,
+and
+.B \-n
+takes effect.
+.TP
+.BR \-n ", " \-\-no\-clobber
+Skip, without a message, each source whose destination exists.
+A destination that differs from the source only in case exists, so
+.B mv \-n a A
+does nothing.
+Only the last of
+.BR \-f ,
+.BR \-i ,
+and
+.B \-n
+takes effect.
+.TP
+.BR \-T ", " \-\-no\-target\-directory
+Rename to
+.I dest
+itself, never into it.
+Requires exactly two operands, and is incompatible with
+.BR \-t .
+If
+.I dest
+is an existing directory, the move fails: a
+.I source
+that is not a directory is refused with
+.BI "mv: \(aq" dest "\(aq is a directory"
+and exit status 1, and a directory cannot replace a directory.
+.TP
+\fB\-t\fR \fIdirectory\fR, \fB\-\-target\-directory\fR=\fIdirectory\fR
+Move every operand into
+.IR directory .
+Incompatible with
+.BR \-T .
+.TP
+.BR \-v ", " \-\-verbose
+Write
+.BI \(aq source "\(aq \-> \(aq" dest \(aq
+on standard output for each source, after trying to move it.
+The line is written whether the move succeeded, failed, or was skipped
+by
+.B \-n
+or by an answer to
+.BR \-i ,
+but not when
+.B \-T
+refuses it.
+.I dest
+is the name of the destination itself, or, for a move into a
+directory, the directory and the new name joined with a slash.
+.TP
+.B \-\-help
+As the first argument only, write a usage message on standard output
+and exit with status 0.
+The message omits the long options and
+.BR \-v .
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the arguments are expanded when busybox starts, for a caller
+such as
+.B cmd.exe
+that does not expand them.
+When it is unset, busybox sets it to
+.B 0
+for the programs it starts, so commands run from the kit's shell get the
+shell's expansion only.
+.TP
+.B POSIXLY_CORRECT
+If set, the first operand ends the options.
+.PP
+Messages written to a console also depend on
+.BR BB_SKIP_ANSI_EMULATION ,
+.BR BB_TERMINAL_MODE ,
+.BR LANG ,
+.BR LC_ALL ,
+and
+.BR LC_CTYPE ,
+and Windows error dialogs on
+.BR BB_CRITICAL_ERROR_DIALOGS ,
+as for every busybox applet; see
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success, including sources skipped by
+.B \-n
+or an answer to
+.BR \-i ,
+and a name moved onto itself.
+.TP
+.B 1
+An invalid command line, with a usage message on standard error, or any
+operand that could not be moved.
+.SH EXAMPLES
+Rename a file:
+.PP
+.RS 4
+.EX
+$ mv old.c new.c
+.EE
+.RE
+.PP
+Move the C sources into a directory, listing each move:
+.PP
+.RS 4
+.EX
+$ mv \-v *.c src
+\(aqhello.c\(aq \-> \(aqsrc/hello.c\(aq
+\(aqmain.c\(aq \-> \(aqsrc/main.c\(aq
+.EE
+.RE
+.PP
+Move only the files that are not already in the destination:
+.PP
+.RS 4
+.EX
+$ mv \-n *.txt backup
+.EE
+.RE
+.PP
+Change only the case of a name:
+.PP
+.RS 4
+.EX
+$ mv readme.txt README.TXT
+.EE
+.RE
+.PP
+Move the files that another command lists into a directory:
+.PP
+.RS 4
+.EX
+$ find build \-name \(aq*.o\(aq | xargs mv \-t obj
+.EE
+.RE
+.PP
+Move a file to a directory on another drive:
+.PP
+.RS 4
+.EX
+$ mv report.txt d:/archive
+.EE
+.RE
+.SH NOTES
+Differences from GNU
+.BR mv :
+.IP \(bu 2
+.B mv
+does not detect that source and destination are the same file.
+A name moved onto itself is left alone, and a name moved onto another
+hard link to the same file is removed, leaving the other name.
+.IP \(bu 2
+An existing directory is never replaced, not even an empty one.
+.IP \(bu 2
+A directory replaces an existing file.
+.IP \(bu 2
+.B \-v
+writes a line for every source, including those that failed or were
+skipped.
+.IP \(bu 2
+A destination directory that is missing, or is not a directory, is not
+detected before moving starts.
+.IP \(bu 2
+A trailing slash on a
+.I dest
+that does not exist is ignored, so
+.B mv f new/
+renames the file
+.I f
+to
+.IR new .
+.IP \(bu 2
+Options not listed above, such as
+.BR \-b ,
+.BR \-S ,
+.BR \-u ,
+.BR \-Z ,
+.BR \-\-backup ,
+.BR \-\-suffix ,
+.BR \-\-update ,
+and
+.BR \-\-strip\-trailing\-slashes ,
+are invalid.
+.PP
+On a case-insensitive file system, a destination that differs from its
+source only in case exists, so
+.B \-n
+skips such a move and
+.B \-i
+asks first.
+Otherwise the move changes the case of the name.
+.PP
+A file moved to another volume is copied and deleted by Windows, and
+keeps its times and read-only attribute.
+A directory or junction cannot be moved to another volume: the move
+fails with
+.B Permission denied
+and the source is left alone.
+Copy a directory with
+.B cp \-a
+and remove the original with
+.B rm \-r
+instead.
+Replacing a read-only file on another volume also fails with
+.BR "Permission denied" .
+.B mv
+has its own fallback that copies a tree and removes the original, but
+it runs only when the rename fails with a cross-device error (EXDEV),
+which none of these moves produce.
+.PP
+Windows also refuses to move a directory that another process uses as
+its current directory, with
+.BR "Permission denied" .
+.PP
+Paths may have drive letters and backslashes.
+Names in a directory are joined with
+.BR / ,
+so
+.B mv \-v x \(aqc:\etools\(aq
+writes names such as
+.IR c:\etools/x .
+A bare drive such as
+.I d:
+names the current directory of that drive, so
+.B mv x d:
+writes
+.IR d:x .
+Names may contain any Unicode character on Windows 10 version 1903 and
+later, and are limited to the system code page on earlier versions.
+A full path of 260 or more characters, counting the current directory
+for a relative path, fails with
+.BR "No such file or directory" .
+.PP
+From
+.BR cmd.exe ,
+.B mv
+expands wildcards in its arguments itself; see
+.BR BB_GLOBBING .
+.SH SEE ALSO
+.BR busybox (1),
+.BR cp (1),
+.BR ln (1),
+.BR rm (1)

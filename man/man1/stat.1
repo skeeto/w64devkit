@@ -1,0 +1,796 @@
+.TH STAT 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+stat \- display the status of files or file systems
+.SH SYNOPSIS
+.B stat
+.RB [ \-fLt ]
+.RB [ \-c
+.IR format ]
+.IR file ...
+.SH DESCRIPTION
+.B stat
+prints the status of each
+.IR file ,
+or with
+.B \-f
+of the file system that holds it, on standard output.
+This
+.B stat
+is the busybox applet; see
+.BR busybox (1).
+.PP
+At least one
+.I file
+is required.
+The operands are examined in order.
+One that cannot be examined gets a message on standard error, and
+.B stat
+goes on to the next.
+.PP
+A symbolic link is described as itself, not as its target, unless
+.B \-L
+says to follow it.
+Junctions, volume mount points, and app execution aliases count as
+symbolic links.
+.PP
+The output for each file is a block of lines, or with
+.B \-t
+a single line, or with
+.B \-c
+whatever
+.I format
+says.
+It always ends with a newline, with one exception described under
+.BR \-c .
+.SS Default output
+A file gets these lines, in order:
+.IP \(bu 2
+.B File:
+shows the name as given, or for a symbolic link its name, an arrow, and
+its target, each in single quotes.
+.IP \(bu 2
+.B Size:
+shows the size in bytes,
+.B Blocks:
+the number of blocks allocated,
+.B "IO Block:"
+the I/O block size, and then the type of the file.
+.IP \(bu 2
+.B Device:
+shows the device number in hex followed by an
+.BR h ,
+a slash, and the same number in decimal followed by a
+.BR d ;
+.B Inode:
+the inode number; and
+.B Links:
+the number of hard links.
+A character device adds
+.B Device type:
+and its major and minor numbers in hex.
+.IP \(bu 2
+.B Access:
+shows, in parentheses, the permissions in octal as
+.B %04a
+prints them, a slash, and the string of
+.BR %A .
+.B Uid:
+and
+.B Gid:
+each show, in parentheses, the id in 5 columns, a slash, and the name in
+8 columns.
+.IP \(bu 2
+.BR Access: ,
+.BR Modify: ,
+and
+.B Change:
+show the times of last access, modification, and change, which is the
+creation time.
+.PP
+A time is local time, in the form
+.PP
+.RS 4
+.EX
+2026\-10\-19 21:20:34.592248200 \-0400
+.EE
+.RE
+.PP
+with the offset from UTC at the end.
+Windows keeps time in units of 100 nanoseconds, so the last two digits of
+the fraction are always
+.BR 00 .
+.PP
+With
+.BR \-f ,
+the lines are:
+.IP \(bu 2
+.B File:
+shows the name as given, in double quotes.
+.IP \(bu 2
+.B ID:
+shows the file system ID in hex,
+.B Namelen:
+the maximum length of a file name, and
+.B Type:
+the name of the type of file system.
+.IP \(bu 2
+.B "Block size:"
+shows the block size.
+.IP \(bu 2
+.B Blocks:
+shows the
+.BR Total: ,
+.BR Free: ,
+and
+.B Available:
+numbers of blocks.
+.IP \(bu 2
+.B Inodes:
+shows the
+.B Total:
+and
+.B Free:
+numbers of inodes, which are always 0.
+.SS Terse output
+.B \-t
+prints one line of fields separated by single spaces.
+For a file it is the same as
+.B \-c
+with the format
+.PP
+.RS 4
+.EX
+%n %s %b %f %u %g %D %i %h %t %T %X %Y %Z %o
+.EE
+.RE
+.PP
+and with
+.B \-f
+the format
+.PP
+.RS 4
+.EX
+%n %i %l %t %s %b %f %a %c %d
+.EE
+.RE
+.SS Format directives
+In a
+.B \-c
+format, a
+.B %
+starts a directive, which is written as one letter.
+Between the
+.B %
+and the letter may come flags, a width, and a precision, as in the C
+function
+.BR printf :
+any of the characters
+.BR # ,
+.BR \- ,
+.BR + ,
+.BR . ,
+a space, and digits.
+An
+.B I
+is accepted there too, but makes the directive print wrongly.
+Numbers are printed as integers and everything else as strings, so
+.B %\-10s
+pads the size on the right,
+.B %08s
+pads it with zeros, and
+.B %04a
+prints
+.B 0664
+for the permissions
+.BR 664 .
+.PP
+A letter that is not a directive is printed as itself, padded to the
+width if there is one, so
+.B %q
+prints
+.BR q .
+That includes a letter that is a directive only in the other mode,
+such as
+.B %N
+with
+.BR \-f .
+.PP
+Directives for a file:
+.TP
+.B %a
+The permission bits in octal, such as
+.BR 664 .
+.TP
+.B %A
+The file type and permissions as a string of 10 characters, such as
+.BR \-rw\-rw\-r\-\- .
+The first is
+.B \-
+for a regular file,
+.B d
+for a directory,
+.B l
+for a symbolic link, or
+.B c
+for a device.
+.TP
+.B %b
+The number of blocks allocated, each of
+.B %B
+bytes.
+.TP
+.B %B
+The size in bytes of each block that
+.B %b
+counts.
+It is always 512.
+.TP
+.B %d
+The device number in decimal.
+It is the serial number of the volume that holds the file, or 0 for a
+device.
+.TP
+.B %D
+The device number in hex.
+.TP
+.B %f
+The raw mode in hex: the file type and permission bits, such as
+.BR 81b4 .
+.TP
+.B %F
+The file type:
+.BR "regular file" ,
+.BR "regular empty file" ,
+.BR directory ,
+.BR "symbolic link" ,
+or
+.BR "character special file" .
+.TP
+.B %g
+The group ID.
+It is always the same as
+.BR %u .
+.TP
+.B %G
+The group name.
+It is always the same as
+.BR %U .
+.TP
+.B %h
+The number of hard links.
+.TP
+.B %i
+The inode number.
+.TP
+.B %n
+The file name, as given.
+.TP
+.B %N
+The file name, as given.
+For a symbolic link it is instead the name and the target, each in
+single quotes and separated by an arrow, as in
+.BR "\(aqzlib\(aq \-> \(aqC:/src/zlib\-1.3.1\(aq" .
+The target is written with forward slashes.
+Any width or precision is then ignored.
+.TP
+.B %o
+The I/O block size.
+It is always 4096.
+.TP
+.B %s
+The size in bytes.
+.TP
+.B %t
+The major device number in hex.
+It is always 0.
+.TP
+.B %T
+The minor device number in hex.
+It is always 0.
+.TP
+.B %u
+The user ID, such as 4095.
+.TP
+.B %U
+The user name, or
+.B UNKNOWN
+if the user ID has none; see
+.BR NOTES .
+.TP
+.B %x
+The time of last access, in the form described under
+.BR "Default output" .
+.TP
+.B %X
+The time of last access in seconds since 1970-01-01 00:00:00 UTC, as a
+32-bit number; see
+.BR NOTES .
+.TP
+.B %y
+The time of last modification.
+.TP
+.B %Y
+The time of last modification in seconds since 1970.
+.TP
+.B %z
+The time of last change, which is the creation time.
+.TP
+.B %Z
+The time of last change in seconds since 1970.
+.TP
+.B %%
+A percent sign.
+.PP
+Directives for a file system, with
+.BR \-f :
+.TP
+.B %a
+The number of free blocks available to the current user.
+.TP
+.B %b
+The total number of blocks.
+.TP
+.B %c
+The total number of inodes.
+It is always 0.
+.TP
+.B %d
+The number of free inodes.
+It is always 0.
+.TP
+.B %f
+The number of free blocks.
+.TP
+.B %i
+The file system ID in hex.
+It is the serial number of the volume followed by 8 zero digits.
+.TP
+.B %l
+The maximum length of a file name.
+.TP
+.B %n
+The file name, as given.
+.TP
+.B %s
+The block size.
+.TP
+.B %S
+The fundamental block size.
+It is the same as
+.BR %s .
+.TP
+.B %t
+The type of file system in hex.
+.TP
+.B %T
+The type of file system as a name.
+.TP
+.B %%
+A percent sign.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-Lt ,
+and may follow the operands unless
+.B POSIXLY_CORRECT
+is set.
+An option's argument may be attached, as in
+.BR \-c%s ,
+or be the next argument.
+.B \-\-
+ends the options.
+There are no long options other than
+.BR \-\-help .
+There is no
+.BR \-l ,
+although the usage message shows one.
+.TP
+.BI "\-c " format
+Print
+.I format
+for each file instead of the default or terse output.
+Directives are described under
+.BR "Format directives" .
+Every other character is printed as it is, including a backslash, so
+.B \en
+is not a newline.
+A newline follows
+.IR format ,
+except that when
+.I format
+ends in a
+.B %
+with no letter after it, the
+.B %
+is printed, any flags and digits after it are dropped, and there is no
+newline.
+If given more than once, the last
+.B \-c
+applies.
+It overrides
+.BR \-t .
+.TP
+.B \-f
+Print the status of the file system that holds each
+.IR file .
+The file must exist, but only its drive counts: a name that starts with a
+drive letter and a colon selects that drive, and any other name, such as
+a relative path or one starting with a slash, selects the drive of the
+current directory.
+When the current directory has no drive letter, as on a network share
+named by a UNC path, such a name fails.
+.TP
+.B \-L
+Follow symbolic links: describe the target of a link instead of the link.
+A link whose target does not exist is an error.
+It has no effect with
+.BR \-f .
+.TP
+.B \-t
+Print the terse form; see
+.BR "Terse output" .
+It has no effect with
+.BR \-c .
+.TP
+.B \-\-help
+As the first argument only, write a usage message on standard output and
+exit with status 0.
+.SH ENVIRONMENT
+.TP
+.B BB_CRITICAL_ERROR_DIALOGS
+When it is
+.BR 1 ,
+Windows shows its critical-error dialogs, such as for a drive with no
+disk in it, instead of the operation failing with an error.
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the arguments are expanded when busybox starts, for a caller
+such as
+.B cmd.exe
+that does not expand them.
+When it is unset, busybox sets it to
+.B 0
+for the programs it starts, so commands run from the kit's shell get the
+shell's expansion only.
+.TP
+.B BB_UMASK
+The file mode creation mask, in octal.
+The default is
+.BR 002 .
+Its write bits for group and other remove those permissions from the
+modes that
+.B stat
+reports, and its other bits are ignored; see
+.BR NOTES .
+.TP
+.B POSIXLY_CORRECT
+If set, the first operand ends the options.
+.TP
+.B TZ
+The time zone for the local times of
+.BR %x ,
+.BR %y ,
+and
+.BR %z ,
+in the form the C library understands, such as
+.B UTC0
+or
+.BR EST5EDT .
+Without it, the time zone of Windows applies.
+.PP
+Output written to a console also depends on
+.BR BB_SKIP_ANSI_EMULATION ,
+.BR BB_TERMINAL_MODE ,
+.BR LANG ,
+.BR LC_ALL ,
+and
+.BR LC_CTYPE ,
+as for every busybox applet; see
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Every
+.I file
+was examined, or
+.B \-\-help
+was given.
+.TP
+.B 1
+A
+.I file
+could not be examined, or the command line was invalid: no
+.IR file ,
+an unknown option, or a missing argument.
+An invalid command line gets a usage message on standard error.
+.PP
+A file that cannot be examined is reported on standard error as
+.PP
+.RS 4
+.EX
+stat: can\(aqt stat \(aq\fIfile\fR\(aq: \fIreason\fR
+.EE
+.RE
+.PP
+or with
+.BR \-f ,
+as
+.PP
+.RS 4
+.EX
+stat: can\(aqt read file system information for \(aq\fIfile\fR\(aq: \fIreason\fR
+.EE
+.RE
+.PP
+and the remaining files are still processed.
+.SH EXAMPLES
+Show the size and modification time of a file:
+.PP
+.RS 4
+.EX
+$ stat \-c \(aq%s %y\(aq hello.c
+29 2026\-10\-19 21:20:34.592248200 \-0400
+.EE
+.RE
+.PP
+Show the time in UTC:
+.PP
+.RS 4
+.EX
+$ TZ=UTC0 stat \-c %y hello.c
+2026\-10\-20 01:20:34.592248200 +0000
+.EE
+.RE
+.PP
+Show the permissions and name of several files:
+.PP
+.RS 4
+.EX
+$ stat \-c \(aq%a %A %n\(aq hello.c hello.exe
+664 \-rw\-rw\-r\-\- hello.c
+775 \-rwxrwxr\-x hello.exe
+.EE
+.RE
+.PP
+Show the first fields of the terse form:
+.PP
+.RS 4
+.EX
+$ stat \-t hello.c | cut \-d\(aq \(aq \-f1\-4
+hello.c 29 8 81b4
+.EE
+.RE
+.PP
+Tell a junction from what it points to:
+.PP
+.RS 4
+.EX
+$ stat \-c %F zlib
+symbolic link
+$ stat \-L \-c %F zlib
+directory
+.EE
+.RE
+.PP
+Show where a junction points:
+.PP
+.RS 4
+.EX
+$ stat \-c %N zlib
+\(aqzlib\(aq \-> \(aqC:/src/zlib\-1.3.1\(aq
+.EE
+.RE
+.PP
+Show the owner of a system file:
+.PP
+.RS 4
+.EX
+$ stat \-c \(aq%u %U %n\(aq c:/Windows/notepad.exe
+0 root c:/Windows/notepad.exe
+.EE
+.RE
+.PP
+Show the bytes available on a drive:
+.PP
+.RS 4
+.EX
+$ echo $(( $(stat \-f \-c \(aq%a * %S\(aq c:/) ))
+153973358592
+.EE
+.RE
+.SH NOTES
+Modes are made up from file attributes, not from the access control
+list.
+Every file is readable, and writable unless it has the read-only
+attribute.
+A file is executable if its name ends in
+.BR .com ,
+.BR .exe ,
+.BR .sh ,
+.BR .bat ,
+or
+.BR .cmd ,
+in any case.
+Otherwise, unless its name ends in
+.BR .dll ,
+.B stat
+reads its first bytes, and the file is executable if it begins with
+.B #!
+or is a PE program that is not a DLL.
+This makes
+.B stat
+slower on many files, though it tries to leave the access time unchanged.
+A directory is readable, writable, and searchable.
+The three triples of a mode are the same, except that the write
+permission of group and of other is removed when the file mode creation
+mask has its bit.
+The default mask is
+.BR 002 ,
+so other cannot write; see
+.BR BB_UMASK .
+For a file owned by another account, the permissions of other are raised
+to those of the owner when the file's access control list gives the
+current user read, write, and execute access, except in an elevated
+process.
+.PP
+There are no groups: the group of a file is its owner.
+A file owned by the current user has the ID 4095 and the user's name,
+with spaces replaced by underscores.
+The owner of another local or domain account has the number that ends
+its security identifier, when that is from 500 to 4094, and the name
+.BR UNKNOWN .
+Any other owner, such as Administrators, SYSTEM, or TrustedInstaller, is
+.B root
+or 0.
+When
+.B stat
+cannot open a file to read its owner, the owner is root and other has no
+permissions.
+.PP
+A Unix device name that busybox accepts, such as
+.IR /dev/null ,
+is a character device with the numbers 0, 0, the mode 0666, no size, the
+current user as its owner, and all three times at the Unix epoch; see
+.BR busybox (1).
+Its device number, inode number, and blocks are 0, and it has one link.
+The only kinds of file are regular files, directories, symbolic links,
+and these character devices: there are no block devices, fifos, or
+sockets.
+.PP
+A symbolic link has the mode 0777.
+Its size is the length of its target as
+.B %N
+writes it, and its times are its own.
+The target has forward slashes, and for an app execution alias it is the
+path of the executable.
+.PP
+The change time is the time the file was created.
+The seconds since the epoch of
+.BR %X ,
+.BR %Y ,
+and
+.BR %Z ,
+which the terse form also prints, are truncated to 32-bit signed
+numbers, so a time after 2038-01-19 03:14:07 UTC prints wrong, usually as
+a negative number.
+The times in text are not affected, but a time before 1970 or after the
+year 3000 prints in text as the Unix epoch, and the fraction of a time
+before 1970 prints wrong.
+.PP
+Allocated sizes are space on disk.
+.B stat
+assumes a cluster size of 4096 bytes and rounds every nonempty file up to
+a multiple of that, which makes
+.B %b
+a multiple of 8.
+A compressed or sparse NTFS file counts the space it occupies, which can
+be much less than its length.
+A symbolic link counts as 4096 bytes.
+A directory counts the size Windows reports for it, rounded up in the
+same way, which is 0 for a small NTFS directory.
+.PP
+The device number is the serial number of the volume, and the inode
+number is the 64-bit file index that Windows gives the file.
+The number of links of a file is its number of hard links.
+That of a directory is 2 plus its number of subdirectories, not counting
+symbolic links and junctions, which
+.B stat
+finds by reading the directory.
+A symbolic link to a directory, such as a junction, has the number of
+links of that directory.
+A file that
+.B stat
+cannot open, or that has the recall-on-data-access attribute, such as a
+cloud placeholder, has device 0, inode 0, and one link, or two for a
+directory.
+A file with that attribute is owned by the current user, and
+.B stat
+does not read it to find whether it is executable.
+.PP
+With
+.BR \-f ,
+only the drive of the file matters.
+.B stat
+assumes a block size of 4096 bytes for a volume under 16 TiB, and 8192,
+16384, 32768, and 65536 for volumes of at least 16, 32, 64, and 128 TiB.
+Free blocks are the free space of the volume and available blocks
+the free space for the current user, which a disk quota can reduce.
+The type of the file system comes from the name that Windows gives it:
+.TP
+.B NTFS
+The type 5346544e, named
+.BR ntfs .
+.TP
+.BR FAT " and " FAT32
+The type 4006, named
+.BR fat .
+.TP
+.B CDFS
+The type 9660, named
+.BR isofs .
+.TP
+.B UDF
+The type 15013346, named
+.BR udf .
+.TP
+Any other
+The type 0, named
+.BR UNKNOWN .
+This includes exFAT and ReFS.
+.PP
+Names may use
+.B /
+or
+.BR \e ,
+and are printed as given.
+A drive-relative path such as
+.B c:dir
+works.
+A file whose full path has 260 or more characters is reported as not
+found, even when named by a shorter relative path.
+Names may contain any Unicode character on Windows 10 version 1903 and
+later, and are limited to the system code page on earlier versions.
+Output lines end with LF, not CRLF.
+.PP
+Differences from GNU
+.BR stat :
+.IP \(bu 2
+Only
+.BR \-c ,
+.BR \-f ,
+.BR \-L ,
+and
+.B \-t
+exist.
+There are no long options other than
+.BR \-\-help ,
+no
+.BR \-Z ,
+and no
+.BR \-\-printf ,
+which would interpret backslash escapes.
+.IP \(bu 2
+There are no directives for the birth time or the mount point, so
+.BR %w ,
+.BR %W ,
+and
+.B %m
+print as themselves, and no
+.B Birth:
+line.
+.IP \(bu 2
+The name in the
+.B File:
+line is quoted only for a symbolic link, or with
+.BR \-f .
+.SH SEE ALSO
+.BR busybox (1),
+.BR df (1),
+.BR du (1),
+.BR jn (1),
+.BR ln (1),
+.BR ls (1),
+.BR lsattr (1),
+.BR readlink (1),
+.BR touch (1)

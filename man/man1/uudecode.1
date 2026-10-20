@@ -1,0 +1,259 @@
+.TH UUDECODE 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+uudecode \- decode a uuencoded or base64 file
+.SH SYNOPSIS
+.B uudecode
+.RB [ \-o
+.IR outfile ]
+.RI [ infile ]
+.SH DESCRIPTION
+.B uudecode
+extracts one file from text made by
+.BR uuencode (1),
+in either the traditional uuencode format or base64.
+With no
+.IR infile ,
+or when it is
+.BR \- ,
+it reads standard input.
+.PP
+It skips lines until it finds a header line, which has one of the forms
+.PP
+.RS 4
+.EX
+\fBbegin\fR \fImode\fR \fIname\fR
+\fBbegin\-base64\fR \fImode\fR \fIname\fR
+.EE
+.RE
+.PP
+The header must start a line, and the keywords are lowercase and
+followed by a space.
+The first form introduces uuencoded data, and the second base64 data.
+The
+.I mode
+is not checked, so any line that starts with
+.B begin
+and a space is a header, even ordinary text such as
+.BR "begin the work now" ,
+which names the file
+.IR "work now" .
+Text before the header, such as the headers of a mail message, is
+ignored, and so is everything after the end of the data.
+Only the first file in the input is decoded.
+.PP
+The decoded bytes are written to the file called
+.IR name ,
+or to the file named by
+.BR \-o .
+The
+.I name
+is everything after the first space that follows
+.IR mode ,
+with white space removed from both ends, so it may contain spaces.
+The
+.I mode
+is ignored; see
+.BR NOTES .
+A name of
+.B \-
+or
+.B /dev/stdout
+selects standard output.
+Any other file is created, or emptied if it exists, as soon as the header
+is read.
+The directories in its path must already exist.
+.PP
+If the input has no header, or the header has no name and
+.B \-o
+is not given,
+.B uudecode
+fails with
+.BR "no \(aqbegin\(aq line" .
+.SS Uuencode data
+Each line after the header encodes up to 45 bytes.
+Its first character is 32 plus the number of bytes.
+The rest are groups of 4 characters that each encode 3 bytes, 6 bits per
+character, as 32 plus the 6-bit value.
+A backquote or a space decodes as zero, so either may pad the last
+group.
+.PP
+Extra characters at the end of a line are ignored.
+A line too short for its byte count fails with
+.BR "short file" ,
+and otherwise a count above 45 fails with
+.BR "line too long" .
+A line with a count of zero, such as the backquote line that
+.B uuencode
+writes before the end line, is skipped.
+The data ends at a line that is exactly
+.BR end .
+Lines may end with LF or CR LF.
+A blank line in the data, or the end of the input before the end line,
+fails with
+.BR "short file" .
+.SS Base64 data
+The data uses the standard base64 alphabet: letters, digits,
+.BR + ,
+and
+.BR / ,
+with
+.B =
+as padding.
+Characters outside the alphabet, including white space, are skipped.
+The data ends at the end of the input, or earlier at
+.B ====
+standing alone between white space, anywhere on a line, which
+.B uuencode \-m
+writes as its last line.
+If the input ends in the middle of a group of 4 characters,
+.B uudecode
+writes what it has decoded and fails with
+.BR "truncated input" .
+.SH OPTIONS
+Options may follow
+.IR infile ,
+unless
+.B POSIXLY_CORRECT
+is set, and the argument of
+.B \-o
+may be attached, as in
+.BR \-ofile .
+.B \-\-
+ends the options.
+.TP
+.BI "\-o " outfile
+Write the decoded data to
+.I outfile
+instead of the name in the header.
+The header is still required, but its name may be missing.
+An
+.I outfile
+of
+.B \-
+or
+.B /dev/stdout
+selects standard output.
+If given more than once, the last
+.B \-o
+is used.
+.TP
+.B \-\-help
+As the first argument, print a usage message on standard output and
+exit.
+.SH ENVIRONMENT
+.TP
+.B POSIXLY_CORRECT
+If set, options must precede
+.IR infile .
+.PP
+Variables that busybox-w32 reads in every applet, such as those that
+control console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+Invalid command line,
+.I infile
+or the output file could not be opened, no usable header was found, or
+the data is malformed or truncated.
+A usage error prints the usage on standard error, and any other failure
+prints a message there.
+.TP
+.B 141
+The output is a pipe whose reader has exited.
+.SH EXAMPLES
+Decode a file into the name stored in it:
+.PP
+.RS 4
+.EX
+$ uudecode archive.uu
+.EE
+.RE
+.PP
+Decode an attachment from a saved mail message, into a name of your
+choosing.
+The text around the attachment is ignored:
+.PP
+.RS 4
+.EX
+$ uudecode \-o program.exe message.eml
+.EE
+.RE
+.PP
+Decode to a pipe:
+.PP
+.RS 4
+.EX
+$ uudecode \-o \- archive.uu | xxd | head
+.EE
+.RE
+.PP
+Encode a file and decode it again:
+.PP
+.RS 4
+.EX
+$ uuencode data.bin data.bin >data.uu
+$ uudecode \-o copy.bin data.uu
+.EE
+.RE
+.SH NOTES
+Differences from other
+.B uudecode
+programs:
+.IP \(bu 2
+.B \-o
+is the only option, and
+.B \-\-help
+the only long option.
+.IP \(bu 2
+At most one
+.I infile
+is accepted.
+.IP \(bu 2
+The
+.I mode
+in the header is ignored.
+busybox-w32 does not apply it, so the file gets the default permissions
+of a new file.
+.PP
+The
+.I name
+in the header is used as it stands.
+An absolute path, a drive letter, backslashes, and
+.B ..\&
+components are all honored, so decoding an untrusted file can overwrite
+any file that you can write.
+Use
+.B \-o
+for input that you do not trust.
+.PP
+The output file is created before any data is decoded, and it is not
+removed on failure.
+After an error it holds what was decoded before the error.
+Errors writing the output are not detected, except that a pipe whose
+reader has exited ends the program with status 141.
+.PP
+Input and output are binary: there is no newline translation, and the
+CR of a CR LF line end is removed from the header and from uuencoded
+data lines, and is white space in base64 data.
+.PP
+When the output is a console, the decoded data passes through the
+busybox-w32 console layer as text, so binary data does not display
+faithfully.
+Redirect it to a file or a pipe.
+.PP
+.I infile
+and
+.I outfile
+may be Windows paths, with a drive letter and either kind of slash, or
+busybox-w32 device names such as
+.I /dev/null
+and
+.IR /dev/stderr .
+.SH SEE ALSO
+.BR base64 (1),
+.BR busybox (1),
+.BR uuencode (1)

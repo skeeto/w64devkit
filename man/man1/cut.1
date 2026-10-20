@@ -1,0 +1,571 @@
+.TH CUT 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+cut \- print selected parts of lines
+.SH SYNOPSIS
+.B cut
+.RB { \-b | \-c }
+.I list
+.RB [ \-nD ]
+.RB [ \-O
+.IR sep ]
+.RI [ file ...]
+.br
+.B cut
+.RB { \-f | \-F }
+.I list
+.RB [ \-d
+.IR sep ]
+.RB [ \-nsD ]
+.RB [ \-O
+.IR sep ]
+.RI [ file ...]
+.SH DESCRIPTION
+.B cut
+reads each
+.I file
+a line at a time and writes the selected parts of every line: bytes with
+.B \-b
+or
+.BR \-c ,
+or fields with
+.B \-f
+or
+.BR \-F .
+Exactly one of these four options is required, and it may be given only
+once.
+Its argument is a
+.IR list ,
+described below.
+.PP
+With no
+.I file
+operands, or for a
+.I file
+named
+.BR \- ,
+.B cut
+reads standard input.
+A
+.I file
+that cannot be opened is reported on standard error and skipped, and the
+remaining files are still read.
+.PP
+A line ends at an LF.
+A CR directly before the LF is removed, so files with CRLF and LF line
+endings give the same result.
+A NUL byte also ends a line, and is not written.
+Lines may be of any length.
+Every output line ends with an LF, even when the last input line has
+none.
+Each input line produces one output line, which is empty when nothing in
+the line is selected.
+The exceptions are the lines dropped by
+.BR \-s ,
+and the line selection described under
+.BR "Selecting lines" .
+.SS Lists
+A
+.I list
+is one or more ranges separated by commas, such as
+.BR 1,4\-6,9\- .
+Positions are counted from 1.
+A range is one of:
+.TP
+.I n
+Position
+.IR n .
+.TP
+\fIn\fB\-\fIm\fR
+Positions
+.I n
+through
+.IR m ,
+where
+.I m
+is not less than
+.IR n .
+.TP
+\fIn\fB\-\fR
+Position
+.I n
+and every position after it, to the end of the line.
+.TP
+\fB\-\fIm\fR
+Positions 1 through
+.IR m .
+.PP
+Each number is a string of decimal digits, with no sign or space, and
+at most 2147483647.
+Position 0 is not valid.
+A malformed or too large number, and a range that starts at 0 or ends
+before it starts, are errors.
+An empty list, an empty range as in
+.BR 1,,2 ,
+and a lone
+.B \-
+are usage errors, which print the usage message.
+Positions past the end of the line select nothing.
+.SS Bytes
+With
+.B \-b
+or
+.BR \-c ,
+which are the same, the list selects byte positions.
+Bytes are not decoded, so a range can split a UTF-8 character.
+The bytes are written in order of position, each once, so overlapping
+ranges are merged.
+Nothing is written between ranges unless
+.B \-O
+is given.
+Then its argument is written between selected ranges that are not
+adjacent in the line.
+.SS Fields
+With
+.BR \-f ,
+a line is split into fields at each occurrence of the delimiter byte.
+That is the first byte of the
+.B \-d
+argument, and TAB by default.
+A line with
+.I n
+delimiters has
+.IR n +1
+fields, any of which may be empty.
+The selected fields are written in order, separated by the output
+delimiter.
+That is the
+.B \-O
+argument if given, otherwise all of the
+.B \-d
+argument, otherwise TAB.
+.PP
+A line that has no delimiter is written whole, whatever the list says,
+unless
+.B \-s
+drops it.
+A line that has a delimiter always produces a line of output, which is
+empty when the line has too few fields.
+.PP
+With
+.BR \-F ,
+the
+.B \-d
+argument is instead an extended regular expression, and each match of it
+in a line is a delimiter.
+The default is
+.BR [[:space:]]+ ,
+a run of white space.
+With it, white space at the start of a line makes field 1 empty.
+Fields are numbered as with
+.BR \-f ,
+with these differences.
+.IP \(bu 2
+Empty fields are counted but never written, and a range whose text is
+empty writes nothing, not even an output delimiter.
+.IP \(bu 2
+A range \fIn\fB\-\fIm\fR is written as one piece of the line, from the
+start of field
+.I n
+to the end of field
+.IR m .
+The delimiters between those fields are kept as they are in the input.
+.IP \(bu 2
+The default output delimiter is one space.
+.PP
+The expression is matched against bytes, so
+.B .\&
+matches one byte of a UTF-8 character.
+The anchors
+.B ^
+and
+.B $
+never match.
+An expression that matches the empty string, such as
+.BR x* ,
+cuts the line into empty fields.
+.PP
+The ranges of a list are sorted by their starting position, so fields
+are written in line order.
+With
+.B \-f
+and
+.BR \-F ,
+ranges that overlap, or name a field twice, do not work reliably: they
+can write a field that no range names, or an extra output delimiter.
+Give ascending ranges that do not overlap, or use
+.BR \-D .
+.SS Selecting lines
+With
+.BR \-f ,
+when the first byte of the
+.B \-d
+argument is LF, the list selects lines instead of fields.
+Lines are numbered from 1 in each file.
+The selected lines are written in file order, separated by the output
+delimiter, which by default is all of the
+.B \-d
+argument, and the last is followed by an LF.
+A file with no selected lines produces no output.
+.B \-s
+has no effect.
+With
+.BR \-D ,
+lines are still written in file order, and a range that is out of order
+in the list can select nothing.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-sd: ,
+and may follow the
+.I file
+operands.
+An option's argument may be attached, as in
+.BR \-d: ,
+or be the next argument.
+The long option may be abbreviated to any unique prefix, and its
+argument may follow an
+.BR = ,
+as in
+.BR \-\-out=+ .
+.B \-\-
+ends the options.
+.TP
+.BI "\-b " list
+Select the bytes at the positions in
+.IR list .
+.TP
+.BI "\-c " list
+The same as
+.BR \-b .
+Multibyte characters are not recognized.
+.TP
+.BI "\-d " sep
+Set the input delimiter for
+.B \-f
+or
+.BR \-F .
+The default is TAB for
+.BR \-f ,
+and
+.B [[:space:]]+
+for
+.BR \-F .
+With
+.BR \-f ,
+only the first byte of
+.I sep
+delimits fields, and an empty
+.I sep
+never matches, so that every line has no delimiter.
+If that byte is LF, the list selects lines.
+It is an error with
+.B \-b
+or
+.BR \-c .
+.TP
+.BI "\-f " list
+Select the fields in
+.IR list ,
+split at a single-byte delimiter.
+.TP
+.BI "\-F " list
+Select the fields in
+.IR list ,
+split at matches of a regular expression.
+.TP
+.B \-s
+Drop lines that have no delimiter, instead of writing them whole.
+Empty lines have no delimiter, and are dropped.
+It is an error with
+.B \-b
+or
+.BR \-c .
+With
+.BR \-D ,
+only empty lines are dropped.
+.TP
+.B \-D
+Do not sort the ranges.
+Each range is applied to the line on its own, in the order given, so
+that fields can be reordered or written twice: the output of
+.B \-D \-f3,1
+is field 3 and then field 1.
+With
+.B \-f
+or
+.BR \-F ,
+a line that has no delimiter is then not written whole.
+It has one field, field 1, so a list that does not select field 1 gives
+an empty line.
+.IP
+With
+.B \-b
+or
+.BR \-c ,
+each byte is still written at most once, in the order of the first
+range that selects it.
+The
+.B \-O
+delimiter is written before a byte whose preceding byte in the line has
+not yet been written, but only after an earlier range has ended before
+the end of the line, and never before byte 1.
+So on the line
+.BR abc ,
+.B "\-D \-O: \-b3,2"
+writes
+.BR c:b ,
+while
+.B "\-D \-O: \-b3,1"
+writes
+.BR ca .
+.TP
+\fB\-O\fR \fIsep\fR, \fB\-\-output\-delimiter\fR \fIsep\fR
+Write
+.I sep
+between the selected fields, byte ranges, or lines.
+It may be empty.
+The default for
+.B \-f
+is all of the
+.B \-d
+argument, or TAB without
+.BR \-d .
+For
+.B \-F
+it is one space, and for
+.B \-b
+and
+.B \-c
+it is nothing.
+.TP
+.B \-n
+Accepted and ignored.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument.
+.SH ENVIRONMENT
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the arguments, including option arguments, are expanded
+against file names at startup, as needed when run from
+.BR cmd.exe .
+A busybox process started with it unset sets it to
+.B 0
+for its children, so commands run from the kit's shell receive their
+arguments as the shell expanded them.
+.TP
+.B POSIXLY_CORRECT
+When set, the first
+.I file
+operand ends the options, so that later arguments such as
+.B \-f
+are file names.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+output to a console is not converted, and the console interprets the
+bytes in its own code page.
+.PP
+Variables that affect every busybox applet are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+An error: an unknown option, an invalid list, a missing or repeated
+.BR \-b ,
+.BR \-c ,
+.BR \-f ,
+or
+.BR \-F ,
+or
+.B \-d
+or
+.B \-s
+without
+.B \-f
+or
+.BR \-F ;
+an invalid regular expression; a
+.I file
+that could not be opened; or a failure writing standard output.
+.TP
+.B 141
+Standard output is a pipe whose reader exited while
+.B cut
+was writing.
+Output still buffered when
+.B cut
+finishes is written as it exits, and a broken pipe found then is instead
+reported as a write error, with status 1.
+.PP
+Errors are reported on standard error, beginning with
+.BR cut: .
+An unknown option, a missing or repeated list option, and an empty list
+or range also print the usage message there.
+The remaining files are still read after one cannot be opened.
+.SH EXAMPLES
+Print the first and seventh colon-separated fields:
+.PP
+.RS 4
+.EX
+$ echo root:x:0:0:root:/root:/bin/sh | cut \-d: \-f1,7
+root:/bin/sh
+.EE
+.RE
+.PP
+Print the value of each
+.B KEY=VALUE
+line, keeping any further equals signs in the value, and skipping lines
+without one, which would otherwise be written whole:
+.PP
+.RS 4
+.EX
+$ cut \-s \-d= \-f2\- settings.txt
+.EE
+.RE
+.PP
+Treat each run of spaces as one delimiter:
+.PP
+.RS 4
+.EX
+$ printf \(aqa  b   c\en\(aq | cut \-F2,3
+b c
+.EE
+.RE
+.PP
+Reorder fields:
+.PP
+.RS 4
+.EX
+$ echo a:b:c | cut \-d: \-D \-f3,1
+c:a
+.EE
+.RE
+.PP
+Print lines 2 through 3 of a file, using the shell's
+.B $\(aq\en\(aq
+for an LF:
+.PP
+.RS 4
+.EX
+$ cut \-d $\(aq\en\(aq \-f2\-3 file.txt
+.EE
+.RE
+.PP
+Print the first three bytes of each line:
+.PP
+.RS 4
+.EX
+$ cut \-c1\-3 file.txt
+.EE
+.RE
+.PP
+Print every field from the second on, separated by commas:
+.PP
+.RS 4
+.EX
+$ echo one two three | cut \-d\(aq \(aq \-f2\- \-O,
+two,three
+.EE
+.RE
+.SH NOTES
+Differences from GNU cut:
+.IP \(bu 2
+.BR \-F ,
+.BR \-D ,
+the short form
+.BR \-O ,
+and line selection are additions.
+.IP \(bu 2
+There is no
+.BR \-z ,
+no
+.BR \-\-complement ,
+and no long options but
+.B \-\-output\-delimiter
+and
+.BR \-\-help .
+A NUL byte ends a line.
+.IP \(bu 2
+GNU cut rejects a
+.B \-d
+argument of more than one character.
+Here only its first byte delimits fields, and all of it is the default
+output delimiter.
+.IP \(bu 2
+A list cannot contain spaces.
+.IP \(bu 2
+Overlapping ranges for
+.B \-f
+are not merged reliably; see
+.BR Fields .
+.PP
+Text is handled as bytes, in whatever encoding it has.
+A non-ASCII delimiter for
+.B \-f
+splits at its first byte, so use
+.B \-F
+for it, which matches the whole byte sequence.
+Cut UTF-8 text by field where possible, not by byte position.
+.PP
+Files and the standard streams are binary, so the C runtime translates
+no line endings.
+.B cut
+removes the CR of each CRLF itself, so input CRLF becomes LF in the
+output.
+To write CRLF line endings, pass the output through
+.BR unix2dos (1).
+.PP
+File names may use drive letters and backslashes.
+They may contain any Unicode characters on Windows 10 version 1903 and
+later, and are limited to the system code page on earlier versions.
+The device names
+.IR /dev/null ,
+.IR /dev/zero ,
+.IR /dev/urandom ,
+.IR /dev/stdin ,
+and
+.I /dev/tty
+(the console) work as on Unix.
+A directory operand fails with
+.BR "Is a directory" .
+.PP
+When standard output is a console, bytes above 0x7F are converted for
+display from the ANSI code page, which is UTF-8 on Windows 10 version
+1903 and later, to the console's code page.
+.PP
+From
+.BR cmd.exe ,
+wildcard characters in an argument, even a quoted one or that of
+.B \-d
+or
+.BR \-O ,
+are expanded against file names unless
+.B BB_GLOBBING
+is
+.BR 0 ,
+so a delimiter of
+.B *
+or
+.B ?\&
+can be replaced by file names.
+A pattern that matches no file is left as it is.
+Commands run from the kit's shell normally get no such expansion; see
+.B BB_GLOBBING
+under
+.BR ENVIRONMENT .
+.SH SEE ALSO
+.BR awk (1),
+.BR busybox (1),
+.BR grep (1),
+.BR paste (1),
+.BR sed (1),
+.BR sh (1),
+.BR sort (1),
+.BR unix2dos (1)
