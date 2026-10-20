@@ -1,0 +1,1144 @@
+.TH NINJA 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.SH NAME
+ninja \- run the commands of a build file to bring targets up to date
+.SH SYNOPSIS
+.B ninja
+.RI [ options ]
+.RI [ target ...]
+.br
+.B ninja
+.RI [ options ]
+.B \-t
+.I tool
+.RI [ argument ...]
+.SH DESCRIPTION
+.B ninja
+reads a build file,
+.I build.ninja
+unless
+.B \-f
+names another, which says how to make files from other files, and runs
+the commands needed to bring each
+.I target
+up to date.
+It runs several commands at once, but starts a command only after the
+commands that make its inputs have finished.
+Build files are usually written by a generator such as
+.BR cmake (1).
+With no
+.I target
+operands,
+.B ninja
+builds the targets of the
+.B default
+statements, or, when there are none, every output that is not an input
+of another build statement.
+.PP
+A
+.I target
+is a path as written in the build file.
+It is canonicalized first: empty and
+.B .\&
+components are removed,
+.IB dir /..\&
+is collapsed, and a backslash matches a forward slash.
+A
+.I target
+ending in
+.B ^
+means the first output of the first build statement that uses the named
+file as an input, such as
+.I main.o
+for
+.IR main.c^ .
+.PP
+A build statement runs when any of these is true:
+.IP \(bu 2
+An output is missing.
+.IP \(bu 2
+An output is older than the newest input, ignoring order-only inputs.
+.IP \(bu 2
+An output has no entry in the build log, or the logged command differs
+from the current one, including the response file contents.
+Neither applies to a
+.B generator
+rule.
+.IP \(bu 2
+The time the build log recorded for an output is older than the newest
+input.
+.IP \(bu 2
+Discovered dependencies are missing or older than the output.
+.IP \(bu 2
+An input is itself out of date.
+.PP
+Before building, if the build file is the output of a build statement,
+.B ninja
+brings it up to date, and if that changed it, loads it again and starts
+over.
+After 100 rounds it gives up with an error.
+.PP
+Progress messages and the output of commands go to standard output, and
+diagnostics to standard error, prefixed with
+.BR "ninja: error:" ,
+.BR "ninja: warning:" ,
+or
+.BR "ninja: fatal:" .
+.SS Build files
+A build file contains these statements, one per line:
+.PP
+.RS 4
+.EX
+\fIname\fR = \fIvalue\fR
+rule \fIname\fR
+build \fIoutputs\fR [| \fIimplicit\-outputs\fR]: \fIrule\fR [\fIinputs\fR] $
+    [| \fIimplicit\-inputs\fR] [|| \fIorder\-only\fR] [|@ \fIvalidations\fR]
+default \fItarget\fR ...
+pool \fIname\fR
+include \fIpath\fR
+subninja \fIpath\fR
+.EE
+.RE
+.PP
+Lines indented with spaces after a
+.BR rule ,
+.BR build ,
+or
+.B pool
+line are
+.IB name " = " value
+bindings that belong to it.
+Tabs are an error.
+A line whose first non-space character is
+.B #
+is a comment; elsewhere
+.B #
+is an ordinary character.
+Lines may end in LF or CR LF.
+.PP
+.B $
+is the escape character:
+.TP
+.B $$
+A literal
+.BR $ .
+.TP
+.BR "$ " "(dollar, space)"
+A literal space, which would otherwise separate paths.
+.TP
+.B $:
+A literal colon, which would otherwise end the outputs.
+.TP
+.BR $ " at the end of a line"
+Joins the next line, without its leading spaces.
+.TP
+\fB$\fIname\fR, \fB${\fIname\fB}\fR
+The value of a variable.
+Names consist of letters, digits,
+.BR _ ,
+and
+.BR \- ,
+and
+.B .\&
+is also allowed in braces.
+.PP
+Any other character after
+.B $
+is an error.
+.PP
+A
+.B build
+statement names at least one output and a rule.
+Paths after the outputs'
+.B |
+are implicit outputs, which are not part of
+.BR $out .
+Inputs before any
+.B |
+are explicit, and form
+.BR $in .
+Implicit inputs, after
+.BR | ,
+are dependencies left out of
+.BR $in .
+Order-only inputs, after
+.BR || ,
+are built first, but a change to them does not make the statement run.
+Validations, after
+.BR |@ ,
+are built whenever the statement is part of a build, but the statement
+does not wait for them.
+Two statements that make the same output are an error.
+.PP
+The built-in rule
+.B phony
+runs no command and makes its output an alias for its inputs.
+A
+.B phony
+statement with no inputs is out of date whenever no file of that name
+exists, so everything that depends on it always runs.
+.PP
+A
+.B default
+statement adds targets to the default list, and each must be a path
+already mentioned earlier in the build file.
+A
+.B pool
+statement needs a
+.BI "depth = " count
+binding, and limits the statements that select it with
+.B pool
+to
+.I count
+commands at once, where 0 means no limit.
+The pool
+.BR console ,
+of depth 1, exists already.
+Its command inherits
+.BR ninja 's
+standard input, output, and error, its output is not captured, and the
+status line waits until it finishes.
+.PP
+.B include
+reads another file into the current scope.
+.B subninja
+reads it into a new scope that sees the variables and rules of the
+including file, but whose own definitions do not leak back.
+Both paths are relative to the current directory, not to the including
+file.
+A rule name may be defined only once in a scope.
+.SS Rules and variables
+A
+.B rule
+statement accepts only these bindings, of which
+.B command
+is required.
+They may also be set on a
+.B build
+statement.
+.TP
+.B command
+The command line to run.
+See
+.B NOTES
+for how it runs.
+.TP
+.B depfile
+A Makefile-syntax dependency file, such as
+.B gcc \-MD
+writes, that lists more inputs.
+Without
+.BR deps ,
+.B ninja
+reads it every time it starts.
+The statement is out of date when the file is missing, or when its first
+target is not the statement's first output.
+A target that is not an output of the statement is an error.
+.TP
+.B deps
+How to save discovered dependencies in the deps log after the command
+succeeds.
+With
+.BR gcc ,
+.B ninja
+reads
+.B depfile
+and deletes it, and a missing file means no dependencies;
+.B depfile
+must be set.
+With
+.BR msvc ,
+it takes the lines of the command's output that start with
+.B msvc_deps_prefix
+and removes them from the output.
+Each named file is made relative to the current directory when it is on
+the same drive, and is dropped when its path contains
+.B program files
+or
+.BR "microsoft visual studio" ,
+in any case.
+Before the first such line, a line ending in
+.BR .c ,
+.BR .cc ,
+.BR .cxx ,
+.BR .cpp ,
+or
+.BR .c++ ,
+which
+.B cl
+prints, is also removed.
+Any other value makes
+.B ninja
+stop with a fatal error after the command runs.
+.TP
+.B msvc_deps_prefix
+The prefix of include lines for
+.BR "deps = msvc" .
+The default is
+.B Note: including file:
+followed by a space.
+.TP
+.B description
+Shown in the status line instead of the command, except with
+.BR \-v .
+.TP
+.B dyndep
+A file, which must be one of the statement's inputs, that lists more
+implicit inputs and outputs.
+.B ninja
+reads it as soon as it is up to date.
+Its first statement must set
+.B ninja_dyndep_version
+to 1, and each build statement that names the file needs a statement
+\fBbuild\fR \fIoutput\fR [\fB|\fR \fIoutputs\fR]\fB: dyndep\fR
+[\fB|\fR \fIinputs\fR]
+in it, where
+.I output
+is one of the statement's outputs, optionally followed by an indented
+.B restat
+binding.
+.TP
+.B generator
+Marks a rule that generates the build file: its outputs are not rebuilt
+when the command changes, and
+.B "\-t clean"
+keeps them unless given
+.BR \-g .
+.TP
+.B pool
+The pool the statement belongs to.
+An unknown pool is an error.
+.TP
+.B restat
+After the command succeeds, check the outputs again, and treat any
+output whose time did not change as up to date, so that statements
+that depend only on it do not run.
+.TP
+.B rspfile
+A response file to write before the command runs, deleted after the
+command succeeds and kept when it fails.
+It must be set together with
+.BR rspfile_content .
+.TP
+.B rspfile_content
+The text of
+.BR rspfile .
+.PP
+Any non-empty value of
+.B generator
+or
+.BR restat ,
+even
+.BR 0 ,
+means true.
+.PP
+In a rule, these variables are also defined:
+.TP
+.B $in
+The explicit inputs, separated by spaces.
+.TP
+.B $in_newline
+The explicit inputs, separated by newlines.
+.TP
+.B $out
+The explicit outputs, separated by spaces.
+.PP
+Each path in these is canonicalized but keeps its backslashes, and is
+enclosed in double quotes when it contains a space or a double quote.
+Inside the quotes, a double quote and the backslashes before it are
+escaped with backslashes, as the Microsoft C runtime expects.
+.PP
+Two variables of the top file's scope have a meaning:
+.TP
+.B builddir
+The directory for the log files, created when needed.
+.TP
+.B ninja_required_version
+.B ninja
+stops with a fatal error when this version is newer than 1.13,
+comparing the major and minor numbers, and warns when its major number
+is 0.
+.PP
+The value of a file-level variable, or of a binding on a
+.B build
+statement, is expanded once when it is read.
+A
+.B build
+statement's bindings are expanded in the file's scope, so they cannot
+use
+.BR $in ,
+.BR $out ,
+or each other.
+Rule bindings are expanded when they are used, looking up each variable
+in this order:
+.BR $in ,
+.BR $in_newline ,
+and
+.BR $out ;
+the
+.B build
+statement's bindings; the rule's bindings; the file's variables; and the
+variables of the files that include it with
+.BR subninja .
+File variables are looked up when the command runs, so a rule sees the
+last value assigned in the file, even after the
+.B build
+statement.
+For a
+.B build
+statement with no bindings of its own, the file's variables are looked
+up before the rule's: a file-level
+.B description
+or
+.B restat
+overrides the rule's for such statements.
+Rule bindings that refer to each other in a cycle are a fatal error.
+.SS Status output
+Each command is announced by a status line: the expansion of
+.BR NINJA_STATUS ,
+followed by the
+.B description
+or, when there is none or with
+.BR \-v ,
+the command.
+When standard output is a console,
+.B TERM
+is not
+.BR dumb ,
+and neither
+.B \-v
+nor
+.B \-\-quiet
+is given, the status line is shown as commands start and finish,
+overwritten in place, and shortened in the middle to the console width.
+Otherwise one line is printed as each command finishes.
+.PP
+Each command's output is printed after its status line when the command
+finishes, never mixed with other output.
+A command that fails is reported as
+.PP
+.RS 4
+.EX
+FAILED: [code=\fIstatus\fR] \fIoutput\fR ...
+\fIcommand\fR
+.EE
+.RE
+.PP
+followed by its output.
+When nothing needs to run,
+.B ninja
+says there is no work to do, and when a build stops early, it says so
+and why.
+.SS Files
+These are in the directory named by
+.BR builddir ,
+or in the current directory.
+.TP
+.I .ninja_log
+The build log: for each output, a hash of its command, the command's
+start and end times, and the output's time.
+.TP
+.I .ninja_deps
+The deps log, a binary file of discovered dependencies.
+.TP
+.I .ninja_lock
+An empty file written as commands start, to read the file system's
+time, and removed afterwards.
+.PP
+Both logs are rewritten without stale entries when they hold many.
+A log of another version is deleted with a warning, and a damaged deps
+log is truncated after its last good record.
+.SS Tools
+.B \-t
+runs a tool instead of a build.
+Except for
+.BR msvc ,
+.BR restat ,
+.BR urtle ,
+and
+.BR wincodepage ,
+tools load the build file first, without regenerating it.
+Unless noted, tools that take
+.I target
+operands use the default targets when there are none.
+For
+.BR \-h ,
+the tools that have options print their usage on standard output and
+exit with status 1, except
+.BR msvc ,
+which exits with status 0.
+Other tools take
+.B \-h
+as an operand, and
+.BR cleandead ,
+.BR recompact ,
+and
+.B urtle
+ignore their operands.
+.TP
+.B browse
+Not available on Windows: stops with a fatal error.
+.TP
+\fBmsvc\fR [\fB\-e\fR \fIenvfile\fR] [\fB\-o\fR \fIfile\fR] \
+[\fB\-p\fR \fIprefix\fR] \fB\-\-\fR \fIcommand\fR
+Deprecated.
+Run
+.IR command ,
+then copy its standard output to standard output and exit with its
+status.
+Its standard error is not captured.
+.I command
+is the text after the first
+.B \-\-
+with a space on each side in
+.BR ninja 's
+own command line.
+.B \-e
+reads a Windows environment block, NUL-separated
+.IB name = value
+strings, from
+.I envfile
+for the command, and also takes
+.B PATH
+from it.
+.B \-o
+removes include lines from the output, as
+.B "deps = msvc"
+does, with
+.B \-p
+as the prefix, and writes
+.IB file .d\fR:
+.IR file ,
+a colon, and a space, then the included files one per line, which is
+not a valid depfile when there is more than one.
+In this build,
+.B \-o
+never finishes if any output line remains after the removal, even an
+empty one or a compiler warning: memory use grows until it fails.
+.TP
+\fBclean\fR [\fB\-gr\fR] [\fItarget\fR ...]
+Delete the outputs of every statement, except
+.B phony
+statements and
+.B generator
+rules, with their depfiles and response files, and print the count.
+With
+.I target
+operands, delete those targets and every built file they depend on,
+including generator outputs.
+.B \-g
+also deletes generator outputs.
+.B \-r
+takes rule names instead of targets, and deletes the outputs of their
+statements.
+Read-only files are deleted too.
+Given
+.B \-n
+before
+.BR \-t ,
+nothing is deleted, and given
+.B \-n
+or
+.BR \-v ,
+each file is listed.
+The exit status is 1 if a file could not be deleted or an operand is
+unknown.
+.TP
+\fBcommands\fR [\fB\-s\fR] [\fItarget\fR ...]
+Print the commands that build the targets, each after the commands it
+depends on.
+.B \-s
+prints only the command of the statement that makes each target.
+.TP
+\fBinputs\fR [\fB\-0dE\fR] [\fItarget\fR ...]
+Print every input needed to build the targets, directly or indirectly,
+except outputs of
+.B phony
+statements, one per line, sorted, and quoted as for
+.BR $in .
+.BR \-0 " or " \-\-print0
+ends each path with a NUL instead.
+.BR \-d " or " \-\-dependency\-order
+does not sort.
+.BR \-E " or " \-\-no\-shell\-escape
+does not quote.
+.TP
+\fBmulti\-inputs\fR [\fB\-0\fR] [\fB\-d\fR \fIdelim\fR] [\fItarget\fR ...]
+Like
+.BR inputs ,
+unsorted and unquoted, but print each input as the target, a tab, and
+the input.
+.BR \-d " or " \-\-delimiter
+replaces the tab with
+.IR delim ,
+and
+.BR \-0 " or " \-\-print0
+ends each line with a NUL.
+.TP
+\fBdeps\fR [\fItarget\fR ...]
+Print the dependencies stored in the deps log, by default for every
+output that is still built with
+.BR deps .
+Each entry is the output, the dependency count, the recorded time,
+.B VALID
+or
+.BR STALE ,
+and the dependencies, indented.
+.TP
+\fBmissingdeps\fR [\fItarget\fR ...]
+Report each discovered dependency on a generated file that has no path
+to its generator in the build graph, so that the target may build before
+the file exists.
+Exits with status 3 if there are any.
+.TP
+\fBgraph\fR [\fItarget\fR ...]
+Print the dependency graph of the targets for Graphviz
+.BR dot .
+.TP
+\fBquery\fR \fItarget\fR ...
+Print each target's rule and inputs, with implicit inputs marked
+.B |
+and order-only inputs
+.BR || ,
+the outputs of the statements that use it, and any validations.
+.TP
+\fBtargets\fR [\fBdepth\fR [\fIn\fR] | \fBrule\fR [\fIname\fR] | \fBall\fR]
+Print targets and their rules.
+.B depth
+starts from the outputs that are not inputs and shows their inputs
+indented, to
+.I n
+levels, 1 by default, and without limit when
+.I n
+is 0 or less.
+.BI "rule " name
+prints the outputs of rule
+.I name
+sorted, and
+.B rule
+alone prints every input that no statement makes, once per use.
+.B all
+prints every output.
+The default is
+.BR "depth 1" .
+.TP
+\fBcompdb\fR [\fB\-x\fR] [\fIrule\fR ...]
+Print a JSON compilation database of every statement with inputs, or only
+of those using the named rules, giving each one's directory, command,
+first input, and first output.
+Without
+.I rule
+operands,
+.B phony
+statements are included, with empty commands.
+.B \-x
+replaces a response file named in the command after
+.BR @ ,
+after
+.B \-f
+and a space, or after
+.B \-\-option\-file=
+with its contents, with newlines turned into spaces.
+.TP
+\fBcompdb\-targets\fR [\fB\-x\fR] \fItarget\fR ...
+Like
+.BR compdb ,
+but for the statements, except
+.B phony
+ones, needed to build the targets, each of which must be an output.
+.TP
+.B recompact
+Rewrite the logs without stale entries.
+.TP
+\fBrestat\fR [\fIoutput\fR ...]
+Record the current time of each output, or of every output, in the build
+log.
+It uses
+.I .ninja_log
+in the current directory, ignoring
+.BR builddir .
+.TP
+\fBrules\fR [\fB\-d\fR]
+Print the names of the rules of the top file's scope, which includes
+files read with
+.B include
+but not with
+.BR subninja ,
+sorted.
+.B \-d
+adds each description, unexpanded.
+.TP
+.B cleandead
+Delete the files that the build log lists but the build file no longer
+mentions.
+.TP
+.B urtle
+Print a turtle.
+It is not listed by
+.BR "\-t list" .
+.TP
+.B wincodepage
+Print
+.B "Build file encoding: UTF\-8"
+if the Windows ANSI code page is UTF-8, and
+.B "Build file encoding: ANSI"
+otherwise.
+.TP
+.B list
+Print the tools and exit.
+.SH OPTIONS
+Options may follow targets, unless
+.B POSIXLY_CORRECT
+is set.
+Options without arguments may be grouped, as in
+.BR \-nv .
+An option's argument may be attached, as in
+.BR \-j4 ,
+or be the next argument, and an attached argument loses one leading
+.BR = ,
+so
+.B \-j=4
+is
+.BR \-j4 .
+Long options may be abbreviated to any unique prefix.
+.B \-\-
+ends the options.
+.B \-t
+ends
+.BR ninja 's
+options, and the remaining arguments go to the tool, which parses its
+own options the same way.
+.TP
+.B \-\-version
+Print the version, 1.13.2, and exit.
+.TP
+.BR \-v ", " \-\-verbose
+Show full commands instead of descriptions, and print status lines
+without overwriting them.
+.TP
+.B \-\-quiet
+Print no status lines, and none of the
+.BR "no work to do" ,
+.BR "Entering directory" ,
+and
+.B Jobserver mode detected
+messages.
+Command output and failures are still printed.
+.TP
+.BI "\-C " dir
+Change to
+.I dir
+before doing anything else, and print
+\fBninja: Entering directory \(ga\fIdir\fB\(aq\fR
+unless running a tool.
+.TP
+.BI "\-f " file
+Read
+.I file
+instead of
+.IR build.ninja .
+.TP
+.BI "\-j " n
+Run up to
+.I n
+commands at once, where 0 means no limit.
+.I n
+must be a decimal integer.
+The default is the number of logical processors plus 2, or 2 with one
+processor and 3 with two, where a CPU rate limit on the process's job
+reduces the count of processors.
+.B \-j
+turns off the
+.B MAKEFLAGS
+jobserver.
+.TP
+.BI "\-k " n
+Keep going until
+.I n
+commands have failed, where 0 or less means no limit.
+The default is 1.
+After that, no new commands start, but running commands finish.
+.TP
+.BI "\-l " load
+Start no more new commands at a time than
+.I load
+minus the current load average, rounded down, but always one when none
+is running.
+A
+.I load
+of 0 or less, the default, means no limit.
+The load average is estimated: the busy fraction of all processors since
+the previous check, smoothed, times the number of processors.
+.TP
+.B \-n
+Dry run: act as if every command ran and succeeded, without running it.
+Output directories are still created, and response files are still
+written and deleted.
+The logs are not updated.
+If the build file would be regenerated,
+.B ninja
+exits with status 0 after that step.
+.B \-n
+turns off the
+.B MAKEFLAGS
+jobserver.
+.TP
+.BI "\-d " mode
+Turn on a debugging mode.
+.B \-d
+may be repeated.
+.RS
+.TP
+.B stats
+After a build, print operation counts and times on standard output.
+.TP
+.B explain
+Print on standard error why each command runs.
+.TP
+.B keepdepfile
+Keep depfiles after reading them for
+.BR "deps = gcc" .
+.TP
+.B keeprsp
+Keep response files after their commands succeed.
+.TP
+.B nostatcache
+Check the time of each file separately, instead of reading each
+directory once.
+.TP
+.B list
+Print the modes and exit.
+.RE
+.TP
+.BI "\-t " tool
+Run
+.I tool
+instead of building; see
+.BR Tools .
+.TP
+.BI "\-w " flag
+Adjust a warning.
+.RS
+.TP
+.B phonycycle=err
+A
+.B phony
+statement with one output and no implicit inputs or outputs that lists
+its output as an input is a dependency cycle.
+.TP
+.B phonycycle=warn
+Remove such an input with a warning.
+This is the default.
+.TP
+\fBdupbuild=\fR{\fBerr\fR,\fBwarn\fR}, \fBdepfilemulti=\fR{\fBerr\fR,\fBwarn\fR}
+Ignored, with a warning that they are deprecated.
+.TP
+.B list
+Print the flags and exit.
+.RE
+.TP
+.BR \-h ", " \-\-help
+Print a usage message on standard error and exit.
+.SH ENVIRONMENT
+.TP
+.B CLICOLOR_FORCE
+When set to anything but
+.BR 0 ,
+turn on color even when standard output is not a console that supports
+it: color escape sequences in command output are kept instead of
+removed, and
+.B FAILED
+is shown in red.
+.TP
+.B MAKEFLAGS
+When it contains
+.BI \-\-jobserver\-auth= name\fR,
+as GNU make sets it for recursive commands,
+.B ninja
+limits the commands it runs at once by taking a token from the Windows
+semaphore
+.I name
+for each command after the first, instead of by the default
+.B \-j
+limit.
+The pipe and
+.B fifo:
+forms, and
+.BR \-\-jobserver\-fds ,
+are ignored with a warning, and a semaphore that cannot be opened with
+an error.
+.B MAKEFLAGS
+is ignored with
+.B \-j
+or
+.BR \-n ,
+or when its first word does not start with
+.B \-
+and contains
+.BR n .
+.TP
+.B NINJA_STATUS
+The format of the status line prefix, by default
+.B [%f/%t]
+followed by a space.
+These placeholders are replaced:
+.RS
+.TP
+.B %s
+Commands started.
+.TP
+.B %t
+Commands to run in total.
+.TP
+.B %r
+Commands running.
+.TP
+.B %u
+Commands not yet started.
+.TP
+.B %f
+Commands finished.
+.TP
+.B %o
+Commands finished per second, over the whole build.
+.TP
+.B %c
+Commands finished per second, over the last
+.B \-j
+commands, or
+.B ?\&
+until known.
+.TP
+.B %p
+Percentage of commands finished.
+.TP
+.B %e
+Seconds elapsed, with 3 decimals.
+.TP
+.B %w
+Time elapsed, as
+.IB mm : ss
+or
+.IB h : mm : ss\fR.
+.TP
+.BR %E ", " %W
+Estimated time remaining, as for
+.B %e
+and
+.BR %w ,
+based on the times in the build log, or
+.B ?\&
+until known.
+.TP
+.B %P
+Estimated percentage of the total time elapsed so far.
+.TP
+.B %%
+A literal
+.BR % .
+.RE
+.IP
+Any other placeholder, or a
+.B %
+at the end, is a fatal error when the first status line is printed.
+.TP
+.B PATH
+Searched for a command's program, after
+.BR ninja 's
+own directory, the current directory, and the Windows system
+directories.
+.TP
+.B POSIXLY_CORRECT
+When set, options end at the first argument that is not an option,
+both for
+.B ninja
+and for its tools.
+.TP
+.B TERM
+When
+.BR dumb ,
+the status line is not overwritten in place, and color is off.
+.SH EXIT STATUS
+.TP
+.B 0
+Success, including
+.BR \-\-version ,
+.BR "\-t list" ,
+and most tools.
+.TP
+.B 1
+An error: an invalid option or build file, an unknown target, a fatal
+error,
+.BR \-h ,
+.BR "\-d list" ,
+or
+.BR "\-w list" .
+.TP
+.B 3
+.B "\-t missingdeps"
+found missing dependencies.
+.TP
+.B 130
+The build was interrupted with Ctrl-C or Ctrl-Break, or a command exited
+with
+.BR STATUS_CONTROL_C_EXIT .
+.PP
+When commands fail,
+.B ninja
+exits with the status of the last one that failed, which may be any
+value, and is 1 when the program was not found.
+.SH EXAMPLES
+A build file that compiles and links a C program with
+.BR gcc ,
+recording each object's headers in the deps log:
+.PP
+.RS 4
+.EX
+cflags = \-O2 \-Wall
+rule cc
+  command = gcc \-MMD \-MF $out.d $cflags \-c \-o $out $in
+  deps = gcc
+  depfile = $out.d
+  description = CC $out
+rule link
+  command = gcc \-o $out $in
+  description = LINK $out
+build main.o: cc main.c
+build util.o: cc util.c
+build app.exe: link main.o util.o
+.EE
+.RE
+.PP
+Build it with four commands at once:
+.PP
+.RS 4
+.EX
+$ ninja \-j4
+.EE
+.RE
+.PP
+Show why commands would run, without running them:
+.PP
+.RS 4
+.EX
+$ ninja \-n \-d explain
+.EE
+.RE
+.PP
+Show the command that builds one file:
+.PP
+.RS 4
+.EX
+$ ninja \-t commands \-s util.o
+gcc \-MMD \-MF util.o.d \-O2 \-Wall \-c \-o util.o util.c
+.EE
+.RE
+.PP
+Show where a file fits in the graph:
+.PP
+.RS 4
+.EX
+$ ninja \-t query main.o
+main.o:
+  input: cc
+    main.c
+  outputs:
+    app.exe
+.EE
+.RE
+.PP
+Write a compilation database for the C sources:
+.PP
+.RS 4
+.EX
+$ ninja \-t compdb cc >compile_commands.json
+.EE
+.RE
+.PP
+List the files that cleaning would delete, then delete them:
+.PP
+.RS 4
+.EX
+$ ninja \-n \-t clean
+$ ninja \-t clean
+.EE
+.RE
+.PP
+Build in the directory
+.I build
+with the percentage done and the elapsed time in the status line:
+.PP
+.RS 4
+.EX
+$ NINJA_STATUS=\(aq[%p %w] \(aq ninja \-C build
+.EE
+.RE
+.SH NOTES
+Commands are started with
+.BR CreateProcess ,
+not through a shell, so redirection, pipes, and other shell syntax need
+.B "cmd /c"
+or
+.BR "sh \-c" .
+.B CreateProcess
+looks for the program in
+.BR ninja 's
+own directory, which is the kit's
+.IR bin ,
+the current directory, and the Windows system directories before
+.BR PATH .
+A command whose program is not found fails with the output
+.PP
+.RS 4
+.EX
+CreateProcess failed: The system cannot find the file specified.
+.EE
+.RE
+.PP
+but when other commands run at the same time or later,
+.B ninja
+may instead stop with a fatal error from
+.BR ReadFile .
+Any other failure to start a command, such as a command line longer than
+32767 characters, is a fatal error, so use a response file for long
+lists.
+.PP
+Commands outside the
+.B console
+pool get the null device as standard input, and one pipe for both
+standard output and standard error, so they do not see a console and
+often turn off color unless told otherwise.
+They run in their own process group.
+On Ctrl-C or Ctrl-Break,
+.B ninja
+sends Ctrl-Break to each of them, deletes the outputs that the
+interrupted commands changed, or all their outputs and the depfile when
+the rule has a depfile, and exits with status 130.
+.PP
+This build of
+.B ninja
+has no application manifest, so it uses the ANSI code page: paths in the
+build file, in depfiles, and in
+.I target
+operands are in that code page, which is UTF-8 only when Windows is set
+to use UTF-8 for it.
+A path longer than 260 characters that does not start with a backslash
+fails with
+.BR "Filename longer than 260 characters" .
+.PP
+Paths are compared byte for byte, so
+.I foo.c
+and
+.I Foo.c
+are different targets even when they name the same file.
+File times have a resolution of 100 nanoseconds.
+Response files are written in text mode, so each line ends in CR LF.
+.PP
+The kit patches
+.B ninja
+so that recovery from a damaged deps log removes the damaged record.
+Upstream Ninja 1.13.2 can keep it, and then rebuilds on every run.
+.SH SEE ALSO
+.BR cmake (1),
+.BR cmcldeps (1),
+.BR gcc (1),
+.BR make (1)

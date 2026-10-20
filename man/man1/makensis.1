@@ -1,0 +1,786 @@
+.TH MAKENSIS 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.SH NAME
+makensis \- compile NSIS scripts into Windows installers
+.SH SYNOPSIS
+.B makensis
+.RI [ option " | " script " |"
+.BR \- "] ..."
+.SH DESCRIPTION
+.B makensis
+compiles scripts for NSIS 3.13, the Nullsoft Scriptable Install System,
+into a Windows installer: a stub program followed by the compressed
+files, settings, and code that the scripts describe.
+Scripts are conventionally named
+.IR *.nsi ,
+and the headers they include
+.IR *.nsh .
+Progress messages and warnings go to standard output, and errors to
+standard error.
+.PP
+The arguments are processed in order, so an option affects only the
+scripts after it:
+.B makensis /DX a.nsi
+defines
+.B X
+for
+.IR a.nsi ,
+but
+.B makensis a.nsi /DX
+does not.
+Several scripts are treated as one concatenated script that produces a
+single installer.
+A
+.I script
+that cannot be opened is tried again with
+.B .nsi
+appended.
+A
+.I script
+named
+.B \-
+is read from standard input.
+.PP
+Before reading each script file,
+.B makensis
+changes to its directory, so that relative paths in the script are
+relative to the script.
+The change remains in effect, so a relative
+.I script
+path later on the command line is relative to the previous script.
+.PP
+The installer is written to the path named by the script's
+.B OutFile
+command, replacing any file there.
+A relative path is taken from the current directory when the installer
+is written, which is normally the directory of the last script.
+Without
+.BR OutFile ,
+the path is the full path of the first script file up to its last
+period, if any, followed by
+.BR .exe .
+That period may be in a directory name.
+A script read from standard input gives no default.
+.PP
+Before the first script,
+.B makensis
+reads two files of script code common to every installer, each only if
+it exists:
+.I nsisconf.nsh
+in the directory named by
+.BR NSISCONFDIR ,
+or else in the parent of the compiler's directory,
+.IR share/nsis ,
+even when
+.B NSISDIR
+is set, and then
+.IR %APPDATA%\ensisconf.nsh .
+.B /NOCONFIG
+skips both.
+.SS Scripts
+A script is a sequence of commands, one per line.
+A line ending in a backslash continues on the next, and
+.B ;
+and
+.B #
+begin comments, as does
+.B /*
+up to
+.BR */ .
+Attributes such as
+.BR Name ,
+.BR OutFile ,
+and
+.B RequestExecutionLevel
+configure the installer,
+.B Section
+and
+.B Function
+blocks hold the instructions it runs, and
+.B Page
+commands choose its pages.
+Commands beginning with
+.BR ! ,
+such as
+.BR !include ,
+.BR !define ,
+.BR !ifdef ,
+.BR !macro ,
+and
+.BR !system ,
+are preprocessor commands, run at compile time.
+In arguments,
+.BI ${ name }
+expands a symbol from
+.B !define
+or
+.BR /D ,
+.BI $% name %
+an environment variable at compile time, and
+.BI $ name
+a variable when the installer runs.
+.B /CMDHELP
+prints the syntax of every command.
+.SS Data directory
+.B makensis
+finds its stubs, plugins, and headers in its data directory: the parent
+of the directory that holds the compiler, which is
+.I share/nsis
+in the kit, or
+.B NSISDIR
+when set.
+Scripts see it as
+.BR ${NSISDIR} .
+It holds:
+.TP
+.I Stubs
+The installer stubs, one for each compressor, solid or not, and target,
+named like
+.IR lzma_solid\-amd64\-unicode .
+The compressors are
+.BR zlib ,
+the default,
+.BR bzip2 ,
+and
+.BR lzma ,
+chosen with
+.BR SetCompressor .
+Also
+.IR uninst ,
+the default uninstaller icon.
+.TP
+.IR Plugins/amd64\-unicode ", " Plugins/x86\-unicode
+The plugin DLLs of the NSIS distribution, such as
+.BR System ,
+.BR nsDialogs ,
+and
+.BR nsExec ,
+for each target.
+A script calls their functions as
+\fIplugin\fB::\fIfunction\fR.
+.TP
+.I Include
+The headers, such as
+.I MUI2.nsh
+for the Modern UI and
+.I LogicLib.nsh
+for structured control flow.
+.B !include
+searches the current directory, then this directory, then those added by
+.BR !addincludedir .
+.TP
+.I Contrib
+Files the headers use: Modern UI pages, graphics, language files, and
+alternative user interface resources.
+.TP
+.I Bin
+The compiler,
+.IR makensis.exe ,
+and
+.I RegTool\-amd64.bin
+.RI ( RegTool\-x86.bin
+in the x86 kit), which
+.I Library.nsh
+embeds to register DLLs after a reboot.
+.SS Targets
+The target is the processor and character set of the installer:
+.B amd64\-unicode
+or
+.BR x86\-unicode .
+The x64 kit has stubs and plugins for both and defaults to
+.BR amd64\-unicode .
+The x86 kit has only
+.BR x86\-unicode .
+A script selects a target with a command such as
+.BR "Target x86\-unicode" ,
+before any file is compressed.
+.B makensis
+also knows
+.B x86\-ansi
+and
+.BR arm64\-unicode ,
+but the kit has no stubs for them, so selecting them, including with
+.BR "Unicode false" ,
+fails with an error ending in
+.BR "(adequate stub not found?)" .
+.PP
+.B CPU amd64
+and
+.B CPU x86
+also select a target, but
+.B CPU x86
+chooses between
+.B x86\-ansi
+and
+.B x86\-unicode
+by a flag that is uninitialized unless an earlier command changed the
+target from an x86 one.
+It may therefore select
+.B x86\-ansi
+and fail, as it does in the x64 kit.
+Use
+.B Target
+instead.
+.SS Predefined symbols
+.B /HDRINFO
+lists the symbols defined before any script, most of which describe how
+.B makensis
+was built.
+These are the most useful:
+.TP
+.B NSISDIR
+The data directory.
+.TP
+.B NSIS_VERSION
+The version, such as
+.BR v19\-Oct\-2026.cvs ;
+see
+.BR NOTES .
+.TP
+.B NSIS_PACKEDVERSION
+The version as a number,
+.BR 0x03012666 .
+.TP
+.B NSIS_CPU
+.B amd64
+or
+.BR x86 ,
+from the target.
+.TP
+.B NSIS_PTR_SIZE
+The size of a pointer in the installer,
+.B 8
+or
+.BR 4 .
+.TP
+.B NSIS_CHAR_SIZE
+.BR 2 ,
+the size of a character in the installer.
+.TP
+.BR NSIS_AMD64 ", " NSIS_IX86
+.B NSIS_AMD64
+is
+.B 1
+for
+.BR amd64\-unicode ,
+and
+.B NSIS_IX86
+is
+.B 400
+for
+.BR x86\-unicode .
+Only one is defined.
+.TP
+.B NSIS_UNICODE
+Defined, since every available target is Unicode.
+.TP
+.BR NSIS_WIN32_MAKENSIS ", " NSIS_UNICODE_MAKENSIS
+Defined.
+.TP
+.B NSIS_MAKENSIS64
+Defined in the x64 kit, whose compiler is a 64-bit program.
+.PP
+The target symbols change when the script changes the target.
+Standard predefines such as
+.B __FILE__
+and
+.B __LINE__
+are also available.
+.SH OPTIONS
+Each option begins with
+.B /
+or
+.BR \- ,
+so
+.B /NOCD
+and
+.B \-NOCD
+are the same, and option names are case-insensitive.
+An argument shown attached, as in
+.BR /V2 ,
+must be attached, and others are the next argument.
+After
+.BR \-\- ,
+every argument is a script, so
+.B \-
+then names a file, and a script path beginning with
+.B /
+or
+.B \-
+can follow.
+.PP
+.BR /NOTIFYHWND ,
+.BR /O ,
+.BR /OUTPUTCHARSET ,
+.BR /PPO ,
+.BR /RAW ,
+.BR /SAFEPPO ,
+.BR /VERSION ,
+and
+.B /WX
+take effect only before the first script file name, not counting
+.BR \- ,
+and before
+.BR \-\- .
+Later, they are ignored, except
+.BR /VERSION ,
+which is then unrecognized.
+An unrecognized option stops the processing of arguments:
+.B makensis
+prints the usage message and exits with status 1 without writing an
+installer.
+.TP
+\fB/CMDHELP\fR [\fIitem\fR]
+Print the syntax of the script command
+.IR item ,
+or of every command, on standard output.
+The next argument, if there is one, is always taken as
+.IR item ,
+even when it looks like an option or a script.
+An unknown
+.I item
+prints an error, but processing continues.
+.TP
+.B /HDRINFO
+Print the sizes of the installer's header structures and every symbol
+defined so far, including the build options of
+.BR makensis .
+.TP
+.B /LICENSE
+Print the NSIS license.
+.TP
+.B /VERSION
+Print the version, without a newline, and exit with status 0.
+Of the other arguments, only the options listed above that precede it
+take effect.
+.TP
+.B /HELP
+Print the usage message on standard output.
+.TP
+.BI /P n
+Set the priority of the process:
+.B 0
+idle,
+.B 1
+below normal,
+.B 2
+normal,
+.B 3
+above normal,
+.B 4
+high, or
+.B 5
+realtime, which also prints a warning.
+.TP
+.BI /V n
+Set the verbosity:
+.B 0
+prints nothing,
+.B 1
+only errors,
+.B 2
+also warnings,
+.B 3
+also information, the default, and
+.B 4
+also a line for each script command processed.
+Given before the first script,
+.B /V3
+or
+.B /V4
+first prints a banner with the version, unless
+.B /PPO
+or
+.B /SAFEPPO
+is given.
+.BR /CMDHELP ,
+.BR /HDRINFO ,
+and
+.B /LICENSE
+print nothing below 3.
+.TP
+.B /WX
+Treat warnings as errors: the first warning ends
+.B makensis
+with status 1.
+.TP
+.BI /O file
+Write all output, including errors, to
+.IR file ,
+replacing its contents.
+If it cannot be opened,
+.B makensis
+prints a warning and uses standard output.
+.TP
+.B /LAUNCH
+After writing the installer, run it as if it were opened in Explorer,
+without waiting for it.
+.TP
+.B /PAUSE
+Before exiting, print
+.B MakeNSIS done \- hit enter to close...\&
+and wait for a newline, carriage return, or Escape on standard input,
+forever if standard input is at end of file.
+A
+.B \-
+argument after
+.B /PAUSE
+cancels it.
+.TP
+.B /NOCONFIG
+Do not read the
+.I nsisconf.nsh
+files.
+It must come before the first script.
+.TP
+.B /NOCD
+Do not change to the directory of each script that follows.
+.TP
+\fB/INPUTCHARSET\fR \fIcharset\fR, \fB/ICS\fR \fIcharset\fR
+Read the scripts that follow, when they have no byte order mark, in
+.IR charset :
+.B ACP
+for the ANSI code page, the default;
+.B OEM
+for the OEM code page;
+.BI CP n
+for code page
+.IR n ;
+.BR UTF8 ;
+or
+.BR UTF16LE .
+.B UTF16BE
+also selects UTF-16LE.
+Names are case-insensitive, and
+.B UTF
+may be followed by a hyphen or an underscore.
+.B AUTO
+selects the default, and so does any other name, with a warning.
+Files read by
+.B !include
+are not affected.
+.TP
+\fB/OUTPUTCHARSET\fR \fIcharset\fR, \fB/OCS\fR \fIcharset\fR
+Write output that does not go to a console, including the
+.B /O
+log, in
+.IR charset ,
+named as for
+.BR /INPUTCHARSET ,
+or as
+.B UTF8SIG
+for UTF-8 with a byte order mark, or
+.B UTF16LEBOM
+for UTF-16LE with one.
+The default is
+.BR ACP .
+When standard output or standard error is a file that already begins
+with a byte order mark, and that
+.B makensis
+can also read, it uses that file's encoding instead.
+The kit's shell opens redirected files for writing only, so this does
+not apply there.
+An unknown
+.IR charset ,
+including
+.BR AUTO ,
+prints the usage message and exits with status 1.
+.TP
+.B /RAW
+Like
+.BR "/OUTPUTCHARSET UTF16LE" ,
+but never take the encoding from a byte order mark.
+.TP
+.B /PPO
+Preprocess only: write the script to standard output with symbols
+substituted, macros expanded, and conditional blocks resolved, then exit
+without writing an installer.
+Preprocessor commands run as usual, except that
+.BR !packhdr ,
+.BR !finalize ,
+and
+.B !uninstfinalize
+are written out instead.
+The verbosity is at most 1.
+.TP
+.B /SAFEPPO
+Like
+.BR /PPO ,
+but also write out, instead of running,
+.BR !system ,
+.BR !execute ,
+.BR !makensis ,
+.BR !appendfile ,
+.BR !delfile ,
+and
+.BR !tempfile .
+.TP
+\fB/D\fIname\fR[\fB=\fIvalue\fR]
+Define the symbol
+.I name
+as
+.IR value ,
+or as empty, for the scripts that follow, like
+.BR !define .
+A name already defined, such as
+.B NSISDIR
+or one from an earlier
+.BR /D ,
+keeps its value.
+A later
+.B !define
+of the same name is an error.
+.TP
+.BI /X command
+Process
+.I command
+as a line of script, in its place among the arguments.
+Messages that give its location name the file
+.B <command line>
+and, as the line, its position among the arguments plus one.
+Commands before the first script run before the
+.I nsisconf.nsh
+files are read.
+Without any script, the
+.B /X
+commands make up the whole script, and no
+.I nsisconf.nsh
+is read.
+.TP
+.BI "/NOTIFYHWND " hwnd
+Report to the window whose handle is the decimal number
+.IR hwnd ,
+through the protocol of the MakeNSISW front end, which the kit does not
+include.
+It is ignored when
+.I hwnd
+is not a window.
+.SH ENVIRONMENT
+.TP
+.B APPDATA
+The directory of the per-user
+.IR nsisconf.nsh ,
+read after the main one.
+.TP
+.B COMSPEC
+The command interpreter, normally
+.BR cmd.exe ,
+that runs the commands of
+.BR !system ,
+.BR !packhdr ,
+.BR !finalize ,
+and
+.BR !uninstfinalize .
+When it is empty,
+.B CMD.EXE
+is used, and when it is unset, these commands terminate
+.B makensis
+abnormally.
+.TP
+.B NSISCONFDIR
+The directory of the main
+.IR nsisconf.nsh ,
+instead of the parent of the compiler's directory.
+.TP
+.B NSISDIR
+The data directory, instead of the parent of the compiler's directory.
+It does not move the main
+.IR nsisconf.nsh .
+.TP
+.BR TMP ", " TEMP
+The directory for temporary files, as chosen by
+.BR GetTempPath .
+.PP
+Scripts can read any variable at compile time as
+.BI $% name %\fR.
+.SH EXIT STATUS
+.TP
+.B 0
+Success: the installer was written, preprocessing finished, or
+.B /VERSION
+ran.
+Without a script or
+.B /X
+command,
+.BR /HDRINFO ,
+.BR /HELP ,
+.BR /LICENSE ,
+or a valid
+.B /CMDHELP
+also exits with 0.
+.TP
+.B 1
+An error, such as a script that cannot be opened, an error in a script
+or an
+.IR nsisconf.nsh ,
+a warning under
+.BR /WX ,
+an unrecognized option, no script, missing stubs, or Ctrl+C.
+.TP
+.B 382
+The launcher could not start the compiler.
+It prints a message beginning
+.B w64devkit (alias):
+on standard error.
+The kit's shell sees it as 126, its low byte.
+.SH EXAMPLES
+Write a script for an installer that copies
+.I hello.exe
+into a directory the user chooses, without asking for administrator
+rights, and compile it into
+.IR hello\-setup.exe :
+.PP
+.RS 4
+.EX
+$ cat >hello.nsi <<\(aqEOF\(aq
+Name "Hello"
+OutFile "hello\-setup.exe"
+InstallDir "$LOCALAPPDATA\eHello"
+RequestExecutionLevel user
+Page directory
+Page instfiles
+Section
+  SetOutPath "$INSTDIR"
+  File "hello.exe"
+SectionEnd
+EOF
+$ makensis hello.nsi
+.EE
+.RE
+.PP
+Build a 32-bit installer with the x64 kit, under another name.
+The
+.B Target
+command must come before the script, and the
+.B OutFile
+command after it, to override the script's own:
+.PP
+.RS 4
+.EX
+$ makensis "/XTarget x86\-unicode" hello.nsi \e
+    "/XOutFile hello32\-setup.exe"
+.EE
+.RE
+.PP
+Print only warnings and errors, and define
+.B VERSION
+for a script that uses
+.BR ${VERSION} :
+.PP
+.RS 4
+.EX
+$ makensis /V2 /DVERSION=1.2.3 hello.nsi
+.EE
+.RE
+.PP
+Compress with solid LZMA without editing the script:
+.PP
+.RS 4
+.EX
+$ makensis "/XSetCompressor /SOLID lzma" hello.nsi
+.EE
+.RE
+.PP
+Print the syntax of a command:
+.PP
+.RS 4
+.EX
+$ makensis /CMDHELP SetCompressor
+Usage: SetCompressor [/FINAL] [/SOLID] (zlib|bzip2|lzma)
+.EE
+.RE
+.PP
+Show the script after preprocessing, without letting it run programs or
+change files:
+.PP
+.RS 4
+.EX
+$ makensis /SAFEPPO hello.nsi >hello.txt
+.EE
+.RE
+.SH NOTES
+The kit's
+.I bin/makensis.exe
+is a launcher that runs
+.I share/nsis/Bin/makensis.exe
+with the same arguments, waits for it, and exits with its status.
+The launcher ignores Ctrl+C, leaving it to the compiler, which then
+exits with status 1.
+.PP
+The kit builds NSIS 3.13 without a release version, so
+.B /VERSION
+and
+.B ${NSIS_VERSION}
+give the date of the build, as in
+.BR v19\-Oct\-2026.cvs ,
+and
+.B ${NSIS_PACKEDVERSION}
+is
+.BR 0x03012666 ,
+below the
+.B 0x03013000
+of a 3.13 release.
+A script that requires NSIS 3.13 or later by comparing
+.B ${NSIS_PACKEDVERSION}
+rejects the kit.
+.PP
+The kit omits the NSIS documentation and examples,
+.IR nsisconf.nsh ,
+the MakeNSISW front end, zip2exe, MakeLangId, the VPatch patch generator
+GenPat, and the
+.B x86\-ansi
+and
+.B arm64\-unicode
+stubs and plugins.
+The x64 kit has only
+.IR RegTool\-amd64.bin ,
+so an
+.B x86\-unicode
+installer cannot use
+.B InstallLib
+from
+.I Library.nsh
+to register a library on reboot, as with the
+.B REBOOT_PROTECTED
+and
+.B REBOOT_NOTPROTECTED
+options:
+.B makensis
+stops with an error that RegTool is missing.
+.PP
+A script file named on the command line without a byte order mark is
+read in the ANSI code page unless
+.B /INPUTCHARSET
+says otherwise, but the files it includes default to UTF-8.
+Save scripts as UTF-8 with a byte order mark, or pass
+.BR "/INPUTCHARSET UTF8" .
+.PP
+Output to a console goes through the Unicode console API, with warnings
+in yellow and errors in red.
+Other output, including the
+.B /O
+log, is in the ANSI code page unless
+.B /OUTPUTCHARSET
+says otherwise, and has CRLF line endings.
+.PP
+.BR !system ,
+.BR !packhdr ,
+.BR !finalize ,
+and
+.B !uninstfinalize
+run their commands with
+.BR cmd.exe ,
+not the kit's
+.BR sh .
+.B !execute
+and
+.B !makensis
+start programs directly.
+.PP
+Shells that rewrite arguments beginning with
+.B /
+as paths, such as those of MSYS2 and Git for Windows, garble the
+.B /
+forms of the options.
+Use the
+.B \-
+forms there.

@@ -1,0 +1,902 @@
+.TH WIDL 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.SH NAME
+widl \- compile IDL into C headers, proxies, stubs, and type libraries
+.SH SYNOPSIS
+.B widl
+.RI [ options ]
+.I file
+.br
+.B widl \-\-dlldata\-only
+.RI [ options ]
+.IR name ...
+.SH DESCRIPTION
+.B widl
+compiles an interface definition, written in Microsoft's interface
+definition language (IDL), into the files that declare and implement
+it: a header for C and C++, proxies and stubs in C that marshal calls to
+COM objects and RPC servers in other processes, and type libraries.
+It is Wine's IDL compiler, version 11.5, as distributed with Mingw-w64.
+It reads the IDL dialect of Microsoft's MIDL, but its command line
+differs.
+.PP
+.B widl
+reads one IDL file,
+.IR file ,
+and cannot read standard input.
+It runs the file through its own C preprocessor, then parses it.
+An
+.B import
+statement reads another IDL file for its declarations, and the generated
+header includes the header of that file, such as
+.I unknwn.h
+for
+.IR unknwn.idl ,
+instead of repeating them.
+Each file is imported at most once.
+Inside a
+.B library
+block,
+.B importlib
+reads the types of an existing type library, such as
+.IR stdole2.tlb .
+With
+.BR \-\-acf ,
+an attribute configuration file is read after
+.IR file .
+.PP
+With no option that selects an output kind,
+.B widl
+writes every kind that the input calls for: the header and the interface
+identifiers always, a type library when there is a
+.B library
+block, client and server stubs when there are RPC interfaces, a proxy, a
+registration script, and
+.I dlldata.c
+when there are object interfaces that are neither
+.B local
+nor dispinterfaces, and metadata in Windows Runtime mode.
+Only interfaces outside
+.B library
+blocks count.
+.SS Output files
+Each default file name is in the current directory, and is built from
+.IR base ,
+the part of
+.I file
+after its last forward slash, with a final
+.B .idl
+removed.
+.TP
+.IR base .h
+The header, selected by
+.B \-h
+and named by
+.BR \-H .
+It declares the types, the interfaces as C++ classes and as C vtable
+structures with call macros, and the GUIDs, and includes
+.I rpc.h
+and
+.IR windows.h .
+The proxy, stub, and local stub files include the header by this name.
+Its include guard comes from the base name of the header file,
+lowercased and with each character other than a letter or digit changed
+to an underscore, as in
+.BR __hello_h__ .
+.TP
+.IR base _i.c
+The interface identifiers, selected by
+.B \-u
+and named by
+.BR \-U :
+definitions of the GUIDs of the COM interfaces, dispinterfaces, classes,
+and libraries, such as
+.BR IID_IHello .
+.TP
+.IR base _p.c
+The proxy, selected by
+.B \-p
+and named by
+.BR \-P :
+proxies and stubs that marshal the object interfaces, for a proxy/stub
+DLL.
+Its symbols take their prefix from the base name of the proxy file
+without
+.BR _p.c ,
+with each character other than a letter or digit changed to an
+underscore, as in
+.BR hello_ProxyFileInfo .
+.TP
+.I dlldata.c
+The list of proxy files in a proxy/stub DLL, selected by
+.B \-\-dlldata\-only
+and named by
+.BR \-\-dlldata .
+It defines the DLL entry points
+.B DllGetClassObject
+and
+.B DllCanUnloadNow
+through macros in
+.IR rpcproxy.h .
+.B widl
+also writes it while compiling an IDL file when no output kind is
+selected.
+It then adds the proxy to the list already in the file, if any, and
+leaves the file alone if the proxy is listed.
+When it adds to an existing file, it also writes
+.BR "#define PROXY_DELEGATION" ,
+which it otherwise writes only when an interface derives from an
+imported or local interface other than
+.BR IUnknown .
+.TP
+.IR base _c.c
+The client stubs, selected by
+.B \-c
+and named by
+.BR \-C ,
+which send each call to an RPC interface to a server.
+.TP
+.IR base _s.c
+The server stubs, selected by
+.B \-s
+and named by
+.BR \-S ,
+which receive calls and dispatch them to the server's functions.
+.TP
+.IR base .tlb
+The type library, selected by
+.B \-t
+and named by
+.BR \-T ,
+in the MSFT format, or SLTG with
+.BR \-\-oldtlb .
+A file holds one library, unless its name ends in
+.BR .res .
+Then it is a binary resource file, with a
+.B TYPELIB
+resource for each library, numbered 1 or by the library's
+.B id
+attribute.
+A name ending in
+.B _t.res
+also gets a
+.B WINE_REGISTRY
+resource with the registry entries of each library.
+.TP
+.IR base _r.rgs
+The registration script, selected by
+.BR \-r ,
+in the text format of the ATL registrar: entries for the classes outside
+libraries and their ProgIDs, and, when there is a class named
+.BR PSFactoryBuffer ,
+for the interfaces it marshals.
+In Windows Runtime mode, entries for the activatable runtime classes
+instead.
+Only
+.B \-o
+names it, and a name ending in
+.B .res
+makes it a binary resource file with a
+.B WINE_REGISTRY
+resource.
+.TP
+.IR base .winmd
+Windows Runtime metadata, selected by
+.BR \-\-winmd .
+Only
+.B \-o
+names it.
+.SS Search paths
+A quoted
+.B #include
+is first looked for in the directory of the including file, and an
+.B import
+in the directory of the importing file.
+Then
+.B widl
+searches these directories, in order:
+.IP 1. 4
+Each
+.B \-I
+directory, in command line order.
+.IP 2. 4
+The kit's
+.I include
+directory, which holds the Mingw-w64 IDL files, such as
+.IR unknwn.idl .
+.B widl
+finds it relative to its own executable, as
+.IR bin/../include ,
+so the kit works wherever it is unpacked.
+.IP 3. 4
+.I /w64devkit/include
+on the current drive, from the kit's build prefix, or with
+.BR \-\-sysroot ,
+.IR dir/w64devkit/include .
+.PP
+.B \-\-nostdinc
+omits the last two.
+An
+.B import
+name that contains a
+.B /
+or
+.B \e
+is opened as given, relative to the current directory, without
+searching.
+.PP
+A type library named by
+.B importlib
+is looked for in each
+.B \-L
+directory, first in a subdirectory named for the target, such as
+.I x86_64\-windows
+or
+.IR i386\-windows ,
+then in the directory itself.
+Then it is looked for in the kit's
+.I include
+directory, which holds
+.IR stdole2.tlb ,
+and last in
+.I /w64devkit/include/x86_64\-windows
+on the current drive, named for the target.
+.B \-\-nostdinc
+omits the last two, and
+.B \-\-sysroot
+does not apply.
+A type library is never looked for in the current directory or beside
+.IR file ,
+so one there needs
+.B \-L
+with its directory.
+A name with a path is still joined to each directory, so an absolute
+path is never found.
+.SS Preprocessor
+The preprocessor defines
+.B __WIDL__
+as the version, 0xb0500 for 11.5,
+.B _WIN32
+as 1, and
+.BR __FILE__ ,
+.BR __LINE__ ,
+.BR __DATE__ ,
+and
+.BR __TIME__ .
+.B \-D
+cannot change
+.B __WIDL__
+or
+.BR _WIN32 .
+Neither
+.B _WIN64
+nor
+.B __midl
+is defined, whatever the target.
+.SS Temporary files
+Unless given
+.B \-E
+or
+.BR \-N ,
+.B widl
+writes the preprocessed input, and each preprocessed import, into a
+directory named
+.B tmp
+and 8 hex digits, which it creates in the current directory and removes
+when it exits.
+If access to the current directory is denied, it creates the directory
+in
+.BR TMPDIR ,
+or else in
+.I /tmp
+on the current drive.
+An error other than a syntax error, such as an import that cannot be
+found, can leave the directory and its contents behind.
+.SH OPTIONS
+Options and
+.I file
+may come in any order.
+A short option's argument may be attached, as in
+.BR \-Iinclude ,
+or be the next argument, and short options without arguments may be
+grouped, as in
+.BR \-hp .
+A long option may begin with one dash or two, and its argument follows
+.B =
+or is the next argument.
+A long option may be abbreviated to a unique prefix.
+A word of two or more letters after one dash is tried as a long option
+first, so
+.B \-win32
+means
+.BR \-\-win32 ,
+.B \-ro
+means
+.BR \-robust ,
+and
+.B \-pr
+is rejected as ambiguous.
+.B \-\-
+ends the options.
+.PP
+The options that select an output kind are
+.BR \-c ,
+.BR \-\-dlldata\-only ,
+.BR \-E ,
+.BR \-h ,
+.BR \-\-local\-stubs ,
+.BR \-p ,
+.BR \-r ,
+.BR \-s ,
+.BR \-t ,
+.BR \-u ,
+and
+.BR \-\-winmd .
+.TP
+.BI \-\-acf= acf
+Read the attribute configuration file
+.I acf
+after
+.IR file .
+It is preprocessed like
+.IR file ,
+and opened as given, without searching.
+.B widl
+never looks for an ACF on its own.
+.TP
+\fB\-\-align=\fIn\fR, \fB\-\-packing=\fIn\fR
+Marshal structures as if their members are aligned to at most
+.I n
+bytes, which must be 2, 4, or 8.
+The default is 8.
+This affects only the proxies and stubs, not the header or type
+libraries, so the C code must be compiled with the same packing.
+.TP
+.B \-app_config
+Ignored, for compatibility with MIDL.
+.TP
+.BI "\-b " target
+Generate code for
+.IR target :
+a CPU followed by a dash and further fields, as in
+.B i686\-w64\-mingw32
+or
+.BR x86_64\-windows ,
+or
+.B mingw32
+alone for i386.
+The CPU field begins with one of
+.BR i386 ,
+.BR i486 ,
+.BR i586 ,
+.BR i686 ,
+.BR i786 ,
+.BR x86_64 ,
+.BR amd64 ,
+.BR arm ,
+.BR aarch64 ,
+.BR arm64 ,
+or
+.BR arm64ec ,
+and a CPU alone, such as
+.BR i686 ,
+is rejected.
+The target sets the pointer size, the calling convention details
+encoded in proxies and stubs, and the subdirectory of the
+.B importlib
+search.
+.BR \-m32 ,
+.BR \-m64 ,
+.BR \-\-win32 ,
+and
+.B \-\-win64
+override its pointer size.
+Without
+.BR \-b ,
+a command name that begins with a CPU and a dash, such as
+.BR i686\-w64\-mingw32\-widl ,
+selects that CPU, and otherwise the target is the CPU of
+.B widl
+itself: x86_64 in the 64-bit kit and i686 in the 32-bit kit.
+The long form,
+.BR \-\-target ,
+takes no argument, so it cannot be used.
+.TP
+.B \-c
+Write the client stubs,
+.IR base _c.c.
+.TP
+.BI "\-C " file
+Name the client stub file.
+.TP
+.BI "\-d " n
+Set debugging flags to the bit mask
+.IR n .
+Bit 0x01 prints progress messages about type libraries on standard
+error, and bits 0x08, 0x10, and 0x20 trace the preprocessor on standard
+output and standard error.
+The other bits listed by
+.B \-\-help
+have little or no effect.
+Any nonzero
+.I n
+also makes both outputs unbuffered.
+.TP
+\fB\-D \fIname\fR[\fB=\fIvalue\fR]
+Define the preprocessor macro
+.I name
+as
+.IR value ,
+or as empty, not 1, when there is no
+.IR value .
+A later
+.B \-D
+for the same name replaces an earlier one.
+.TP
+.BI \-\-dlldata= file
+Name the dlldata file instead of
+.IR dlldata.c .
+This does not select it.
+.TP
+.B \-\-dlldata\-only
+Write only the dlldata file, listing each operand as a proxy file by
+its base name without
+.BR .idl ,
+and read no IDL file.
+The file is written from scratch.
+.TP
+.B \-E
+Preprocess
+.I file
+to standard output and exit, without parsing it, so
+.B import
+statements pass through unexpanded.
+Other output options write nothing, but the file of each output kind
+selected along with
+.BR \-E ,
+and the
+.B \-\-local\-stubs
+file, are deleted.
+.TP
+.B \-\-help
+Print a usage message on standard error and exit.
+.TP
+.B \-h
+Write the header,
+.IR base .h.
+.TP
+.BI "\-H " file
+Name the header file.
+.TP
+.BI "\-I " dir
+Add
+.I dir
+to the include search path.
+.TP
+.BI "\-L " dir
+Add
+.I dir
+to the
+.B importlib
+search path.
+.TP
+.BI \-\-local\-stubs= file
+Write to
+.I file
+placeholders for the
+.B _Proxy
+and
+.B _Stub
+functions that each
+.B call_as
+attribute in an object interface requires.
+Each returns
+.BR E_NOTIMPL ,
+or a zeroed value when the local method returns another type.
+Only interfaces outside
+.B library
+blocks count.
+.TP
+.BR \-m32 ", " \-m64
+Set a 32-bit or 64-bit pointer size, switching the target CPU to its
+counterpart of that size, as from x86_64 to i386.
+The argument may also be separate, as in
+.BR "\-m 32" ,
+and other values are ignored.
+The pointer size appears in the proxies, stubs, type libraries, and
+registry entries, and the proxies and stubs compile only for a target
+of the same size.
+Of
+.BR \-m ,
+.BR \-\-win32 ,
+and
+.BR \-\-win64 ,
+the last one wins.
+.TP
+.B \-N
+Do not preprocess
+.IR file ,
+the imported files, or the ACF.
+The Mingw-w64 IDL files need preprocessing, so they cannot then be
+imported.
+.TP
+.B \-\-nostdinc
+Do not search the kit's
+.I include
+directory or
+.I /w64devkit/include
+for includes, imports, or type libraries.
+.TP
+.B \-\-ns_prefix
+In Windows Runtime mode, put the C++ namespaces in the header inside
+.BR "namespace ABI" ,
+and add
+.B ABI
+to the C names, as in
+.BR __x_ABI_CDemo_CIFoo .
+.TP
+.B \-\-oldnames
+Name the RPC interface handles
+\fIname\fB_ClientIfHandle\fR
+and
+\fIname\fB_ServerIfHandle\fR,
+instead of
+\fIname\fB_v\fIM\fB_\fIN\fB_c_ifspec\fR
+and
+\fIname\fB_v\fIM\fB_\fIN\fB_s_ifspec\fR,
+where
+.IR M . N
+is the interface version.
+The header adds the
+.B \-\-prefix\-client
+and
+.B \-\-prefix\-server
+prefixes to these names, but the stub files do not.
+.TP
+.B \-\-oldtlb
+Write type libraries in the older SLTG format.
+This fails for a 64-bit target, for a library that contains or depends
+on a coclass, dispinterface, enum, union, or module, and for an
+interface derived from one in a library named by
+.BR importlib .
+So any interface derived from
+.B IDispatch
+fails.
+.TP
+.BI "\-o " file
+Name the output file.
+When exactly one output kind is selected,
+.I file
+names it, unless that kind's own naming option was given.
+With no option that selects an output kind, the kind is chosen by the
+end of
+.IR file :
+.BR .h ,
+.BR .tlb ,
+.BR .winmd ,
+.BR _p.c ,
+.BR _c.c ,
+.BR _s.c ,
+.BR _i.c ,
+.BR _r.res ,
+.BR _t.res ,
+.BR _l.res ,
+or
+.BR dlldata.c .
+A
+.B .winmd
+ending also enables Windows Runtime mode, and a
+.B dlldata.c
+ending acts as
+.BR \-\-dlldata\-only ,
+so the operands are names, not IDL files.
+Otherwise
+.I file
+is ignored, as it is for any other ending, such as
+.BR _r.rgs .
+The long form,
+.BR \-\-output ,
+takes no argument, so it cannot be used.
+.TP
+.BI "\-O " type
+Select the stub style:
+.B s
+writes marshaling code for each method, and
+.BR i ,
+.BR ic ,
+.BR if ,
+and
+.B icf
+all select the default, interpreted stubs driven by format strings.
+.TP
+.B \-p
+Write the proxy,
+.IR base _p.c.
+.TP
+.BI "\-P " file
+Name the proxy file.
+.TP
+.BI \-\-prefix\-all= prefix
+Same as
+.B \-\-prefix\-client
+and
+.B \-\-prefix\-server
+together.
+.TP
+.BI \-\-prefix\-client= prefix
+Prefix the names of the client stub functions, and of the client
+interface handle, with
+.IR prefix .
+.TP
+.BI \-\-prefix\-server= prefix
+Prefix the names of the server functions that the server stubs call,
+and of the server interface handle, with
+.IR prefix .
+.TP
+.B \-r
+Write the registration script,
+.IR base _r.rgs.
+.TP
+.B \-robust
+Ignored, for compatibility with MIDL.
+.TP
+.BI \-\-sysroot= dir
+Search
+.I dir/w64devkit/include
+instead of
+.IR /w64devkit/include .
+It does not affect the kit's
+.I include
+directory or the
+.B importlib
+search.
+.TP
+.B \-s
+Write the server stubs,
+.IR base _s.c.
+.TP
+.BI "\-S " file
+Name the server stub file.
+.TP
+.B \-t
+Write the type library,
+.IR base .tlb.
+.TP
+.BI "\-T " file
+Name the type library file.
+.TP
+.B \-u
+Write the interface identifiers,
+.IR base _i.c.
+.TP
+.BI "\-U " file
+Name the interface identifiers file.
+There is no option to undefine a macro.
+.TP
+.B \-V
+Print the version and exit.
+.TP
+.B \-W
+Warn about preprocessor macro redefinitions,
+.B #undef
+of undefined macros, and ignored
+.B #ident
+lines.
+The Mingw-w64 headers produce many such warnings.
+.TP
+.BR \-\-win32 ", " \-\-win64
+Same as
+.B \-m32
+and
+.BR \-m64 .
+.TP
+.B \-\-winmd
+Write the Windows Runtime metadata,
+.IR base .winmd,
+and enable Windows Runtime mode.
+.TP
+.B \-\-winrt
+Enable Windows Runtime mode, which accepts
+.BR namespace ,
+.BR runtimeclass ,
+and the other Windows Runtime constructs.
+A file can enable it with
+.BR "#pragma winrt" ,
+or
+.B #pragma winrt ns_prefix
+to set
+.B \-\-ns_prefix
+as well, and either pragma overrides
+.BR \-\-ns_prefix .
+.SH ENVIRONMENT
+.TP
+.B TMPDIR
+The directory for temporary files, used only when access to the current
+directory is denied.
+.TP
+.B TZ
+The time zone of
+.B __DATE__
+and
+.BR __TIME__ ,
+read by the C runtime.
+.PP
+No other variable, such as
+.BR INCLUDE ,
+affects the search paths.
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+An invalid command line, an input file that cannot be opened, an error
+in the input reported with its location, a type library, resource, or
+metadata file that could not be written, an interrupt, or out of memory.
+.TP
+.B 2
+Another error, reported as
+.B error:
+and a message, such as an invalid
+.BR \-b ,
+.BR \-O ,
+or
+.B \-\-packing
+argument, a text output file that cannot be opened, a library named by
+.B importlib
+that cannot be found, or
+.B \-\-oldtlb
+for a 64-bit target.
+.PP
+An error in the input is reported on standard error as
+.PP
+.RS 4
+.EX
+\fIfile\fR:\fIline\fR:\fIcolumn\fR: error: \fImessage\fR
+.EE
+.RE
+.PP
+followed, except for preprocessor errors, by the source line with the
+location marked.
+When
+.B widl
+fails after it starts reading
+.IR file ,
+it deletes the file of each output kind it was to write, and the
+.B \-\-local\-stubs
+file, whether or not it wrote them.
+Without an option that selects an output kind, that is every default
+name except
+.IR dlldata.c ,
+so a failed run also removes the results of an earlier one.
+.SH EXAMPLES
+A small IDL file that defines a COM interface:
+.PP
+.RS 4
+.EX
+$ cat hello.idl
+import "unknwn.idl";
+\&
+[
+    object,
+    uuid(5bb3e1a8\-6f2b\-4d5e\-9c1a\-2f7d3e8b4a10),
+    pointer_default(unique)
+]
+interface IHello : IUnknown
+{
+    HRESULT Greet([in, string] const WCHAR *name);
+}
+.EE
+.RE
+.PP
+Generate its header,
+.IR hello.h :
+.PP
+.RS 4
+.EX
+$ widl \-h hello.idl
+.EE
+.RE
+.PP
+Generate its proxy,
+.IR hello_p.c ,
+and the interface identifiers that the proxy needs,
+.IR hello_i.c :
+.PP
+.RS 4
+.EX
+$ widl \-p \-u hello.idl
+.EE
+.RE
+.PP
+Generate everything the file calls for:
+.IR hello.h ,
+.IR hello_i.c ,
+.IR hello_p.c ,
+.IR hello_r.rgs ,
+and
+.IR dlldata.c :
+.PP
+.RS 4
+.EX
+$ widl hello.idl
+.EE
+.RE
+.PP
+Generate a proxy for 32-bit x86:
+.PP
+.RS 4
+.EX
+$ widl \-m32 \-p hello.idl
+.EE
+.RE
+.PP
+Write the header into another directory:
+.PP
+.RS 4
+.EX
+$ widl \-h \-o include/hello.h hello.idl
+.EE
+.RE
+.PP
+Compile a type library,
+.IR mylib.tlb :
+.PP
+.RS 4
+.EX
+$ widl \-t mylib.idl
+.EE
+.RE
+.SH NOTES
+The kit also installs
+.B widl
+under its target-prefixed name, such as
+.BR x86_64\-w64\-mingw32\-widl ,
+and the 64-bit kit adds
+.BR i686\-w64\-mingw32\-widl ,
+which passes
+.BR \-\-win32 .
+Each targets the CPU in its name.
+.PP
+Default output names are split from
+.I file
+only at forward slashes.
+With a backslash path, such as
+.BR src\ehello.idl ,
+the outputs go beside the input, as
+.IR src\ehello.h ,
+the include guard becomes
+.BR __src_hello_h__ ,
+and imports and quoted includes are looked for in the current directory
+instead of in
+.IR src .
+A name without a lowercase
+.B .idl
+suffix is kept whole:
+.I HELLO.IDL
+gives
+.IR HELLO.IDL.h .
+.PP
+Generated C files, headers, registration scripts, and
+.B \-E
+output end lines with CRLF.
+.PP
+Paths, including the location of the kit, must be representable in the
+ANSI code page and fit in
+.B MAX_PATH
+characters.
+If the kit's own path does not, the standard IDL files are not found.
+.PP
+Unlike MIDL,
+.B widl
+does not read an ACF unless given
+.BR \-\-acf ,
+does not define
+.BR __midl ,
+and uses
+.B \-U
+to name a file, not to undefine a macro.
+.SH SEE ALSO
+.BR cpp (1),
+.BR gcc (1),
+.BR uuidgen (1),
+.BR windres (1)

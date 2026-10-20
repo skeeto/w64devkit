@@ -1,0 +1,498 @@
+.TH GENDEF 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.SH NAME
+gendef \- write a module-definition file from the exports of a DLL
+.SH SYNOPSIS
+.B gendef
+.RB [ \-a ]
+.RB [ \-f ]
+.RB [ \-r ]
+.RB [ \-I
+.IR dir ]...
+.RB [ \-\-no\-include\-current\-dir ]
+.RB [ \- ]
+.IR file ...
+.SH DESCRIPTION
+.B gendef
+reads the export table of each
+.IR file ,
+a PE image such as a DLL, and writes a module-definition (DEF) file that
+lists its exports, from which
+.BR dlltool (1)
+makes an import library.
+It is gendef 1.1, from Mingw-w64 14.0.0.
+It reads 32-bit (PE32) and 64-bit (PE32+) images of any machine type.
+In a 32-bit x86 image it also guesses the stdcall decoration of each
+function, which the export table lacks.
+.PP
+For each
+.IR file ,
+.B gendef
+writes a DEF file in the current directory, named for the part of
+.I file
+after its last slash or backslash, with its final extension, if any,
+replaced by
+.BR .def ,
+so
+.I lib/foo.dll
+gives
+.IR foo.def .
+An existing file of that name is replaced.
+With
+.BR \- ,
+it writes every DEF file to standard output instead.
+A file without exports produces no output and no message.
+.SS Output format
+A DEF file begins with
+.PP
+.RS 4
+.EX
+LIBRARY "\fIname\fR"
+EXPORTS
+.EE
+.RE
+.PP
+where
+.I name
+is the DLL name recorded in the export table, which may differ from the
+file name.
+A line for each export follows, in ordinal order, with these parts in
+this order, each but the first only where it applies:
+.TP
+.I name
+The export name, in double quotes when it contains a dot.
+An export without a name is
+.BI ord_ n\fR,
+where
+.I n
+is its ordinal.
+.TP
+.BI @ size
+The argument size in bytes of a stdcall function in a 32-bit x86 image,
+as described under
+.B Decorations
+below.
+.TP
+.BI "= " target
+For a forwarded export, the export it forwards to, as
+.IB dll . name
+or
+.IB dll .# ordinal\fR.
+.TP
+.BI @ ordinal " NONAME"
+For an export without a name.
+Named exports are written without their ordinals, so an import library
+made from the file imports them by name.
+.TP
+.B DATA
+For an export that is data rather than a function.
+.TP
+.B PRIVATE
+For these names, which programs do not import, so that an import library
+leaves them out:
+.BR DllCanUnloadNow ,
+.BR DllEntryPoint ,
+.BR DllGetClassFactoryFromClassString ,
+.BR DllGetClassObject ,
+.BR DllGetDocumentation ,
+.BR DllInitialize ,
+.BR DllInstall ,
+.BR DllMain ,
+.BR DllRegisterServer ,
+.BR DllRegisterServerEx ,
+.BR DllRegisterServerExW ,
+.BR DllUnload ,
+.BR DllUnregisterServer ,
+.BR RasCustomDeleteEntryNotify ,
+.BR RasCustomDial ,
+.BR RasCustomDialDlg ,
+and
+.BR RasCustomEntryDlg .
+.TP
+.BI "== " name
+The name as the DLL exports it, for some decorated names, as described
+under
+.B Decorations
+below.
+.TP
+.BI "; " comment
+A warning about a guess, as described under
+.B Comments
+below.
+.PP
+Lines end with CRLF.
+.SS Data exports
+An export is
+.B DATA
+when any of these hold:
+.IP \(bu 2
+Its address lies in a section that is not executable and is readable or
+discardable, such as
+.BR .data ,
+.BR .rdata ,
+or
+.BR .bss .
+.IP \(bu 2
+A base relocation applies at its address, so that it holds a pointer.
+.IP \(bu 2
+Its name begins with
+.BR ??_7 ,
+as an MSVC virtual function table does.
+.IP \(bu 2
+In a 32-bit x86 image, its first instruction is one that
+.B gendef
+does not recognize, which wrongly marks some functions as data.
+.IP \(bu 2
+A hint file marks it
+.BR DATA .
+.SS Decorations
+In a 32-bit x86 image,
+.B gendef
+writes the argument size of each stdcall function as a decoration,
+.BI @ n\fR,
+after its name, as in
+.BR mul@8 .
+.BR dlltool (1)
+with
+.B \-k
+then makes an import library whose symbols carry the decoration, as the
+compiler references them, but that imports the names without it.
+.PP
+To find the size,
+.B gendef
+decodes the function's machine code from its entry point.
+It follows unconditional jumps and steps over calls, and when a path
+ends without a return, as at an indirect jump, it tries the targets of
+the conditional jumps it passed.
+The first return instruction it reaches decides:
+.BI "ret " n
+gives the size
+.IR n ,
+and a plain
+.BR ret ,
+which both cdecl functions and stdcall functions without arguments use,
+leaves the size unknown, unless given
+.BR \-a .
+Since calls are stepped over, after a call to a function that does not
+return, the search runs on into whatever code follows.
+When the size is still unknown and the code jumps through the import
+address table to an imported function, the size of that function is
+looked up in a hint file.
+.PP
+The size is written as follows, with an unknown size taken as 0 in the
+comparisons:
+.IP \(bu 2
+A name of the form
+.BI _ name @ n\fR,
+where
+.I n
+is the size, loses its underscore and is followed by
+.BI "== _" name @ n\fR,
+as in
+.BR "mul@8 == _mul@8" .
+.IP \(bu 2
+A fastcall name,
+.BI @ name @ m\fR,
+is kept and followed by
+.BI "== @" name @ m
+when
+.I m
+is the size plus 8, or when the size is 0 and
+.I m
+is 0, 4, or 8.
+.IP \(bu 2
+A C++ name, which begins with
+.BR ? ,
+is kept, and a known size goes in a comment.
+.IP \(bu 2
+Otherwise a known size is appended, even to a name that already has a
+decoration, so
+.B mul@8
+becomes
+.BR mul@8@8 .
+.PP
+Other images have no decorations: names are written as exported.
+.SS Hint files
+For each forwarded export, and, in a 32-bit x86 image, for each function
+whose size is still unknown and that jumps to an imported function,
+.B gendef
+looks up the function forwarded to or imported in a hint file.
+That is a DEF file for the other DLL, named for that DLL's name up to
+its first dot, in lowercase, plus
+.BR .def .
+For an import from
+.I KERNEL32.dll
+or a forward to
+.BR KERNEL32.GetTickCount ,
+it is
+.IR kernel32.def .
+A forward to an ordinal, as in
+.BR KERNEL32.#100 ,
+looks up the name
+.BR ord_100 ,
+but a function imported by ordinal is looked up under the part of its
+DLL's name after the first dot, such as
+.BR dll .
+.PP
+Hint files are looked for in the current directory, unless given
+.BR \-\-no\-include\-current\-dir ,
+then in each
+.B \-I
+directory, the last given first.
+Since
+.B gendef
+writes its DEF files in the current directory, one written earlier in a
+run serves as a hint file for the files after it.
+Each hint file is read at most once per run, so one that
+.B gendef
+replaces after reading it keeps its old contents for the rest of the
+run.
+.PP
+A line of a hint file matches when it begins with the function's name
+followed by
+.BR @ ,
+white space, or the end of the line.
+The digits right after that character give the size, and
+.B DATA
+anywhere later in the line marks the export as data.
+A name without a decoration gives 0, including one that
+.B gendef
+wrote for a function whose size it could not find.
+In a file with LF line endings, a name alone on its line takes its size
+and
+.B DATA
+from the next line.
+The first line of a hint file never matches, and neither does a line
+that begins with white space.
+Outside 32-bit x86 images, only
+.B DATA
+is used.
+.SS Comments
+A comment at the end of an export's line flags a guess:
+.IP \(bu 2
+.BI "; has WINAPI (@" n )
+follows a C++ name whose function has the size
+.IR n .
+.IP \(bu 2
+.BI "; Check!!! return value is from " name " in " dll\fR,
+or
+.BI "; Check!!! return value is from ord " n " in " dll\fR,
+follows a function that jumps to a function imported from
+.I dll
+by name or by ordinal, when no hint file gave the size.
+Despite the wording, it is the argument size that is unknown.
+.IP \(bu 2
+.BI "; Check!!! forwards to " target
+follows a forwarded export that is not data and either has no name or,
+in a 32-bit x86 image, has an unknown size.
+It is written even with
+.BR \-f .
+.IP \(bu 2
+.B "; Check!!! Couldn\(aqt determine function argument count.\&"
+.B "Function doesn\(aqt return.\&"
+follows a function in which no return instruction was found.
+.SH OPTIONS
+Each option is a separate argument.
+Options cannot be grouped, an option's argument is the next argument,
+and the long options take no
+.BR = .
+Options apply to every file, wherever they appear.
+Any other argument is a file, including an unknown option and
+.BR \-\- .
+.TP
+.B \-
+Write the DEF files to standard output, one after another, instead of
+to files.
+Standard input cannot be read.
+.TP
+.BR \-h ", " \-\-help
+Print a usage message on standard error and exit without reading any
+file.
+With no arguments,
+.B gendef
+does the same.
+.TP
+.BR \-a ", " \-\-assume\-stdcall
+In a 32-bit x86 image, take a function that returns with a plain
+.B ret
+to be stdcall without arguments, and decorate it with
+.BR @0 .
+Since cdecl functions return the same way, they get
+.B @0
+too, so this suits a DLL whose functions are all stdcall, such as a
+Windows system DLL.
+.TP
+\fB\-I \fIdir\fR, \fB\-\-include\-def\-path \fIdir\fR
+Look for hint files in
+.IR dir .
+As the last argument,
+.B \-I
+prints a message on standard error, without a newline, and is otherwise
+ignored.
+.TP
+.B \-\-no\-include\-current\-dir
+Do not look for hint files in the current directory.
+.TP
+.BR \-f ", " \-\-no\-forward\-output
+Omit the
+.BI "= " target
+part of forwarded exports, which are still listed.
+.TP
+.BR \-r ", " \-\-disable\-fs\-redirector
+Disable WOW64 file system redirection, so that a 32-bit
+.B gendef
+on 64-bit Windows reads the 64-bit DLLs in
+.I system32
+instead of the 32-bit DLLs in
+.IR SysWOW64 .
+Where there is no redirection to disable, as in the 64-bit kit, it
+prints a message on standard error and has no other effect.
+.SH EXIT STATUS
+.TP
+.B 0
+Success, and also when a file cannot be read or is not a PE image, or
+its DEF file cannot be written.
+.PP
+Problems are reported on standard error, and
+.B gendef
+goes on to the next file:
+.PP
+.RS 4
+.EX
+*** [\fIfile\fR] failed to open()
+*** [\fIfile\fR] unable to allocate \fIsize\fR bytes
+*** [\fIfile\fR] not a PE(+) file
+*** [\fIfile\fR] no PE(+) signature
+*** [\fIfile\fR] no PE(+) optional header
+ * failed to create \fIdeffile\fR ...
+.EE
+.RE
+.PP
+where
+.I file
+is the argument and
+.I deffile
+the name of its DEF file.
+The second is also reported for an empty file and for a read error.
+.SH EXAMPLES
+Write
+.I foo.def
+for
+.IR foo.dll :
+.PP
+.RS 4
+.EX
+$ gendef foo.dll
+.EE
+.RE
+.PP
+Print the DEF file of a 32-bit DLL, with a stdcall function
+.B mul
+that takes two
+.B int
+arguments, and a cdecl function
+.BR add :
+.PP
+.RS 4
+.EX
+$ gendef \- demo.dll
+LIBRARY "demo.dll"
+EXPORTS
+DllMain@12 PRIVATE
+add
+counter DATA
+mul@8
+ord_9 @9 NONAME
+.EE
+.RE
+.PP
+Make an import library for a 64-bit DLL:
+.PP
+.RS 4
+.EX
+$ gendef foo.dll
+$ dlltool \-d foo.def \-l libfoo.a
+.EE
+.RE
+.PP
+Make an import library for that 32-bit DLL in the 64-bit kit, with
+.B \-k
+to remove the decorations from the imported names:
+.PP
+.RS 4
+.EX
+$ gendef demo.dll
+$ i686\-w64\-mingw32\-dlltool \-k \-d demo.def \-l libdemo.a
+.EE
+.RE
+.PP
+Write DEF files for two 32-bit DLLs, where
+.I wrapper.dll
+forwards
+.B plus
+to
+.B add
+in
+.IR base.dll ,
+so that
+.IR base.def ,
+written first, gives the size of the forwarded function:
+.PP
+.RS 4
+.EX
+$ gendef base.dll wrapper.dll
+$ cat wrapper.def
+LIBRARY "wrapper.dll"
+EXPORTS
+plus@8 = base.add
+twice@8
+.EE
+.RE
+.SH NOTES
+The kit also installs
+.B gendef
+under its target-prefixed name, such as
+.BR x86_64\-w64\-mingw32\-gendef ,
+and the 64-bit kit adds
+.BR i686\-w64\-mingw32\-gendef .
+Each runs the same program, with no added options, and reads 32-bit and
+64-bit images alike.
+.PP
+Unlike upstream gendef, the kit's build starts each DEF file at
+.BR LIBRARY ,
+without a comment header, which upstream uses to say when the file needs
+.BR "dlltool \-k" ,
+and prints no progress message for each image.
+.PP
+.BR dlltool (1)
+cannot read a forward to an ordinal, as in
+.BR "= KERNEL32.#100" :
+it reports a syntax error and leaves that export and every later one out
+of the import library, so use
+.B \-f
+for such a DLL.
+It reads the decoration of a name in quotes, as in
+.BR \(dqa.b\(dq@4 ,
+as an ordinal, so the decoration is lost.
+.PP
+When several names share one ordinal, only the last of them in the
+image's name table, which is sorted, is written.
+.PP
+When a DEF file cannot be created, the exports of that image are written
+at the start of the next DEF file instead, with their decorations
+guessed from the wrong image, which can also mark them as data.
+.PP
+A drive prefix stays in the output name:
+.I d:foo.dll
+gives
+.IR d:foo.def ,
+in the current directory of drive D.
+.PP
+Paths must be representable in the ANSI code page.
+Each file is read whole into memory.
+.B gendef
+trusts the offsets in an image, so a malformed image can crash it.
+.SH SEE ALSO
+.BR dlltool (1),
+.BR ld (1),
+.BR objdump (1),
+.BR peports (1)

@@ -1,0 +1,263 @@
+.TH CMCLDEPS 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.SH NAME
+cmcldeps \- run rc and record the headers a resource script includes
+.SH SYNOPSIS
+.B cmcldeps RC
+.I source depfile object prefix cl rc
+.RI [ argument ...]
+.SH DESCRIPTION
+.B cmcldeps
+is an internal helper of
+.BR cmake (1).
+When CMake's Ninja generator compiles a resource script with Microsoft
+.B rc
+on a Windows host, as it does for MSVC and compilers that imitate it, the
+build rule runs the
+.B rc
+command through
+.B cmcldeps
+so that Ninja learns which headers the script includes.
+.B rc
+cannot list them, so
+.B cmcldeps
+preprocesses the script with the MSVC compiler
+.I cl
+to find them, in three steps:
+.IP 1. 4
+Run
+.I cl
+with
+.B "/P /DRC_INVOKED /nologo /showIncludes /TC"
+followed by the
+.I argument
+list, in the directory part of
+.IR object ,
+up to its last backslash, or in the current directory if it has none.
+In this list, every occurrence of
+.BR /fo ,
+.BR \-fo ,
+.BR /nologo ,
+or
+.B \-nologo
+followed by a space is removed, and every occurrence of the text of
+.I object
+becomes
+.BI \-Fo object .obj\fR.
+.I cl
+writes no object, but leaves the preprocessed script, a
+.B .i
+file named after the script, in that directory.
+.IP 2. 4
+If
+.I cl
+fails, exit with its status.
+Otherwise write
+.IR depfile ,
+described below.
+.IP 3. 4
+Run
+.I rc
+with the
+.I argument
+list in the current directory, and exit with its status.
+If the list contained
+.B /nologo
+or
+.B \-nologo
+followed by a space,
+.I rc
+gets a single
+.B /nologo
+before it.
+.PP
+The standard output and standard error of each tool are captured together.
+Lines that start with
+.I prefix
+name included files and are dropped, as is the first other line that
+starts with the part of
+.I source
+after its last backslash, which
+.I cl
+prints first.
+This is the only use of
+.IR source .
+When the tool fails, the remaining lines are written to standard output.
+When it succeeds they are discarded, so warnings never appear.
+.PP
+.I prefix
+is the localized text that
+.B /showIncludes
+puts before each included file, such as
+.B "Note: including file:"
+in English.
+CMake passes the value of
+.BR CMAKE_CL_SHOWINCLUDES_PREFIX ,
+which it detects when it tests the compiler, and which is empty if that
+detection fails.
+An empty
+.I prefix
+matches every line, so every line counts as an included file and nothing
+is printed, even when the tool fails.
+.SS Command line
+.B cmcldeps
+splits its command line itself, not by the C runtime rules.
+Arguments are separated by spaces.
+Double quotes start and end runs in which spaces do not separate, and are
+removed only when they enclose the whole argument.
+Backslashes are not special.
+Every argument up to and including
+.I rc
+must be followed by a space.
+The rest of the line is the
+.I argument
+list, which is split by the Microsoft C runtime rules when a tool runs.
+.PP
+The first argument must be
+.BR RC .
+The usage message also names
+.B C
+and
+.BR CXX ,
+but they are rejected.
+Errors are reported on standard error as
+.B "ninja: FATAL:"
+followed by the reason and a usage summary.
+.SS Dependency file
+.I depfile
+is written only when
+.I cl
+succeeds, and replaces any existing file.
+An empty
+.I depfile
+argument writes none.
+If it cannot be created,
+.B cmcldeps
+carries on without it.
+It is one Make rule with
+.I object
+as the target and each included file on its own line:
+.PP
+.RS 4
+.EX
+CMakeFiles\e\eapp.dir\e\eapp.rc.res: \e
+C:\e\esdk\e\eum\e\ewinres.h \e
+gen\e\eversion.h \e
+C:\e\esrc\e\emy\e app\e\eresource.h \e
+.EE
+.RE
+.PP
+An empty line ends the file, and lines end in LF.
+Each file name is the rest of its line after
+.IR prefix ,
+without leading spaces or a final carriage return.
+The names are sorted and exact duplicates dropped, then forward slashes
+become backslashes, and the current directory is removed from the start
+of a name, matching case.
+Each backslash is doubled and each space escaped with a backslash.
+.I source
+itself is not listed.
+.SH ENVIRONMENT
+.TP
+.B PATH
+Searched for
+.I cl
+and
+.I rc
+when they are named without a directory.
+The current directory is not searched.
+.SH EXIT STATUS
+.TP
+.B 0
+Each tool succeeded or could not be started.
+.TP
+.B 1
+Invalid command line.
+.TP
+.I n
+.I cl
+or
+.I rc
+failed with status
+.IR n .
+.SH EXAMPLES
+List the commands in a CMake build directory that use
+.BR cmcldeps :
+.PP
+.RS 4
+.EX
+$ ninja \-t commands | grep cmcldeps
+.EE
+.RE
+.PP
+Compile
+.I app.rc
+to
+.I app.res
+with the
+.B cl
+and
+.B rc
+found on
+.BR PATH ,
+writing the headers it includes to
+.IR app.res.d :
+.PP
+.RS 4
+.EX
+$ cmcldeps RC app.rc app.res.d app.res "Note: including file:" \e
+    cl rc /fo app.res app.rc
+.EE
+.RE
+.SH NOTES
+With the kit's own GCC toolchain, CMake compiles resource scripts with
+.BR windres (1)
+and never runs
+.BR cmcldeps .
+It runs only when the kit's
+.B cmake
+uses the Ninja generator with MSVC or a compatible compiler, and the kit's
+.B cmake
+picks Ninja by default even when Visual Studio is installed.
+Running it by hand is rarely useful, except to repeat a failing build step.
+.PP
+If
+.I cl
+or
+.I rc
+cannot be started, for example because it is not found,
+.B cmcldeps
+prints nothing and treats the tool as successful.
+The same happens to
+.I cl
+when the directory of
+.I object
+does not exist.
+Without
+.IR cl ,
+it writes no
+.I depfile
+but still runs
+.IR rc .
+Without
+.IR rc ,
+it exits with status 0 although nothing wrote
+.IR object .
+.PP
+Because
+.I cl
+runs in the directory of
+.I object
+and
+.I rc
+in the current directory, a relative path in the
+.I argument
+list means different files to the two tools, and a relative
+.I cl
+path is resolved from the directory of
+.IR object .
+.PP
+Tool output lines that end in CR LF are written with an extra CR.
+.SH SEE ALSO
+.BR cmake (1),
+.BR windres (1),
+.BR cmake\-generators (7)

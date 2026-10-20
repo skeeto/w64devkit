@@ -1,9 +1,10 @@
 # Manual pages
 
 Hand-written manual pages for commands in w64devkit that have no upstream
-page: the kit's own tools in `src/`, and the busybox applets. The tree
-mirrors `share/man`, and the Dockerfile copies each `manN/` directory into
-`$PREFIX/share/man/`. This file does not ship.
+page: the kit's own tools in `src/`, the busybox applets, and others such
+as `ninja` and `gendef`. The tree mirrors `share/man`, and the Dockerfile
+copies each `manN/` directory into `$PREFIX/share/man/`. This file does
+not ship.
 
 Pages are man(7) source, formatted in the kit by `nroff`, the kit's own
 formatter (`nroff.1`), and displayed by busybox `man` through `less -R`.
@@ -200,11 +201,3 @@ mandoc in Docker:
         groff -man -Tutf8 -rLL=78n -rLT=78n -P-cbou xxd.1'
 
 `man` passes `-rLL=78n` on an 80-column terminal.
-
-## Pages still missing
-
-* `ninja`: no upstream page.
-* `makensis`: no upstream page.
-* `gendef`: no upstream page.
-* `widl`: adapt Wine's `tools/widl/widl.man.in` at wine-11.5 (LGPL).
-* `cmcldeps`: no upstream page.
