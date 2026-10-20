@@ -216,8 +216,8 @@ RUN mkdir 7z \
  && tar xJf 7z$Z7_VERSION-src.tar.xz -C 7z
 
 FROM base AS dl-aas-sign
-ARG AAS_SIGN_VERSION=1.1.0 \
-    AAS_SIGN_SHA256=4ba127b0434f6e0f8af639e51a0c961e95b5adeb06391dd6ef02445e0b027c3f
+ARG AAS_SIGN_VERSION=1.1.1 \
+    AAS_SIGN_SHA256=5a3c5a7c351f645f69fddc8e5105ca7f7fa11bb97f89f14666c367b1a0f49dc7
 WORKDIR /dl
 ADD --checksum=sha256:$AAS_SIGN_SHA256 \
     https://github.com/skeeto/aas-sign/releases/download/v$AAS_SIGN_VERSION/aas-sign-$AAS_SIGN_VERSION.tar.gz ./
@@ -1059,8 +1059,9 @@ RUN cmake -B /aas-sign-build-w32 -S /dl/aas-sign \
         -DCMAKE_RC_COMPILER=$ARCH-windres \
         -DCMAKE_EXE_LINKER_FLAGS="-s" \
  && cmake --build /aas-sign-build-w32 -j$(nproc) \
- && mkdir -p /out$PREFIX/bin \
- && cp /aas-sign-build-w32/aas-sign.exe /out$PREFIX/bin/
+ && mkdir -p /out$PREFIX/bin /out$PREFIX/share/man/man1 \
+ && cp /aas-sign-build-w32/aas-sign.exe /out$PREFIX/bin/ \
+ && cp /dl/aas-sign/aas-sign.1 /out$PREFIX/share/man/man1/
 
 FROM cross AS build-nsis
 COPY --from=dl-nsis /dl/nsis /dl/nsis
