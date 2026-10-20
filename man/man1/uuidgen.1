@@ -1,0 +1,153 @@
+.TH UUIDGEN 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+uuidgen \- generate UUIDs
+.SH SYNOPSIS
+.B uuidgen
+.RB [ \-c ]
+.RB [ \-i " | " \-s ]
+.RB [ \-n\c
+.IR count ]
+.RB [ \-o\c
+.IR path ]
+.RB [ \-x ]
+.br
+.B uuidgen
+.BR \-h " | " \-? " | " \-v
+.SH DESCRIPTION
+.B uuidgen
+prints random UUIDs, one per line, or each inside an IDL interface
+template or a C structure initializer.
+It is a replacement for the
+.B uuidgen
+in the Windows SDK, with the same options, for use with
+.BR widl .
+.PP
+The UUIDs are version 4.
+They come from encrypting a counter with the Speck128/128 cipher, keyed
+from the system's random number generator, or from the time and the
+program's load address if that fails.
+UUIDs from one run are always distinct.
+.PP
+Output lines end with CRLF, as with the Windows SDK tool.
+.SH OPTIONS
+An option begins with
+.B \-
+or
+.BR / ,
+and only its first letter is significant.
+The arguments of
+.B \-n
+and
+.B \-o
+must be attached:
+.BR \-n5 ,
+not
+.BR "\-n 5" .
+.TP
+.B \-c
+Use uppercase hex digits.
+.TP
+.BR \-h ", " \-?
+Print the version and a usage message on standard output, and exit.
+.TP
+.B \-i
+Write each UUID inside an IDL interface template:
+.RS
+.PP
+.EX
+[
+uuid(a59e8a26\-3f50\-4c24\-a8a7\-6bdae8d7a43f),
+version(1.0)
+]
+interface INTERFACENAME
+{
+\&
+}
+.EE
+.RE
+.TP
+.BI \-n count
+Generate
+.I count
+UUIDs instead of 1.
+.I count
+is one or more decimal digits, optionally after a
+.BR + ,
+and anything after the digits is ignored.
+A count of 0 generates nothing, and a count too large to represent
+behaves as unlimited.
+.TP
+.BI \-o path
+Write to
+.I path
+instead of standard output, replacing its contents.
+.TP
+.B \-s
+Write each UUID as a C structure initializer:
+.RS
+.PP
+.EX
+INTERFACENAME = { /* a59e8a26\-3f50\-4c24\-a8a7\-6bdae8d7a43f */
+    0xa59e8a26,
+    0x3f50,
+    0x4c24,
+    {0xa8, 0xa7, 0x6b, 0xda, 0xe8, 0xd7, 0xa4, 0x3f}
+  };
+.EE
+.RE
+.TP
+.B \-v
+Print the version and exit.
+.TP
+.B \-x
+Ignored.
+The Windows SDK tool generates sequential UUIDs with this option.
+.PP
+When both
+.B \-i
+and
+.B \-s
+are given, the last one wins.
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+Invalid option or count, the output file could not be opened, or an
+error writing output.
+.SH EXAMPLES
+Generate a UUID:
+.PP
+.RS 4
+.EX
+$ uuidgen
+d48b415d\-86a0\-4ed5\-bb8f\-07bd46e89b2e
+.EE
+.RE
+.PP
+Generate three uppercase UUIDs without carriage returns:
+.PP
+.RS 4
+.EX
+$ uuidgen \-c \-n3 | tr \-d \(aq\er\(aq
+.EE
+.RE
+.PP
+Start a new IDL file:
+.PP
+.RS 4
+.EX
+$ uuidgen \-i \-ofoo.idl
+.EE
+.RE
+.SH NOTES
+This is not the util-linux
+.BR uuidgen ,
+and has none of its options.
+Unlike the Windows SDK tool, it accepts a count of 0, and paths may
+contain any Unicode characters and be longer than
+.BR MAX_PATH .
+.PP
+The kit also installs this program under target-prefixed names, such as
+.BR x86_64\-w64\-mingw32\-uuidgen .

@@ -1,0 +1,119 @@
+.TH VC++FILT 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+vc++filt \- decode Visual C++ decorated names
+.SH SYNOPSIS
+.B vc++filt
+.RB [ \-_ahnp ]
+.RI [ symbol ...]
+.SH DESCRIPTION
+.B vc++filt
+is
+.BR c++filt (1)
+for the decorated names produced by Microsoft Visual C++, which begin
+with
+.BR ? .
+It decodes them with the
+.B UnDecorateSymbolName
+function of the system's DbgHelp library, like MSVC
+.BR undname .
+.PP
+Given
+.I symbol
+operands,
+.B vc++filt
+prints the decoded form of each on its own line, and does not read
+standard input.
+Otherwise it copies standard input to standard output, replacing each
+decorated name with its decoded form.
+A decorated name is a word that begins with
+.B ?\&
+and contains
+.BR @ ,
+made of letters, digits,
+.BR _ ,
+.BR $ ,
+.BR ? ,
+.BR @ ,
+and non-ASCII bytes.
+Other text passes through unchanged, so
+.B vc++filt
+can filter the output of other tools.
+.PP
+GCC's mangled names, which begin with
+.BR _Z ,
+are left alone.
+Decode those with
+.BR c++filt ,
+which can run in the same pipeline.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-ap .
+.B \-\-
+ends the options.
+.TP
+.B \-_
+Decode names as 32-bit (x86) names.
+This is the default in the x86 kit.
+.TP
+.B \-a
+Include access specifiers, such as
+.BR public: .
+.TP
+.B \-h
+Print a usage message on standard output and exit.
+.TP
+.B \-n
+Decode names as 64-bit names.
+This is the default in the x64 kit.
+.TP
+.B \-p
+Print only the name, without its type, calling convention, or
+parameters.
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+Invalid option, or an error writing output.
+.SH EXAMPLES
+Decode a name:
+.PP
+.RS 4
+.EX
+$ vc++filt \(aq?f@@YAXPEAH@Z\(aq
+void __cdecl f(int * __ptr64)
+$ vc++filt \-p \(aq?f@@YAXPEAH@Z\(aq
+f
+.EE
+.RE
+.PP
+Decode the exports of a DLL built with MSVC:
+.PP
+.RS 4
+.EX
+$ peports \-e library.dll | vc++filt
+.EE
+.RE
+.SH NOTES
+Output to a console is written as UTF-16, so non-ASCII names display
+correctly.
+Otherwise the output is bytes as read, normally UTF-8.
+.PP
+The decoded text depends on the version of DbgHelp that comes with
+Windows.
+A name it cannot decode may be printed unchanged or partly decoded.
+Names longer than 65536 bytes pass through unchanged.
+.PP
+.B \-_
+and
+.B \-n
+are named after the
+.B c++filt
+options that strip, or keep, a leading underscore, which on Windows
+amounts to choosing between 32-bit and 64-bit names.
+.SH SEE ALSO
+.BR c++filt (1),
+.BR nm (1),
+.BR objdump (1),
+.BR peports (1)

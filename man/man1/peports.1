@@ -1,0 +1,176 @@
+.TH PEPORTS 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+peports \- list the exports and imports of EXEs and DLLs
+.SH SYNOPSIS
+.B peports
+.RB [ \-ehim ]
+.RI [ file ...]
+.SH DESCRIPTION
+.B peports
+prints the export table, the import table, and the machine type of each
+PE image, such as an EXE or DLL.
+It is like the
+.B /exports
+and
+.B /imports
+options of MSVC
+.BR dumpbin ,
+and narrower and more precise than
+.BR "objdump \-p" .
+It is pronounced like
+.IR purports .
+With no
+.I file
+operands, or for a
+.I file
+named
+.BR \- ,
+it reads standard input.
+.PP
+The output for each file has up to three parts, in this order, and the
+output of several files runs together without file names.
+Fields are separated by tabs.
+.TP
+Machine type
+A
+.B >machine
+line, then a line with a tab, the machine field as
+.B 0x
+and 4 hex digits, a space, and its name, such as
+.BR AMD64 ,
+.BR I386 ,
+or
+.BR ARM64 .
+An unrecognized value is named
+.BR ??? .
+.TP
+Exports
+An
+.B >exports
+line, then a line for each named export: a tab, its ordinal, a tab, and
+its name.
+A forwarded export is followed by a space and its target in angle
+brackets.
+Exports without names follow, each as a tab, its ordinal, a tab, and
+.BR <NONAME> .
+This part is omitted when the image has no export table.
+.TP
+Imports
+For each imported DLL, its name at the start of a line, then a line for
+each imported symbol: a tab, its hint, a tab, and its name.
+A symbol imported by ordinal is a tab, the ordinal, a tab, and
+.BR <NONAME> .
+This part is omitted when the image has no import table.
+.PP
+Names are printed as ASCII.
+Bytes outside printable ASCII, and the characters
+.BR < ,
+.BR > ,
+and
+.BR \e ,
+are written as
+.BI \ex HH\fR,
+so angle brackets in the output always delimit.
+An empty name is
+.BR <> .
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-ei .
+.B \-\-
+ends the options.
+Without
+.BR \-e ,
+.BR \-i ,
+or
+.BR \-m ,
+.B peports
+prints exports and imports.
+.TP
+.B \-e
+Print the export table.
+.TP
+.B \-h
+Print a usage message on standard output and exit.
+.TP
+.B \-i
+Print the import table.
+.TP
+.B \-m
+Print the machine type.
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+Invalid option, a file could not be read or parsed, or an error writing
+output.
+.PP
+A file that cannot be read or parsed is reported on standard error as
+.PP
+.RS 4
+.EX
+peports: \fIreason\fR: \fIfile\fR
+.EE
+.RE
+.PP
+and the remaining files are still processed.
+.SH EXAMPLES
+List the DLLs and functions a program imports:
+.PP
+.RS 4
+.EX
+$ peports \-i xxd.exe
+KERNEL32.dll
+	0	CreateFileW
+	0	ExitProcess
+	...
+SHELL32.dll
+	0	CommandLineToArgvW
+.EE
+.RE
+.PP
+List only the DLLs:
+.PP
+.RS 4
+.EX
+$ peports \-i main.exe | grep \-v \(aq^[[:space:]]\(aq
+.EE
+.RE
+.PP
+Show where a system DLL forwards an export:
+.PP
+.RS 4
+.EX
+$ cd c:/windows/system32
+$ peports \-e kernel32.dll | grep \-w DecodePointer
+	302	DecodePointer <NTDLL.RtlDecodePointer>
+.EE
+.RE
+.PP
+Decode the C++ names exported by a DLL built with MSVC, or with GCC:
+.PP
+.RS 4
+.EX
+$ peports \-e library.dll | vc++filt
+$ peports \-e library.dll | c++filt
+.EE
+.RE
+.SH NOTES
+.B peports
+is a debugging tool, not a security tool.
+It does not misbehave on malformed input, but for specially crafted
+images its reading may differ from the Windows loader's.
+.PP
+w64devkit links import tables with zero hints unless a DEF file gives
+them, so the hint column of programs built with the kit is usually 0.
+.PP
+Paths may contain any Unicode characters.
+Only the first 96 sections of an image are read, and a very large file
+is read only up to available memory, which is not an error since the
+tables are normally near the start.
+.SH SEE ALSO
+.BR c++filt (1),
+.BR dlltool (1),
+.BR objdump (1),
+.BR vc++filt (1)

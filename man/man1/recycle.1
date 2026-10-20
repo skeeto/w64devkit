@@ -1,0 +1,88 @@
+.TH RECYCLE 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+recycle \- move files and directories to the Recycle Bin
+.SH SYNOPSIS
+.B recycle
+.RI [ path ...]
+.SH DESCRIPTION
+.B recycle
+sends each
+.IR path ,
+a file or a directory with all its contents, to the Recycle Bin, without
+asking for confirmation and without showing progress.
+It is faster than
+.B rm \-rf
+and reversible: restore items from the Recycle Bin in Explorer.
+.PP
+A relative
+.I path
+is resolved against the current directory.
+Each
+.I path
+is handled separately, and a failure does not stop the rest.
+With no
+.I path
+operands,
+.B recycle
+does nothing.
+.SH OPTIONS
+None.
+Every argument is a path, even one that begins with a dash, and
+.B \-\-
+is not special.
+.SH EXIT STATUS
+.TP
+.B 0
+Every
+.I path
+was recycled.
+.TP
+.B 1
+At least one
+.I path
+could not be recycled.
+.PP
+Each failure is reported on standard error as
+.PP
+.RS 4
+.EX
+recycle: \fIpath\fR: \fImessage\fR
+.EE
+.RE
+.PP
+where
+.I message
+is the Windows error message, or
+.B Could not recycle
+for errors specific to the shell's file operations.
+.SH EXAMPLES
+Recycle a build directory and some object files:
+.PP
+.RS 4
+.EX
+$ recycle build *.o
+.EE
+.RE
+.SH NOTES
+.B recycle
+uses the Windows shell's delete operation with undo.
+Where the Recycle Bin is unavailable, such as on a network share or a USB
+flash drive, or for items too large for it, Windows deletes the items
+permanently, without warning.
+.PP
+Windows treats
+.B *
+and
+.B ?\&
+in the last component of a
+.I path
+as wildcards.
+.PP
+Error messages are written only when standard error is a console.
+.PP
+Storage Sense can delete old Recycle Bin items automatically, which
+pairs well with
+.BR recycle .
+.SH SEE ALSO
+.BR rm (1),
+.BR rmdir (1)

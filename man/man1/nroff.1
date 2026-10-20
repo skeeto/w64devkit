@@ -1,0 +1,745 @@
+.TH NROFF 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.SH NAME
+nroff \- format manual pages for a terminal
+.SH SYNOPSIS
+.B nroff
+.RB [ \-man " | " \-mandoc " | " \-mdoc ]
+.RB [ \-t ]
+.RB [ \-Tascii " | " \-Tutf8 ]
+[\fB\-rLL=\fIN\fBn\fR]
+[\fB\-r\fIreg\fB=\fIN\fR]
+.RB [ \-w ]
+.RI [ file ...]
+.SH DESCRIPTION
+.B nroff
+formats manual pages written with the man(7) or mdoc(7) macros,
+including
+.B tbl
+tables, as text for a terminal.
+It is w64devkit's own formatter, a self-contained replacement for the
+pipeline of
+.BR tbl ,
+groff
+.BR nroff ,
+and
+.BR col .
+.BR man (1)
+runs it with the page on standard input.
+.PP
+.B nroff
+reads each
+.I file
+in turn, or standard input when there are none or for a
+.I file
+named
+.BR \- ,
+and writes the formatted text on standard output.
+The files form one input, so definitions carry over from one file to the
+next, and all of them should use the same macro package.
+The macro package is detected from the prologue: mdoc(7) when
+.BR .Dd ,
+.BR .Dt ,
+or
+.B .Os
+comes before any
+.BR .TH ,
+and man(7) otherwise.
+.PP
+The output is a header line, the body, and a footer line, laid out like
+groff's continuous rendering, with no page breaks.
+Text is filled and never hyphenated: a line breaks only at a space,
+after a hyphen between two letters, or at a break point written in the
+page.
+A hyphen in the arguments of an mdoc(7) macro is not a break point.
+With
+.BR \-Tutf8 ,
+a line also breaks after an em dash written as
+.B \e(em
+between two letters.
+man(7) pages are adjusted to both margins, as in groff, unless the page
+asks otherwise; mdoc(7) pages are left-aligned, as in mandoc.
+.PP
+Bold text is written between the SGR escape sequences
+.B ESC[1m
+and
+.BR ESC[22m ,
+and italic text is underlined, between
+.B ESC[4m
+and
+.BR ESC[24m .
+Each output line closes its own sequences, so every line displays
+correctly on its own.
+View the output with
+.BR "less \-R" ,
+which passes the sequences through.
+Emphasis is turned off when
+.B GROFF_NO_SGR
+is set, and when standard output is a console in which virtual terminal
+processing cannot be enabled, such as on Windows XP.
+.B nroff
+never writes backspace overstrikes.
+.SS Roff language
+These parts of the roff language are supported:
+.IP \(bu 2
+control lines beginning with
+.B .\&
+or with
+.BR \(aq ,
+which keeps requests such as
+.B br
+and
+.B sp
+from breaking the line, joining lines with
+.B \e
+at the end of a line, and comments with
+.B \e"
+and
+.BR \e# ;
+.IP \(bu 2
+macros with
+.BR de ,
+.BR de1 ,
+.BR am ,
+and
+.BR am1 ,
+with arguments
+.B \e$0
+through
+.BR \e$9 ,
+\fB\e$[\fIn\fB]\fR,
+.BR \e$* ,
+.BR \e$@ ,
+and
+.BR \en(.$ ,
+and
+.BR shift ;
+.IP \(bu 2
+strings with
+.BR ds ,
+.BR ds1 ,
+.BR as ,
+and
+.BR as1 ;
+registers with
+.BR nr ,
+including increments; and
+.BR rm ,
+.BR rr ,
+.BR rn ,
+and
+.BR als ;
+.IP \(bu 2
+conditionals with
+.BR if ,
+.BR ie ,
+and
+.BR el ,
+including blocks in
+.B \e{
+and
+.BR \e} ,
+negation with
+.BR ! ,
+the conditions
+.BR n ,
+.BR o ,
+.BR t ,
+.BR v ,
+.BR e ,
+.BR h ,
+.BR d ,
+.BR r ,
+.BR c ,
+.BR m ,
+.BR F ,
+and
+.BR S ,
+string comparisons, and numeric expressions;
+.IP \(bu 2
+the requests
+.BR ig ,
+.BR do ,
+.BR nop ,
+.BR tr ,
+.BR so ,
+.BR br ,
+.BR sp ,
+.BR ce ,
+.BR ta ,
+.BR ti ,
+.BR in ,
+.BR ll ,
+.BR nf ,
+.BR fi ,
+.BR ad ,
+.BR na ,
+.BR ns ,
+.BR rs ,
+.BR ss ,
+.BR tl ,
+and
+.BR ft ;
+.IP \(bu 2
+the escapes
+.B \ef
+for fonts
+.BR B ,
+.BR I ,
+.BR R ,
+.BR P ,
+and
+.B 1
+through
+.BR 4 ,
+where any other name is bold if it contains
+.BR B ,
+italic if it contains
+.BR I ,
+and roman otherwise, so that
+.B CB
+is bold and
+.B CW
+roman;
+.BR \e* ,
+.BR \en ,
+.BR \ew ,
+.BR \ek ,
+.BR \eh ,
+.BR \et ,
+.BR \ea ,
+and
+.BR \ec ;
+the glyphs
+\fB\e(\fIxx\fR,
+\fB\e[\fIname\fB]\fR,
+and
+\fB\eC\(aq\fIxx\fB\(aq\fR
+from a table of about 300 of groff's glyphs, and
+\fB\e[u\fIXXXX\fB]\fR
+and
+\fB\eN\(aq\fIn\fB\(aq\fR
+by code point; the literal characters
+.BR \e\- ,
+.BR \ee ,
+.BR \eE ,
+.BR \e\e ,
+.BR \e. ,
+.BR \e\(aq ,
+and
+.BR \e\(ga ,
+where
+.B \e\(aq
+is an acute accent with
+.BR \-Tutf8 ;
+and
+.B \e&
+and
+.BR \e) ,
+which print nothing.
+Any other undefined single-character escape prints that character, and
+an unknown glyph prints nothing.
+.PP
+The conditions
+.BR n ,
+.BR o ,
+and
+.B c
+are true, and
+.BR t ,
+.BR v ,
+.BR e ,
+.BR h ,
+.BR m ,
+.BR F ,
+and
+.B S
+are false.
+.B so
+resolves a relative path against the current directory, and skips a
+file it cannot read.
+Tab stops set by
+.B ta
+are all left-aligned and do not repeat.
+The predefined registers describe groff 1.23 on a terminal:
+.B .g
+is 1, and the registers for the line length, indent, fill and
+adjustment modes, font, input line, and argument count follow the
+current state.
+The register
+.B an\-margin
+holds the man(7) left margin, which
+.B RS
+and
+.B RE
+move.
+.B \ek
+marks a position that only later input lines can read, since
+.B \en
+and the other interpolations are done before a line is formatted.
+.SS man(7)
+The structure macros
+.BR TH ,
+.BR SH ,
+.BR SS ,
+.BR PP ,
+.BR LP ,
+.BR P ,
+.BR TP ,
+.BR TQ ,
+.BR IP ,
+.BR HP ,
+.BR RS ,
+.BR RE ,
+and
+.BR PD ;
+the font macros
+.BR B ,
+.BR I ,
+.BR SM ,
+and
+.BR SB ,
+which apply to the next line when given no arguments, and
+.BR BR ,
+.BR BI ,
+.BR IB ,
+.BR IR ,
+.BR RB ,
+and
+.BR RI ;
+and
+.BR UR ,
+.BR UE ,
+.BR MT ,
+.BR ME ,
+.BR EX ,
+.BR EE ,
+.BR SY ,
+.BR YS ,
+.BR OP ,
+.BR MR ,
+and
+.BR DT .
+.SS tbl
+Tables between
+.B .TS
+and
+.BR .TE ,
+with
+.BR .T& ;
+the options
+.BR tab() ,
+.BR box ,
+.BR frame ,
+.BR doublebox ,
+.BR doubleframe ,
+.BR allbox ,
+.BR center ,
+.BR centre ,
+and
+.BR expand ,
+where the double forms draw a single frame;
+the column formats
+.BR l ,
+.BR r ,
+.BR c ,
+.BR n ,
+.BR a ,
+.BR s ,
+.BR ^ ,
+.BR _ ,
+.BR \- ,
+.BR = ,
+and
+.BR | ,
+in either case, with the modifiers
+.BR b ,
+.BR i ,
+.BR f ,
+.BR t ,
+.BR e ,
+.BR x ,
+.BR w() ,
+and a number giving the column separation;
+text blocks in
+.B T{
+and
+.BR T} ,
+which may hold requests;
+the entries
+.BR _ ,
+.BR = ,
+.BR \e_ ,
+.BR \e^ ,
+and
+\fB\eR\fIx\fR;
+rule rows of
+.B _
+or
+.BR = ,
+as data lines or as format rows; and
+.B .sp
+between rows.
+Other options, the modifiers
+.BR u ,
+.BR z ,
+.BR d ,
+.BR p ,
+and
+.BR v ,
+and other requests between rows are ignored.
+A malformed format, or one with more than 64 columns or 256 rows, is
+read as data, and every entry is left-aligned.
+Rules are drawn with box-drawing characters with
+.BR \-Tutf8 ,
+and with
+.BR \- ,
+.BR = ,
+.BR | ,
+and
+.B +
+otherwise.
+.SS mdoc(7)
+The prologue
+.BR Dd ,
+.BR Dt ,
+and
+.BR Os ;
+.B Sh
+and
+.BR Ss ;
+lists with
+.B Bl
+in all its forms, with
+.BR \-width ,
+.BR \-offset ,
+and
+.BR \-compact ;
+displays with
+.B Bd
+.BR \-literal ,
+.BR \-unfilled ,
+.BR \-filled ,
+and
+.BR \-ragged ,
+with
+.B \-offset
+and
+.BR \-compact ,
+where
+.B \-centered
+is filled but not centered;
+.BR D1 ,
+.BR Dl ,
+enclosures,
+.BR Xo / Xc ,
+.BR Bk / Ek ,
+and
+.BR Rs / Re ;
+the common inline macros, such as
+.BR Nm ,
+.BR Fl ,
+.BR Ar ,
+.BR Op ,
+.BR Xr ,
+and
+.BR Fn ;
+.B Ex
+and
+.B Rv
+with
+.BR \-std ;
+.BR St ;
+and the system names, such as
+.B At
+and
+.BR Bx .
+Requests and tables work in mdoc(7) pages as in man(7) pages.
+.SS Ignored input
+These requests, among others, are accepted and ignored:
+.BR hy ,
+.BR nh ,
+.BR hw ,
+.BR ne ,
+.BR po ,
+.BR bp ,
+.BR ps ,
+.BR vs ,
+.BR cs ,
+.BR fam ,
+.BR tm ,
+.BR it ,
+.BR ftr ,
+.BR lf ,
+.BR cc ,
+.BR ec ,
+.BR di ,
+.BR ev ,
+.BR wh ,
+and
+.BR while .
+Input between
+.B .EQ
+and
+.BR .EN ,
+and between
+.B .PS
+and
+.BR .PE ,
+is skipped.
+.B mso
+is ignored, except that loading
+.I www.tmac
+defines its
+.B URL
+and
+.B MTO
+link macros.
+The man(7) macros
+.BR AT ,
+.BR UC ,
+.BR PT ,
+.BR BT ,
+.BR HY ,
+and
+.B LINKSTYLE
+are ignored, and the mdoc(7) macros
+.BR Bt ,
+.BR Ud ,
+.BR Hf ,
+.BR Es ,
+and
+.B En
+print only their arguments.
+Unknown requests and macros are ignored.
+The escapes
+.BR \es ,
+.BR \ev ,
+.BR \eu ,
+.BR \ed ,
+.BR \er ,
+.BR \em ,
+.BR \eM ,
+.BR \eg ,
+.BR \ej ,
+.BR \ep ,
+.BR \eF ,
+.BR \eV ,
+.BR \eY ,
+.BR \eA ,
+.BR \eB ,
+.BR \eR ,
+.BR \eS ,
+.BR \eH ,
+.BR \eb ,
+.BR \ex ,
+.BR \el ,
+.BR \eL ,
+.BR \eD ,
+.BR \eX ,
+and
+.B \eZ
+are parsed and dropped;
+.BR \e| ,
+.BR \e^ ,
+.BR \e, ,
+and
+.B \e/
+produce nothing;
+.B \e:
+is a break point, and
+.B \e%
+within a word is a break point that adds a hyphen;
+.B \e
+followed by a space,
+.BR \e~ ,
+and
+.B \e0
+are unbreakable spaces; and
+.B \eo
+and
+.B \ez
+are approximated.
+.SH OPTIONS
+Options are not grouped.
+The arguments of
+.B \-T
+and
+.B \-r
+may be attached or separate, and
+.B \-\-
+ends the options.
+.TP
+.BR \-man ", " \-mandoc ", " \-mdoc
+Ignored, as is any other
+.B \-m
+option.
+The macro package is detected from the input.
+.TP
+.B \-t
+Ignored, since
+.B tbl
+support is built in.
+.TP
+.BI \-P arg
+Ignored.
+The argument, which groff passes to its output driver, must be attached.
+.TP
+.B \-Tascii
+Write ASCII: glyphs and common non-ASCII characters are approximated,
+and other non-ASCII input is printed as
+.BR ? .
+This is the default, and any other device name selects it.
+.TP
+.BR \-Tutf8 ", " \-Tutf\-8
+Write UTF-8: glyphs are Unicode characters, and UTF-8 input passes
+through, except that an invalid byte is printed as
+.BR ? .
+.TP
+\fB\-rLL=\fIN\fBn\fR
+Set the line length to
+.I N
+columns.
+The default is
+.BR MANWIDTH ,
+or
+.BR COLUMNS ,
+or 78.
+A length outside 10 to 1000 columns is ignored, here and in those
+variables.
+.TP
+\fB\-r\fIreg\fB=\fIN\fR
+Set the number register
+.I reg
+to
+.IR N ,
+for the page to test.
+Except for
+.BR \-rLL ,
+which sets the line length and no register, this does not affect the
+layout: header and footer lines use the line length, so
+.BR \-rLT ,
+which
+.BR man (1)
+passes, has no effect.
+.TP
+.B \-w
+Warn on standard error, with file names and line numbers, about unknown
+macros, requests, escapes, and glyphs, undefined strings,
+.B .so
+files that cannot be read, and macro calls or
+.B .so
+files nested too deeply.
+Requests and escapes that are accepted and ignored draw no warning.
+This checks pages as they are written.
+Any option beginning with
+.B \-w
+does the same, and one beginning with
+.B \-W
+turns warnings off.
+Warnings do not change the exit status.
+.TP
+.BR \-h ", " \-\-help
+Print a usage summary on standard output and exit.
+.SH ENVIRONMENT
+.TP
+.B MANWIDTH
+The line length, unless
+.B \-rLL
+gives one.
+.TP
+.B COLUMNS
+The line length, unless
+.B \-rLL
+or
+.B MANWIDTH
+gives one.
+.TP
+.B GROFF_NO_SGR
+When set, even to an empty value, write no escape sequences for bold
+and italic text.
+.BR man (1)
+sets it when its output is not a terminal.
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+A
+.I file
+or a
+.B .so
+file could not be read, or the output could not be written.
+.TP
+.B 2
+Bad usage, or out of memory.
+.PP
+A write error prints no message, since it normally means the pager was
+closed.
+.SH EXAMPLES
+View a page that is not installed:
+.PP
+.RS 4
+.EX
+$ nroff page.1 | less \-R
+.EE
+.RE
+.PP
+Check a page for constructs
+.B nroff
+does not recognize:
+.PP
+.RS 4
+.EX
+$ nroff \-w page.1 >/dev/null
+.EE
+.RE
+.PP
+Save a page as plain UTF-8 text, 72 columns wide:
+.PP
+.RS 4
+.EX
+$ GROFF_NO_SGR=1 nroff \-Tutf8 \-rLL=72n page.1 >page.txt
+.EE
+.RE
+.SH NOTES
+.B nroff
+supports only what manual pages use, and is not a general roff
+implementation: it has no traps, diversions, environments, or output
+other than a terminal.
+.PP
+Limits bound runaway input.
+Macro calls and
+.B .so
+files nest at most 64 deep, and strings 32 deep.
+A run reads at most 1048576 input lines, counting each line of a macro
+body every time it runs and each string interpolation, and silently
+drops the rest.
+Formatting many pages in one run can reach this.
+An output line holds at most 4096 columns, and text beyond is dropped.
+Space requested between two output lines is at most 100 blank lines.
+.B nroff
+allocates 256 MiB of memory, 128 MiB as a 32-bit program, or 32 MiB
+when that much is unavailable, and exits with status 2 when it runs out.
+.PP
+.BR man (1)
+passes
+.B \-Tutf8
+when its ANSI code page is UTF-8, and
+.B \-Tascii
+otherwise.
+It runs
+.B nroff
+from the root of the manual tree that holds the page, so
+.B .so
+paths such as
+.I man1/gcc.1
+resolve, or from the current directory for a page named by its path.
+.PP
+Through
+.B less
+on a console without virtual terminal support, as on Windows XP, bold
+text shows but underlining does not.
+.SH SEE ALSO
+.BR less (1),
+.BR man (1)

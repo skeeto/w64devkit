@@ -1,0 +1,252 @@
+.TH W64DEVKIT 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+w64devkit \- start a shell in the w64devkit environment
+.SH SYNOPSIS
+.B w64devkit
+.SH DESCRIPTION
+.BR w64devkit.exe ,
+at the top of the kit, configures the environment and starts a
+busybox login shell,
+.BR "sh \-l" ,
+in a console.
+It is the easiest way to enter the kit and requires no changes to the
+system.
+It ignores its command line.
+In order, it:
+.IP 1. 4
+sets
+.B W64DEVKIT_HOME
+to the directory containing
+.BR w64devkit.exe ,
+and
+.B W64DEVKIT
+to the kit's version;
+.IP 2. 4
+changes to that directory, and reads
+.I w64devkit.ini
+there, if it exists;
+.IP 3. 4
+sets
+.B HOME
+if the configuration says to;
+.IP 4. 4
+puts the kit's
+.I bin
+directory at the front of
+.BR PATH ,
+as the configuration says;
+.IP 5. 4
+sets the console title; and
+.IP 6. 4
+runs
+.I bin/busybox.exe
+as
+.BR "sh \-l" ,
+waits for it, and exits with its status.
+.PP
+The alternative to the launcher is to put the kit's
+.I bin
+directory in
+.B PATH
+some other way, and run
+.BR "sh \-l" .
+.SS Configuration
+.I w64devkit.ini
+is an INI file in UTF-8 without a byte order mark.
+Only keys in the
+.B [w64devkit]
+section are read, and section and key names are case-sensitive.
+When a key repeats, the last value wins, except for
+.BR home .
+A line whose first non-blank character is
+.B ;
+is a comment, and a comment cannot follow a value on the same line.
+Whitespace around section names, keys and values is trimmed.
+Double quotes around a value keep its leading and trailing whitespace,
+and cannot be escaped.
+Unknown keys, and lines that are not sections, keys or comments, are
+ignored.
+.TP
+.BI "home = " path
+Set
+.B HOME
+to
+.IR path .
+Environment variables written as
+.BI % NAME %
+are expanded, a relative
+.I path
+is relative to the kit directory, and backslashes become forward
+slashes.
+If the key repeats, the first value wins.
+.TP
+.BI "path type = " type\fR[\fB+\fIfeature\fR]...
+Set
+.B PATH
+to the kit's
+.I bin
+directory followed by:
+.RS
+.TP
+.B inherit
+the inherited
+.BR PATH .
+This is the default, also used when
+.I type
+is empty.
+.TP
+.B minimal
+.I System32
+in the Windows directory, the Windows directory itself,
+.IR System32\eWbem ,
+and, on Windows 7 and later,
+.IR System32\eWindowsPowerShell\ev1.0 .
+.TP
+.B strict
+nothing.
+.RE
+.IP
+The only
+.I feature
+is
+.BR ccache ,
+which puts the kit's
+.I lib/ccache
+directory before
+.IR bin ,
+so that the C and C++ compiler commands, such as
+.BR cc ,
+.BR gcc ,
+and
+.BR g++ ,
+go through
+.BR ccache .
+Unknown features are ignored, and an unknown
+.I type
+is an error.
+.TP
+.BI "title = " text
+Set the console window title to
+.IR text ,
+with environment variables expanded as for
+.BR home .
+The default is
+.BR w64devkit .
+.SS Login shell
+As a login shell, busybox
+.B sh
+changes to
+.BR HOME ,
+or when it is unset, to the user's profile directory.
+It then runs these scripts, each if it exists:
+.IP 1. 4
+.I /etc/profile
+on the system drive;
+.IP 2. 4
+the kit's
+.IR etc/profile ;
+.IP 3. 4
+.IR $HOME/.profile ,
+the place for further configuration; and
+.IP 4. 4
+the file named by
+.BR ENV ,
+if the shell is interactive.
+.PP
+The kit's
+.I etc/profile
+exports variables that stop GNU Autotools
+.B configure
+scripts from mistaking the kit for MSYS2; see
+.BR ENVIRONMENT .
+.SH ENVIRONMENT
+The launcher sets:
+.TP
+.B W64DEVKIT
+The kit's version, such as
+.BR 2.10.1 .
+.TP
+.B W64DEVKIT_HOME
+The kit's installation directory, with backslashes.
+.TP
+.B HOME
+As configured by
+.BR home .
+.TP
+.B PATH
+As configured by
+.BR "path type" .
+.PP
+The kit's
+.I etc/profile
+exports:
+.TP
+.B PATH_SEPARATOR
+A semicolon, the separator in
+.BR PATH .
+.TP
+.B ac_executable_extensions
+.BR .exe ,
+the suffix of executables.
+.TP
+.B build_alias
+The kit's target,
+.B x86_64\-w64\-mingw32
+or
+.BR i686\-w64\-mingw32 .
+.SH EXIT STATUS
+The exit status of the shell, or 2 if the launcher fails.
+Launcher errors appear in a message box: an unknown
+.BR "path type" ,
+a
+.B PATH
+longer than Windows allows, or a shell that would not start.
+.SH EXAMPLES
+A
+.I w64devkit.ini
+that keeps the home directory beside the kit, for a self-contained
+environment on removable media, and isolates
+.B PATH
+from the system:
+.PP
+.RS 4
+.EX
+[w64devkit]
+home = ..\ehome
+path type = minimal+ccache
+title = %USERNAME%@%COMPUTERNAME% [%W64DEVKIT%]
+.EE
+.RE
+.PP
+Use the Windows home directory:
+.PP
+.RS 4
+.EX
+home = %HOMEDRIVE%%HOMEPATH%
+.EE
+.RE
+.PP
+Enter the kit from an existing
+.B cmd.exe
+console without the launcher:
+.PP
+.RS 4
+.EX
+C:\e>set PATH=C:\ew64devkit\ebin;%PATH%
+C:\e>sh \-l
+.EE
+.RE
+.SH NOTES
+Started from Explorer, the launcher opens a new console window.
+Started from a console, the shell runs in that console.
+.PP
+The kit's
+.I bin
+directory is found from the launcher's own location, so the kit works
+from any directory, including read-only media when
+.B HOME
+is elsewhere.
+.SH SEE ALSO
+.BR busybox (1),
+.BR ccache (1),
+.BR sh (1)

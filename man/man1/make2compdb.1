@@ -1,0 +1,209 @@
+.TH MAKE2COMPDB 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+make2compdb \- generate a compilation database from make output
+.SH SYNOPSIS
+.B make2compdb
+.RB [ \-v ]
+.br
+.B make2compdb
+.BR \-h " | " \-\-help " | " \-\-version
+.SH DESCRIPTION
+.B make2compdb
+reads the commands printed by
+.BR make (1)
+on standard input and writes a JSON compilation database, the
+.I compile_commands.json
+used by clangd and other tools, on standard output.
+Run
+.B make
+with
+.B \-B
+so that it prints every command even when its targets are up to date,
+.B \-w
+so that it reports each directory it enters and leaves, and
+.B \-n
+so that it prints the commands without running them.
+.PP
+Each input line is either a directory message from
+.BR make ,
+or shell commands.
+A directory message is a line such as
+.PP
+.RS 4
+.EX
+make[1]: Entering directory \(aqC:/src/lib\(aq
+.EE
+.RE
+.PP
+whose first word ends in a colon, and its matching
+.B Leaving directory
+line.
+These maintain a stack of directories, which starts with the current
+working directory.
+.PP
+Shell commands are split into words as by a POSIX shell, honouring
+quotes, backslash escapes, and line continuations.
+Control operators such as
+.BR ; ,
+.BR && ,
+and
+.B |
+separate commands.
+In each command,
+.B make2compdb
+looks for the first word that names a C or C++ compiler, and drops the
+words before it, such as
+.B ccache
+or variable assignments.
+It also drops redirections with their targets, command substitutions,
+and
+.B ${...}
+expansions.
+.PP
+A compiler is recognized by its name, ignoring any directory and
+.B .exe
+suffix:
+.BR gcc ,
+.BR g++ ,
+.BR clang ,
+.BR clang++ ,
+.BR cc ,
+and
+.BR c++ ,
+also with a target prefix such as
+.BR x86_64\-w64\-mingw32\-gcc ,
+a version suffix such as
+.BR gcc\-15 ,
+or the
+.B \-win32
+and
+.B \-posix
+suffixes of Debian's Mingw-w64 GCC; and
+.BR zig ,
+.BR icx ,
+.BR icpx ,
+.BR nvc ,
+.BR nvc++ ,
+.BR tcc ,
+.BR emcc ,
+and
+.BR armclang .
+MSVC
+.B cl
+and
+.B clang\-cl
+are recognized but not supported, and produce no entries.
+.PP
+The source files of a command are its arguments ending in
+.BR .c ,
+.BR .cc ,
+.BR .cpp ,
+.BR .cxx ,
+.BR .c++ ,
+.BR .C ,
+.BR .cppm ,
+.BR .s ,
+or
+.BR .S .
+After an
+.B \-x
+option naming a C, C++, or assembler language, every non-option argument
+is a source file, until
+.BR "\-x none" .
+After any other language, such as
+.BR "\-x c\-header" ,
+none are.
+A command with no source files, such as a link step, produces no
+entries.
+.PP
+Each source file produces one entry, with these members:
+.TP
+.B directory
+The directory on top of the stack.
+.TP
+.B file
+The source file as written in the command.
+.TP
+.B output
+The argument of
+.B \-o
+or
+.BR \-\-output ,
+when present.
+.TP
+.B arguments
+The words of the command, from the compiler on.
+When a command compiles several source files, each entry omits the
+others.
+.PP
+Backslashes in Windows paths, including the directories, become forward
+slashes.
+If standard input is a console,
+.B make2compdb
+reads nothing and writes an empty array.
+.SH OPTIONS
+Each option must be a separate argument.
+.TP
+.BR \-h ", " \-\-help
+Print a usage message on standard output and exit.
+.TP
+.B \-\-version
+Print the version and exit.
+.TP
+.BR \-v ", " \-\-verbose
+Describe the parsing of each line on standard error: its words, the
+compiler found, and the entries produced.
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+Unknown argument, or an error writing output.
+.SH EXAMPLES
+Generate a database for the project in the current directory:
+.PP
+.RS 4
+.EX
+$ make \-Bwn | make2compdb >compile_commands.json
+.EE
+.RE
+.PP
+Generate an entry for a single command:
+.PP
+.RS 4
+.EX
+$ echo \(aqccache gcc \-c \-o main.o main.c\(aq | make2compdb
+[
+    {
+        "directory": "C:/src/demo",
+        "file": "main.c",
+        "output": "main.o",
+        "arguments": [
+            "gcc",
+            "\-c",
+            "\-o",
+            "main.o",
+            "main.c"
+        ]
+    }
+]
+.EE
+.RE
+.SH NOTES
+.B make \-n
+still runs recursive
+.B $(MAKE)
+commands, which is how the commands of sub-makes reach the output.
+.B make2compdb
+sees only the commands as printed.
+It does not look inside scripts that the build runs, nor expand response
+files.
+.PP
+The whole input and output must fit in 64 MiB of memory.
+Beyond that,
+.B make2compdb
+terminates abnormally.
+.SH SEE ALSO
+.BR gcc (1),
+.BR make (1)

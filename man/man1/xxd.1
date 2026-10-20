@@ -1,0 +1,341 @@
+.TH XXD 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+xxd \- make a hex dump, or reverse one
+.SH SYNOPSIS
+.B xxd
+.RI [ options ]
+.RI [ infile
+.RI [ outfile ]]
+.br
+.B xxd \-r
+.RB [ \-p ]
+.RB [ \-s
+.RI [\-] offset ]
+.RI [ infile
+.RI [ outfile ]]
+.SH DESCRIPTION
+.B xxd
+writes a hex dump of
+.IR infile ,
+or with
+.B \-r
+converts a hex dump back to binary.
+This
+.B xxd
+is rexxd, a reimplementation of the xxd distributed with Vim.
+In common cases its output is identical, but details differ; see
+.BR NOTES .
+.PP
+With no
+.IR infile ,
+or when it is
+.BR \- ,
+.B xxd
+reads standard input.
+With no
+.IR outfile ,
+or when it is
+.BR \- ,
+it writes standard output.
+A dump replaces the contents of
+.IR outfile .
+With
+.BR \-r ,
+.I outfile
+is not truncated, so that a dump can patch an existing file in place.
+.PP
+Each line of the default dump is an offset, a colon, 16 octets in hex in
+groups of 2, two spaces, and the same octets as text.
+The offset has 8 hex digits, or 16 once it no longer fits in 8.
+In the text column, printable ASCII appears as itself and every other
+octet as a period.
+.PP
+Numeric arguments are decimal, hexadecimal with a
+.B 0x
+prefix, or octal with a leading
+.BR 0 .
+.SH OPTIONS
+Only the letter after the dash is significant in options that take no
+argument, so
+.BR \-ps ,
+.BR \-postscript ,
+and
+.B \-plain
+all mean
+.BR \-p .
+Options cannot be grouped:
+.B \-au
+is the same as
+.BR \-a .
+An option's argument may be attached, as in
+.BR \-c8 ,
+or be the next argument.
+.B \-\-
+ends the options.
+.TP
+.B \-a
+Toggle autoskip.
+A run of all-zero lines is shown as its first line followed by a line
+containing a single
+.BR * .
+If the input ends with such a run, its last line is also shown, so that
+.B \-r
+restores the full length.
+.TP
+.B \-b
+Dump bits instead of hex: each octet as 8 binary digits, 6 octets per
+line.
+Incompatible with
+.BR \-r .
+.TP
+.B \-C
+Capitalize the variable names written by
+.BR \-i ,
+including the
+.B _LEN
+suffix.
+.TP
+.BI "\-c " cols
+Write
+.I cols
+octets per line.
+The default is 16, or 6 with
+.BR \-b ,
+12 with
+.BR \-i ,
+and 30 with
+.BR \-p .
+.TP
+.B \-d
+Show offsets in decimal.
+Incompatible with
+.BR \-r .
+.TP
+.B \-E
+Show the text column as EBCDIC instead of ASCII.
+.TP
+.B \-e
+Little-endian dump: reverse the octets within each group.
+Groups default to 4 octets, and
+.I cols
+must be a multiple of the group size.
+Incompatible with
+.BR \-r .
+.TP
+.BI "\-g " size
+Group
+.I size
+octets together.
+The default is 2, or 1 with
+.B \-b
+and 4 with
+.BR \-e .
+A size of 0 puts each line in a single group.
+.TP
+.B \-h
+Print a usage message on standard output and exit.
+.TP
+.B \-i
+Write a C include file: an
+.B unsigned char
+array of the octets and an
+.B unsigned int
+holding the length.
+The names come from
+.BR \-n ,
+or else from
+.IR infile ,
+with each character that cannot appear in a C identifier replaced by an
+underscore, and
+.B __
+prepended to a name that starts with a digit.
+Non-ASCII characters are kept, so the names may be Unicode identifiers.
+When reading standard input without
+.BR \-n ,
+only the array elements are written.
+.TP
+.BI "\-l " len
+Stop after
+.I len
+octets.
+.TP
+.BI "\-n " name
+Use
+.I name
+for the
+.B \-i
+variables, exactly as given.
+.TP
+.BI "\-o " offset
+Add
+.I offset
+to the displayed file positions.
+.TP
+.B \-p
+Plain hex dump: hex digits only, 30 octets per line, with no offsets and
+no text column.
+With
+.BR \-r ,
+read a plain dump, ignoring everything except hex digits.
+.TP
+.BI "\-R " when
+Accepted for compatibility and ignored.
+There is no color output.
+.TP
+.B \-r
+Reverse: convert a hex dump to binary.
+Each input line is an offset, a colon, and hex octets, and two spaces
+in a row end the octets, so the text column is ignored.
+Lines without a valid offset are skipped.
+The number of octets per line is detected from each line, so
+.B \-c
+is unnecessary.
+Octets are written at the offset of their line, by seeking when
+.I outfile
+is a regular file.
+Otherwise gaps are filled with zeros, and offsets cannot go backwards.
+.TP
+\fB\-s\fR [\fB+\fR][\fB\-\fR]\fIoffset\fR
+Start at
+.I offset
+in the input:
+.I offset
+from the start, or
+.BI \- offset
+from the end.
+When reading standard input,
+.BI + offset
+seeks relative to the current position, and with a named
+.I infile
+the
+.B +
+is ignored.
+If the input cannot seek, a forward seek reads and discards input.
+Displayed offsets include the seek.
+.IP
+When
+.B \-s
+follows
+.B \-r
+on the command line, it instead adds
+.IR offset ,
+which may be negative, to each line's offset.
+.TP
+.B \-u
+Use uppercase hex digits.
+The
+.B 0x
+prefixes written by
+.B \-i
+stay lowercase.
+.TP
+.B \-v
+Print the version and exit.
+.TP
+.B \-x
+Trace each open, read, write, seek, and exit on standard error, like
+.BR strace .
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+Invalid command line.
+.TP
+.B 2
+The input could not be opened or read, or a
+.B \-s
+seek failed.
+.TP
+.B 3
+The output could not be opened or written.
+.TP
+.B 6
+Out of memory.
+.SH EXAMPLES
+Dump a file:
+.PP
+.RS 4
+.EX
+$ xxd hello.txt
+00000000: 4865 6c6c 6f2c 2077 6f72 6c64 210a       Hello, world!.
+.EE
+.RE
+.PP
+Show the last 32 octets of a file:
+.PP
+.RS 4
+.EX
+$ xxd \-s \-32 program.exe
+.EE
+.RE
+.PP
+Embed a file in a C program:
+.PP
+.RS 4
+.EX
+$ xxd \-i icon.png >icon.h
+.EE
+.RE
+.PP
+Edit a binary file as text, then convert it back:
+.PP
+.RS 4
+.EX
+$ xxd data.bin >data.hex
+$ vim data.hex
+$ xxd \-r data.hex data.bin
+.EE
+.RE
+.PP
+Write the octet 0x90 at offset 0x1f of an existing file, leaving the rest
+of the file unchanged:
+.PP
+.RS 4
+.EX
+$ echo 1f: 90 | xxd \-r \- program.bin
+.EE
+.RE
+.PP
+Convert between binary and plain hex:
+.PP
+.RS 4
+.EX
+$ xxd \-p key.bin >key.txt
+$ xxd \-r \-p key.txt key.bin
+.EE
+.RE
+.SH NOTES
+Differences from Vim's xxd:
+.IP \(bu 2
+Text output ends lines with LF, not CRLF.
+.IP \(bu 2
+Standard output is always fully buffered.
+.IP \(bu 2
+There is no color output.
+.IP \(bu 2
+.B \-r
+detects the number of octets per line.
+.IP \(bu 2
+.B \-n
+names are used as given.
+.IP \(bu 2
+Offsets are 64-bit, and limits such as the maximum
+.B \-c
+come only from memory.
+.IP \(bu 2
+.B \-x
+is new.
+.PP
+Vim's own xxd manual does not describe this program.
+.PP
+Paths may contain any Unicode characters and may be longer than
+.BR MAX_PATH .
+Memory is limited to 16 MiB, and requests beyond that, such as a huge
+.BR \-c ,
+fail with exit status 6.
+.SH SEE ALSO
+.BR hexdump (1),
+.BR od (1),
+.BR vim (1)

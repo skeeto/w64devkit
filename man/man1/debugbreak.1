@@ -1,0 +1,55 @@
+.TH DEBUGBREAK 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.SH NAME
+debugbreak \- break every debugged process into its debugger
+.SH SYNOPSIS
+.B debugbreak
+.SH DESCRIPTION
+.B debugbreak
+raises a breakpoint exception in every process that has a debugger
+attached, as though F12 were pressed in each.
+Windows provides that hotkey only for graphical programs, so
+.B debugbreak
+fills the gap for console programs, such as one stuck in an infinite
+loop under
+.BR gdb (1).
+.PP
+It visits every process it can open with full access, and calls
+.B DebugBreakProcess
+on each.
+Processes without a debugger are not affected.
+.SH OPTIONS
+None.
+Any argument prints a usage message on standard error, with exit status
+1.
+.SH EXIT STATUS
+.TP
+.B 0
+Every process was visited.
+.TP
+.B 1
+An argument was given, or the processes could not be listed.
+.SH EXAMPLES
+Interrupt a console program running under GDB, from a second console:
+.PP
+.RS 4
+.EX
+$ debugbreak
+.EE
+.RE
+.PP
+GDB stops in a new thread, which Windows creates to deliver the break.
+To see where the program was, list the stacks of all threads:
+.PP
+.RS 4
+.EX
+(gdb) thread apply all bt
+.EE
+.RE
+.SH NOTES
+Every debugged process breaks, not only one.
+Processes that
+.B debugbreak
+cannot open, such as elevated processes when it is not elevated, are
+skipped.
+.SH SEE ALSO
+.BR gdb (1)
