@@ -1,0 +1,107 @@
+Treat a bare drive operand such as C: as that drive's current directory,
+as Windows does, rather than its root. lstat("C:") already resolved to
+the current directory, but opendir("C:") listed "C:/*" and
+concat_path_file("C:", "f") built "C:/f", so every recursive applet
+walked the root while believing it was in the current directory, and
+"rm -rf C:" run in C:\some\dir deleted from the root of C:. The same
+went for cp, mv, ln, install, find, grep -r, tar, chmod -R, chattr -R,
+lsattr -R, du, diff -r, ls, wget -P, mktemp -p and shell globs like C:*.
+
+opendir now lists "X:*" and concat_path_file joins "X:" and "f" as
+"X:f". A rooted filename still joins as "X:/f", which keeps
+get_system_drive() callers such as "/etc/profile" on the root.
+chdir_system_drive() now passes "/" for the same reason. xabsolute_path()
+no longer takes "X:" or "X:dir" for absolute, so man resolves such a
+path before it changes to the system drive's root.
+
+find -name had its own root walk: bb_basename("X:") is empty, so the
+trailing-slash handling wrote a '/' over the terminator of "X:" and
+carried on from "X:/" (and the following bytes). It now strips only a
+real '/'.
+
+---
+ libbb/concat_path_file.c |    9 +++++++++
+ win32/dirent.c           |    7 +++++--
+ win32/mingw.c            |    6 ++++--
+ findutils/find.c         |    7 +++++++
+ 4 files changed, 25 insertions(+), 4 deletions(-)
+
+--- a/libbb/concat_path_file.c
++++ b/libbb/concat_path_file.c
+@@ -45,6 +45,9 @@
+  */
+ 	char *buf, *p;
+ 	size_t n1, n2, n3;
++#if ENABLE_PLATFORM_MINGW32
++	const char *unrooted = filename;
++#endif
+ 
+ 	while (*filename == '/')
+ 		filename++;
+@@ -54,6 +57,12 @@
+ 
+ 	n1 = strlen(path);
+ 	n2 = (path[n1 - 1] != '/'); /* 1: "path has no trailing slash" */
++#if ENABLE_PLATFORM_MINGW32
++	/* A bare drive is the drive's current directory: "X:" + "f" is
++	 * "X:f".  A rooted filename still gives "X:" + "/f" = "X:/f". */
++	if (n1 == 2 && has_dos_drive_prefix(path) && filename == unrooted)
++		n2 = 0;
++#endif
+ 	n3 = strlen(filename) + 1;
+ 
+ 	buf = xmalloc(n1 + n2 + n3);
+--- a/win32/dirent.c
++++ b/win32/dirent.c
+@@ -46,8 +46,11 @@
+ 	/* copy name to temp buffer */
+ 	strcpy(pattern, name);
+ 
+-	/* append optional '/' and wildcard '*' */
+-	if (len && !is_dir_sep(pattern[len - 1]))
++	/* append optional '/' and wildcard '*', but no '/' after a bare
++	 * drive "X:", which would list the drive's root instead of its
++	 * current directory */
++	if (len && !is_dir_sep(pattern[len - 1]) &&
++			!(len == 2 && has_dos_drive_prefix(pattern)))
+ 		pattern[len++] = '/';
+ 	pattern[len++] = '*';
+ 	pattern[len] = 0;
+--- a/win32/mingw.c
++++ b/win32/mingw.c
+@@ -2396,7 +2396,7 @@
+ 	int ret = -1;
+ 
+ 	if (*sd)
+-		ret = chdir(auto_string(concat_path_file(sd, "")));
++		ret = chdir(auto_string(concat_path_file(sd, "/")));
+ 	return ret;
+ }
+ 
+@@ -2412,7 +2412,9 @@
+ {
+ 	char *rpath;
+ 
+-	if (root_len(path) != 0)
++	// "X:" and "X:dir" are relative to the drive's current directory
++	if (root_len(path) > 2 ||
++			(has_dos_drive_prefix(path) && is_dir_sep(path[2])))
+ 		return path;	// absolute path
+ 	rpath = xmalloc_realpath(path);
+ 	if (rpath)
+--- a/findutils/find.c
++++ b/findutils/find.c
+@@ -624,6 +624,13 @@
+ 	 * but somewhere between 4.1.20 and 4.4.0 GNU find stopped using it.
+ 	 * find -name '*foo' should match .foo too:
+ 	 */
++#if ENABLE_PLATFORM_MINGW32
++	/* bb_basename() also splits at ':' and '\', so "X:" or "dir\" has
++	 * an empty basename with no '/' to strip: don't put a '/' in place
++	 * of the terminator, which turned "X:" into a path on the root */
++	if (trunc_slash && *trunc_slash != '/')
++		trunc_slash = NULL;
++#endif
+ 	if (trunc_slash) *trunc_slash = '\0';
+ #if FNM_CASEFOLD
+ 	r = fnmatch(ap->pattern, tmp, (ap->iname ? FNM_CASEFOLD : 0));

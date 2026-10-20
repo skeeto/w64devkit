@@ -8,3 +8,5 @@ history-limit.patch
 gzip.patch
 man.patch
 less-raw-sgr.patch
+bare-drive.patch
+rm-bare-drive.patch
