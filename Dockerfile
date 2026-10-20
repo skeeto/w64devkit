@@ -136,13 +136,13 @@ RUN mkdir zstd \
  && tar xzf zstd-$ZSTD_VERSION.tar.gz -C zstd --strip-components=1
 
 FROM base AS dl-tugz
-ARG TUGZ_VERSION=1.1.0 \
-    TUGZ_SHA256=6bc79c91236353e95148dac68223b003e9b00daa6fb1c18d699a84feaeef2b2e
+ARG TUGZ_VERSION=1.3.0 \
+    TUGZ_SHA256=2ae62a9bebbe5d3f3426057068841fc0fad65a8fb1c2be231c3033979e8d7c2e
 WORKDIR /dl
 ADD --checksum=sha256:$TUGZ_SHA256 \
-    https://github.com/skeeto/tugz/releases/download/v$TUGZ_VERSION/tugz-amalgams-$TUGZ_VERSION.zip ./
-RUN 7z x tugz-amalgams-$TUGZ_VERSION.zip \
- && mv tugz-amalgams-$TUGZ_VERSION tugz
+    https://github.com/skeeto/tugz/releases/download/v$TUGZ_VERSION/tugz-$TUGZ_VERSION.tar.gz ./
+RUN mkdir tugz \
+ && tar xzf tugz-$TUGZ_VERSION.tar.gz -C tugz --strip-components=1
 
 FROM base AS dl-quilt
 ARG QUILT_VERSION=0.69.3 \
@@ -864,8 +864,11 @@ RUN make -j$(nproc) -C programs zstd \
 FROM cross AS build-tugz
 COPY --from=dl-tugz /dl/ /dl/
 
-WORKDIR /dl/tugz
-RUN mkdir -p /out/bin \
+WORKDIR /tugz
+RUN cmake -P /dl/tugz/cmake/amalgamate.cmake \
+ && mkdir -p /out/bin /out/share/man/man1 \
+ && cp /dl/tugz/man/gzip.1 /dl/tugz/man/unzip.1 /dl/tugz/man/zip.1 \
+       /out/share/man/man1/ \
  && printf '%s\n' gzip unzip zip \
     | xargs -I{} -P$(nproc) \
           $ARCH-gcc -O2 -nostartfiles -s $LARGE_ADDRESS_FLAG \
