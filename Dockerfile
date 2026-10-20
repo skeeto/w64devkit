@@ -1074,6 +1074,8 @@ FROM cross AS build-nsis
 COPY --from=dl-nsis /dl/nsis /dl/nsis
 COPY src/nsis/ $PREFIX/src/nsis/
 WORKDIR /dl/nsis
+# NSIS links makensis with -s only if a test program so linked runs,
+# which cannot happen when cross-compiling, so strip it after install.
 RUN QUILT_PATCHES=$PREFIX/src/nsis quilt push -a \
  && rm -rf .pc \
  && scons -j$(nproc) \
@@ -1088,7 +1090,8 @@ RUN QUILT_PATCHES=$PREFIX/src/nsis quilt push -a \
         SKIPUTILS="NSIS Menu,Makensisw,VPatch/Source/GenPat,MakeLangId,zip2exe" \
         ZLIB_W32=/deps \
         install-compiler install-stubs install-includes install-plugins \
-        install-contrib install-utils
+        install-contrib install-utils \
+ && $ARCH-strip /out$PREFIX/share/nsis/bin/makensis.exe
 
 # Also provide x86 stubs and plugins in the multilib kit so makensis
 # can produce 32-bit installers ("Target x86-unicode"). NSIS never
