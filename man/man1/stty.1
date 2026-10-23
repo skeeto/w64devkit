@@ -112,8 +112,8 @@ The settings
 .BR cols ,
 and
 .BR columns ,
-which resize the window on Unix, are recognized but always fail:
-a number after one of them is reported as an invalid argument.
+which resize the window on Unix, are not supported and are rejected as
+invalid arguments.
 .SH OPTIONS
 .TP
 .B \-a
@@ -235,14 +235,13 @@ There is no way to save the current mode and restore it later, because
 .B \-g
 is not supported.
 .PP
-When
+busybox-w32 recognizes
 .BR rows ,
 .BR cols ,
-or
-.B columns
-is the last argument, with no number after it,
-.B stty
-crashes instead of reporting an error.
+and
+.BR columns ,
+but rejects the number after them, and crashes when nothing follows.
+w64devkit rejects them outright.
 .PP
 .BR ttysize (1)
 also prints the console size, prints the width first by default, and

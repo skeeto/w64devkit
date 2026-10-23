@@ -1,0 +1,33 @@
+On Windows, stty recognized rows, cols and columns as settings, though
+it cannot set the window size and its usage lists only size. The first
+pass checked the following number without consuming it, so "stty rows
+30" always failed with "invalid argument '30'", and "stty rows" with
+nothing after it dereferenced a null pointer and crashed. Recognize only
+size, so these are rejected as invalid arguments like other settings
+the Windows build lacks.
+
+--- a/coreutils/stty.c
++++ b/coreutils/stty.c
+@@ -1008,17 +1008,11 @@
+ 
+ static int find_param(const char *name)
+ {
+-	static const char params[] ALIGN1 =
+-		"rows\0"    /* 1 */
+-		"cols\0"    /* 2 */
+-		"columns\0" /* 3 */
+-		"size\0";    /* 4 */
+-	int i = index_in_strings(params, name) + 1;
+-	if (i == 0)
+-		return 0;
+-	if (i != 4)
+-		i |= 0x80;
+-	return i;
++	/* The window size cannot be set, so rows, cols and columns are
++	 * not settings: accepting them consumed no argument, and with
++	 * none following, dereferenced a null pointer.
++	 */
++	return strcmp(name, "size") == 0 ? param_size : 0;
+ }
+ #endif
+ 
