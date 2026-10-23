@@ -1,0 +1,17 @@
+--- a/shell/ash.c
++++ b/shell/ash.c
+@@ -300,5 +300,5 @@
+  * in word = GLOB, quoting should be significant on char-by-char basis: a*cd"*"
+  */
+-#define    BASH_TEST2           (ENABLE_ASH_BASH_COMPAT * ENABLE_ASH_TEST)
++#define    BASH_TEST2           0
+ #define    BASH_SOURCE          ENABLE_ASH_BASH_COMPAT
+ #define    BASH_PIPEFAIL        ENABLE_ASH_BASH_COMPAT
+--- a/coreutils/test.c
++++ b/coreutils/test.c
+@@ -150,5 +150,4 @@
+ 
+ #if ENABLE_TEST2 \
+- || (ENABLE_ASH_BASH_COMPAT && ENABLE_ASH_TEST) \
+  || (ENABLE_HUSH_BASH_COMPAT && ENABLE_HUSH_TEST)
+ # define BASH_TEST2 1
