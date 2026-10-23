@@ -1,4 +1,4 @@
-.TH MAN 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.TH MAN 1 2026-10-22 "w64devkit" "w64devkit Manual"
 .SH NAME
 man \- display manual pages
 .SH SYNOPSIS
@@ -157,7 +157,10 @@ The page is its standard input, and its options are
 .BI \-T charset\fR,
 .BI \-rLL= w n\fR,
 and
-.BI \-rLT= w n\fR.
+.BI \-rLT= w n\fR,
+followed by the value of
+.B MANROFFOPT
+when that is set.
 Its output and error messages go to the pager.
 .PP
 The
@@ -323,6 +326,18 @@ still counts, and then nothing is displayed.
 .B MANPATH
 Manual directories to search first, separated by semicolons.
 .TP
+.B MANROFFOPT
+Further options for
+.BR nroff ,
+added to its command line, where
+.B sh
+splits them into words.
+For example,
+.B \-dAD=l
+sets man(7) pages ragged-right instead of adjusting them to both
+margins; see
+.BR nroff (1).
+.TP
 .B PAGER
 The pager, when
 .B MANPAGER
@@ -411,6 +426,15 @@ Save a page as plain text, formatted for a 100-column display:
 .RS 4
 .EX
 $ COLUMNS=100 man gcc >gcc.txt
+.EE
+.RE
+.PP
+Show pages with a ragged right margin, for example from
+.IR $HOME/.profile :
+.PP
+.RS 4
+.EX
+export MANROFFOPT=\-dAD=l
 .EE
 .RE
 .SH NOTES

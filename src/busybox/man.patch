@@ -9,11 +9,12 @@ Run the formatter in the manpath element, or in the user's directory for
 an explicit path, so that .so requests in page bodies resolve. Look up
 x86_64-w64-mingw32-NAME and i686-w64-mingw32-NAME as NAME when there is
 no page under the full name. Accept backslashes in absolute paths, and
-CRLF in .so stubs.
+CRLF in .so stubs. Append $MANROFFOPT to the formatter options, as
+man-db does, so that, e.g., MANROFFOPT=-dAD=l sets pages ragged-right.
 
 ---
- miscutils/man.c |   90 +++++++++++++++++++++++++++++++++++++-------------------
- 1 file changed, 60 insertions(+), 30 deletions(-)
+ miscutils/man.c |   92 +++++++++++++++++++++++++++++++++++++-------------------
+ 1 file changed, 62 insertions(+), 30 deletions(-)
 
 --- a/miscutils/man.c
 +++ b/miscutils/man.c
@@ -70,7 +71,13 @@ CRLF in .so stubs.
  //testcase:
  // cd /usr/share/man/man2
  // man ./path_resolution.2.gz
-@@ -163,13 +180,20 @@
+@@ -158,18 +175,27 @@
+ 	open_zipped(man_filename, /*die_if_not_compressed:*/ 0); /* guaranteed to use fd 0 (STDIN_FILENO) */
+ 	if (man) {
+ 		int w = get_terminal_width(-1);
++		const char *opt = getenv("MANROFFOPT");
+ 		if (w > 10)
+ 			w -= 2;
  		/* "2>&1" is added so that nroff errors are shown in pager too.
  		 * Otherwise it may show just empty screen.
  		 */
@@ -78,8 +85,9 @@ CRLF in .so stubs.
 -				G.tbl, G.nroff, w, w,
 -				G.pager);
 -	} else {
-+		cmd = xasprintf("%s -T%s -rLL=%un -rLT=%un%s%s",
++		cmd = xasprintf("%s -T%s -rLL=%un -rLT=%un%s%s%s%s",
 +				G.nroff, GetACP() == CP_UTF8 ? "utf8" : "ascii", w, w,
++				opt ? " " : "", opt ? opt : "",
 +				G.pager ? " 2>&1 | " : "", G.pager ? G.pager : "");
 +	} else if (G.pager) {
  		cmd = xstrdup(G.pager);
@@ -95,7 +103,7 @@ CRLF in .so stubs.
  	free(cmd);
  	return 1;
  }
-@@ -273,8 +297,7 @@
+@@ -273,8 +299,7 @@
  	char *token[2];
  #if ENABLE_PLATFORM_MINGW32
  	char **ptr;
@@ -105,7 +113,7 @@ CRLF in .so stubs.
  #endif
  
  	INIT_G();
-@@ -285,8 +308,9 @@
+@@ -285,8 +310,9 @@
  	/* add system drive prefix to filenames, if necessary */
  	for (ptr = argv; *ptr; ++ptr) {
  		if (strchr(*ptr, '/') || strchr(*ptr, '\\'))
@@ -116,7 +124,7 @@ CRLF in .so stubs.
  	chdir_system_drive();
  #endif
  
-@@ -309,8 +333,6 @@
+@@ -309,8 +335,6 @@
  		if (!token[1])
  			continue;
  		if (strcmp("DEFINE", token[0]) == 0) {
@@ -125,7 +133,7 @@ CRLF in .so stubs.
  			G.nroff = if_redefined(G.nroff, "nroff", token[1]);
  			G.pager = if_redefined(G.pager, "pager", token[1]);
  		} else
-@@ -328,15 +350,9 @@
+@@ -328,15 +352,9 @@
  
  #if ENABLE_PLATFORM_MINGW32
  	/* allow man pages to be stored relative to the executable */
@@ -144,7 +152,7 @@ CRLF in .so stubs.
  #else
  	if (!man_path_list) {
  		static const char *const mpl[] ALIGN_PTR = { "/usr/man", "/usr/share/man", NULL };
-@@ -356,7 +372,10 @@
+@@ -356,7 +374,10 @@
  
  	if (!isatty(STDOUT_FILENO)) {
  		putenv((char*)"GROFF_NO_SGR=1");
@@ -156,7 +164,7 @@ CRLF in .so stubs.
  	}
  
  	/* is 1st ARG a SECTION? */
-@@ -371,9 +390,12 @@
+@@ -371,9 +392,12 @@
  		const char *cur_path;
  		int cur_mp;
  		int found = 0;
@@ -171,7 +179,7 @@ CRLF in .so stubs.
  			goto check_found;
  		}
  
-@@ -383,7 +405,8 @@
+@@ -383,7 +407,8 @@
  			const char *cur_sect = sec_list;
  
  			/* is MANPAGE of the form NAME.SECTION? */
@@ -181,7 +189,7 @@ CRLF in .so stubs.
  			if (sect_ext && is_section_name(conf_sec_list, sect_ext + 1)) {
  				*sect_ext = '\0';
  				cur_sect = sect_ext + 1;
-@@ -402,7 +425,7 @@
+@@ -402,7 +427,7 @@
  							cur_path,
  							"cat\0man" + (cat0man1 * 4),
  							sect_len, cur_sect,
@@ -190,7 +198,7 @@ CRLF in .so stubs.
  							sect_len, cur_sect);
  					found_here = show_manpage(man_filename, cat0man1, 0);
  					found |= found_here;
-@@ -421,6 +444,13 @@
+@@ -421,6 +446,13 @@
  		}
   check_found:
  		if (!found) {

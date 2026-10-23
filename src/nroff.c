@@ -6919,12 +6919,14 @@ static void run(Ctx *c, Arena scratch)
 static void usage(Output *out)
 {
     print(out, S(
-    "usage: nroff [-man|-mdoc] [-Tascii|-Tutf8] [-rLL=Nn] [-w] [FILE...]\n"
+    "usage: nroff [-man|-mdoc] [-Tascii|-Tutf8] [-rLL=Nn] [-dNAME=STR] [-w]"
+    " [FILE...]\n"
     "  -m*      accepted and ignored; the format is detected\n"
     "  -t       accepted and ignored; tbl is built in\n"
     "  -Tascii  ASCII output (default)\n"
     "  -Tutf8   UTF-8 output\n"
     "  -rLL=N   line length (default: $MANWIDTH, $COLUMNS, or 78)\n"
+    "  -dAD=l   ragged-right man(7) pages (also c, r; default b)\n"
     "  -w       warn about unsupported input\n"
     "  -h       print this message\n"
     "With no FILE, or when FILE is -, read standard input.\n"));
@@ -7007,6 +7009,18 @@ static i32 nroff(i32 argc, u8 **argv, Plt *plt, Arena mem)
                 Scaled v = scaled(val, 'u');
                 if (v.ok) setreg(c, key, v.value);
             }
+        } else if (arg.data[1] == 'd') {
+            Str d = cuthead(arg, 2);
+            if (!d.len && i+1<argc) {
+                d = import(argv[++i]);
+            }
+            Cut kv = cut(d, '=');
+            if (!kv.ok) {
+                // groff: -dcs defines the one-character name c
+                kv.head = takehead(d, 1);
+                kv.tail = cuthead(d, 1);
+            }
+            if (kv.head.len) setstring(c, kv.head, kv.tail);
         } else if (equals(arg, S("-w")) || startswith(arg, S("-w")) ||
                    startswith(arg, S("-W"))) {
             c->warn = arg.data[1] == 'w';

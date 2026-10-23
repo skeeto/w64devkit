@@ -1,4 +1,4 @@
-.TH NROFF 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.TH NROFF 1 2026-10-22 "w64devkit" "w64devkit Manual"
 .SH NAME
 nroff \- format manual pages for a terminal
 .SH SYNOPSIS
@@ -8,6 +8,7 @@ nroff \- format manual pages for a terminal
 .RB [ \-Tascii " | " \-Tutf8 ]
 [\fB\-rLL=\fIN\fBn\fR]
 [\fB\-r\fIreg\fB=\fIN\fR]
+[\fB\-d\fIname\fB=\fIstring\fR]
 .RB [ \-w ]
 .RI [ file ...]
 .SH DESCRIPTION
@@ -57,7 +58,9 @@ a line also breaks after an em dash written as
 .B \e(em
 between two letters.
 man(7) pages are adjusted to both margins, as in groff, unless the page
-asks otherwise; mdoc(7) pages are left-aligned, as in mandoc.
+asks otherwise or
+.B \-dAD=l
+is given; mdoc(7) pages are left-aligned, as in mandoc.
 .PP
 Bold text is written between the SGR escape sequences
 .B ESC[1m
@@ -562,9 +565,10 @@ are approximated.
 .SH OPTIONS
 Options are not grouped.
 The arguments of
-.B \-T
+.BR \-T ,
+.BR \-r ,
 and
-.B \-r
+.B \-d
 may be attached or separate, and
 .B \-\-
 ends the options.
@@ -621,6 +625,37 @@ layout: header and footer lines use the line length, so
 which
 .BR man (1)
 passes, has no effect.
+.TP
+\fB\-d\fIname\fB=\fIstring\fR
+Define the string
+.I name
+as
+.IR string ,
+as
+.B .ds
+does.
+Without
+.BR = ,
+the first character is the name and the rest is the string, as in
+groff.
+A man(7) page reads the string
+.B AD
+at
+.B .TH
+and at each paragraph macro to choose its adjustment, as groff does:
+.B l
+sets text ragged-right,
+.B c
+centers it,
+.B r
+aligns it right, and anything else, the default, adjusts it to both
+margins.
+.BR man (1)
+passes this option from
+.BR MANROFFOPT ,
+so
+.B MANROFFOPT=\-dAD=l
+gives ragged-right pages.
 .TP
 .B \-w
 Warn on standard error, with file names and line numbers, about unknown
