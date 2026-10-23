@@ -1,4 +1,4 @@
-.TH SH 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH SH 1 2026-10-22 "w64devkit" "w64devkit Manual"
 .SH NAME
 sh, ash, lash \- the busybox shell
 .SH SYNOPSIS
@@ -31,11 +31,29 @@ are other names for the same program, and a shell started as
 is a login shell.
 .PP
 This page describes the shell as w64devkit builds it for Windows.
-It lists the extensions to the POSIX language and the ways the shell
-differs from a Unix shell, and does not teach the language.
+It lists the extensions to the POSIX language and the ways in which the
+shell differs from a Unix shell; it does not teach the language.
+POSIX.1-2024 specifies the language in chapter 2, "Shell Command
+Language", of its Shell and Utilities volume, and the shell's invocation
+on the
+.B sh
+page of the same volume.
+The Open Group publishes the text at
+.IR https://pubs.opengroup.org/onlinepubs/9799919799/ ,
+with an archive for reading offline.
 The applets that the shell runs by name are listed in
 .BR busybox (1).
 .SS Invocation
+The options, described under
+.BR OPTIONS ,
+include
+.B \-i
+to make the shell interactive and
+.B \-l
+or
+.B \-\-login
+to make it a login shell.
+.PP
 With
 .BR \-c ,
 the shell runs the first operand,
@@ -43,16 +61,18 @@ the shell runs the first operand,
 as a script.
 The next operand, if any, becomes
 .BR $0 ,
-which is otherwise the name that the shell was run as,
 and the rest become the positional parameters.
+Without that operand,
+.B $0
+is the name that the shell was run as.
 .PP
 Otherwise, with a
 .I file
 operand, the shell runs the commands in that file.
-The name of the file, with backslashes changed to slashes, is
+The name of the file, with backslashes changed to slashes, becomes
 .BR $0 ,
-and the other operands are the positional parameters.
-The file is opened as given: the shell does not search
+and the other operands become the positional parameters.
+The shell opens the file as named and does not search
 .B PATH
 for it.
 .PP
@@ -60,11 +80,12 @@ With no operand, or with
 .BR \-s ,
 the shell reads commands from standard input, and every operand is a
 positional parameter.
-Given together,
+When
 .B \-c
 and
 .B \-s
-run the command and then read standard input.
+are given together, the shell runs the command and then reads standard
+input.
 .PP
 The shell is interactive when it is given
 .BR \-i ,
@@ -77,9 +98,9 @@ keeps a history, reads the file named by
 turns on the
 .B monitor
 option, and returns to the prompt after an error.
-Ctrl\-D at an empty line, or the
+It ends at Ctrl\-D on an empty line or at the
 .B exit
-builtin, ends it, except while it has background jobs (see
+builtin, except while it has background jobs (see
 .BR exit ).
 When standard input is not a console, an interactive shell prints the
 prompts but reads plain lines, with no editing.
@@ -93,21 +114,24 @@ or
 .SS Startup files
 A login shell first changes to
 .BR HOME ,
-or when that is unset or empty, to the user's profile directory,
-unless
-.B \-d
-names another directory.
+or, when that is unset or empty, to the user profile, the directory
+that Windows keeps for the account, such as
+.IR C:/Users/name .
+It skips this step when it is given
+.BR \-d .
 It then reads these files, skipping any that do not exist:
 .IP 1. 4
 .I /etc/profile
-on the system drive, the drive that holds the Windows system directory,
-or on the drive named by
+on the system drive, which is the drive that holds the Windows system
+directory, or on the drive named by
 .BR BB_SYSTEMROOT ;
 .IP 2. 4
 .I etc/profile
 in the directory above the one that holds
 .IR busybox.exe ,
-which in the kit is the kit's own profile; and
+which in the kit is the kit's own profile (a w64devkit change; see
+.BR NOTES );
+and
 .IP 3. 4
 .IR $HOME/.profile ,
 when
@@ -116,11 +140,10 @@ is set.
 .PP
 An interactive shell, login or not, then reads the file named by
 .BR ENV ,
-when that is set and not empty.
-The value of
+when that variable is set and not empty.
+The shell expands the value of
 .B ENV
-is expanded first, as in double quotes, so that it may mention other
-variables.
+first, as in double quotes, so that it may refer to other variables.
 A shell that is neither a login shell nor interactive reads none of
 these files.
 The shell reads each file itself, as the
@@ -148,37 +171,6 @@ builtin makes variables local to a function, and
 .B local \-
 restores the shell options when the function returns.
 .IP \(bu 2
-.B [[
-.I expression
-.B ]]
-accepts the operators of
-.B test
-other than
-.B \-a
-and
-.BR \-o ,
-the connectives
-.B &&
-and
-.BR || ,
-.BR = ,
-.BR == ,
-and
-.B !=
-for pattern comparison, and
-.B =~
-for a match against an extended regular expression.
-Unlike in bash,
-.B [[
-is a builtin command, so its arguments undergo field splitting and
-pathname expansion, and
-.BR < ,
-.BR > ,
-.BR ( ,
-and
-.B )
-must be quoted.
-.IP \(bu 2
 Quoting with
 .BI $\(aq string \(aq\fR.
 .IP \(bu 2
@@ -186,11 +178,10 @@ Substrings,
 .BI ${ name : offset : length }\fR,
 and replacement of the first match of a pattern,
 .BI ${ name / pattern / replacement }\fR,
-or with
+or of every match with
 .B //
 in place of
-.B /
-of every match.
+.BR / .
 .IP \(bu 2
 The redirections
 .BI &> file
@@ -202,8 +193,8 @@ Process substitution,
 and
 .BI >( command )\fR.
 The shell passes the command a name such as
-.BI /dev/fd/ N\fR;
-only busybox programs can open such a name.
+.BI /dev/fd/ N\fR,
+which only busybox programs can open.
 .IP \(bu 2
 The
 .B pipefail
@@ -217,30 +208,32 @@ builtins; and the options
 and
 .BR "export \-n" .
 .IP \(bu 2
-When a command is not found, the shell calls the function
+When a command is not found and a function named
 .B command_not_found_handle
-with the command name, if the function exists.
+exists, the shell calls that function with the command name and
+arguments.
 .PP
 Arithmetic expansion and
 .B let
 use 64-bit signed integers.
 They have the C operators, including
+.B ?:
+and the assignment operators, and also
 .B **
-for exponentiation,
-.BR ?: ,
-and assignments.
+for exponentiation.
 Constants are decimal, octal with a leading
 .BR 0 ,
-hexadecimal with
+hexadecimal with a leading
 .BR 0x ,
 or written as
 .IB base # digits\fR.
 .PP
-Not available: arrays,
+The shell lacks these features of bash: arrays,
 .BR (( ,
+.BR [[ ,
 .BR select ,
 brace expansion,
-.BI ${! name },
+.BI ${! name }\fR,
 case-changing expansions,
 .BR declare ,
 .BR shopt ,
@@ -248,27 +241,50 @@ case-changing expansions,
 .BR fg ,
 and
 .BR bg .
+.PP
+The special parameters
+.BR $@ ,
+.BR $* ,
+.BR $# ,
+.BR $? ,
+.BR $\- ,
+.BR $$ ,
+.BR $! ,
+and
+.B $0
+are as in POSIX.
+.B $\-
+holds the letters of the options that are on, including
+.B i
+in an interactive shell,
+.B c
+with
+.BR \-c ,
+and
+.B s
+when the shell reads commands from standard input.
 .SS Shell options
-Shell options are changed with
+Each shell option has a name.
 .B set \-o
 .I name
-to turn one on and
+turns the option on, and
 .B set +o
 .I name
-to turn it off.
-An option with a letter also has a flag form, such as
+turns it off.
+An option that also has a letter, listed under
+.BR OPTIONS ,
+can be turned on with
+.BI "set \-" letter
+and off with
+.BI "set +" letter\fR,
+as in
 .B set \-e
 and
-.BR "set +e" ;
-the letters are in the
-.B OPTIONS
-section.
+.BR "set +e" .
 .B set \-o
-alone prints the state of every option, and
+with no name prints the state of every option, and
 .B set +o
-prints commands that restore them.
-.B $\-
-holds the letters of the options that are on.
+with no name prints commands that restore that state.
 .PP
 These options have names but no letters:
 .TP
@@ -276,28 +292,31 @@ These options have names but no letters:
 Edit command lines with vi key bindings.
 .TP
 .B pipefail
-The status of a pipeline is that of the last command in it that failed,
-or 0 if none failed.
+Give a pipeline the status of the last command in it that failed, or 0
+if none failed.
 .TP
 .B noconsole
-Hide the console window.
+Hide or minimize the console window, as
+.B noiconify
+selects.
 Turning the option off shows the window again.
-At startup, and at the start of every
+At startup, and before every
 .B set
-command with arguments, the option is set to whether the window is
-hidden or minimized.
+command with arguments takes effect, the shell sets the option to
+whether the window is hidden or minimized.
 .TP
 .B noiconify
-With
-.BR noconsole ,
+Make
+.B noconsole
 hide the window instead of minimizing it.
-The option is on at startup.
-Every
+The option is on at startup, and every
 .B set
-command with arguments turns it on again before it reads them, so
-that minimizing needs
+command with arguments turns it on again before it reads them (a
+w64devkit change; see
+.BR NOTES ).
+To minimize the window, turn
 .B noiconify
-turned off by the same command that turns
+off in the same command that turns
 .B noconsole
 on, as in
 .BR "set +o noiconify \-o noconsole" .
@@ -305,34 +324,40 @@ For the same reason,
 .B set \-o
 and
 .B set +o
-always list it as on.
+always list the option as on.
 .TP
 .B nocaseglob
-Patterns match file names without regard to case.
-Without the option they are case-sensitive, although Windows file
+Match file names in patterns without regard to case.
+Without this option, patterns are case-sensitive, although Windows file
 systems are not.
 .TP
 .B nohiddenglob
-Patterns do not match files that have the Windows hidden attribute.
-For a match inside another directory, the shell checks the file of the
-same name in the current directory instead, so the match is dropped
-only when that file exists and is hidden, whatever the match itself is.
+Do not let patterns match files that have the Windows hidden attribute.
+For a pattern in another directory, as in
+.IR dir/* ,
+the shell checks the file of the same name in the current directory,
+not the match itself: it drops
+.I dir/name
+only when
+.I ./name
+exists and is hidden.
 .TP
 .B nohidsysglob
 Like
 .BR nohiddenglob ,
 but only for files that are both hidden and system files.
 .PP
-As in Unix, a name that begins with a dot is matched only by a pattern
+As on Unix, a name that begins with a dot is matched only by a pattern
 that begins with a dot.
 Tab completion also honors
 .B nohiddenglob
 and
 .BR nohidsysglob .
 .SS Command search and execution
-The first word of a simple command, after alias expansion, names what
-runs.
-The shell looks for, in order:
+The first word of a simple command, after alias expansion, is the
+command name.
+If the name contains no slash, backslash, or drive prefix, the shell
+runs the first of these that has that name:
 .IP 1. 4
 a shell function;
 .IP 2. 4
@@ -340,42 +365,45 @@ a builtin;
 .IP 3. 4
 an applet, unless
 .B BB_OVERRIDE_APPLETS
-excludes it; and
+excludes it; or
 .IP 4. 4
 a program found by searching
 .BR PATH .
 .PP
-The
-.B command
-builtin skips functions.
-.B type
-shows which of these a name finds; an applet is reported as a
-.BR "builtin applet" .
-.PP
-A word that contains a slash, a backslash, or a drive prefix names the
-file to run, and
-.B PATH
-is not searched.
+Otherwise the name is the path of the file to run, and the shell does
+not search
+.BR PATH .
 The names
 .IR /bin/name ,
 .IR /usr/bin/name ,
 .IR /sbin/name ,
 and
 .I /usr/sbin/name
-are special: a file of that name on the current drive is used if it
-exists, and otherwise the builtin or applet
+are special: the shell runs a file of that name on the current drive if
+it exists, and otherwise the builtin or applet
 .IR name .
-No other program is looked for, so
+The shell looks nowhere else, so
 .B #!/bin/sh
 and
 .B /bin/ls
-work.
-.PP
-The search of
-.B PATH
-tries each element in order; an empty element is the current
+work on a drive that has no
+.I /bin
 directory.
-In each directory the name is tried as given, and then with
+.PP
+The
+.B command
+builtin skips functions.
+.B type
+.I name
+reports which of these the name resolves to, and calls an applet a
+.BR "builtin applet" .
+.PP
+The shell searches the directories in
+.B PATH
+in order.
+An empty entry, such as a leading or trailing semicolon or two
+semicolons in a row, stands for the current directory.
+In each directory the shell tries the name as given, and then with
 .BR .com ,
 .BR .exe ,
 .BR .sh ,
@@ -383,24 +411,24 @@ In each directory the name is tried as given, and then with
 and
 .B .cmd
 appended, in that order.
-.B PATHEXT
-is not used.
+The shell does not use
+.BR PATHEXT .
 A regular file is a program when its name ends in one of those suffixes,
 when it begins with
 .BR #! ,
-or when it is a Windows executable that is not a DLL.
+or when it is a Windows program, a PE executable that is not a DLL.
 The shell remembers where it found a program until
 .B PATH
 changes or
 .B hash \-r
 runs.
 .PP
-The kind of file decides how it runs:
+How the shell runs a program depends on the kind of file:
 .IP \(bu 2
-A Windows executable starts directly.
-Its arguments reach it quoted by the rules of the Microsoft C runtime,
-and a program that parses its command line differently may see
-something else.
+The shell starts a Windows program directly.
+The program receives its arguments quoted by the rules of the Microsoft
+C runtime, so a program that parses its command line differently may
+see different arguments.
 .IP \(bu 2
 A
 .B .bat
@@ -415,20 +443,22 @@ message.
 .IP \(bu 2
 A file that begins with
 .B #!\&
-runs under the interpreter on that line.
-The rest of the line, trimmed, is passed to the interpreter as one
-argument.
+runs under the interpreter named on that line.
+The shell passes the rest of the line, with surrounding blanks removed,
+to the interpreter as one argument.
 When the last component of the interpreter's name is an applet, that
 applet runs the script, whatever the directory, so that
 .B #!/bin/sh
 and
 .B #!/usr/bin/env
 work.
-Otherwise the shell runs the file named, with an extension added as
-for a command, and for an interpreter in one of the four Unix
-directories above that does not exist, the program of that name in the
+Otherwise the shell runs the named interpreter, and tries the suffixes
+as it does for a command name.
+When the interpreter is in one of the four Unix directories above and
+no such file exists, the shell runs the program of that name found
+through the
 .B PATH
-that the shell was started with: a change to
+that the shell was started with; a change to
 .B PATH
 in the shell does not affect this search.
 Interpreters may nest four deep.
@@ -446,20 +476,18 @@ with status 126, or 127 when it found the file through
 .BR PATH .
 .PP
 The shell waits for every foreground program, GUI programs included.
-End the command with
-.B &
-to go on without waiting.
-When Windows says that a program needs elevation, the shell tries again
-through
+To continue without waiting, end the command with
+.BR & .
+When Windows reports that a program needs elevation, the shell tries
+again through
 .B ShellExecute
 with the
 .B runas
 verb, which shows the elevation prompt.
 .PP
-An applet is run by busybox itself, so no file with its name needs to
-exist and
-.B PATH
-is not consulted.
+busybox runs an applet itself, so no file with the applet's name needs
+to exist, and the shell does not consult
+.BR PATH .
 The small applets that busybox marks
 .B NOFORK
 run inside the shell process; see
@@ -474,17 +502,17 @@ shell's state.
 Windows has no
 .BR fork ,
 so starting these takes longer than on Unix.
+For the same reason,
 .B exec
-does not replace the shell: an applet other than
-.B sh
-runs in the shell's process, any other program is started and waited
-for, and then the shell exits with its status.
+does not replace the shell; see
+.B exec
+under
+.BR "Builtin commands" .
 .SS Builtin commands
 These names are builtins:
 .B :
 .B .\&
 .B [
-.B [[
 .B alias
 .B break
 .B cd
@@ -524,22 +552,23 @@ These names are builtins:
 .B unset
 .B wait
 .PP
-Those that follow the usual POSIX or bash behavior are not described
-here.
+Builtins that behave as in POSIX or bash are not described here.
 The others are:
 .TP
 \fB.\fR \fIfile\fR [\fIargument\fR ...]
-Read commands from
+Read and run commands from
 .I file
 in the current shell.
 .B source
 is the same.
-A name without a slash or backslash is searched for only in
+The shell searches for a name without a slash or backslash only in
 .BR PATH ,
-and is an error if it is not found there.
+and it is an error if the file is not found there.
 .TP
 \fBcd\fR [\fB\-LP\fR] [\fIdir\fR]
-Change the directory, and set
+Change the current directory to
+.IR dir ,
+and set
 .B PWD
 and
 .BR OLDPWD .
@@ -552,38 +581,74 @@ with
 go to
 .B OLDPWD
 and print it.
-A relative
-.I dir
-that does not begin with
-.B .\&
-or
-.B ..\&
-is looked up through
-.B CDPATH
-first.
-.B \-L
-(the default) resolves
-.B ..\&
-in the path by its text, and
-.B \-P
-by the directories themselves.
 .I dir
 may begin with a drive, as in
-.IR c:/dir ,
-or be
-.IR c:dir ,
-relative to the current directory of drive
-.BR c: ,
-or name a UNC share, or begin with a slash for the root of the current
+.IR c:/dir ;
+be relative to the current directory of a drive, as in
+.IR c:dir ;
+name a UNC share; or begin with a slash for the root of the current
 drive.
-Without
-.BR \-P ,
+.IP
+When
+.I dir
+is not
+.B .\&
+or
+.BR .. ,
+and does not begin with
+.BR ./ ,
+.BR ../ ,
+a slash, or a drive,
+.B cd
+first looks for it in each directory of
+.BR CDPATH .
+When it finds
+.I dir
+through an entry other than an empty one, it prints the new directory.
+When no entry holds
+.IR dir ,
+.B cd
+takes it relative to the current directory.
+.IP
+With
+.BR \-L ,
+the default, the shell works out the new directory from
 .B PWD
-has forward slashes, an uppercase drive letter, and the capitalization
-stored on disk.
+and
+.I dir
+as text: it removes
+.B .\&
+and
+.B ..\&
+components and changes to the result.
+It sets
+.B PWD
+to that path with forward slashes, an uppercase drive letter, and each
+name capitalized as it is stored on disk, except in a path through a
+symbolic link or junction.
+With
+.BR \-P ,
+the shell passes
+.I dir
+to Windows unchanged and sets
+.B PWD
+to the directory that Windows reports, with forward slashes but with the
+capitalization that
+.I dir
+used.
+Windows itself removes
+.B ..\&
+from a path before it uses it, and does not replace a symbolic link or
+junction with its target, so
+.B \-L
+and
+.B \-P
+change to the same directory and differ only in how
+.B PWD
+is written.
 .TP
 \fBpwd\fR [\fB\-LPa\fR]
-Print the directory.
+Print the current directory.
 .B \-a
 prints the current directory of each drive instead.
 .TP
@@ -607,7 +672,7 @@ prints only its file or name, as
 .B type \-p
 does.
 .TP
-\fBecho\fR, \fBprintf\fR, \fBtest\fR, \fB[\fR, \fB[[\fR
+\fBecho\fR, \fBprintf\fR, \fBtest\fR, \fB[\fR
 Run the code of the
 .BR echo ,
 .BR printf ,
@@ -618,41 +683,72 @@ applets; see
 .BR printf (1),
 and
 .BR test (1).
-For
-.BR [[ ,
-see
-.BR Language .
 .TP
 \fBexec\fR [\fB\-a\fR \fIname\fR] [\fIcommand\fR [\fIargument\fR ...]]
-Run
+With no
+.IR command ,
+apply the redirections to the shell itself, where they stay in effect.
+Otherwise run
 .I command
-as the shell's last act, with
-.I name
-as its zero-th argument if
+in place of the rest of the shell.
+The shell then exits with the status of
+.IR command ,
+without running its
+.B EXIT
+trap.
+.I command
+must be an applet or a program: the shell does not look for functions
+or builtins.
+.IP
+Windows cannot replace a running process.
+An applet other than
+.BR sh ,
+.BR ash ,
+or
+.B lash
+therefore runs inside the shell's process.
+Any other program, the shell included, starts as a new process, and the
+shell waits for it.
+.IP
 .B \-a
-is given; see
-.BR "Command search and execution" .
+passes
+.I name
+to
+.I command
+as its zeroth argument.
 For
 .BR sh ,
 .BR ash ,
 and
 .BR lash ,
+this name chooses the applet that busybox runs, so
+.B exec \-a lash sh
+starts a login shell.
+For an applet that runs inside the shell's process,
 .I name
-instead chooses the applet that runs.
-With no command, the redirections apply to the shell.
+has no effect.
+.IP
+If
+.I command
+cannot be found or run, the shell prints a message, runs its
+.B EXIT
+trap, and exits with status 127 or 126, even when it is interactive.
 .TP
 \fBexit\fR [\fIstatus\fR]
 Leave the shell, running the
 .B EXIT
 trap.
-An interactive shell with background jobs prints
+An interactive shell that still has jobs prints
 .B You have background jobs.\&
-and does not leave, however often
+and stays, however often
 .B exit
-is repeated; end the jobs, or
-.BR wait ,
-first.
-End of input is refused the same way, but the 51st in a row leaves.
+is repeated, until the jobs have finished and been reported, or
+.B wait
+has waited for them.
+At end of input, such as Ctrl\-D on an empty line, such a shell also
+prints the message and stays.
+So that input that has really ended cannot hold the shell forever, it
+leaves at the 51st end of input in a row.
 .TP
 \fBhash\fR [\fB\-r\fR] [\fIname\fR ...]
 Remember where each
@@ -666,8 +762,8 @@ forget them all.
 List the builtins and the applets.
 .TP
 .B history
-Print the history of an interactive shell, one command per line, with a
-number that starts at 0.
+Print the history of an interactive shell, one command per line, each
+with a number that starts at 0.
 It takes no arguments.
 .TP
 \fBjobs\fR [\fB\-lp\fR] [\fIjob\fR ...]
@@ -686,11 +782,11 @@ See
 .BR kill (1).
 .TP
 \fBread\fR [\fIoptions\fR] [\fIname\fR ...]
-Read a line from standard input, or from the descriptor of
+Read a line from standard input, or from the descriptor given with
 .BR \-u .
-The line goes into the variables, or
+Assign the fields of the line to the variables, or the whole line to
 .B REPLY
-if there are none.
+if none are named.
 .B \-r
 leaves backslashes alone,
 .B \-p
@@ -703,12 +799,14 @@ reads at most that many characters,
 changes the delimiter,
 and
 .B \-t
-gives a timeout in seconds, with fractions; a timeout returns 142.
-In a console Ctrl\-Z at the start of a line is end of input, and Ctrl\-C
+sets a timeout in seconds, which may have a fraction; a timeout gives
+status 142.
+In a console, Ctrl\-Z at the start of a line is end of input, and Ctrl\-C
 interrupts the read.
 .TP
 \fBtimes\fR
-Print the user and system times of the shell and of its children.
+Print the user and system times of the shell, and then those of its
+children.
 .TP
 \fBtitle\fR [\fItext\fR]
 Set the title of the console window to
@@ -720,7 +818,7 @@ See
 .BR "Signals and traps" .
 .TP
 \fBtype\fR [\fB\-p\fR] \fIname\fR ...
-Say how each
+Report how each
 .I name
 would run.
 With any option, print only the file, or the name, as
@@ -728,13 +826,13 @@ With any option, print only the file, or the name, as
 does.
 .TP
 \fBulimit\fR
-Accepted, with any arguments, and does nothing; the status is 1.
+Accept any arguments and do nothing; the status is 1.
 .TP
 \fBumask\fR [\fB\-S\fR] [\fImode\fR]
 Set or print the file mode creation mask.
 The shell also exports the mask as
 .BR BB_UMASK ,
-so that busybox programs it starts use the same mask.
+so that the busybox programs it starts use the same mask.
 .TP
 \fBunset\fR [\fB\-fv\fR] \fIname\fR ...
 Remove variables, or with
@@ -742,13 +840,14 @@ Remove variables, or with
 functions.
 .TP
 \fBwait\fR [\fB\-n\fR] [\fIprocess\fR | \fIjob\fR ...]
-Wait for background jobs, for all of them when none is named, or with
+Wait for the named background jobs, or for all of them when none is
+named, or with
 .B \-n
-for the next one.
+for the next one to finish.
 The status is that of the last job named, or of the job that
 .B \-n
 waited for, and 0 when all jobs were waited for.
-A process that is not a job gives 127.
+A process that is not a job gives status 127.
 With no operands, Ctrl\-C ends the wait with status 130.
 .SS Job control
 Windows has no process groups or stopped processes, so the shell has no
@@ -758,7 +857,7 @@ There is no
 or
 .BR bg ,
 and Ctrl\-Z does not suspend anything.
-These parts exist:
+The shell provides the following:
 .IP \(bu 2
 A command followed by
 .B &
@@ -768,30 +867,10 @@ The job ignores Ctrl\-C, and its first process reads from
 .B $!\&
 holds its process ID.
 .IP \(bu 2
-.BR jobs ,
-.BR wait ,
-and
-.B kill
-take job names:
-.BI % n\fR,
-.BR %% ,
-.BR %+ ,
-.BR %\- ,
-.BI % string\fR,
-and
-.BI %? string\fR.
-.BI % string
-names the job whose command begins with
-.IR string ,
-and
-.BI %? string
-the one whose command contains it; both need
-.BR monitor .
-.IP \(bu 2
 With the
 .B monitor
-option, which an interactive shell turns on, the shell records the text
-of each job.
+option, which an interactive shell turns on, the shell records the
+command text of each job.
 Before it reads each command at the top level, it also reports on
 standard error each job that has finished, with a line such as
 .B [1]+ Done
@@ -799,11 +878,51 @@ and the command.
 Without
 .BR monitor ,
 .B jobs
-shows no command text and nothing is reported.
+shows no command text, and the shell reports nothing.
 .IP \(bu 2
 An interactive shell prints
 .BI [ n "] " pid
 when it starts a background job.
+.PP
+.BR jobs ,
+.BR wait ,
+and
+.B kill
+accept a job name wherever they accept a process ID.
+A job name begins with
+.BR % :
+.TP
+.BI % n
+Job number
+.IR n ,
+the number in brackets that
+.B jobs
+shows and that the shell prints when the job starts.
+The shell reuses a number once its job has finished and been removed.
+.TP
+.BR %% ", " %+ ", " %
+The current job, which is the most recently started job that the shell
+still tracks.
+.TP
+.B %\-
+The previous job, which is the job started before the current one.
+.TP
+.BI % string
+The job whose command begins with
+.IR string .
+.TP
+.BI %? string
+The job whose command contains
+.IR string .
+.PP
+The last two forms compare
+.I string
+with the first command of each job's pipeline, and work only with the
+.B monitor
+option, since only then does the shell record the command text.
+A
+.I string
+that matches more than one job is an error.
 .SS Signals and traps
 Windows has no signals.
 The shell runs an
@@ -820,10 +939,11 @@ trap does not run inside functions unless
 is set.
 .PP
 .B trap
-accepts signal names for other signals, and lists them, but they never
+accepts and lists the names of other signals, but their traps never
 run.
-.B DEBUG
-is not accepted.
+.B trap
+does not accept
+.BR DEBUG .
 .B trap \(aq\(aq INT
 makes the shell and the programs it starts ignore Ctrl\-C; any other
 action for
@@ -831,16 +951,16 @@ action for
 turns Ctrl\-C on again.
 .PP
 Windows sends Ctrl\-C to every process attached to the console.
-A script that does not trap it is stopped, without running its
+A script that does not trap it stops without running its
 .B EXIT
 trap.
 A program that Ctrl\-C ends has status 130.
 .SS Prompts
 An interactive shell shows
 .B PS1
-before a command and
+before each command and
 .B PS2
-before a continuation line.
+before each continuation line.
 .B PS1
 starts as
 .B \ew\ \e$
@@ -849,18 +969,18 @@ followed by a space, and
 as
 .B >
 followed by a space.
-Each time, the shell performs parameter expansion, command
-substitution, and arithmetic expansion on the value, and then the line
-editor handles these backslash sequences:
+Before it shows a prompt, the shell performs parameter expansion,
+command substitution, and arithmetic expansion on the value, and then
+the line editor replaces these backslash sequences:
 .TP
 .B \ew
-The current directory, with the start of
+The current directory, with a leading
 .B HOME
 shown as
 .BR ~ .
 .TP
 .B \eW
-The last part of the current directory.
+The last component of the current directory.
 .TP
 .B \eu
 The user name.
@@ -889,22 +1009,23 @@ The character with that octal or hexadecimal code.
 Begin and end text that takes no room on the screen, such as a color
 sequence.
 .PP
-Other sequences, such as
+The editor does not support other sequences, such as
 .B \e!\&
 and
-.BR \ej ,
-are not supported.
+.BR \ej .
 .SS Line editing
 When standard input is a console, an interactive shell reads lines with
 its own editor, for lines up to about 8190 bytes long.
 These keys work:
 .TP
 .BR Left ", " Right ", " Ctrl\-B ", " Ctrl\-F
-Move one character.
+Move one character left or right.
 .TP
-.BR Ctrl\-Left ", " Ctrl\-Right ", " Alt\-B ", " Alt\-F
-Move one word.
-Alt\-Left and Alt\-Right do the same.
+.BR Ctrl\-Left ", " Alt\-Left ", " Alt\-B
+Move to the start of the word before the cursor.
+.TP
+.BR Ctrl\-Right ", " Alt\-Right ", " Alt\-F
+Move to the end of the word after the cursor.
 .TP
 .BR Home ", " Ctrl\-A
 Move to the start of the line.
@@ -918,14 +1039,15 @@ Go to the previous or the next history line.
 .BR Backspace ", " Delete
 Delete the character before or under the cursor.
 .TP
-.B Alt\-D
-Delete the word after the cursor.
-.TP
 .B Alt\-Backspace
-Delete the word before the cursor.
+Delete from the cursor to the start of the word before it.
+.TP
+.B Alt\-D
+Delete from the cursor to the end of the word after it.
 .TP
 .B Ctrl\-W
-Delete the blank-delimited word before the cursor.
+Delete from the cursor to the start of the blank-delimited word before
+it.
 .TP
 .B Ctrl\-K
 Delete to the end of the line.
@@ -937,11 +1059,11 @@ Delete to the start of the line.
 Clear the screen and redraw the line.
 .TP
 .B Ctrl\-R
-Search the history backwards for a line that contains what you type.
+Search the history backwards for a line that contains the text typed.
 Ctrl\-R again finds an earlier line, and Backspace edits the search
-string.
+text.
 Any other control or special key ends the search and then acts on the
-found line as usual, so Enter runs it and an arrow moves in it.
+line found as usual, so Enter runs it and an arrow moves in it.
 .TP
 .B Tab
 Complete the word before the cursor; see
@@ -954,7 +1076,7 @@ After
 Ctrl\-C does nothing.
 .TP
 .B Ctrl\-D
-Delete the character under the cursor, or at an empty line end the
+Delete the character under the cursor, or on an empty line end the
 input, which leaves the shell (see
 .B exit
 and
@@ -963,14 +1085,21 @@ and
 .B Ctrl\-Z
 Change the backslashes in the line to forward slashes.
 .PP
+For the keys that move by words, and for Alt\-Backspace and Alt\-D,
+spaces and punctuation separate words, so in
+.I /usr/local/bin
+Alt\-Backspace deletes
+.IR bin .
+For Ctrl\-W, only blanks separate words, so it deletes the whole path.
+.PP
 There is no yank key; only vi mode can put back deleted text.
-The editor never beeps.
+The editor never beeps (a w64devkit change; see
+.BR NOTES ).
 .PP
 With
 .BR "set \-o vi" ,
-lines are edited with vi keys.
-The editor starts each line in insert mode, and Esc enters command
-mode.
+the editor uses vi keys.
+It starts each line in insert mode, and Esc enters command mode.
 The command mode keys are:
 .IP \(bu 2
 .BR h ,
@@ -1005,14 +1134,14 @@ to change text, where
 .B p
 and
 .B P
-put back the text that the last of
+put back the text deleted by the last of
 .BR x ,
 .BR X ,
 .BR D ,
 .BR C ,
 .BR d ,
 .BR c ,
-Alt\-D, or Alt\-Backspace deleted;
+Alt\-D, or Alt\-Backspace;
 .IP \(bu 2
 .B d
 and
@@ -1025,56 +1154,58 @@ followed by
 .BR e ,
 .BR E ,
 .BR $ ,
-or a space, or by themselves for the whole line; and
+or a space, or doubled for the whole line; and
 .IP \(bu 2
 .B k
 and
 .B j
-for the previous and next history line.
+for the previous and the next history line.
 .SS Completion
 Tab completes the word before the cursor.
-At the start of a command the candidates are the builtins, functions,
-aliases, applets, the programs in
+In the command name position, the candidates are the builtins,
+functions, aliases, applets, the programs in
 .BR PATH ,
-and the subdirectories of the current directory;
-after
+and the subdirectories of the current directory.
+After
 .B cd
-they are directory names, and elsewhere file names.
+they are directory names, and elsewhere they are file names.
 A word that begins with
 .B ~/
 starts at
 .BR HOME .
 File names match without regard to case, but the names of builtins,
 functions, aliases, and applets match only in the same case.
-A single match is completed, with special characters quoted, and
-followed by a space, or by a slash for a directory.
-With several, the first Tab completes their common prefix and the next
-Tab lists them.
-A Tab where a command name would begin, with nothing typed yet, does
-nothing, since listing every program in
+The shell completes a single match, quotes any special characters in
+it, and adds a space, or a slash for a directory.
+With several matches, the first Tab completes their common prefix and
+the second lists them.
+Tab in the command name position with nothing typed does nothing, since
+listing every program in
 .B PATH
-takes seconds on Windows.
+takes seconds on Windows (a w64devkit change; see
+.BR NOTES ).
 .SS History
-An interactive shell with a console keeps the lines it reads, apart from
+An interactive shell with a console keeps the lines it reads, except
 empty lines and repeats of the previous line.
-The lines are in memory, and in the history file.
+It keeps them in memory and in the history file.
 The shell appends each line to the file as soon as it is entered, so
-several shells share it.
-When the file holds more than four times as many lines as the shell keeps,
-the shell rewrites it with the newest ones.
-The file is read at the first prompt.
+several shells share the file.
+When the file holds more than four times as many lines as the shell
+keeps, the shell rewrites it with the newest ones.
+The shell reads the file at the first prompt.
 .PP
-The shell keeps 1024 lines unless
-.B HISTSIZE
-says otherwise, up to 16384.
+The shell keeps 1024 lines, or the number in
+.BR HISTSIZE ,
+up to 16384 (w64devkit's limits; busybox-w32 normally keeps 384, up to
+1023).
 .B HISTFILE
-names the file, by default
+names the file, which by default is
 .I .ash_history
 in the directory in
 .BR HOME .
 There is no file, and no saving, when
 .B HISTFILE
-is empty or when it and
+is empty, or when it and
 .B HOME
 are both unset.
 The shell reads both variables once, when it finishes the startup
@@ -1087,67 +1218,76 @@ lists it.
 There is no history expansion, and no
 .BR fc .
 .SH OPTIONS
-Options come first.
-A word that begins with
+These options are given when
+.B sh
+is started, before its operands.
+Most of them can also be changed later with
+.BR set ;
+see
+.BR "Shell options" .
+An argument that begins with
 .B \-
-turns options on, and one that begins with
+turns the options in it on, and one that begins with
 .B +
 turns them off.
-Letters may be grouped, as in
-.BR \-ec .
-On the command line,
-.BR +c ,
-.BR +i ,
-.BR +l ,
-and
-.B +s
-act as
-.BR \-c ,
-.BR \-i ,
-.BR \-l ,
-and
-.BR \-s .
+Several letters may share an argument, as in
+.BR "sh \-ex build.sh" .
 .B \-o
 and
 .B +o
-take the next word as an option name; with none, they list the options.
+take an option name from the next argument, and
 .B \-d
 and
 .B \-t
-take the next word as their argument.
-Options end at the first word that is not an option, or at
+take their value from the next argument.
+The options end at the first argument that begins with neither
+.B \-
+nor
+.BR + ,
+or at
 .B \-
 or
 .BR \-\- ,
-which the shell removes.
+which the shell discards.
 .PP
-Besides
+Only the command line accepts
 .BR \-c ,
 .BR \-d ,
 .BR \-i ,
 .BR \-l ,
 .BR \-N ,
-and
 .BR \-t ,
-which only the command line accepts, the letters work with the
+and
+.BR \-\-login ;
 .B set
-builtin too.
+rejects them.
+For
+.BR \-c ,
+.BR \-i ,
+.BR \-l ,
+and
+.BR \-s ,
+the
+.B +
+form means the same as the
+.B \-
+form.
 .TP
 .BR \-a ", " "\-o allexport"
 Export every variable when it is assigned.
 .TP
 .BR \-b ", " "\-o notify"
-Accepted, and ignored.
+Accepted and ignored.
 .TP
 .BR \-C ", " "\-o noclobber"
-A redirection with
+Make a redirection with
 .B >
-fails if the file exists.
+fail if the file exists.
 .B >|
 overrides this.
 .TP
 .B \-c
-Run the first operand as the script; see
+Run the first operand as a script; see
 .BR Invocation .
 .TP
 .BI "\-d " dir
@@ -1184,10 +1324,11 @@ As the first argument, print a usage message on standard output and
 exit with status 0.
 .TP
 .BR \-I ", " "\-o ignoreeof"
-An interactive shell does not leave at end of input, but tells the user
-to type
-.BR exit .
-The 51st end of input in a row leaves anyway.
+Make an interactive shell refuse to leave at end of input, and print a
+reminder to use
+.B exit
+instead.
+The shell leaves anyway at the 51st end of input in a row.
 .TP
 .B \-i
 Make the shell interactive.
@@ -1208,7 +1349,7 @@ passes
 .B \-d
 and
 .B \-t
-to the elevated shell that it starts in a new window, and
+to the elevated shell that it starts in a new window, and passes
 .B \-N
 when it is given
 .BR \-N .
@@ -1217,9 +1358,10 @@ when it is given
 Read and check commands, but do not run them.
 .TP
 .BI "\-o " name
-Turn the named option on, or off with
-.BR +o .
-The names are in this section and in
+Turn on the named option, or with
+.B +o
+turn it off.
+The names are listed in this section and under
 .BR "Shell options" .
 An unknown name on the command line makes the shell exit at once with
 status 0.
@@ -1229,33 +1371,79 @@ Read commands from standard input; see
 .BR Invocation .
 Given to
 .BR set ,
-it has no effect.
+the option has no effect.
 .TP
 .BI "\-t " title
 Set the title of the console window at startup.
 .TP
 .BR \-u ", " "\-o nounset"
-Expanding an unset variable is an error.
-A script exits with status 2 when it happens.
+Treat the expansion of an unset variable as an error.
+A script exits with status 2 when this happens.
 .TP
 .BR \-v ", " "\-o verbose"
 Write each line of input to standard error as it is read.
 .TP
 .BR \-X ", " "\-o winxp"
-Given on the command line, keep backslashes in the variables imported
+On the command line, keep the backslashes in the variables imported
 from the environment, instead of changing them to slashes.
-Turned on later, change the slashes in those variables to backslashes,
-and turned off, back again.
+When turned on later, change the slashes in those variables to
+backslashes, and when turned off, change them back.
 .TP
 .BR \-x ", " "\-o xtrace"
-Write each command to standard error before it runs, after the value of
+Write each command to standard error before it runs, after the
+expanded value of
 .BR PS4 .
 .B BASH_XTRACEFD
 may name another descriptor.
 .SH ENVIRONMENT
-The shell reads these variables, and the entries say which of them it
-also sets.
-It passes the exported ones to the programs it starts.
+The shell uses the variables below, and an entry says so when the shell
+also sets the variable.
+The shell passes the exported variables to the commands it runs.
+.PP
+A shell starts from a native Windows environment when its environment
+did not come from another busybox shell, as when Explorer,
+.BR cmd.exe ,
+PowerShell, or
+.B w64devkit.exe
+starts it.
+Several entries below depend on this.
+The shell recognizes this by the spelling of three variable names:
+Windows writes
+.BR Path ,
+.BR ComSpec ,
+and
+.B ProgramData
+in mixed case, while a busybox shell passes every variable on with its
+name in capitals.
+When any of the three names contains a lowercase letter, the shell
+imports the environment as follows:
+.IP \(bu 2
+Variable names change to upper case.
+.IP \(bu 2
+A name that is not a shell identifier, such as
+.BR "ProgramFiles(x86)" ,
+is imported under a name with underscores, and the original stays in
+the environment of the commands the shell runs.
+.IP \(bu 2
+Backslashes in the values change to slashes, except in
+.B COMSPEC
+and
+.BR SYSTEMROOT ,
+and the commands the shell runs see the slashes;
+.B \-X
+prevents this.
+.B "export \-n"
+on an imported variable restores the value it had in the environment.
+.IP \(bu 2
+The shell sets and exports
+.BR HOME ,
+.BR LOGNAME ,
+.BR SHELL ,
+and
+.B USER
+as described in their entries.
+.PP
+The variables are:
 .TP
 .B BASH_XTRACEFD
 The number of the descriptor that
@@ -1268,7 +1456,7 @@ The applets that the shell runs from
 instead of by name.
 The value is described in
 .BR busybox (1).
-Setting it makes the shell forget the programs it remembers.
+Setting the variable makes the shell forget the programs it remembers.
 .TP
 .B BB_SYSTEMROOT
 The drive, such as
@@ -1282,15 +1470,19 @@ How busybox uses the console; see
 An interactive shell applies the mode again before each prompt.
 .TP
 .B BB_UMASK
-Set by the
+The file mode creation mask.
+The
 .B umask
-builtin; see
+builtin sets and exports it, and every busybox program, the shell
+included, applies it when it starts; see
 .BR busybox (1).
 .PP
 .BR BB_CRITICAL_ERROR_DIALOGS ,
+.BR BB_GLOBBING ,
 .BR BB_SKIP_ANSI_EMULATION ,
+.BR COLUMNS ,
 and
-.B COLUMNS
+.B CONEMUPID
 behave as in
 .BR busybox (1).
 The shell puts
@@ -1302,24 +1494,42 @@ and
 .B BB_TERMINAL_MODE
 in its own environment as soon as they are exported, and removes them
 when they are unset or no longer exported, so that they affect the
-shell itself as well as the programs it starts.
+shell itself as well as the commands it runs.
 .TP
 .B CDPATH
-Directories that
+A list of directories, separated by semicolons, in which
 .B cd
-searches for a relative name.
-The colon conversion described under
-.B PATH
-applies.
+looks for a directory; see
+.B cd
+under
+.BR "Builtin commands" .
+An empty entry, or
+.BR .\& ,
+stands for the current directory.
+The shell changes colons in the value as described under
+.BR PATH .
+Tab completion does not use
+.BR CDPATH .
 .TP
 .B ENV
 A file for an interactive shell to read; see
 .BR "Startup files" .
 .TP
 .BR EPOCHREALTIME ", " EPOCHSECONDS
-The time since the Unix epoch, in seconds, with microseconds in the
-first.
+The time since the Unix epoch, in seconds:
+.B EPOCHREALTIME
+with six decimal places, and
+.B EPOCHSECONDS
+as an integer.
 Each reference reads the clock.
+Like
+.BR RANDOM ,
+these variables do not appear in the output of
+.B set
+until they are first referenced.
+They are in the environment only when exported, and then hold the value
+from the time of export.
+Assigning to them has no effect.
 .TP
 .B FUNCNAME
 The name of the running function.
@@ -1327,13 +1537,17 @@ The name of the running function.
 .BR HISTFILE ", " HISTSIZE
 The history file and the number of lines of history; see
 .BR History .
-.B HISTFILESIZE
-is not used.
 An interactive shell sets
 .B HISTFILE
 when it is unset and
 .B HOME
 is set.
+.B HISTFILESIZE
+is ignored.
+In bash it limits the number of lines in the history file; this shell
+limits the file through
+.B HISTSIZE
+instead.
 .TP
 .B HOME
 The directory that
@@ -1341,9 +1555,15 @@ The directory that
 goes to without an argument, that
 .B ~
 stands for, and that a login shell changes to.
-When the shell starts from a native Windows environment and
+A shell that starts from a native Windows environment sets and exports
 .B HOME
-is unset, the shell sets it to the user's profile directory.
+when it is unset, and always when the shell is elevated.
+It sets it to the user profile, the directory that Windows keeps for the
+account, such as
+.IR C:/Users/name .
+The shell asks Windows for this directory rather than reading
+.BR USERPROFILE ,
+but the two normally agree.
 .TP
 .B HOSTNAME
 The name of the computer.
@@ -1354,35 +1574,34 @@ The characters that separate fields.
 The default is a space, a tab, and a newline.
 .TP
 .BR LC_ALL ", " LC_CTYPE ", " LANG
-The first of these that is set is checked when the editor reads a line
-and when
+The first of these that is set decides how the editor reads a line and
+how
 .BI ${# name }
-is expanded.
+counts characters.
 If it is
 .BR C ,
 text is single bytes.
-Otherwise it is UTF-8 when the ANSI code page is UTF-8.
+Otherwise text is UTF-8 when the ANSI code page is UTF-8.
 .TP
 .B LINENO
 The line number of the command that is running.
 .TP
 .B MANPATH
-Where
+The directories in which
 .BR man (1)
 looks for pages.
-The colon conversion described under
-.B PATH
-applies.
+The shell does not use it, but changes its colons as described under
+.BR PATH .
 .TP
 .BR OLDPWD ", " PWD
 The previous and the current directory.
 The shell sets them.
-At startup it uses an inherited
+At startup the shell uses an inherited
 .B PWD
-only if that begins with a slash and names the current directory, so
-in practice it takes
+only if it begins with a slash and names the current directory, so in
+practice the shell takes
 .B PWD
-from the system.
+from Windows.
 .TP
 .BR OPTARG ", " OPTIND ", " OPTERR
 Used by
@@ -1392,35 +1611,58 @@ Setting
 to 0 turns off its messages.
 .TP
 .B PATH
-Where programs are found.
-The separator is a semicolon.
-When the shell assigns
+The directories searched for commands; see
+.BR "Command search and execution" .
+Entries are separated by semicolons, as on Windows, not by colons as on
+Unix.
+So that Unix-style values still work, whenever
 .BR PATH ,
 .BR CDPATH ,
 or
-.BR MANPATH ,
-it changes each colon that does not follow a drive letter to a
-semicolon, so that
+.B MANPATH
+is assigned, including at startup, the shell changes each colon to a
+semicolon, except a colon after a single letter at the start of an
+entry, which marks a drive.
+For example,
 .B PATH=/a:/b:c:/d
-means
+becomes
 .BR "/a;/b;c:/d" .
+A one-letter directory name followed by a colon is therefore taken as a
+drive, so write
+.BR a;b ,
+not
+.BR a:b .
+The value keeps the semicolons, and the commands the shell runs see
+them.
 When the environment has no
 .BR PATH ,
 it starts as
 .BR C:/Windows/System32;C:/Windows .
 After
 .BR "unset PATH" ,
-only the current directory is searched.
+the search of
+.B PATH
+looks only in the current directory.
 .TP
 .B PPID
 The process ID of the parent.
 The shell sets it.
 .TP
 .BR PS1 ", " PS2 ", " PS4
-The prompts and the prefix of
-.B \-x
-output; see
+.B PS1
+is the prompt before each command, and
+.B PS2
+the prompt before each continuation line; see
 .BR Prompts .
+.B PS4
+is written before each command that
+.B \-x
+traces.
+The shell expands it as it does
+.BR PS1 ,
+but the backslash sequences of
+.B Prompts
+do not apply.
 The defaults are
 .B \ew\ \e$
 for
@@ -1441,25 +1683,39 @@ Assigning a number seeds the generator, and unsetting
 ends its special behavior.
 .TP
 .B SHELL
-The shell sets it to
+A shell that starts from a native Windows environment sets and exports
+it as
 .B /bin/sh
-when it starts from a native Windows environment and it is unset.
+when it is unset, and always when the shell is elevated.
 That name means something only to busybox programs.
 .TP
 .B SHLVL
 The nesting level of shells.
-Each shell adds 1, and exports it.
+Each shell adds 1 and exports it.
 .TP
 .B TERM_PROGRAM
-When it is
-.BR mintty ,
-a shell that starts from a native Windows environment discards an
-inherited
-.BR HOME .
+The terminal program.
+mintty, the terminal of Cygwin, MSYS2, and Git for Windows, sets it to
+.B mintty
+and sets
+.B HOME
+to its own Unix-style home directory.
+When a shell that starts from a native Windows environment sees
+.BR TERM_PROGRAM=mintty ,
+it ignores the inherited
+.B HOME
+and sets
+.B HOME
+to the user profile, so that
+.B ~
+and
+.I $HOME/.profile
+are the same as in a console.
 .TP
 .BR USER ", " LOGNAME
 The user name.
-A shell that starts from a native Windows environment sets these, and
+A shell that starts from a native Windows environment sets and exports
+these, and
 .B HOME
 and
 .BR SHELL ,
@@ -1467,13 +1723,18 @@ when they are unset, and always when it is elevated, in which case the
 user name is
 .BR root .
 .TP
-.B _
-The last argument of the previous command, in an interactive shell.
+.BR _ " (underscore)"
+In an interactive shell, the last word, after expansion, of the most
+recent command that had words and did not run inside a function.
+For a command with no arguments, this is the command name.
+The shell does not export it.
+A non-interactive shell does not set it, so it keeps any value from the
+environment.
 .SH EXIT STATUS
 The status of the shell is that of the last command it ran, or the
 argument of
 .BR exit .
-Statuses of commands run by the shell are:
+The statuses of commands that the shell runs are:
 .TP
 .B 0
 Success.
@@ -1501,9 +1762,9 @@ The command was not found.
 .BI 128+ n
 The command was killed by signal
 .IR n .
-For a Windows program, 139 is the access violation
+For a Windows program, 139 means the access violation
 .B 0xC0000005
-and 130 is Ctrl\-C.
+and 130 means Ctrl\-C.
 For a command that it waits for, the shell prints the name of any
 signal other than
 .B INT
@@ -1513,7 +1774,7 @@ or
 .B 255
 A Windows exit code above 255 whose low byte is 0, such as 256.
 .PP
-Another exit code above 255 is reduced to its low byte, and the shell
+The shell reduces any other exit code above 255 to its low byte, and
 prints a message with the code in hexadecimal.
 .SH EXAMPLES
 Run a script, tracing each command:
@@ -1535,8 +1796,8 @@ prog has 2 arguments
 .PP
 Add a directory to
 .BR PATH ;
-the colons are changed to semicolons, except the one after the drive
-letter:
+the shell changes the colons to semicolons, except the one after the
+drive letter:
 .PP
 .RS 4
 .EX
@@ -1585,8 +1846,8 @@ $ wait $!
 .PP
 A fragment of
 .I $HOME/.profile
-that keeps a long history, uses vi keys, and shows a green current
-directory in the prompt:
+that keeps a long history, uses vi keys, and shows the current directory
+in green in the prompt:
 .PP
 .RS 4
 .EX
@@ -1609,55 +1870,30 @@ them case-sensitively unless
 .B nocaseglob
 is set, and the names of applets, builtins, and variables are
 case-sensitive.
-Device names and the other path rules of busybox are in
+Device names and the other path rules of busybox are described in
 .BR busybox (1).
 .PP
-The shell starts from a native Windows environment when the environment
-has
-.BR Path ,
-.BR ComSpec ,
-or
-.B ProgramData
-spelled other than in capitals.
-It then imports the environment as follows.
-Variable names change to upper case.
-A name that is not a shell identifier, such as
-.BR "ProgramFiles(x86)" ,
-is imported under a name with underscores, and the original stays in the
-environment of the programs the shell starts.
-Backslashes in the values change to slashes, except in
-.B COMSPEC
-and
-.BR SYSTEMROOT ,
-and the programs the shell starts see the slashes;
-.B \-X
-prevents this.
-.B "export \-n"
-on an imported variable restores the value it had in the environment.
-A shell started by another busybox shell does none of this.
-.PP
-A CR before a LF is removed from scripts, from command strings, and
-from unquoted results of expansions.
-A CR LF at the end of the output of a command substitution is removed
-like a LF.
-A UTF-8 byte order mark at the start of a script is not skipped, and
-becomes part of the first word.
+The shell removes a CR before a LF from scripts, from command strings,
+and from unquoted results of expansions.
+It removes a CR LF at the end of the output of a command substitution
+as it removes a LF.
+It does not skip a UTF-8 byte order mark at the start of a script, so
+the mark becomes part of the first word.
 .PP
 Before each prompt the shell sets the console's terminal mode again,
 undoing changes that a program made; see
 .B BB_TERMINAL_MODE
 in
 .BR busybox (1).
-When the shell itself is started by a program other than busybox, such
-as
+When a program other than busybox, such as
 .BR cmd.exe ,
-the C runtime expands wildcards in its arguments before it sees them;
-see
+starts the shell, the C runtime expands wildcards in the shell's
+arguments before the shell sees them; see
 .B BB_GLOBBING
 in
 .BR busybox (1).
 .PP
-A command line that is too long for Windows makes a command fail, with
+A command line that is too long for Windows makes a command fail with
 .BR "Argument list too long" .
 For libtool, a command that starts with the arguments
 .B cmd //c echo
@@ -1669,7 +1905,8 @@ in place of
 The shell does not use file associations: a file that is not a program
 cannot be run by naming it.
 .PP
-w64devkit changes the shell of busybox-w32 as follows.
+w64devkit changes the shell of busybox-w32 as follows:
+.IP \(bu 2
 A login shell reads the kit's profile from
 .I etc
 in the directory above the one that holds
@@ -1677,9 +1914,16 @@ in the directory above the one that holds
 rather than from
 .I etc
 in that directory.
-The editor never beeps, and Tab with nothing typed at the start of a
-command does nothing.
-The history holds 1024 lines by default and 16384 at most.
+.IP \(bu 2
+The line editor never beeps.
+.IP \(bu 2
+Tab in the command name position with nothing typed does nothing,
+instead of listing every program in
+.BR PATH .
+.IP \(bu 2
+The history holds 1024 lines by default and 16384 at most, rather than
+384 and 1023.
+.IP \(bu 2
 The
 .B noiconify
 option starts on, and every
@@ -1687,6 +1931,10 @@ option starts on, and every
 command with arguments turns it on again, so
 .B noconsole
 hides the console window instead of minimizing it.
+.IP \(bu 2
+The shell has no
+.B [[
+command.
 .SH SEE ALSO
 .BR busybox (1),
 .BR echo (1),
