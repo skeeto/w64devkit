@@ -1,4 +1,4 @@
-.TH SU 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH SU 1 2026-10-22 "w64devkit" "w64devkit Manual"
 .SH NAME
 su \- run a shell with elevated privileges
 .SH SYNOPSIS
@@ -391,9 +391,9 @@ The privilege of a process can be dropped by the busybox applets
 .BR drop ,
 .BR cdrop ,
 or
-.BR pdrop ,
-which have no launchers; see
-.BR busybox (1).
+.BR pdrop ;
+see
+.BR drop (1).
 Windows still reports such a process as elevated, so it would start the
 shell without raising the privilege, and
 .B su
@@ -402,5 +402,6 @@ gives up with status 2.
 skips this test.
 .SH SEE ALSO
 .BR busybox (1),
+.BR drop (1),
 .BR id (1),
 .BR sh (1)

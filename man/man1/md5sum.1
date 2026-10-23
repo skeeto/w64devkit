@@ -1,6 +1,7 @@
-.TH MD5SUM 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH MD5SUM 1 2026-10-22 "w64devkit" "w64devkit Manual"
 .SH NAME
-md5sum, sha1sum, sha256sum, sha3sum, sha512sum \- print or check digests
+md5sum, sha1sum, sha256sum, sha384sum, sha3sum, sha512sum \-
+print or check digests
 .SH SYNOPSIS
 .B md5sum
 .RB [ \-b " | " \-t ]
@@ -38,6 +39,9 @@ SHA-1, 160 bits.
 .B sha256sum
 SHA-256, 256 bits.
 .TP
+.B sha384sum
+SHA-384, 384 bits.
+.TP
 .B sha512sum
 SHA-512, 512 bits.
 .TP
@@ -48,6 +52,7 @@ chooses another size.
 .PP
 .BR sha1sum ,
 .BR sha256sum ,
+.BR sha384sum ,
 and
 .B sha512sum
 take the same options and operands as
@@ -398,20 +403,6 @@ When standard output is a console, names are converted for display from
 the ANSI code page to the console's output code page.
 .PP
 MD5 and SHA-1 detect accidental damage only, not deliberate tampering.
-.PP
-busybox also has
-.BR sha384sum ,
-which takes the same options as
-.BR md5sum .
-The kit installs no
-.I sha384sum.exe
-for it.
-The kit's shell, and busybox commands such as
-.BR find ,
-run it by name, but elsewhere, such as from
-.BR cmd.exe ,
-run it as
-.BR "busybox sha384sum" .
 .SH SEE ALSO
 .BR busybox (1),
 .BR cksum (1),

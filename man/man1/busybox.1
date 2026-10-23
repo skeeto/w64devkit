@@ -168,7 +168,9 @@ The kit's
 .I bin
 directory holds
 .I busybox.exe
-and, for most applets, a launcher named after the applet, such as
+and, for every applet except
+.BR [ ,
+a launcher named after the applet, such as
 .IR ls.exe .
 A launcher is a small separate program, not a link to
 .IR busybox.exe .
@@ -202,20 +204,14 @@ and ask
 .B "Terminate batch job (Y/N)?"
 on Ctrl+C.
 .PP
-These applets have no launcher:
-.BR [ ,
-.BR cdrop ,
-.BR drop ,
-.BR flock ,
-.BR pdrop ,
-.BR sha384sum ,
-and
-.BR stty .
-Run them as
-.B busybox
-.IR applet ,
-or by name in the kit's shell, which runs applets without searching
-.BR PATH .
+.B [
+has no launcher, since
+.B test
+does the same.
+In the kit's shell
+.B [
+is a builtin, and elsewhere it runs as
+.BR "busybox [" .
 .SS Applets
 This build has these applets.
 .BR sh ,
@@ -614,14 +610,17 @@ directory that
 shows for it.
 .RE
 .IP
-The kit's launchers already provide most applets as commands; see
+The kit's launchers already provide every applet except
+.B [
+as a command; see
 .BR Launchers .
 Without
 .B \-u
 or
 .IR dir ,
 .B \-\-install
-therefore adds links only for the applets that have no launcher.
+therefore adds only
+.IR [.exe .
 .TP
 \fB\-\-uninstall\fR [\fB\-n\fR] \fIfile\fR
 Delete every hard link to
@@ -928,7 +927,7 @@ $ busybox \-\-help sort
 .EE
 .RE
 .PP
-Run an applet that has no launcher:
+Run an applet through busybox itself, without its launcher:
 .PP
 .RS 4
 .EX
@@ -1151,7 +1150,9 @@ Some applets are left out, and the shell is not available as
 see
 .BR "Applets left out" .
 .IP \(bu 2
-Most applets have a launcher in
+Every applet except
+.B [
+has a launcher in
 .IR bin ;
 see
 .BR Launchers .

@@ -1,4 +1,4 @@
-.TH TTYSIZE 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH TTYSIZE 1 2026-10-22 "w64devkit" "w64devkit Manual"
 .SH NAME
 ttysize \- print the width and height of the console
 .SH SYNOPSIS
@@ -125,11 +125,8 @@ $ cat size.txt
 .SH NOTES
 .B stty size
 prints the height first, not the width, and fails with an error when
-standard input is not a console.
-.B stty
-has no launcher in the kit, so run it as
-.B busybox stty
-or from the kit's shell.
+standard input is not a console; see
+.BR stty (1).
 .PP
 The usage message says the size is that of the stdin tty, but on Windows
 this build asks only standard output, then standard error.
@@ -151,4 +148,5 @@ The default size cannot be told from a real 80 by 24 console.
 The output ends in LF, not CRLF.
 .SH SEE ALSO
 .BR busybox (1),
-.BR sh (1)
+.BR sh (1),
+.BR stty (1)

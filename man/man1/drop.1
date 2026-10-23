@@ -1,0 +1,363 @@
+.TH DROP 1 2026-10-22 "w64devkit" "w64devkit Manual"
+.SH NAME
+drop, cdrop, pdrop \- run a command without administrator privileges
+.SH SYNOPSIS
+.B drop
+.RB [[ \-\- ]
+.I command
+.RI [ argument ...]]
+.br
+.B drop
+.B \-s
+.I shell
+.br
+.B drop
+.RB [ \-s
+.IR shell ]
+.B \-c
+.I string
+.RB [[ \-\- ]
+.IR argument ...]
+.br
+.B cdrop
+.RB [[ \-\- ]
+.I command
+.RI [ argument ...]]
+.br
+.B cdrop \-c
+.I string
+.RB [[ \-\- ]
+.IR argument ...]
+.br
+.B pdrop
+.RB [[ \-\- ]
+.I command
+.RI [ argument ...]]
+.br
+.B pdrop \-c
+.I string
+.RB [[ \-\- ]
+.IR argument ...]
+.SH DESCRIPTION
+.BR drop ,
+.BR cdrop ,
+and
+.B pdrop
+run a command with the rights of a standard user.
+They are meant to be run from an elevated process, one that has
+administrator rights through User Account Control (UAC), such as a shell
+started by
+.BR su (1).
+The command runs as the same user, in the same console, with the same
+standard input, output, and error, environment, and current directory.
+These programs are busybox applets; see
+.BR busybox (1).
+.PP
+Each program builds a new access token for the command from its own
+token.
+In the new token the Administrators group is disabled, the privileges
+are those Windows gives a standard user, and the integrity level is
+medium.
+This is the Windows "Normal User" software restriction level.
+.PP
+With a
+.I command
+operand, all three programs run that command with the remaining operands
+as its arguments.
+A
+.I command
+that names a busybox applet runs that applet from the running
+.IR busybox.exe ,
+even when
+.B PATH
+has a program of the same name, unless
+.B BB_OVERRIDE_APPLETS
+says otherwise.
+A
+.I command
+that contains a slash, a backslash, or a drive letter is the path of a
+file.
+Any other
+.I command
+is searched for in
+.BR PATH .
+For a path and in the search, if the name is not an executable file,
+the suffixes
+.BR .com ,
+.BR .exe ,
+.BR .sh ,
+.BR .bat ,
+and
+.B .cmd
+are tried in that order, unless the name already ends with one of them
+or with a period.
+.PP
+With no
+.I command
+operand, or with
+.BR \-c ,
+the programs differ in the shell they run:
+.TP
+.B drop
+runs the kit's
+.BR sh (1)
+from the running
+.IR busybox.exe ,
+or the program named by
+.BR \-s .
+.TP
+.B cdrop
+runs
+.BR cmd.exe ,
+found in
+.BR PATH .
+.TP
+.B pdrop
+runs Windows PowerShell,
+.BR powershell.exe ,
+found in
+.BR PATH .
+.PP
+Without
+.BR \-c ,
+the shell is interactive.
+With
+.BR \-c ,
+the shell runs
+.I string
+and exits, and the operands follow
+.I string
+as arguments.
+In
+.BR sh (1),
+the first of them is
+.BR $0 .
+.PP
+Each program waits for the command to exit, and exits with its status.
+The program reads no input and writes no output of its own, apart from
+error
+messages and
+.BR \-\-help .
+.SH OPTIONS
+Options may follow operands unless
+.B POSIXLY_CORRECT
+is set, so an option meant for the command is taken as an option of the
+program.
+Put
+.B \-\-
+before the command to end the options, as in
+.BR "drop \-\- ls \-l" .
+An unknown option or an option without its argument is a usage error:
+the program prints a usage message on standard error and exits with
+status 1.
+.TP
+.BI "\-c " string
+Run
+.I string
+as a command in the shell.
+The shell is given
+.B \-c
+.IR string ,
+or
+.B /c
+.I string
+for
+.BR cmd.exe .
+The operands follow as arguments.
+.TP
+.BI "\-s " shell
+.RB ( drop
+only.)
+Run
+.I shell
+instead of
+.BR sh (1).
+.I shell
+is the path of a program, with forward slashes or backslashes.
+It is not searched for in
+.BR PATH :
+a name without a directory is looked for in the current directory, with
+the suffixes listed above.
+When the last component of
+.I shell
+is
+.B cmd.exe
+in any case,
+.B \-c
+passes
+.B /c
+instead.
+When
+.I shell
+is not found,
+.B drop
+exits with status 127.
+.B \-s
+is ignored when there is a
+.I command
+operand and no
+.BR \-c .
+.TP
+.B \-\-help
+As the first argument, print a usage message on standard output and exit
+with status 0.
+Any further arguments are ignored.
+.SH ENVIRONMENT
+.TP
+.B PATH
+Where
+.IR command ,
+.BR cmd.exe ,
+and
+.B powershell.exe
+are searched for.
+.TP
+.B BB_OVERRIDE_APPLETS
+Which names run an applet and which run a program from
+.BR PATH ;
+see
+.BR busybox (1).
+.TP
+.BR USER ", " LOGNAME
+Each is set for the command to the name of the user, with spaces
+replaced by underscores, when it is unset or is
+.BR root .
+Otherwise it is passed on unchanged.
+.TP
+.B POSIXLY_CORRECT
+The C library's option parser reads it.
+When it is set, even to an empty value, options are recognized only
+before the first operand.
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the operands are expanded, as needed when run from
+.BR cmd.exe .
+A busybox process started with it unset sets it to
+.B 0
+for its children.
+.SH EXIT STATUS
+.TP
+.B 1
+A usage error, a failure to build the new token, or a failure to read
+the status of the command.
+Also a status of 1 from the command.
+.TP
+.B 126
+The command was found but could not be started.
+.TP
+.B 127
+The command, the
+.B \-s
+shell,
+.BR cmd.exe ,
+or
+.B powershell.exe
+was not found.
+.PP
+Otherwise the exit status is that of the command, any value from 0 to
+255.
+A command that ended as if by a signal has status 128 plus the signal
+number, such as 139 for an access violation and 130 for Ctrl+C.
+Otherwise the status is the low byte of the Windows exit code, or 255
+for a code that is a nonzero multiple of 256.
+Such a code above 255 is also reported on standard error as
+.PP
+.RS 4
+.EX
+drop: \fImessage\fR Error 0x\fIcode\fR
+.EE
+.RE
+.PP
+with the code in hexadecimal, after the Windows description of it when
+there is one.
+The other errors are reported as
+.PP
+.RS 4
+.EX
+drop: can\(aqt find \(aq\fIname\fR\(aq
+drop: can\(aqt execute \(aq\fIpath\fR\(aq
+.EE
+.RE
+.PP
+with the name of the program in place of
+.BR drop .
+A failure to build the new token has no message.
+.SH EXAMPLES
+From an elevated shell, open a shell without administrator rights in the
+same console:
+.PP
+.RS 4
+.EX
+$ drop
+.EE
+.RE
+.PP
+Build a project without administrator rights.
+The
+.B \-\-
+keeps
+.B \-j4
+away from
+.BR drop :
+.PP
+.RS 4
+.EX
+$ drop \-\- make \-j4
+.EE
+.RE
+.PP
+Run a shell command, passing a file name as
+.BR $0 :
+.PP
+.RS 4
+.EX
+$ drop \-c \(aqls \-l "$0"\(aq notes.txt
+.EE
+.RE
+.PP
+Open a
+.B cmd.exe
+prompt without administrator rights:
+.PP
+.RS 4
+.EX
+$ cdrop
+.EE
+.RE
+.SH NOTES
+Windows still reports the dropped process as elevated.
+To tell the difference, busybox tests whether the Administrators group
+is enabled, so in a dropped process
+.BR id (1)
+does not print
+.BR root ,
+and
+.BR su (1)
+refuses to run from a dropped process, because it cannot raise the
+privilege again.
+.PP
+When the program is not elevated it works the same way.
+The command then runs with no more rights than the program has, at
+medium integrity.
+If Windows refuses to build the new token or to set its integrity
+level, the program exits with status 1 without a message.
+Integrity levels exist only on Windows Vista and later, so on Windows XP
+the programs always fail this way.
+.PP
+On Ctrl+C or Ctrl+Break, a command that shares the console handles the
+event itself.
+A command that does not, such as a GUI program, is terminated.
+The program itself keeps waiting for the command to exit.
+.PP
+Each argument is quoted by the rules of the Microsoft C runtime.
+.B cmd.exe
+and PowerShell parse their command lines by their own rules, so a
+.I string
+that contains double quotes may reach them changed.
+.SH SEE ALSO
+.BR busybox (1),
+.BR id (1),
+.BR sh (1),
+.BR su (1)

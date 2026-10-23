@@ -1,0 +1,371 @@
+.TH FLOCK 1 2026-10-22 "w64devkit" "w64devkit Manual"
+.SH NAME
+flock \- run a program while holding a lock on a file
+.SH SYNOPSIS
+.B flock
+.RB [ \-sxn ]
+.I file
+.I prog
+.RI [ arg ...]
+.br
+.B flock
+.RB [ \-sxn ]
+.I file
+.B \-c
+.I command
+.br
+.B flock
+.RB [ \-sxun ]
+.I fd
+.SH DESCRIPTION
+.B flock
+opens
+.IR file ,
+locks it, runs
+.I prog
+with the arguments
+.IR arg ...,
+waits for it, and exits with its exit status.
+The lock is released when
+.B flock
+exits.
+Two
+.B flock
+commands that lock the same file therefore run their programs one at a
+time, which serializes jobs that must not overlap.
+If
+.I file
+does not exist,
+.B flock
+creates it as an empty file; see
+.B Lock range
+below.
+.I file
+is opened for reading only, and
+.B flock
+never writes to it.
+This
+.B flock
+is a busybox applet; see
+.BR busybox (1).
+.PP
+A lock is exclusive or shared.
+An exclusive lock, the default, conflicts with every other lock on the
+file.
+A shared lock, taken with
+.BR \-s ,
+conflicts only with exclusive locks, so several shared locks may be
+held at once.
+When the lock conflicts with one held by another process,
+.B flock
+waits until it is released, or with
+.B \-n
+fails at once.
+.PP
+With
+.BR \-c ,
+.B flock
+runs
+.I command
+with the shell, as
+.I shell
+.B \-c
+.IR command ,
+where
+.I shell
+is the value of
+.B SHELL
+or, when that is unset or empty,
+.IR /bin/sh ,
+which is the kit's
+.BR sh (1).
+.PP
+With a single operand, a file descriptor number
+.IR fd ,
+.B flock
+locks or unlocks the file already open on that descriptor and exits.
+On Windows this form cannot hold a lock beyond the life of
+.B flock
+itself; see
+.BR NOTES .
+.PP
+.I prog
+is started as the kit's shell starts an external command: an applet of
+that name runs as a new busybox process, or inside the
+.B flock
+process for the few applets that busybox runs that way, such as
+.BR echo ,
+and any other name without a directory part is looked up in
+.BR PATH ;
+see
+.B Running commands
+in
+.BR busybox (1).
+.I prog
+shares the standard input, output, and error of
+.BR flock ,
+which writes nothing itself except error messages on standard error.
+.SS Lock range
+.B flock
+locks the bytes of
+.I file
+that exist when the lock is taken, from offset 0 up to the size of the
+file at that moment.
+Bytes appended later are not covered.
+A lock on an empty file covers no bytes, and Windows does not let a lock
+of zero bytes conflict with any other lock.
+A lock on an empty file therefore excludes nothing, and two
+.B flock
+commands on it run their programs at the same time.
+Write at least one byte to a lock file before using it, as in
+.BR EXAMPLES .
+.PP
+Windows locks are mandatory, not advisory.
+While
+.B flock
+holds an exclusive lock, no other process, including
+.IR prog ,
+can read or write the locked bytes of
+.IR file .
+While it holds a shared lock, no process can write them.
+Such a read or write fails with a permission error.
+Use a separate file as the lock, not the data that
+.I prog
+works on.
+.SH OPTIONS
+Options are recognized only before
+.I file
+or
+.IR fd ,
+and may be grouped, as in
+.BR \-sn .
+Everything after
+.I file
+belongs to
+.IR prog ,
+except a
+.B \-c
+or
+.B \-\-command
+immediately after
+.IR file .
+.B \-\-
+ends the options.
+.TP
+.BR \-s ", " \-\-shared
+Take a shared lock.
+Incompatible with
+.B \-x
+and
+.BR \-u .
+.TP
+.BR \-x ", " \-\-exclusive
+Take an exclusive lock.
+This is the default.
+Incompatible with
+.B \-s
+and
+.BR \-u .
+.TP
+.BR \-u ", " \-\-unlock
+Release a lock instead of taking one.
+A lock belongs to the process that took it, and a new
+.B flock
+process holds none, so
+.B \-u
+always fails with status 1, and
+.I prog
+does not run.
+.TP
+.BR \-n ", " \-\-nonblock
+Do not wait for a conflicting lock to be released.
+Exit at once with status 1 and an error message instead.
+.TP
+\fB\-c\fR, \fB\-\-command\fR \fIcommand\fR
+Run
+.I command
+with the shell, as described above.
+It must follow
+.I file
+directly, and
+.I command
+must be a single argument.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+.SH ENVIRONMENT
+.TP
+.B SHELL
+The shell that runs
+.I command
+for
+.BR \-c ,
+when set and not empty.
+.TP
+.B PATH
+Where
+.I prog
+is looked up when it is not an applet and has no directory part.
+.TP
+.B BB_OVERRIDE_APPLETS
+Applets that are not run when named as
+.IR prog ,
+so that a program in
+.B PATH
+runs instead; see
+.BR busybox (1).
+.TP
+.B BB_GLOBBING
+Unless it is
+.BR 0 ,
+wildcards in the arguments of
+.B flock
+are expanded when it starts, as needed when run from
+.BR cmd.exe .
+That includes the arguments of
+.IR prog .
+A busybox process started with it unset sets it to
+.B 0
+for its children.
+.PP
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.I n
+.I prog
+ran and exited with status
+.IR n .
+A
+.I prog
+that ended as if by a signal gives 128 plus the signal number.
+.TP
+.B 0
+In the
+.I fd
+form, the lock was taken.
+.TP
+.B 1
+A usage error, a
+.I file
+that could not be opened, a lock that could not be taken or released,
+or, with
+.BR \-n ,
+a conflicting lock.
+.I prog
+does not run.
+.TP
+.B 255
+.I prog
+could not be started.
+.PP
+Errors are reported on standard error as
+.PP
+.RS 4
+.EX
+flock: can\(aqt open \(aq\fIfile\fR\(aq: \fIreason\fR
+flock: : \fIreason\fR
+flock: invalid number \(aq\fIfd\fR\(aq
+flock: \-c takes only one argument
+flock: \fIprog\fR: \fIreason\fR
+.EE
+.RE
+.PP
+The second form, with an empty field before the reason, reports a
+failure to lock or unlock, such as
+.B Permission denied
+for a conflicting lock with
+.BR \-n ,
+.B Invalid argument
+for
+.B \-s
+with
+.BR \-x ,
+or
+.B Bad file descriptor
+for an
+.I fd
+that is not open.
+.SH EXAMPLES
+Create a lock file of one line, then run a build that no other build
+using the same lock file can overlap:
+.PP
+.RS 4
+.EX
+$ echo lock >build.lock
+$ flock build.lock make
+.EE
+.RE
+.PP
+Skip the build when another one holds the lock:
+.PP
+.RS 4
+.EX
+$ flock \-n build.lock make || echo busy
+.EE
+.RE
+.PP
+Run a shell command under a shared lock:
+.PP
+.RS 4
+.EX
+$ flock \-s build.lock \-c \(aqcp out/app.exe /c/dist/\(aq
+.EE
+.RE
+.SH NOTES
+Differences from
+.B flock
+on Unix:
+.IP \(bu 2
+On Unix a lock belongs to an open file and outlives the process that
+took it while the file stays open elsewhere, so
+.B "flock 9"
+can lock a file that a shell opened with
+.B "exec 9>file"
+and hold the lock for the rest of the script.
+On Windows a lock belongs to the process that took it and is released
+when that process exits.
+In the
+.I fd
+form
+.B flock
+takes the lock and releases it as it exits, so the shell never holds
+it.
+The only use of this form is to wait until no other process holds a
+conflicting lock.
+.IP \(bu 2
+.B \-u
+always fails, as described under
+.BR OPTIONS .
+.IP \(bu 2
+Locks are mandatory, and a lock on an empty file excludes nothing; see
+.BR "Lock range" .
+.IP \(bu 2
+With
+.BR \-n ,
+a conflicting lock gives an error message as well as status 1.
+.IP \(bu 2
+A directory cannot be opened, so it cannot be locked.
+.B flock
+exits with status 1 and
+.BR "Permission denied" .
+.IP \(bu 2
+There are no
+.BR \-o ,
+.BR \-w ,
+.BR \-E ,
+or
+.B \-F
+options, and no timeout.
+.PP
+Windows does not let another process delete or rename
+.I file
+while
+.B flock
+has it open.
+.SH SEE ALSO
+.BR busybox (1),
+.BR sh (1),
+.BR timeout (1)

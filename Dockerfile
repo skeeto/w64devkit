@@ -812,15 +812,16 @@ RUN QUILT_PATCHES=$PREFIX/src/busybox quilt push -a \
 RUN $ARCH-gcc -Oz -fno-asynchronous-unwind-tables -Wl,--gc-sections -s \
       -nostdlib -o alias.exe $PREFIX/src/busybox-alias.c -lkernel32 \
  && printf '%s\n' arch ash awk base32 base64 basename bc bunzip2 bzcat \
-      bzip2 cal cat chattr chmod cksum clear cmp comm cp cpio crc32 cut date \
-      dc dd df diff dirname dos2unix du echo ed egrep env expand expr factor \
-      false fgrep find fold free fsync getopt grep groups hd head hexdump \
-      httpd iconv id inotifyd install ipcalc jn join kill killall \
-      lash less ln logname ls lsattr lzcat lzma lzop lzopcat man md5sum mkdir \
-      mktemp mv nc nl nproc od paste patch pgrep pidof pipe_progress pkill \
-      printenv printf ps pwd readlink realpath reset rev rm rmdir sed seq sh \
-      sha1sum sha256sum sha3sum sha512sum shred shuf sleep sort split \
-      ssl_client stat su sum sync tac tail tar tee test time timeout touch \
+      bzip2 cal cat cdrop chattr chmod cksum clear cmp comm cp cpio crc32 cut \
+      date dc dd df diff dirname dos2unix drop du echo ed egrep env expand \
+      expr factor false fgrep find flock fold free fsync getopt grep groups \
+      hd head hexdump httpd iconv id inotifyd install ipcalc jn join kill \
+      killall lash less ln logname ls lsattr lzcat lzma lzop lzopcat man \
+      md5sum mkdir mktemp mv nc nl nproc od paste patch pdrop pgrep pidof \
+      pipe_progress pkill printenv printf ps pwd readlink realpath reset rev \
+      rm rmdir sed seq sh sha1sum sha256sum sha384sum sha3sum sha512sum shred \
+      shuf sleep sort split ssl_client stat stty su sum sync tac tail tar tee \
+      test time timeout touch \
       tr true truncate ts ttysize uname uncompress unexpand uniq unix2dos \
       unlzma unlzop unxz uptime usleep uudecode uuencode watch \
       wc wget which whoami whois xargs xz xzcat yes \
