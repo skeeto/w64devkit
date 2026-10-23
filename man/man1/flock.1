@@ -37,9 +37,7 @@ If
 .I file
 does not exist,
 .B flock
-creates it as an empty file; see
-.B Lock range
-below.
+creates it as an empty file.
 .I file
 is opened for reading only, and
 .B flock
@@ -106,32 +104,22 @@ shares the standard input, output, and error of
 .BR flock ,
 which writes nothing itself except error messages on standard error.
 .SS Lock range
+Windows locks ranges of bytes in a file rather than whole files, and its
+locks are mandatory: no other process can read or write the bytes that a
+lock covers.
 .B flock
-locks the bytes of
-.I file
-that exist when the lock is taken, from offset 0 up to the size of the
-file at that moment.
-Bytes appended later are not covered.
-A lock on an empty file covers no bytes, and Windows does not let a lock
-of zero bytes conflict with any other lock.
-A lock on an empty file therefore excludes nothing, and two
+therefore locks a single byte at offset 2^62, past the end of any real
+file.
+That lock conflicts with other
 .B flock
-commands on it run their programs at the same time.
-Write at least one byte to a lock file before using it, as in
-.BR EXAMPLES .
-.PP
-Windows locks are mandatory, not advisory.
-While
-.B flock
-holds an exclusive lock, no other process, including
+locks on the same file, but does not stop any process, including
 .IR prog ,
-can read or write the locked bytes of
-.IR file .
-While it holds a shared lock, no process can write them.
-Such a read or write fails with a permission error.
-Use a separate file as the lock, not the data that
-.I prog
-works on.
+from reading or writing
+.IR file ,
+so the lock is advisory, as on Unix.
+An empty file works as a lock file.
+This is a w64devkit change; see
+.BR NOTES .
 .SH OPTIONS
 Options are recognized only before
 .I file
@@ -173,13 +161,14 @@ A lock belongs to the process that took it, and a new
 .B flock
 process holds none, so
 .B \-u
-always fails with status 1, and
+releases nothing.
+It succeeds, as on Unix, and then runs
 .I prog
-does not run.
+if one is given.
 .TP
 .BR \-n ", " \-\-nonblock
 Do not wait for a conflicting lock to be released.
-Exit at once with status 1 and an error message instead.
+Exit at once with status 1 instead, with no message.
 .TP
 \fB\-c\fR, \fB\-\-command\fR \fIcommand\fR
 Run
@@ -275,9 +264,6 @@ flock: \fIprog\fR: \fIreason\fR
 .PP
 The second form, with an empty field before the reason, reports a
 failure to lock or unlock, such as
-.B Permission denied
-for a conflicting lock with
-.BR \-n ,
 .B Invalid argument
 for
 .B \-s
@@ -289,12 +275,10 @@ for an
 .I fd
 that is not open.
 .SH EXAMPLES
-Create a lock file of one line, then run a build that no other build
-using the same lock file can overlap:
+Run a build that no other build using the same lock file can overlap:
 .PP
 .RS 4
 .EX
-$ echo lock >build.lock
 $ flock build.lock make
 .EE
 .RE
@@ -336,17 +320,6 @@ it.
 The only use of this form is to wait until no other process holds a
 conflicting lock.
 .IP \(bu 2
-.B \-u
-always fails, as described under
-.BR OPTIONS .
-.IP \(bu 2
-Locks are mandatory, and a lock on an empty file excludes nothing; see
-.BR "Lock range" .
-.IP \(bu 2
-With
-.BR \-n ,
-a conflicting lock gives an error message as well as status 1.
-.IP \(bu 2
 A directory cannot be opened, so it cannot be locked.
 .B flock
 exits with status 1 and
@@ -365,6 +338,21 @@ Windows does not let another process delete or rename
 while
 .B flock
 has it open.
+.PP
+w64devkit changes the lock range, as described under
+.BR "Lock range" .
+busybox-w32 locks the bytes of the file that exist when the lock is
+taken, so on an empty file it locks nothing and excludes no one, and on
+a non-empty file it stops other processes, including
+.IR prog ,
+from using those bytes.
+w64devkit also makes
+.B \-n
+fail silently and
+.B \-u
+succeed, as on Unix, where busybox-w32 prints
+.B Permission denied
+or fails.
 .SH SEE ALSO
 .BR busybox (1),
 .BR sh (1),

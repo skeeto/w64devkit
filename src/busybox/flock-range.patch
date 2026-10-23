@@ -1,0 +1,108 @@
+Fix flock on Windows, emulated with LockFileEx, so that it excludes
+other flock users the way flock(2) does:
+
+* It locked the byte range from 0 to the file's current size, so on a
+  new, empty lock file, the usual case, it locked nothing at all, and
+  "flock lockfile cmd" excluded no one.
+
+* Since Windows byte-range locks are mandatory, on a non-empty file it
+  stopped every other process, including the command run under the
+  lock, from reading or writing the locked bytes.
+
+Lock one byte at offset 2^62 instead, past the end of any real file,
+which other locks respect and ordinary I/O does not touch.
+
+Also report a lock held elsewhere as EWOULDBLOCK rather than EACCES,
+so that flock -n exits with status 1 silently instead of printing
+"Permission denied", and let unlocking a file that holds no lock
+succeed, as flock(2) does, rather than failing flock -u.
+
+--- a/win32/flock.c
++++ b/win32/flock.c
+@@ -31,59 +31,45 @@
+ /* _get_osfhandle */
+ #  include <io.h>
+ 
+-/* Determine the current size of a file.  Because the other braindead
+- * APIs we'll call need lower/upper 32 bit pairs, keep the file size
+- * like that too.
+- */
+-static BOOL
+-file_size (HANDLE h, DWORD * lower, DWORD * upper)
+-{
+-  *lower = GetFileSize (h, upper);
+-  return 1;
+-}
+-
+ /* LOCKFILE_FAIL_IMMEDIATELY is undefined on some Windows systems. */
+ # ifndef LOCKFILE_FAIL_IMMEDIATELY
+ #  define LOCKFILE_FAIL_IMMEDIATELY 1
+ # endif
+ 
++/* Lock a single byte far beyond the end of any real file rather than
++ * the file's contents.  Locking the contents locked nothing when the
++ * file was empty, as a new lock file is, and since Windows locks are
++ * mandatory, it stopped every other process, including the command
++ * run under the lock, from reading or writing the file.  A lock past
++ * the end of the file excludes only other locks, like flock(2).
++ */
++#define LOCK_OFFSET_HIGH 0x40000000  /* offset 2^62 */
++
+ /* Acquire a lock. */
+ static BOOL
+ do_lock (HANDLE h, int non_blocking, int exclusive)
+ {
+-  BOOL res;
+-  DWORD size_lower, size_upper;
+   OVERLAPPED ovlp;
+   int flags = 0;
+ 
+-  /* We're going to lock the whole file, so get the file size. */
+-  res = file_size (h, &size_lower, &size_upper);
+-  if (!res)
+-    return 0;
+-
+-  /* Start offset is 0, and also zero the remaining members of this struct. */
+   memset (&ovlp, 0, sizeof ovlp);
++  ovlp.OffsetHigh = LOCK_OFFSET_HIGH;
+ 
+   if (non_blocking)
+     flags |= LOCKFILE_FAIL_IMMEDIATELY;
+   if (exclusive)
+     flags |= LOCKFILE_EXCLUSIVE_LOCK;
+ 
+-  return LockFileEx (h, flags, 0, size_lower, size_upper, &ovlp);
++  return LockFileEx (h, flags, 0, 1, 0, &ovlp);
+ }
+ 
+ /* Unlock reader or exclusive lock. */
+ static BOOL
+ do_unlock (HANDLE h)
+ {
+-  int res;
+-  DWORD size_lower, size_upper;
+-
+-  res = file_size (h, &size_lower, &size_upper);
+-  if (!res)
+-    return 0;
+-
+-  return UnlockFile (h, 0, 0, size_lower, size_upper);
++  /* Unlocking a file that holds no lock succeeds, as in flock(2). */
++  return UnlockFile (h, 0, LOCK_OFFSET_HIGH, 1, 0) ||
++         GetLastError () == ERROR_NOT_LOCKED;
+ }
+ 
+ /* Now our BSD-like flock operation. */
+@@ -124,7 +110,11 @@
+    */
+   if (!res)
+     {
+-      errno = err_win_to_posix();
++      /* A lock held elsewhere is EWOULDBLOCK, as flock(2) reports. */
++      if (GetLastError () == ERROR_LOCK_VIOLATION)
++        errno = EWOULDBLOCK;
++      else
++        errno = err_win_to_posix();
+       return -1;
+     }
+ 

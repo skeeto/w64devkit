@@ -12,3 +12,4 @@ bare-drive.patch
 rm-bare-drive.patch
 drop-test2.patch
 stty-winsize.patch
+flock-range.patch
