@@ -1,0 +1,21 @@
+Stop splitting a line at its last field when no blank follows it.
+Without -t, join stepped past the line's terminator. A line read with
+its newline happens to have a second terminator after the first, but an
+unterminated last line does not, so join read past its end and printed
+garbage as extra fields.
+
+---
+ coreutils/join.c |    2 ++
+ 1 file changed, 2 insertions(+)
+
+--- a/coreutils/join.c
++++ b/coreutils/join.c
+@@ -118,6 +118,8 @@
+ 
+ 		sl[n] = s;
+ 		n++;
++		if (s1 == NULL)
++			break;  /* don't step past the terminator */
+ 		s += sn + 1;
+ 	}
+ 	curr->fieldcount = n;

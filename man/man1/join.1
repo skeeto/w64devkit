@@ -364,15 +364,6 @@ An empty argument, which makes each line one field in GNU join, here
 means that blanks separate fields, as without
 .BR \-t .
 .PP
-Without
-.BR \-t ,
-when the last line of a file has no newline and does not end in a blank,
-.B join
-reads past the end of that line in memory, and the line can gain extra
-fields of garbage bytes, which are written and can even be its join
-field.
-End the last line with a newline.
-.PP
 Only memory limits the length of a line and the number of fields.
 .PP
 Files are read as binary.
@@ -381,8 +372,7 @@ CR LF and LF line endings behave alike, and output lines end with LF.
 Any other CR, such as one ending an unterminated last line, is an
 ordinary character.
 A NUL byte ends a line, as LF does, and is not written.
-The last line of a file need not end in a newline, except as described
-above.
+The last line of a file need not end in a newline.
 A read error ends a file silently.
 .PP
 .I file1
