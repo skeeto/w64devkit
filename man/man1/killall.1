@@ -182,7 +182,9 @@ Send
 instead of
 .BR TERM .
 The signal may also be attached, as in
-.BR \-sTERM .
+.BR \-sTERM ,
+unless the argument is itself a signal name, such as
+.BR \-segv .
 It is otherwise the same as
 .BI \- signal
 below, and the usage message does not list it.
@@ -203,18 +205,6 @@ for 0.
 Any other name or number is rejected with
 .B bad signal name
 and exit status 1, before any process is looked at.
-An argument that begins with a lowercase
-.B s
-is taken as
-.B \-s
-with the signal attached, so
-.B \-sigterm
-and
-.B \-segv
-are bad signal names; write
-.B \-SIGTERM
-or
-.BR \-SEGV .
 .IP
 Signal 0 sends nothing, but still fails for a process that could not be
 signaled, so it tests whether each match exists and can be signaled.

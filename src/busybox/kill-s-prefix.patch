@@ -1,0 +1,20 @@
+Take a lowercase -s prefix as the -s option only when the argument is
+not itself a signal name. Since FRP-6354 accepts -sSIG, kill and killall
+rejected -segv, -sigterm, -stop, and the like as "bad signal name".
+
+---
+ procps/kill.c |    3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+--- a/procps/kill.c
++++ b/procps/kill.c
+@@ -193,7 +193,8 @@
+ 	if (!is_killall5 && arg[0] == '-' && arg[1] == '\0')
+ 		goto do_it_sooner;
+ 
+-	if (arg[0] == 's') {
++	/* -segv and -sigterm are signals, not -s egv and -s igterm */
++	if (arg[0] == 's' && get_signum(arg) < 0) {
+ 		arg++;
+ 		if (!*arg && argv[1]) /* -s SIG? */
+ 			arg = *++argv;
