@@ -239,7 +239,7 @@ RUN mkdir nsis \
 
 FROM dl-cross AS variant-x64
 ENV ARCH=x86_64-w64-mingw32 \
-    GCC_ARCH_FLAG=--with-arch-32=pentium4 \
+    GCC_ARCH_FLAG="--with-arch-32=pentium4 --with-fpmath=sse" \
     GCC_MULTILIB=enable \
     CRT_LIB32=enable \
     CRT_LIB64=enable \
@@ -254,7 +254,7 @@ ENV ARCH=x86_64-w64-mingw32 \
 
 FROM dl-cross AS variant-x86
 ENV ARCH=i686-w64-mingw32 \
-    GCC_ARCH_FLAG=--with-arch=pentium4 \
+    GCC_ARCH_FLAG="--with-arch=pentium4 --with-fpmath=sse" \
     GCC_MULTILIB=disable \
     CRT_LIB32=enable \
     CRT_LIB64=disable \

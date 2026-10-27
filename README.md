@@ -85,10 +85,11 @@ toolchain targets Windows 7 by default.
 
 The x86 kit requires Windows XP or later and an SSE2-capable processor
 (e.g. at least Pentium 4); limited Unicode support. The toolchain targets
-the same by default. Runtimes contain SSE2 instructions, so GCC `-march`
-will not reliably target less capable processors when runtimes are linked
-(exceptions: `-lmemory`, `-lchkstk`). CMake, Ninja, and CCache require at
-least Windows 7.
+the same by default, with floating point math in SSE2 rather than x87
+(`-mfpmath=sse`), as on x64. Runtimes contain SSE2 instructions, so GCC
+`-march` will not reliably target less capable processors when runtimes
+are linked (exceptions: `-lmemory`, `-lchkstk`). CMake, Ninja, and
+CCache require at least Windows 7.
 
 ## Build cache
 
