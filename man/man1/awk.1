@@ -1,4 +1,4 @@
-.TH AWK 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH AWK 1 2026-10-27 "w64devkit" "w64devkit Manual"
 .SH NAME
 awk \- pattern scanning and text processing language
 .SH SYNOPSIS
@@ -191,8 +191,9 @@ is 12 and
 .B \(dqabc\(dq
 is 0.
 .PP
-A number with an integer value from \-2^63 up to, but not including, 2^63
-converts to a string as an integer.
+A number with an integer value, of any size, converts to a string as an
+integer; see
+.BR NOTES .
 Other numbers convert with the format in
 .BR CONVFMT ,
 or in
@@ -600,16 +601,44 @@ space,
 and
 .BR 0 ,
 an optional width, an optional precision after a period, and a
-conversion character:
+conversion character.
+A width or precision of
+.B *
+takes the next value, before the one converted, as an integer.
+A negative width from
+.B *
+left-justifies with
+.B c
+and
+.BR s ,
+and is ignored with the other conversions.
+A negative precision from
+.B *
+is ignored.
+The conversion characters are:
 .TP
 .B c
 A number as the byte with that value, modulo 256, or the first byte of
 a string.
 .TP
-.BR d ", " i ", " o ", " u ", " x ", " X
-The value converted to a 32-bit
-.BR int ,
-in decimal, octal, unsigned decimal, or hexadecimal.
+.BR d ", " i ", " u
+The value truncated toward zero, in decimal, as
+.B %.0f
+writes it, so it may be larger than any C integer type.
+With
+.BR u ,
+a negative value is instead converted to a 64-bit unsigned integer, as
+with
+.BR x .
+A precision is ignored, and the
+.B #
+flag adds a decimal point.
+.TP
+.BR o ", " x ", " X
+The value truncated toward zero and converted to a 64-bit unsigned
+integer, so that a negative value gives its two's complement, in octal
+or hexadecimal.
+A precision is ignored.
 .TP
 .BR e ", " E ", " f ", " F ", " g ", " G ", " a ", " A
 The value as a floating-point number, as in C, except that
@@ -626,12 +655,9 @@ consuming no value.
 .PP
 A missing value is the empty string or 0.
 Any other letter ends the specification, which is written unchanged and
-still consumes a value, so length modifiers such as
+consumes no value, so length modifiers such as
 .B l
 are not supported.
-A width or precision of
-.B *
-is a fatal error.
 .SS Functions
 Arithmetic:
 .TP
@@ -716,13 +742,21 @@ and return the number of replacements.
 In
 .IR s ,
 .B &
-stands for the matched text,
-.B \e&
-for a literal
+stands for the matched text.
+Before an
 .BR & ,
+each pair of backslashes stands for one backslash, and a backslash left
+over makes the
+.B &
+literal, so
+.B \e&
+is a literal
+.B &
 and
-.B \e\e
-for a backslash.
+.B \e\e&
+is a backslash followed by the matched text.
+Elsewhere, runs of up to three backslashes are copied as they are, and
+longer runs may be shortened.
 .TP
 .BI index( s ", " t )
 The position of the first occurrence of
@@ -914,6 +948,40 @@ elements are skipped.
 .B CONVFMT
 The format for converting non-integral numbers to strings, by default
 .BR %.6g .
+It holds one conversion specification, as for
+.BR printf ,
+and any other text, with
+.B %%
+for a literal
+.BR % .
+The conversion is
+.BR e ,
+.BR E ,
+.BR f ,
+.BR F ,
+.BR g ,
+.BR G ,
+.BR a ,
+or
+.BR A ;
+.BR d ,
+.BR i ,
+.BR o ,
+.BR u ,
+.BR x ,
+or
+.BR X ,
+which convert the number to a 32-bit
+.BR int ;
+or
+.BR s ,
+which writes the number as
+.B %.6g
+does.
+Any other conversion, a width or precision of
+.BR * ,
+or a second specification is a fatal error when a number is converted.
+A format with no specification gives its own text.
 .TP
 .B ENVIRON
 The environment, indexed by variable name.
@@ -956,10 +1024,13 @@ The number of fields in the current record.
 The number of records read so far.
 .TP
 .B OFMT
-The format for numbers written by
+The format for non-integral numbers written by
 .BR print ,
 by default
 .BR %.6g .
+It is interpreted as
+.B CONVFMT
+is.
 .TP
 .B OFS
 The output field separator, by default a single space.
@@ -1279,7 +1350,7 @@ a NUL byte in the input also ends a record.
 Numbers are formatted by the Microsoft C runtime, so exponents have
 three digits, as in
 .BR 1e+020 ;
-infinity and NaN print as
+the floating-point conversions write infinity and NaN as
 .BR 1.#INF ,
 .BR \-1.#INF ,
 .BR 1.#QNAN ,
@@ -1294,12 +1365,32 @@ Strings such as
 and
 .B nan
 are numeric, so input fields like them compare as numbers.
-Integer
-.B printf
-conversions use a 32-bit
-.BR int ,
-so print larger integers with
-.BR %.0f .
+.PP
+Integral numbers convert to strings as
+.B %.0f
+writes them, and so do the
+.BR d ,
+.BR i ,
+and
+.B u
+conversions of
+.BR printf .
+This gives at most 17 significant digits, followed by zeros, as in
+.BR 18446744073709552000 .
+Infinity counts as integral and converts to
+.B 1
+or
+.BR \-1 ,
+and so do infinity and NaN with
+.B d
+and
+.BR i .
+Negative zero becomes
+.BR \-0 ,
+so
+.B printf \(dq%d\(dq, \-0.5
+writes
+.BR \-0 .
 .PP
 .B mktime
 returns a 32-bit value, so it wraps around for times after 03:14:07 UTC

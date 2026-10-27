@@ -1,4 +1,4 @@
-.TH CMP 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH CMP 1 2026-10-27 "w64devkit" "w64devkit Manual"
 .SH NAME
 cmp \- compare two files byte by byte
 .SH SYNOPSIS
@@ -140,7 +140,10 @@ Compare at most
 .I count
 bytes after the skips.
 .I count
-is a decimal number from 0 to 2147483647, with no suffix.
+is a decimal number with an optional suffix, as for
+.I skip1
+and
+.IR skip2 .
 If given more than once, the last is used.
 .TP
 .B \-\-help
@@ -244,9 +247,6 @@ There is no
 or
 .BR \-v ,
 nor their long forms.
-.IP \(bu 2
-.I count
-takes no suffix and is at most 2147483647.
 .IP \(bu 2
 The EOF message does not give the byte and line number where the shorter
 file ends.

@@ -1,4 +1,4 @@
-.TH DU 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.TH DU 1 2026-10-27 "w64devkit" "w64devkit Manual"
 .SH NAME
 du \- report the disk space used by files and directories
 .SH SYNOPSIS
@@ -68,21 +68,16 @@ reaches.
 Its other names add nothing and get no line, even with
 .BR \-a .
 .IP \(bu 2
-A directory that
+A directory is counted again each time
 .B du
-has already reached is skipped: it is not counted and gets no line.
+reaches it: Windows reports one link for a directory, at least on NTFS,
+so the rule above does not apply to it.
 So
 .B "du a a/b"
-prints the same as
-.BR "du a" ,
-and
-.B "du a/b a"
-prints the lines for
-.B a/b
-and then those for
-.BR a ,
-whose size leaves out
-.BR a/b .
+prints the lines of
+.B "du a"
+and then those of
+.BR "du a/b" .
 .IP \(bu 2
 A symbolic link counts as itself, and
 .B du
@@ -93,7 +88,7 @@ or
 says to follow it.
 .PP
 .B \-l
-turns off the first two rules.
+turns off the first rule.
 .SH OPTIONS
 Options may be grouped, as in
 .BR \-sh ,
@@ -148,11 +143,9 @@ Follow all symbolic links.
 A link counts as what it points to, and a link to a directory is
 entered.
 A link whose target cannot be examined is an error.
-A directory reached again through a link is skipped, so a link that
-points to its own directory does not loop.
-With
-.B \-l
-it does, until the path is too long to examine, which is an error.
+A directory reached again through a link is entered again, so a link
+that points to its own directory loops until the path is too long to
+examine, which is an error.
 .TP
 .B \-H
 Follow symbolic links named as operands.
@@ -179,8 +172,7 @@ with the sum of the operands' sizes.
 Anything skipped as already counted is not in the sum.
 .TP
 .B \-l
-Count and print a file once for each of its hard links, and do not skip
-a directory that has been reached before.
+Count and print a file once for each of its hard links.
 .TP
 .B \-s
 Print only a line for each operand.
@@ -347,11 +339,16 @@ small NTFS directory but not for one with many entries.
 counts lengths instead.
 .PP
 .B du
-treats a symbolic link, a junction, a volume mount point, and an app
-execution alias alike, as a symbolic link.
+treats a symbolic link, a junction, and an app execution alias alike, as
+a symbolic link.
 One that is not followed counts as 4096 bytes, or with
 .B \-b
 the length of its target's name.
+A volume mount point is a directory, and
+.B du
+enters it unless
+.B \-x
+is given.
 .PP
 Paths may use
 .B /

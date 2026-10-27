@@ -1,4 +1,4 @@
-.TH SH 1 2026-10-22 "w64devkit" "w64devkit Manual"
+.TH SH 1 2026-10-27 "w64devkit" "w64devkit Manual"
 .SH NAME
 sh, ash, lash \- the busybox shell
 .SH SYNOPSIS
@@ -100,7 +100,7 @@ turns on the
 option, and returns to the prompt after an error.
 It ends at Ctrl\-D on an empty line or at the
 .B exit
-builtin, except while it has background jobs (see
+builtin, except while background jobs are running (see
 .BR exit ).
 When standard input is not a console, an interactive shell prints the
 prompts but reads plain lines, with no editing.
@@ -112,14 +112,9 @@ or is given
 or
 .BR \-\-login .
 .SS Startup files
-A login shell first changes to
-.BR HOME ,
-or, when that is unset or empty, to the user profile, the directory
-that Windows keeps for the account, such as
-.IR C:/Users/name .
-It skips this step when it is given
-.BR \-d .
-It then reads these files, skipping any that do not exist:
+A login shell stays in the current directory (a w64devkit change; see
+.BR NOTES ).
+It reads these files, skipping any that do not exist:
 .IP 1. 4
 .I /etc/profile
 on the system drive, which is the drive that holds the Windows system
@@ -212,6 +207,10 @@ When a command is not found and a function named
 .B command_not_found_handle
 exists, the shell calls that function with the command name and
 arguments.
+.IP \(bu 2
+A pipeline may begin with more than one
+.BR ! ,
+each of which inverts its status.
 .PP
 Arithmetic expansion and
 .B let
@@ -429,6 +428,8 @@ The shell starts a Windows program directly.
 The program receives its arguments quoted by the rules of the Microsoft
 C runtime, so a program that parses its command line differently may
 see different arguments.
+Its zeroth argument, the command name, has its slashes changed to
+backslashes.
 .IP \(bu 2
 A
 .B .bat
@@ -738,13 +739,11 @@ trap, and exits with status 127 or 126, even when it is interactive.
 Leave the shell, running the
 .B EXIT
 trap.
-An interactive shell that still has jobs prints
+An interactive shell that still has background jobs running prints
 .B You have background jobs.\&
 and stays, however often
 .B exit
-is repeated, until the jobs have finished and been reported, or
-.B wait
-has waited for them.
+is repeated, until the jobs have finished.
 At end of input, such as Ctrl\-D on an empty line, such a shell also
 prints the message and stays.
 So that input that has really ended cannot hold the shell forever, it
@@ -792,7 +791,9 @@ leaves backslashes alone,
 .B \-p
 prints a prompt, but only when the input is a console,
 .B \-s
-turns off the echo,
+turns off the echo, which is also off when the input is a console whose
+echo is off, as after
+.BR "stty \-echo" ,
 .B \-n
 reads at most that many characters,
 .B \-d
@@ -841,13 +842,21 @@ functions.
 .TP
 \fBwait\fR [\fB\-n\fR] [\fIprocess\fR | \fIjob\fR ...]
 Wait for the named background jobs, or for all of them when none is
-named, or with
-.B \-n
-for the next one to finish.
-The status is that of the last job named, or of the job that
-.B \-n
-waited for, and 0 when all jobs were waited for.
+named.
+The status is that of the last job named, and 0 when all jobs were
+waited for.
 A process that is not a job gives status 127.
+.IP
+With
+.BR \-n ,
+wait only until one job finishes, one of those named or, with no
+operands, any job, and give its status.
+A named job that has already finished counts at once, as does, with no
+operands, a finished job that no
+.B wait
+has waited for.
+With no operands and no jobs, the status is 127.
+.IP
 With no operands, Ctrl\-C ends the wait with status 130.
 .SS Job control
 Windows has no process groups or stopped processes, so the shell has no
@@ -882,7 +891,7 @@ shows no command text, and the shell reports nothing.
 .IP \(bu 2
 An interactive shell prints
 .BI [ n "] " pid
-when it starts a background job.
+when it starts a background job, except in a subshell.
 .PP
 .BR jobs ,
 .BR wait ,
@@ -961,6 +970,11 @@ An interactive shell shows
 before each command and
 .B PS2
 before each continuation line.
+Before each
+.BR PS1 ,
+it runs the commands in
+.BR PROMPT_COMMAND ,
+if that is set and not empty.
 .B PS1
 starts as
 .B \ew\ \e$
@@ -1295,8 +1309,7 @@ Change to
 .I dir
 after reading the profiles and before reading the
 .B ENV
-file, and in a login shell do not change to
-.BR HOME .
+file.
 .TP
 .BR \-E ", " "\-o errtrace"
 Run the
@@ -1552,9 +1565,9 @@ instead.
 .B HOME
 The directory that
 .B cd
-goes to without an argument, that
+goes to without an argument, and that
 .B ~
-stands for, and that a login shell changes to.
+stands for.
 A shell that starts from a native Windows environment sets and exports
 .B HOME
 when it is unset, and always when the shell is elevated.
@@ -1647,6 +1660,19 @@ looks only in the current directory.
 .B PPID
 The process ID of the parent.
 The shell sets it.
+.TP
+.B PROMPT_COMMAND
+Commands that an interactive shell runs before it shows each
+.B PS1
+prompt.
+They run in the shell itself, as with
+.BR eval ,
+and leave
+.B $?\&
+as it was.
+A syntax error or a failed expansion in them, such as
+.BR ${x?} ,
+ends the shell.
 .TP
 .BR PS1 ", " PS2 ", " PS4
 .B PS1
@@ -1914,6 +1940,10 @@ in the directory above the one that holds
 rather than from
 .I etc
 in that directory.
+.IP \(bu 2
+A login shell does not change to
+.B HOME
+before it reads the profiles.
 .IP \(bu 2
 The line editor never beeps.
 .IP \(bu 2

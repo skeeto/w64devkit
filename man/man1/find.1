@@ -1,4 +1,4 @@
-.TH FIND 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.TH FIND 1 2026-10-27 "w64devkit" "w64devkit Manual"
 .SH NAME
 find \- search for files in a directory hierarchy
 .SH SYNOPSIS
@@ -162,10 +162,10 @@ Enter a directory only if it is on the same volume as one of the paths.
 Volumes are told apart by serial number, and a directory whose volume
 busybox cannot read counts as another volume.
 A directory on another volume is still tested.
-With
-.BR \-L ,
-this keeps
+This keeps
 .B find
+from entering a volume mount point, and with
+.B \-L
 from crossing a junction or symbolic link to another volume.
 .TP
 .BI "\-maxdepth " n
@@ -748,7 +748,7 @@ is added, so
 prints names such as
 .BR src\esub/a.c .
 Paths such as
-.IR c:/dir
+.I c:/dir
 and
 .I //server/share/dir
 work.
@@ -783,16 +783,29 @@ in a
 pattern.
 .PP
 .B find
-treats a symbolic link, a junction, a volume mount point, and an app
-execution alias alike, as a symbolic link of type
+treats a symbolic link, a junction, and an app execution alias alike,
+as a symbolic link of type
 .BR l .
+A volume mount point is a directory, and
+.B find
+enters it unless
+.B \-xdev
+is given.
 Type
 .B c
 matches only the Unix device names that busybox provides, such as
 .IR /dev/null .
+Of those,
+.IR /dev/stdin ,
+.IR /dev/stdout ,
+.IR /dev/stderr ,
+and
+.I /dev/fd/n
+are instead type
+.B p
+when that descriptor is a pipe.
 Types
-.BR b ,
-.BR p ,
+.B b
 and
 .B s
 never match.
@@ -804,9 +817,17 @@ the path is too long.
 Owners and permissions are synthesized; see
 .BR busybox (1).
 The owner, the group, and others each get read permission, write
-permission except for a read-only regular file, and execute permission as
-.B \-executable
-says.
+permission except for a read-only regular file, and execute permission
+for a directory or a file whose name ends in
+.BR .com ,
+.BR .exe ,
+.BR .sh ,
+.BR .bat ,
+or
+.BR .cmd .
+Unlike
+.BR \-executable ,
+the mode does not depend on what a file contains.
 Then
 .BR BB_UMASK ,
 002 by default, may clear write permission for the group and others.
@@ -841,13 +862,16 @@ is the file index of the volume, and
 .B \-xdev
 compares volume serial numbers.
 .B \-links
-counts the hard links to a file, and is always 2 for a directory, and for
-a junction or other link to a directory.
+counts the hard links that Windows reports, which on NTFS is 1 for a
+directory and for a junction or other link to one.
+A directory that busybox cannot open counts as 2.
 .PP
-To decide whether a regular file is executable, busybox reads the first
-bytes of each one whose name ends in neither an executable suffix nor
+To decide whether a regular file is executable for
+.BR \-executable ,
+busybox reads the first bytes of each one whose name ends in neither an
+executable suffix nor
 .BR .dll ,
-so a search over many files is slower than a plain listing.
+so that test is slow over many files.
 .PP
 When standard output is not a console, the names written by
 .B \-print

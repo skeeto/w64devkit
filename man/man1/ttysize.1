@@ -1,4 +1,4 @@
-.TH TTYSIZE 1 2026-10-22 "w64devkit" "w64devkit Manual"
+.TH TTYSIZE 1 2026-10-27 "w64devkit" "w64devkit Manual"
 .SH NAME
 ttysize \- print the width and height of the console
 .SH SYNOPSIS
@@ -43,9 +43,10 @@ An argument may be repeated:
 .B ttysize w w
 prints the width twice.
 .PP
-The size comes from the console attached to standard output or, when
-that is not a console, to standard error.
-Standard input is never examined.
+The size comes from the console that the process is attached to, opened
+as
+.BR CONOUT$ ,
+whatever standard input, output, and error refer to.
 It is the size of the visible console window, not of the screen buffer
 behind it, so scrollback is not counted.
 .SH OPTIONS
@@ -112,37 +113,24 @@ $ ttysize h w
 .EE
 .RE
 .PP
-With both standard output and standard error redirected, there is no
-console to ask, so the default size is printed:
+Record the size in a file; redirection does not affect it:
 .PP
 .RS 4
 .EX
 $ ttysize >size.txt 2>&1
-$ cat size.txt
-80 24
 .EE
 .RE
 .SH NOTES
 .B stty size
 prints the height first, not the width, and fails with an error when
-standard input is not a console; see
+the process has no console; see
 .BR stty (1).
 .PP
 The usage message says the size is that of the stdin tty, but on Windows
-this build asks only standard output, then standard error.
-Command substitution, as in
-.BR "$(ttysize w)" ,
-redirects standard output but leaves standard error on the console, so
-it reports the real size.
-A command that redirects both, or that runs where both are pipes or
-files, gets the default size even though standard input is a console.
-A terminal emulator that connects programs to pipes instead of a Windows
-console has the same effect.
-A console opened for writing only, as by
-.B 2>CON
-in
-.BR cmd.exe ,
-also counts as no console, because its size cannot be read.
+the console is found the same way for every descriptor, so redirection
+makes no difference.
+Only a process with no console at all, such as one started detached
+from any console, gets the default size.
 The default size cannot be told from a real 80 by 24 console.
 .PP
 The output ends in LF, not CRLF.

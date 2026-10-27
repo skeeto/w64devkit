@@ -10,7 +10,7 @@ the same way a non-login interactive shell does.
 
 --- a/shell/ash.c
 +++ b/shell/ash.c
-@@ -16716,7 +16716,7 @@
+@@ -16944,7 +16944,7 @@
  #endif
  
  #if ENABLE_PLATFORM_MINGW32
@@ -19,7 +19,7 @@ the same way a non-login interactive shell does.
  		char *cwd = getcwd(NULL, 0);
  		if (cwd) {
  			chdir(cwd);
-@@ -16732,16 +16732,6 @@
+@@ -16960,16 +16960,6 @@
  	if (login_sh) {
  		const char *hp;
  

@@ -1,0 +1,458 @@
+.TH PING 1 2026-10-27 "w64devkit" "w64devkit Manual"
+.SH NAME
+ping, ping6 \- send ICMP echo requests to a network host
+.SH SYNOPSIS
+.B ping
+.RI [ options ]
+.I host
+.br
+.B ping6
+.RI [ options ]
+.I host
+.SH DESCRIPTION
+.B ping
+sends ICMP echo requests to
+.IR host ,
+one a second, and prints a line for each echo reply that comes back.
+When it stops, it prints statistics: how many requests were sent, how
+many replies arrived, and the round-trip times.
+This
+.B ping
+is a busybox applet; see
+.BR busybox (1).
+.PP
+.B ping6
+is
+.B ping
+with
+.BR \-6 :
+it always uses IPv6, and
+.B \-4
+has no effect on it.
+.SS Host
+.I host
+is a name, a dotted IPv4 address, or an IPv6 address.
+Windows resolves a name.
+When the name has several addresses,
+.B ping
+uses only one: the first IPv4 address, or else the first address.
+With
+.B \-4
+or
+.BR \-6 ,
+only addresses of that family are considered, and a host that has none
+is an error.
+.PP
+A port after a colon, as in
+.BR example.com:80 ,
+or brackets around an IPv6 address, as in
+.BR [::1] ,
+are accepted, and the port is ignored.
+.SS Stopping
+Without
+.B \-c
+or
+.BR \-w ,
+.B ping
+runs until it is interrupted with Ctrl-C.
+.PP
+With
+.B \-c
+.IR count ,
+it sends
+.I count
+requests and exits as soon as
+.I count
+replies have arrived.
+Otherwise it waits after the last request: about twice the longest
+round-trip time so far, and at least 1 second, if any reply has
+arrived, or else the time set by
+.BR \-W ,
+10 seconds by default.
+.PP
+With
+.B \-w
+.IR secs ,
+it exits when a request falls due
+.I secs
+seconds or more after it started.
+This limit is checked only when a request is due, so it no longer
+applies once
+.B \-c
+requests have been sent.
+.PP
+In each of these cases,
+.B ping
+prints the statistics before it exits.
+Other ways of ending it do not; see
+.BR NOTES .
+.SS Output
+Output is on standard output.
+The first line names the host, its address, and the size of the data
+in each request:
+.PP
+.RS 4
+.EX
+PING \fIhost\fR (\fIaddress\fR): \fIsize\fR data bytes
+.EE
+.RE
+.PP
+Each reply prints a line:
+.PP
+.RS 4
+.EX
+\fIn\fR bytes from \fIaddress\fR: seq=\fIseq\fR ttl=\fIttl\fR time=\fIms\fR ms
+.EE
+.RE
+.PP
+.I n
+is the size of the ICMP message, which is the data and an 8-byte
+header.
+.I seq
+is the sequence number of the request, counting from 0.
+.I ttl
+is the time to live of the reply, or for IPv6, its hop limit.
+.I ms
+is the round-trip time in milliseconds, to the microsecond.
+The time travels in the first 4 bytes of the data, so with fewer than 4
+bytes of data the
+.B time=
+field is left out.
+A reply to a request that has already been answered ends with
+.B (DUP!)\&
+and is counted as a duplicate.
+.PP
+The statistics follow a blank line:
+.PP
+.RS 4
+.EX
+\-\-\- \fIhost\fR ping statistics \-\-\-
+\fIsent\fR packets transmitted, \fIrecv\fR packets received, \fIloss\fR% packet loss
+round\-trip min/avg/max = \fImin\fR/\fIavg\fR/\fImax\fR ms
+.EE
+.RE
+.PP
+When there were duplicates, the second line also gives their number,
+as
+.IR dup " duplicates,"
+before the packet loss.
+The loss is the percentage of requests with no reply, rounded down.
+The round-trip line appears only when some reply had a time, and the
+average includes the duplicates.
+.SH OPTIONS
+Options may be grouped, as in
+.BR \-qc4 ,
+and an option argument may be attached or be the next argument.
+Options may also follow
+.IR host ,
+unless
+.B POSIXLY_CORRECT
+is set.
+.B \-\-
+ends the options.
+Exactly one
+.I host
+is required.
+Numbers are decimal, unless stated otherwise.
+.TP
+.B \-4
+Use only IPv4 addresses for
+.IR host .
+.TP
+.B \-6
+Use only IPv6 addresses for
+.IR host .
+It overrides
+.BR \-4 .
+.TP
+.BI "\-c " count
+Send
+.I count
+requests and stop, as described under
+.BR Stopping .
+Duplicate replies do not count towards
+.IR count .
+The default, 0, means no limit.
+.TP
+.BI "\-s " size
+Send
+.I size
+bytes of data in each request, from 0 to 65535.
+The default is 56.
+A size too large for Windows to send ends
+.B ping
+with
+.BR "ping: sendto: 10040: WSA error" .
+.TP
+.BI "\-i " secs
+Send a request every
+.I secs
+seconds.
+The default is 1.
+.I secs
+may have a fraction, as in
+.BR 0.2 ,
+and a suffix:
+.B s
+for seconds,
+.B m
+for minutes,
+.B h
+for hours, or
+.B d
+for days.
+A value above 2147 seconds counts as 2147.
+.TP
+.B \-A
+Send the next request as soon as a reply arrives, without waiting for
+the interval.
+When no reply arrives, the next request is still sent after the
+interval.
+.TP
+.BI "\-t " ttl
+Set the time to live of IPv4 requests, from 1 to 255.
+It applies to requests sent to a multicast address too.
+The default, 0, leaves the Windows default.
+A value above 255 is ignored, and so is
+.B \-t
+for IPv6.
+.TP
+.BI "\-W " secs
+After the last of the
+.B \-c
+requests, wait
+.I secs
+seconds for a reply when none has arrived yet.
+The default is 10, and 0 does not wait.
+Without
+.BR \-c ,
+it has no effect.
+.TP
+.BI "\-w " secs
+Stop sending after
+.I secs
+seconds, as described under
+.BR Stopping .
+The default, 0, means no limit.
+A value above 2147 counts as 2147.
+This also changes the exit status; see
+.BR "EXIT STATUS" .
+.TP
+.B \-q
+Print only the first line and the statistics.
+Incompatible with
+.BR \-v .
+.TP
+.BI "\-p " hex
+Fill the data with the byte
+.IR hex ,
+a hexadecimal number from 0 to ff.
+The default is 0.
+The first 4 bytes of the data hold the send time instead.
+Any value but 0 also lands in the code field of the ICMP header, and
+Windows refuses to send such a request from a process that is not
+elevated:
+.B ping
+exits with
+.BR "ping: sendto: 10013: WSA error" .
+.TP
+.B \-v
+Accepted, and has no effect.
+Incompatible with
+.BR \-q .
+.TP
+.B \-n
+Accepted, and has no effect.
+Addresses are always printed as numbers.
+.TP
+.B \-\-help
+Print a usage message on standard output and exit with status 0.
+.PP
+An unknown option, a missing or invalid option argument, both
+.B \-q
+and
+.BR \-v ,
+or the wrong number of operands prints the usage on standard error and
+exits with status 1.
+.SH ENVIRONMENT
+.TP
+.B POSIXLY_CORRECT
+If set, the first operand ends the options, so options after
+.I host
+are an error.
+.PP
+Variables that affect every busybox applet, such as
+.B BB_TERMINAL_MODE
+for console output, are described in
+.BR busybox (1).
+.SH EXIT STATUS
+.TP
+.B 0
+At least one reply arrived, and with
+.B \-w
+and
+.BR \-c ,
+at least
+.I count
+replies arrived.
+Or the usage was requested with
+.BR \-\-help .
+.TP
+.B 1
+No reply arrived, or with
+.B \-w
+and
+.BR \-c ,
+fewer than
+.I count
+replies arrived.
+Or an error: an invalid command line, a host that could not be
+resolved, a socket that could not be created, or a request that could
+not be sent.
+The message is on standard error, prefixed with
+.BR ping: ,
+as in
+.BR "ping: bad address \(aq\%example.invalid\(aq" .
+.SH EXAMPLES
+Send two requests:
+.PP
+.RS 4
+.EX
+$ ping \-c 2 8.8.8.8
+PING 8.8.8.8 (8.8.8.8): 56 data bytes
+64 bytes from 8.8.8.8: seq=0 ttl=114 time=15.350 ms
+64 bytes from 8.8.8.8: seq=1 ttl=114 time=11.364 ms
+\&
+\-\-\- 8.8.8.8 ping statistics \-\-\-
+2 packets transmitted, 2 packets received, 0% packet loss
+round\-trip min/avg/max = 11.364/13.357/15.350 ms
+.EE
+.RE
+.PP
+Test whether a host answers within 2 seconds:
+.PP
+.RS 4
+.EX
+$ ping \-q \-c 1 \-W 2 192.168.1.1 >/dev/null && echo up
+.EE
+.RE
+.PP
+Ping for 30 seconds, five times a second, and show only the statistics:
+.PP
+.RS 4
+.EX
+$ ping \-q \-w 30 \-i 0.2 example.com
+.EE
+.RE
+.PP
+Ping the IPv6 loopback address:
+.PP
+.RS 4
+.EX
+$ ping6 ::1
+.EE
+.RE
+.PP
+Run the Windows program instead.
+The kit's launcher comes first in
+.BR PATH ,
+so name the program by its path:
+.PP
+.RS 4
+.EX
+$ c:/windows/system32/ping \-n 1 example.com
+.EE
+.RE
+.SH NOTES
+.B ping
+sends and receives through a raw ICMP socket.
+Recent versions of Windows, such as Windows 11, let a process that is
+not elevated send echo requests this way, but some versions require an
+elevated process,
+such as one started by
+.BR su (1).
+Otherwise
+.B ping
+fails with a message such as
+.BR "ping: can\(aqt create raw socket: 10013: WSA error" .
+Socket errors are reported by their Winsock error number, not a
+description.
+.PP
+Windows has its own
+.B ping.exe
+in
+.IR System32 .
+The kit's
+.I bin
+directory comes first in
+.B PATH
+and has launchers named
+.B ping.exe
+and
+.BR ping6.exe ,
+so a bare
+.B ping
+runs the applet in
+.B cmd.exe
+too.
+In the shell, setting
+.B BB_OVERRIDE_APPLETS
+to
+.B ping
+does not help, because the
+.B PATH
+search finds the launcher, which runs the applet anyway; see
+.BR busybox (1).
+Name the Windows program by its path instead, as in
+.BR EXAMPLES .
+.PP
+Ctrl-C prints the statistics and exits with the status described under
+.BR "EXIT STATUS" .
+Ctrl-Break, and
+.BR kill (1)
+or
+.BR timeout (1),
+end
+.B ping
+at once without statistics.
+To bound a run and still get statistics, use
+.B \-c
+or
+.BR \-w .
+.PP
+Round-trip times come from the Windows performance counter, so they
+are accurate to the microsecond.
+.PP
+Differences from other versions of
+.BR ping :
+.IP \(bu 2
+There is no
+.B \-I
+option to choose a source interface or address.
+It is recognized, and
+.B ping
+exits with
+.BR "ping: \-I not supported" .
+.IP \(bu 2
+ICMP error messages, such as Time Exceeded or Destination Unreachable,
+are not reported.
+A request answered by one counts as lost.
+.IP \(bu 2
+.B \-t
+does not set the hop limit of IPv6 requests.
+.IP \(bu 2
+.B "\-W 0"
+does not wait at all after the last request.
+.IP \(bu 2
+The reply line has
+.BR seq= ,
+not
+.BR icmp_seq= .
+.SH SEE ALSO
+.BR busybox (1),
+.BR kill (1),
+.BR nc (1),
+.BR sh (1),
+.BR su (1),
+.BR timeout (1),
+.BR wget (1)

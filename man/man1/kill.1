@@ -1,4 +1,4 @@
-.TH KILL 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH KILL 1 2026-10-27 "w64devkit" "w64devkit Manual"
 .SH NAME
 kill \- send a signal to processes
 .SH SYNOPSIS
@@ -133,6 +133,8 @@ instead of
 .BR TERM .
 The same as
 .BI \- signal\fR.
+The signal may also be attached, as in
+.BR \-sTERM .
 .TP
 .BI \- signal
 Send
@@ -142,6 +144,18 @@ instead of
 .I signal
 is a name or a number, as described in
 .BR Signals .
+An argument that begins with a lowercase
+.B s
+is taken as
+.B \-s
+with the signal attached, so
+.B \-sigterm
+and
+.B \-segv
+are unknown signals; write
+.B \-SIGTERM
+or
+.BR \-SEGV .
 .TP
 .B \-\-
 As the first argument, end the options and send

@@ -1,9 +1,9 @@
-.TH DF 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH DF 1 2026-10-27 "w64devkit" "w64devkit Manual"
 .SH NAME
 df \- report the size and free space of drives
 .SH SYNOPSIS
 .B df
-.RB [ \-PkmhHTa ]
+.RB [ \-PkmhHTaw ]
 .RB [ \-B
 .IR size ]
 .RB [ \-t
@@ -22,26 +22,35 @@ drive is fixed, removable, CD-ROM, or network and whose volume
 information can be read.
 A drive of another type, such as a RAM disk, and a drive that cannot be
 read, such as one with no disk in it, are left out.
-So is a drive whose size is 0, unless
+Then it reports each folder where a volume is mounted, other than the
+root of a drive, taking the volumes in the order Windows lists them.
+A volume mounted in several folders gets a line for each.
+If the volume information of such a folder cannot be read, the list ends
+there.
+Any of these whose size is 0 is left out, unless
 .B \-a
 is given.
 .PP
 With operands,
 .B df
-reports one drive for each
+reports one line for each
 .IR file ,
-in order.
-An operand that starts with a drive letter and a colon, such as
+in order: the first drive or folder in the list above whose volume
+holds
+.IR file .
+A drive name such as
 .B D:
-or
-.IR d:/src ,
 selects that drive.
-Any other operand, such as a relative path or one starting with a slash,
-selects the drive of the current directory.
-The operand must exist, but is otherwise not examined.
-A drive named this way is reported even when its size is 0.
-It is also reported when its type is not listed above, with an empty
-Type.
+Otherwise volumes are told apart by serial number, so a path through a
+junction, symbolic link, or volume mount point selects the volume it
+leads to, and a UNC path such as
+.I //server/share/dir
+selects a network drive mapped to the same volume of that server.
+A file on a volume that is not in the list, such as one on a RAM disk or
+on a network share with no drive letter, is an error.
+So, normally, is a file whose serial number busybox cannot read, such as
+a cloud file not yet downloaded.
+A drive or folder selected this way is reported even when its size is 0.
 .SS Output format
 The header names the fields of each line:
 .TP
@@ -51,6 +60,13 @@ The drive, such as
 or, when the root of the drive resolves to another path, as for a
 network drive, that path, as in
 .IR //server/share .
+A folder shows the drive of the volume mounted there, or, when that
+volume has no drive letter, its volume name, as in
+\fB\e\e?\eVolume{\fIguid\fB}\e\fR.
+With
+.BR \-w ,
+every volume that has a volume name shows it.
+A network drive has none.
 .TP
 .B Type
 Only with
@@ -87,7 +103,10 @@ the header is
 .TP
 .B Mounted on
 The root directory of the drive, such as
-.IR C:/ .
+.IR C:/ ,
+or the folder, such as
+.IR C:/mnt/data ,
+with no slash at the end.
 .PP
 Sizes are numbers of blocks of 1024 bytes, each rounded to the nearest
 whole number, unless
@@ -199,7 +218,7 @@ Only the last
 applies.
 .TP
 .B \-a
-Also list drives whose size is 0.
+Also list drives and folders whose size is 0.
 .TP
 .BI "\-B " size
 Use blocks of
@@ -247,6 +266,15 @@ or
 .B \-m
 overrides
 .BR \-B .
+.TP
+.B \-w
+In the Filesystem field, show the volume name of each volume that has
+one, such as
+\fB\e\e?\eVolume{\fIguid\fB}\e\fR,
+in place of its drive or path.
+The name is 49 characters long, so without
+.B \-P
+the rest of the line moves to the next.
 .TP
 .B \-\-help
 Print a usage message on standard output and exit with status 0.
@@ -296,19 +324,21 @@ leaves nothing to report.
 .B 1
 An invalid option, with a usage message on standard error; an invalid
 .B \-B
-size; an operand that does not exist or has no drive; or a drive whose
-space cannot be read.
+size; an operand that does not exist or is on no volume in the list; or a
+drive or folder whose space cannot be read.
 The first two end
 .B df
 before it prints anything.
-After the others the remaining operands or drives are still reported.
+After the others the remaining operands, drives, and folders are still
+reported.
 .PP
-An operand that does not exist or has no drive is reported on standard
-error as the first line below, and a drive whose space cannot be read as
-the second, where
+An operand that does not exist or is on no volume in the list is
+reported on standard error as the first line below, and a drive or
+folder whose space cannot be read as the second, where
 .I root
 is the root of the drive, such as
-.IR D:/ :
+.IR D:/ ,
+or the folder with a slash at the end:
 .PP
 .RS 4
 .EX
@@ -362,18 +392,10 @@ $ df \-T \-t NTFS
 Differences from GNU
 .BR df :
 .IP \(bu 2
-Only drive letters are listed.
-Volumes mounted in folders, and network shares without a drive letter,
-are not.
+Network shares without a drive letter are not listed.
 .IP \(bu 2
-The drive comes from the text of the operand, not from where the file
-is.
-A UNC operand, such as
-.IR //server/share/dir ,
-reports the drive of the current directory, and when the current
-directory is a UNC path, every operand without a drive letter fails.
-A path through a junction, symbolic link, or volume mount point to
-another volume reports the drive that the path starts on.
+An operand on one of two volumes with the same serial number, such as a
+disk and a copy of it, selects whichever is listed first.
 .IP \(bu 2
 There is no
 .B \-i

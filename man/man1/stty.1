@@ -1,4 +1,4 @@
-.TH STTY 1 2026-10-22 "w64devkit" "w64devkit Manual"
+.TH STTY 1 2026-10-27 "w64devkit" "w64devkit Manual"
 .SH NAME
 stty \- print or change console input settings
 .SH SYNOPSIS
@@ -9,15 +9,17 @@ stty \- print or change console input settings
 .IR setting ...
 .SH DESCRIPTION
 .B stty
-prints or changes the input mode of the console attached to standard
-input, and prints the size of the console window.
+prints or changes the input mode of the console that the process is
+attached to, and prints the size of the console window.
 On Unix it controls a terminal device.
 Windows consoles have no such device, so this build recognizes only the
 settings listed below, and every other Unix setting is an invalid
 argument.
 .PP
-Standard input must be a console.
-When it is a file or a pipe,
+.B stty
+opens the console itself, so it works when standard input, standard
+output, or standard error is a file or a pipe.
+When the process has no console,
 .B stty
 prints an error and exits with status 1, even when the only argument is
 .BR size .
@@ -91,11 +93,9 @@ This is the size of the visible window, not of the screen buffer behind
 it.
 It does not change the console.
 .PP
-The size comes from the console attached to standard output or, when
-that is not a console, to standard error.
-The console on standard input is not asked, though standard input must
-still be a console.
-When neither standard output nor standard error is a console,
+The size comes from the console's active screen buffer, whatever
+standard output and standard error are.
+When busybox cannot open that buffer,
 .B size
 prints an error message instead of the size, and
 .B \-a
@@ -180,8 +180,8 @@ that could not find the window size.
 .B 1
 An argument was invalid,
 .B \-a
-was combined with a setting, standard input is not a console, or the
-console rejected the new mode.
+was combined with a setting, the process has no console, or the console
+rejected the new mode.
 .SH EXAMPLES
 Print the height and width of the console:
 .PP
@@ -219,17 +219,18 @@ $ stty sane
 .RE
 .SH NOTES
 The settings affect programs that read the console with ordinary reads.
-The kit's shell reads keys directly, both for its command line and for
-its
+The kit's shell reads keys directly for its command line, so it echoes
+and edits input whatever the console mode is.
+Its
 .B read
-builtin, so it echoes and edits input whatever the console mode is.
-In particular,
+builtin also reads keys directly, but echoes nothing while the console's
+echo is off, so
 .B stty \-echo
-does not hide input to
-.BR read ;
-use
+hides input to
+.B read
+as
 .B read \-s
-instead.
+does.
 .PP
 There is no way to save the current mode and restore it later, because
 .B \-g
@@ -245,7 +246,7 @@ w64devkit rejects them outright.
 .PP
 .BR ttysize (1)
 also prints the console size, prints the width first by default, and
-does not require standard input to be a console.
+never reports an error.
 .SH SEE ALSO
 .BR busybox (1),
 .BR reset (1),

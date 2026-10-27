@@ -1,4 +1,4 @@
-.TH HTTPD 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH HTTPD 1 2026-10-27 "w64devkit" "w64devkit Manual"
 .SH NAME
 httpd \- serve files and CGI programs over HTTP
 .SH SYNOPSIS
@@ -280,6 +280,9 @@ A
 line in the configuration file makes any file with that suffix outside
 .I cgi\-bin
 a CGI program as well, run by the interpreter.
+That includes the index file of a directory, and then
+.B REQUEST_URI
+holds the path of the directory, as requested.
 .PP
 The program starts with its own directory as the current directory.
 Its standard input receives the body of a
@@ -381,8 +384,7 @@ has four numbers with dots.
 must have no bits set outside the mask, or the line never matches.
 .RE
 .IP
-A line whose address cannot be read denies every client, and one whose
-mask cannot be read has no effect.
+A line whose address or mask cannot be read denies every client.
 An IPv6 client is checked as the address 0.0.0.0, unless it is an
 IPv4-mapped address, which is checked as its IPv4 address.
 .TP
@@ -814,16 +816,23 @@ $ cat >public/httpd.conf <<EOF
 .RE
 .PP
 Write a CGI program, and call it while a server from the first example
-is running:
+is running.
+It sends a
+.B Content\-Length
+header, without which
+.BR wget (1)
+takes the end of the connection for a failure and retries:
 .PP
 .RS 4
 .EX
 $ mkdir public/cgi\-bin
 $ cat >public/cgi\-bin/hello.cgi <<\(aqEOF\(aq
 > #!/bin/sh
+> body="Hello, $REMOTE_ADDR"
 > echo "Content\-Type: text/plain"
+> echo "Content\-Length: $((${#body} + 1))"
 > echo
-> echo "Hello, $REMOTE_ADDR"
+> echo "$body"
 > EOF
 $ wget \-qO \- http://127.0.0.1:8080/cgi\-bin/hello.cgi
 Hello, 127.0.0.1

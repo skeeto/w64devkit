@@ -1,4 +1,4 @@
-.TH RESET 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH RESET 1 2026-10-27 "w64devkit" "w64devkit Manual"
 .SH NAME
 reset \- reset the console's text attributes and clear its screen
 .SH SYNOPSIS
@@ -7,7 +7,7 @@ reset \- reset the console's text attributes and clear its screen
 .SH DESCRIPTION
 .B reset
 cleans up a console that a program has left in a bad state.
-When standard output is a console, it does three things in order:
+When standard output is a console, it does these things in order:
 .IP 1. 4
 It writes
 .RB ESC\  [m ,
@@ -17,8 +17,20 @@ It writes
 .RB ESC\  [?1049l ,
 which leaves the alternate screen buffer.
 .IP 3. 4
+It writes
+.RB ESC\  [3J ,
+which erases the scrollback of a terminal that keeps its own, such as
+Windows Terminal.
+When busybox emulates it, it does the same as the next step.
+.IP 4. 4
 It moves the cursor to the top left corner of the console's screen
 buffer, then fills the whole buffer with spaces.
+.IP 5. 4
+It runs
+.BR "stty sane" ,
+which turns on echo, line input, and processed input in the console's
+input mode; see
+.BR stty (1).
 .PP
 When standard output is not a console, such as a file, a pipe, or the
 .B NUL
@@ -26,10 +38,10 @@ device, nothing is written and nothing is changed.
 Whether standard input or standard error is a console does not matter.
 .PP
 When the console has virtual terminal processing enabled, it interprets
-the two sequences; see
+the three sequences; see
 .BR BB_TERMINAL_MODE .
 Otherwise busybox emulates them through the console API.
-The third step always uses the console API.
+The fourth step always uses the console API.
 .PP
 The fill, and an emulated
 .RB ESC\  [m ,
@@ -44,7 +56,7 @@ before its first prompt, not any that a program has set since.
 Run as a process of its own, as from
 .BR cmd.exe ,
 .B reset
-first uses the console when it writes the two sequences, so the fill
+first uses the console when it writes the sequences, so the fill
 uses whatever colors a program left behind, and an emulated
 .RB ESC\  [m
 changes nothing.
@@ -67,8 +79,6 @@ It ignores its arguments, unless the first is
 .TP
 .B \-\-help
 Print a usage message on standard output and exit.
-The message describes the Unix build; see
-.BR NOTES .
 .SH ENVIRONMENT
 Run as a process of its own,
 .B reset
@@ -146,8 +156,12 @@ does; see
 .SH EXIT STATUS
 .TP
 .B 0
-Success.
-Errors from the console are ignored.
+Success, or standard output is not a console.
+Errors in writing to the console are ignored.
+.TP
+.B 1
+.B stty sane
+could not read or set the console's input mode, and printed a message.
 .TP
 .B 141
 The
@@ -180,11 +194,6 @@ rejecting them, and does not use
 .B TERM
 or terminfo.
 .IP \(bu 2
-It does not reset the terminal modes as the Unix build does with
-.BR "stty sane" ,
-although its usage message says it does.
-The console's input mode is not changed.
-.IP \(bu 2
 It does not make a hidden cursor visible.
 .PP
 Unlike
@@ -201,7 +210,10 @@ In a classic console window the screen buffer holds the scrollback, so
 .B reset
 erases the history, and the window then shows the top of the buffer.
 A terminal that keeps its own scrollback, such as Windows Terminal,
-keeps it: there,
+erases it only when it interprets
+.RB ESC\  [3J
+itself; when busybox emulates the sequences, the terminal keeps its
+scrollback and
 .B reset
 clears only the visible screen.
 .PP
@@ -237,4 +249,5 @@ itself with status 141.
 .SH SEE ALSO
 .BR busybox (1),
 .BR clear (1),
-.BR sh (1)
+.BR sh (1),
+.BR stty (1)

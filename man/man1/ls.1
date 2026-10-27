@@ -1,4 +1,4 @@
-.TH LS 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.TH LS 1 2026-10-27 "w64devkit" "w64devkit Manual"
 .SH NAME
 ls \- list directory contents
 .SH SYNOPSIS
@@ -107,9 +107,11 @@ for a file,
 .B d
 for a directory,
 .B l
-for a symbolic link, and
+for a symbolic link,
 .B c
-for a device.
+for a device, and
+.B p
+for a named pipe.
 .IP \(bu 2
 The number of links.
 .IP \(bu 2
@@ -278,14 +280,18 @@ Append an indicator to names:
 .B /
 for a directory,
 .B *
-for an executable file, and
+for an executable file,
 .B @
-for a symbolic link.
-The usage message also lists
+for a symbolic link, and
 .B |
-and
+for a named pipe.
+The usage message also lists
 .BR = ,
-for pipes and sockets, which do not occur.
+for sockets, which do not occur.
+Without
+.B \-l
+or color, a file is marked executable only by its name; see
+.BR NOTES .
 In the long format, a link's name gets no indicator, and its target gets
 the one for the target's own type.
 .TP
@@ -653,6 +659,11 @@ or its data is held remotely, as for a cloud file not yet downloaded,
 reads its first bytes, and the file is executable if it begins with
 .B #!\&
 or is a PE program that is not a DLL.
+It does so only with
+.B \-l
+or color, so with neither,
+.B \-F
+does not mark such a file.
 This makes the listing of many files slower, though
 .B ls
 tries to leave the access time unchanged.
@@ -679,10 +690,22 @@ itself cannot be listed.
 Each is a character device owned by the current user, with the mode
 .BR crw\-rw\-rw\- ,
 the numbers 0, 0, and the time of the Unix epoch.
-Symbolic links, junctions, volume mount points, and app execution
-aliases are all shown as symbolic links.
+The exceptions are
+.IR /dev/stdin ,
+.IR /dev/stdout ,
+.IR /dev/stderr ,
+and
+.IR /dev/fd/n ,
+which are named pipes, with the mode
+.B prw\-rw\-rw\-
+and size 0, when that descriptor is a pipe.
+Symbolic links, junctions, and app execution aliases are all shown as
+symbolic links.
 A link has every permission, and its size is the length of its target's
 name.
+A volume mount point is shown as a directory, so
+.B \-R
+enters it, and when its volume cannot be read it lists as empty.
 .PP
 There are no groups: the group of a file is its owner.
 A file owned by the current user shows that user's name, with spaces
@@ -699,8 +722,8 @@ has no permissions for other.
 .PP
 The number of links of a file is its number of hard links.
 That of a directory is 2 plus its number of subdirectories, not counting
-symbolic links and junctions, and a link to a directory shows the count
-of its target.
+symbolic links, junctions, and volume mount points, and a link to a
+directory shows the count of its target.
 The inode number is the file index that Windows reports, which is 0 for
 a device.
 .PP
@@ -738,7 +761,9 @@ for a directory,
 .B ESC[1;36m
 for a symbolic link,
 .B ESC[1;35m
-for a device, and
+for a device,
+.B ESC[0;35m
+for a named pipe, and
 .B ESC[0;0m
 for any other file.
 In the long format, the target of a link is colored for its own type,

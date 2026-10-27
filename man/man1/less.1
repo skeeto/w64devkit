@@ -1,9 +1,11 @@
-.TH LESS 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH LESS 1 2026-10-27 "w64devkit" "w64devkit Manual"
 .SH NAME
 less \- view text one screenful at a time
 .SH SYNOPSIS
 .B less
 .RB [ \-EFIMmNRSsX~ ]
+.RB [ \-T
+.IR tagfile ]
 .RI [ file ...]
 .SH DESCRIPTION
 .B less
@@ -263,9 +265,8 @@ Show the previous file.
 Show the first file.
 .TP
 .B :d
-Show the previous file, or the next if the current file is the first,
-and remove a file from the list: the current file if it is the first
-or second, and otherwise the second file.
+Remove the current file from the list, and show the previous file, or
+the next if the current file is the first.
 It has no effect when there is only one file.
 .TP
 .BR E ", " :e
@@ -456,6 +457,9 @@ a
 .TP
 .BR \-s ", " \-X
 Accepted and ignored.
+.TP
+.BI "\-T " tagfile
+Accepted and ignored, with its argument, which is required.
 .SH ENVIRONMENT
 .TP
 .B BB_GLOBBING

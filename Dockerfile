@@ -97,8 +97,8 @@ RUN mkdir make \
  && tar xzf make-$MAKE_VERSION.tar.gz -C make --strip-components=1
 
 FROM base AS dl-busybox
-ARG BUSYBOX_VERSION=FRP-6075-g169694ebd \
-    BUSYBOX_SHA256=aa953010f16989cec8e165c5ffddaa9f6633f65670e20d5d7678c987d776f1d7
+ARG BUSYBOX_VERSION=FRP-6354-g5f09fb446 \
+    BUSYBOX_SHA256=b076d55e4aca74d57d4e77c2ca77abc94dd4926f424fa752889414e1b68f6ebc
 WORKDIR /dl
 ADD --checksum=sha256:$BUSYBOX_SHA256 \
     https://github.com/rmyorston/busybox-w32/archive/refs/tags/$BUSYBOX_VERSION.tar.gz \
@@ -818,7 +818,8 @@ RUN $ARCH-gcc -Oz -fno-asynchronous-unwind-tables -Wl,--gc-sections -s \
       hd head hexdump httpd iconv id inotifyd install ipcalc jn join kill \
       killall lash less ln logname ls lsattr lzcat lzma lzop lzopcat man \
       md5sum mkdir mktemp mv nc nl nproc od paste patch pdrop pgrep pidof \
-      pipe_progress pkill printenv printf ps pwd readlink realpath reset rev \
+      ping ping6 pipe_progress pkill printenv printf ps pwd readlink realpath \
+      reset rev \
       rm rmdir sed seq sh sha1sum sha256sum sha384sum sha3sum sha512sum shred \
       shuf sleep sort split ssl_client stat stty su sum sync tac tail tar tee \
       test time timeout touch \

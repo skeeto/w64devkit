@@ -1,4 +1,4 @@
-.TH LSATTR 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.TH LSATTR 1 2026-10-27 "w64devkit" "w64devkit Manual"
 .SH NAME
 lsattr \- list Windows file attributes
 .SH SYNOPSIS
@@ -37,6 +37,13 @@ and
 .B \-l
 shows
 .BR Reparse_Point .
+A volume mount point is a directory, whose entries are those of the
+root of the mounted volume, and is treated like any other, but its own
+first attribute position shows
+.BR m ,
+or
+.B R
+when it is named with a trailing slash.
 .PP
 Each line of output is an attribute field, a space, and a name.
 The name of a
@@ -89,9 +96,11 @@ The field has one position for each attribute shown, in the order below.
 A position holds the attribute's letter if the file has the attribute and
 a hyphen if it does not, so a file with none of them shows 11 hyphens.
 .TP
-.BR j ", " l ", " A ", " R
+.BR m ", " j ", " l ", " A ", " R
 The first position.
 It is
+.B m
+for a volume mount point,
 .B j
 for a junction,
 .B l
@@ -162,6 +171,7 @@ and
 entries, symbolic links, and junctions are not entered, and a
 subdirectory whose name begins with a dot is entered only with
 .BR \-a .
+A volume mount point is entered.
 The heading of a subdirectory that cannot be opened is still printed,
 followed by no entries.
 With
@@ -200,7 +210,9 @@ The names, in that order, are
 .BR Temporary ,
 and
 .BR Not_Indexed .
-A symbolic link, junction, or app execution link shows
+A volume mount point, symbolic link, junction, or app execution link
+shows
+.BR Mount_Point ,
 .BR Symbolic_Link ,
 .BR Junction ,
 or

@@ -1,4 +1,4 @@
-.TH GREP 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.TH GREP 1 2026-10-27 "w64devkit" "w64devkit Manual"
 .SH NAME
 grep, egrep, fgrep \- print lines that match patterns
 .SH SYNOPSIS
@@ -206,7 +206,7 @@ See
 for how this differs from GNU
 .BR grep .
 .TP
-.B \-q
+.BR \-q ", " \-\-quiet
 Print no lines, and exit with status 0 at the first selected line, even
 if there were errors.
 With
@@ -214,9 +214,6 @@ With
 or
 .BR \-L ,
 files with no selected line are still reported until then.
-.TP
-.B \-v
-Select the lines that do not match.
 .TP
 .B \-s
 Do not report files that cannot be opened.
@@ -246,6 +243,9 @@ a directory operand is an error.
 Like
 .BR \-r ,
 but also follow symbolic links and junctions to directories.
+.TP
+.B \-v
+Select the lines that do not match.
 .TP
 .B \-i
 Ignore case, for ASCII letters only.

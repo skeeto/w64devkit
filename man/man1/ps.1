@@ -1,4 +1,4 @@
-.TH PS 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH PS 1 2026-10-27 "w64devkit" "w64devkit Manual"
 .SH NAME
 ps \- list the processes running on the system
 .SH SYNOPSIS
@@ -82,8 +82,11 @@ width 5.
 It is 1 when the parent is not running, because Windows does not
 reparent a process whose parent has exited, and 0 for process 0, which
 has no parent.
-Windows can reuse the ID of an exited parent, and the value is then the
-ID of an unrelated process.
+Windows can reuse the ID of an exited parent, so the value is also 1
+when the process with that ID started later than this one.
+The check compares start times: when this process's cannot be read and
+the other's can, the value is 1, and when the other's cannot be read, a
+reused ID is shown, naming an unrelated process.
 .TP
 .B user
 The user name.
@@ -369,8 +372,13 @@ CPU and start times come from
 .BR GetProcessTimes ,
 which needs only
 .BR PROCESS_QUERY_LIMITED_INFORMATION ,
+or where that fails, as on Windows XP,
+.BR PROCESS_QUERY_INFORMATION ,
 so it can succeed for a process shown as
 .BR root .
+A creation time of zero, which Windows XP gives for
+.BR System ,
+counts as times that cannot be read.
 For a process whose times cannot be read,
 .B time
 is
@@ -383,7 +391,8 @@ The times are kept as 32-bit counts of milliseconds, so
 wraps after about 49 days of CPU time, and
 .B etime
 is wrong for a process that started more than about 49 days after the
-system booted.
+system booted, as is the comparison of start times for
+.BR ppid .
 .PP
 The name and command line of a process other than
 .B ps

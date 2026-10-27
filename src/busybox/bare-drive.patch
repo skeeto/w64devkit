@@ -10,7 +10,7 @@ lsattr -R, du, diff -r, ls, wget -P, mktemp -p and shell globs like C:*.
 opendir now lists "X:*" and concat_path_file joins "X:" and "f" as
 "X:f". A rooted filename still joins as "X:/f", which keeps
 get_system_drive() callers such as "/etc/profile" on the root.
-chdir_system_drive() now passes "/" for the same reason. xabsolute_path()
+xchdir_system_drive() now passes "/" for the same reason. xabsolute_path()
 no longer takes "X:" or "X:dir" for absolute, so man resolves such a
 path before it changes to the system drive's root.
 
@@ -20,10 +20,10 @@ carried on from "X:/" (and the following bytes). It now strips only a
 real '/'.
 
 ---
+ findutils/find.c         |    7 +++++++
  libbb/concat_path_file.c |    9 +++++++++
  win32/dirent.c           |    7 +++++--
  win32/mingw.c            |    6 ++++--
- findutils/find.c         |    7 +++++++
  4 files changed, 25 insertions(+), 4 deletions(-)
 
 --- a/libbb/concat_path_file.c
@@ -69,16 +69,16 @@ real '/'.
  	pattern[len] = 0;
 --- a/win32/mingw.c
 +++ b/win32/mingw.c
-@@ -2396,7 +2396,7 @@
- 	int ret = -1;
+@@ -2515,7 +2515,7 @@
  
- 	if (*sd)
--		ret = chdir(auto_string(concat_path_file(sd, "")));
-+		ret = chdir(auto_string(concat_path_file(sd, "/")));
- 	return ret;
+ void xchdir_system_drive(void)
+ {
+-	char *path = concat_path_file(get_system_drive(), "");
++	char *path = concat_path_file(get_system_drive(), "/");
+ 	xchdir(path);
+ 	free(path);
  }
- 
-@@ -2412,7 +2412,9 @@
+@@ -2532,7 +2532,9 @@
  {
  	char *rpath;
  

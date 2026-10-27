@@ -1,17 +1,26 @@
+---
+ coreutils/test.c |    1 -
+ shell/ash.c      |    2 +-
+ 2 files changed, 1 insertion(+), 2 deletions(-)
+
 --- a/shell/ash.c
 +++ b/shell/ash.c
-@@ -300,5 +300,5 @@
+@@ -299,7 +299,7 @@
+  * ( ) < > should not have special meaning (IOW: should not require quoting)
   * in word = GLOB, quoting should be significant on char-by-char basis: a*cd"*"
   */
 -#define    BASH_TEST2           (ENABLE_ASH_BASH_COMPAT * ENABLE_ASH_TEST)
 +#define    BASH_TEST2           0
  #define    BASH_SOURCE          ENABLE_ASH_BASH_COMPAT
  #define    BASH_PIPEFAIL        ENABLE_ASH_BASH_COMPAT
+ #define    BASH_HOSTNAME_VAR    ENABLE_ASH_BASH_COMPAT
 --- a/coreutils/test.c
 +++ b/coreutils/test.c
-@@ -150,5 +150,4 @@
+@@ -149,7 +149,6 @@
+ #define TEST_DEBUG 0
  
  #if ENABLE_TEST2 \
 - || (ENABLE_ASH_BASH_COMPAT && ENABLE_ASH_TEST) \
   || (ENABLE_HUSH_BASH_COMPAT && ENABLE_HUSH_TEST)
  # define BASH_TEST2 1
+ #else

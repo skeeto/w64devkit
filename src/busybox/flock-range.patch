@@ -17,6 +17,10 @@ so that flock -n exits with status 1 silently instead of printing
 "Permission denied", and let unlocking a file that holds no lock
 succeed, as flock(2) does, rather than failing flock -u.
 
+---
+ win32/flock.c |   48 +++++++++++++++++++-----------------------------
+ 1 file changed, 19 insertions(+), 29 deletions(-)
+
 --- a/win32/flock.c
 +++ b/win32/flock.c
 @@ -31,59 +31,45 @@

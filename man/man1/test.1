@@ -1,4 +1,4 @@
-.TH TEST 1 2026-10-22 "w64devkit" "w64devkit Manual"
+.TH TEST 1 2026-10-27 "w64devkit" "w64devkit Manual"
 .SH NAME
 test, [ \- evaluate a conditional expression
 .SH SYNOPSIS
@@ -147,7 +147,9 @@ and
 and
 .I /dev/fd/N
 for each open file descriptor number
-.IR N .
+.IR N ,
+except that the last four are named pipes when their descriptor is
+open on a pipe.
 .TP
 .BI "\-d " file
 True if
@@ -203,7 +205,15 @@ See
 True if
 .I file
 is a named pipe.
-Always false.
+Only
+.IR /dev/stdin ,
+.IR /dev/stdout ,
+.IR /dev/stderr ,
+and
+.I /dev/fd/N
+can be, when their descriptor is open on a pipe, so
+.B "test \-p /dev/stdin"
+tells whether standard input is a pipe.
 .TP
 .BI "\-r " file
 True if
@@ -337,14 +347,22 @@ See
 .BR NOTES .
 .TP
 \fIfile1\fR \fB\-nt\fR \fIfile2\fR
-True if both files exist and
+True if
+.I file1
+exists and either
+.I file2
+does not or
 .I file1
 was modified later than
 .IR file2 ,
 comparing times in whole seconds.
 .TP
 \fIfile1\fR \fB\-ot\fR \fIfile2\fR
-True if both files exist and
+True if
+.I file2
+exists and either
+.I file1
+does not or
 .I file1
 was modified earlier than
 .IR file2 ,
@@ -497,12 +515,7 @@ and bash:
 .B \-nt
 and
 .B \-ot
-are false unless both files exist, where bash makes
-.B \-nt
-true when only the first exists, and
-.B \-ot
-when only the second does.
-They compare whole seconds.
+compare whole seconds.
 .IP \(bu 2
 The bash unary operators
 .BR \-a ,

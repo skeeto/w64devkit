@@ -6,9 +6,13 @@ nothing after it dereferenced a null pointer and crashed. Recognize only
 size, so these are rejected as invalid arguments like other settings
 the Windows build lacks.
 
+---
+ coreutils/stty.c |   16 +++++-----------
+ 1 file changed, 5 insertions(+), 11 deletions(-)
+
 --- a/coreutils/stty.c
 +++ b/coreutils/stty.c
-@@ -1008,17 +1008,11 @@
+@@ -1016,17 +1016,11 @@
  
  static int find_param(const char *name)
  {

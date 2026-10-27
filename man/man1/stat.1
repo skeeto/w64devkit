@@ -1,4 +1,4 @@
-.TH STAT 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH STAT 1 2026-10-27 "w64devkit" "w64devkit Manual"
 .SH NAME
 stat \- display the status of files or file systems
 .SH SYNOPSIS
@@ -30,8 +30,8 @@ goes on to the next.
 A symbolic link is described as itself, not as its target, unless
 .B \-L
 says to follow it.
-Junctions, volume mount points, and app execution aliases count as
-symbolic links.
+Junctions and app execution aliases count as symbolic links, but a
+volume mount point is a directory.
 .PP
 The output for each file is a block of lines, or with
 .B \-t
@@ -210,9 +210,11 @@ for a regular file,
 .B d
 for a directory,
 .B l
-for a symbolic link, or
+for a symbolic link,
 .B c
-for a device.
+for a device, or
+.B p
+for a named pipe.
 .TP
 .B %b
 The number of blocks allocated, each of
@@ -243,8 +245,9 @@ The file type:
 .BR "regular empty file" ,
 .BR directory ,
 .BR "symbolic link" ,
+.BR "character special file" ,
 or
-.BR "character special file" .
+.BR fifo .
 .TP
 .B %g
 The group ID.
@@ -302,9 +305,7 @@ The time of last access, in the form described under
 .BR "Default output" .
 .TP
 .B %X
-The time of last access in seconds since 1970-01-01 00:00:00 UTC, as a
-32-bit number; see
-.BR NOTES .
+The time of last access in seconds since 1970-01-01 00:00:00 UTC.
 .TP
 .B %y
 The time of last modification.
@@ -412,12 +413,17 @@ It overrides
 .B \-f
 Print the status of the file system that holds each
 .IR file .
-The file must exist, but only its drive counts: a name that starts with a
-drive letter and a colon selects that drive, and any other name, such as
-a relative path or one starting with a slash, selects the drive of the
-current directory.
-When the current directory has no drive letter, as on a network share
-named by a UNC path, such a name fails.
+The file must exist, and its volume is found as
+.BR df (1)
+finds it: a drive name such as
+.B D:
+selects that drive, and any other file selects the first drive, or
+folder where a volume is mounted, whose volume has the file's serial
+number.
+So a link to another volume selects the volume of its target.
+A file on a volume with neither, such as a network share with no drive
+letter, fails, and so, normally, does a file with device 0; see
+.BR NOTES .
 .TP
 .B \-L
 Follow symbolic links: describe the target of a link instead of the link.
@@ -654,8 +660,14 @@ is a character device with the numbers 0, 0, the mode 0666, no size, the
 current user as its owner, and all three times at the Unix epoch; see
 .BR busybox (1).
 Its device number, inode number, and blocks are 0, and it has one link.
+.IR /dev/stdin ,
+.IR /dev/stdout ,
+.IR /dev/stderr ,
+and
+.I /dev/fd/n
+are instead fifos when that descriptor is a pipe.
 The only kinds of file are regular files, directories, symbolic links,
-and these character devices: there are no block devices, fifos, or
+and these devices and fifos: there are no block devices, other fifos, or
 sockets.
 .PP
 A symbolic link has the mode 0777.
@@ -666,17 +678,8 @@ The target has forward slashes, and for an app execution alias it is the
 path of the executable.
 .PP
 The change time is the time the file was created.
-The seconds since the epoch of
-.BR %X ,
-.BR %Y ,
-and
-.BR %Z ,
-which the terse form also prints, are truncated to 32-bit signed
-numbers, so a time after 2038-01-19 03:14:07 UTC prints wrong, usually as
-a negative number.
-The times in text are not affected, but a time before 1970 or after the
-year 3000 prints in text as the Unix epoch, and the fraction of a time
-before 1970 prints wrong.
+A time before 1970 or after the year 3000 prints in text as the Unix
+epoch, and the fraction of a time before 1970 prints wrong.
 .PP
 Allocated sizes are space on disk.
 .B stat
@@ -694,7 +697,7 @@ The device number is the serial number of the volume, and the inode
 number is the 64-bit file index that Windows gives the file.
 The number of links of a file is its number of hard links.
 That of a directory is 2 plus its number of subdirectories, not counting
-symbolic links and junctions, which
+symbolic links, junctions, and volume mount points, which
 .B stat
 finds by reading the directory.
 A symbolic link to a directory, such as a junction, has the number of
@@ -710,7 +713,7 @@ does not read it to find whether it is executable.
 .PP
 With
 .BR \-f ,
-only the drive of the file matters.
+only the volume of the file matters.
 .B stat
 assumes a block size of 4096 bytes for a volume under 16 TiB, and 8192,
 16384, 32768, and 65536 for volumes of at least 16, 32, 64, and 128 TiB.

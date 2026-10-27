@@ -1,7 +1,15 @@
+---
+ shell/ash.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
 --- a/shell/ash.c
 +++ b/shell/ash.c
-@@ -16349,3 +16349,3 @@
+@@ -16976,7 +16976,7 @@
+ 		read_profile(hp);
+ 		free((void *)hp);
  
 -		hp = exe_relative_path("/etc/profile");
 +		hp = exe_relative_path("../etc/profile");
  		read_profile(hp);
+ 		free((void *)hp);
+ #else

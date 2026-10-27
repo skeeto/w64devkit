@@ -1,4 +1,4 @@
-.TH UPTIME 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH UPTIME 1 2026-10-27 "w64devkit" "w64devkit Manual"
 .SH NAME
 uptime \- show how long the system has been running
 .SH SYNOPSIS
@@ -162,19 +162,11 @@ $ uptime | grep \-q day && echo up for a day or more
 .EE
 .RE
 .SH NOTES
-The time since Windows started is
-.B GetTickCount64
-divided by 1000, dropping the fraction.
+The time since Windows started is the count of
+.B QueryPerformanceCounter
+divided by its frequency, dropping the fraction.
 It does not come from
 .IR /proc/uptime .
-On Windows XP, which lacks
-.BR GetTickCount64 ,
-it is
-.BR GetTickCount ,
-which returns to zero every 49.7 days, so a longer uptime is shown
-short by a multiple of that period and
-.B \-s
-is wrong by the same amount.
 .PP
 The count includes time spent in sleep and hibernation.
 With fast startup, which is on by default in Windows 8 and later,

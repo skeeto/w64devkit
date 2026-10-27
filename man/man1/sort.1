@@ -1,4 +1,4 @@
-.TH SORT 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH SORT 1 2026-10-27 "w64devkit" "w64devkit Manual"
 .SH NAME
 sort \- sort lines of text
 .SH SYNOPSIS
@@ -110,16 +110,18 @@ A start past the end of the line gives an empty key.
 \fIend\fR[\fB.\fIoffset\fR]
 The last field of the key, which is included whole.
 Without a comma, the key runs to the end of the line.
+With an
+.IR offset ,
+the key ends after that character of the field, counted from 1 at the
+start of the field, including any white space at its start.
 Unlike in POSIX and GNU
 .BR sort ,
-an
-.I offset
-after
-.I end
-is a character position counted from the start of the line, not of the
-field.
-The key ends after that character, even if it lies in another field,
-and keeps any white space at its end, even with
+.B b
+and
+.B \-b
+do not skip that white space before counting.
+The key ends there even if the character lies in a later field, and
+keeps any white space at its end, even with
 .B b
 or
 .BR \-b .
@@ -541,8 +543,12 @@ and
 .BR \-R ,
 are invalid.
 .IP \(bu 2
-The character offset in the end of a key counts from the start of the
-line, not of the field, and may not be 0.
+The character offset in the end of a key counts the white space at the
+start of the field even with
+.B b
+or
+.BR \-b ,
+and may not be 0.
 .IP \(bu 2
 .B \-n
 reads exponents, which GNU

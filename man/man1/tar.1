@@ -1,4 +1,4 @@
-.TH TAR 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.TH TAR 1 2026-10-27 "w64devkit" "w64devkit Manual"
 .SH NAME
 tar \- create, list, and extract tar archives
 .SH SYNOPSIS
@@ -232,6 +232,12 @@ printed once.
 Nothing else changes: a leading
 .BR ./ ,
 a backslash, or a drive letter stays in the name.
+A name that is
+.B ..\&
+or ends in
+.B /..\&
+leaves nothing, so that directory is not stored itself, though the files
+below it are.
 The files below a directory are in the order the file system lists
 them.
 A bare drive such as
@@ -381,6 +387,13 @@ It is reported as
 .B "can't create node"
 and skipped, without changing the exit status.
 .PP
+A link made after all other members, symbolic or hard, is not made when
+a directory in its own name is missing, is a symbolic link or junction,
+or is not a directory: that fails with
+.BR "Not a directory" ,
+so an archive cannot place a link through a symbolic link that it
+created earlier.
+.PP
 Members that carry GNU long names and links, and POSIX extended headers
 with a
 .B path
@@ -468,7 +481,8 @@ Print the name of each member as it is added by
 on standard output, or on standard error when the archive goes to
 standard output, and as it is extracted by
 .BR \-x ,
-on standard output.
+on standard output, or on standard error with
+.BR \-O .
 With
 .BR \-t ,
 or a second
@@ -487,11 +501,11 @@ Write the contents of the selected members to standard output, one
 after another, and create no files.
 Names printed by
 .B \-v
-go to the same stream, and are buffered, so when it is a file or pipe
-they can come after the contents.
+go to standard error instead.
 With
 .BR \-t ,
-the contents are written as well as the listing.
+the contents are written as well as the listing, which goes to standard
+error.
 .TP
 .BR \-m ", " \-\-touch
 With
@@ -713,6 +727,16 @@ and the files created by
 .B \-x
 are read-only.
 .TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+If the first of these that is set has the value
+.BR C ,
+listings and the names printed by
+.B \-v
+show each byte of a non-ASCII character as
+.BR ? ;
+see
+.BR NOTES .
+.TP
 .B PATH
 Where the compression programs are found.
 .TP
@@ -906,15 +930,22 @@ names in the archive.
 Names are stored and extracted byte for byte: UTF-8 on Windows 10
 version 1903 and later, and the system code page on earlier versions.
 Backslashes are not converted to slashes.
-Listings, including the names printed when extracting with
+Listings, and the names printed by
 .BR \-v ,
 show each control character as
+.BR ? .
+On Windows 10 version 1903 and later, they show non-ASCII characters,
+and each byte that is not part of a valid UTF-8 sequence as
 .BR ? ,
-and on Windows 10 version 1903 and later, each byte of a non-ASCII
-character as well.
-The names printed when creating with
-.B \-v
-are not changed.
+unless the first of
+.BR LC_ALL ,
+.BR LC_CTYPE ,
+and
+.B LANG
+that is set has the value
+.BR C ,
+which shows each byte of a non-ASCII character as
+.BR ? .
 A name that Windows rejects, such as one with
 .B *
 or

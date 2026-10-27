@@ -1,3 +1,7 @@
+---
+ libbb/Config.src |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
 --- a/libbb/Config.src
 +++ b/libbb/Config.src
 @@ -193,7 +193,7 @@

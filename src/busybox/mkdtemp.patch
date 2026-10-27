@@ -1,6 +1,14 @@
+---
+ include/platform.h |    1 -
+ 1 file changed, 1 deletion(-)
+
 --- a/include/platform.h
 +++ b/include/platform.h
-@@ -474,3 +474,2 @@
+@@ -510,7 +510,6 @@
+ # undef HAVE_DPRINTF
+ # undef HAVE_GETLINE
  # undef HAVE_MEMRCHR
 -# undef HAVE_MKDTEMP
  # undef HAVE_SETBIT
+ # undef HAVE_STPCPY
+ # undef HAVE_STPNCPY

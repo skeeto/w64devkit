@@ -1,4 +1,4 @@
-.TH CP 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.TH CP 1 2026-10-27 "w64devkit" "w64devkit Manual"
 .SH NAME
 cp \- copy files and directories
 .SH SYNOPSIS
@@ -291,8 +291,13 @@ or
 skipped files, and copies of devices are not written.
 .TP
 .B \-\-remove\-destination
-Has no effect.
-An existing destination is always replaced, as described above.
+Delete an existing destination file before opening its source, instead
+of when creating the copy fails, so it is lost if the source cannot be
+opened.
+With
+.BR \-v ,
+.BI "removed \(aq" dest \(aq
+is written for each one deleted.
 .TP
 .B \-\-parents
 Copy each source to the path formed by appending it, as written, to
@@ -312,12 +317,11 @@ With more operands, or with
 .BR \-t ,
 .I directory
 is created when it does not exist.
-An existing destination file is deleted before its source is opened, so
-it is lost if the source cannot be opened.
-With
-.BR \-v ,
-.BI "removed \(aq" dest \(aq
-is written for each one deleted.
+.TP
+.BI \-\-sparse= when
+Has no effect, whatever
+.I when
+is.
 .TP
 .B \-\-help
 As the first argument only, write a usage message on standard output
@@ -443,9 +447,7 @@ No prompt is shown unless
 is given.
 .IP \(bu 2
 .B \-f
-and
-.B \-\-remove\-destination
-have no effect.
+has no effect.
 .IP \(bu 2
 .B \-n
 skips an existing destination directory, instead of merging into it.
@@ -481,7 +483,6 @@ Options not listed above, such as
 .BR \-\-preserve ,
 .BR \-\-no\-preserve ,
 .BR \-\-reflink ,
-.BR \-\-sparse ,
 and
 .BR \-\-strip\-trailing\-slashes ,
 are invalid.

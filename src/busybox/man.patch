@@ -99,7 +99,7 @@ man-db does, so that, e.g., MANROFFOPT=-dAD=l sets pages ragged-right.
 +	if (G.dir)
 +		chdir(G.dir);
  	system(cmd);
-+	chdir_system_drive();
++	xchdir_system_drive();
  	free(cmd);
  	return 1;
  }
@@ -121,7 +121,7 @@ man-db does, so that, e.g., MANROFFOPT=-dAD=l sets pages ragged-right.
 +			*ptr = bs_to_slash(xabsolute_path(*ptr));
  	}
 +	cwd = xrealloc_getcwd_or_warn(NULL);
- 	chdir_system_drive();
+ 	xchdir_system_drive();
  #endif
  
 @@ -309,8 +335,6 @@

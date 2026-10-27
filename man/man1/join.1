@@ -1,4 +1,4 @@
-.TH JOIN 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH JOIN 1 2026-10-27 "w64devkit" "w64devkit Manual"
 .SH NAME
 join \- join two sorted files on a common field
 .SH SYNOPSIS
@@ -184,20 +184,19 @@ On an unpaired line of
 .B 0
 is the join field of
 .IR file2 .
-A list with no items is not rejected, and the output is then
-meaningless.
-See
-.B NOTES
-for defects.
+A list with no items is accepted, and makes every output line empty.
 .TP
 .BI "\-t " sep
 Separate fields with the character
 .I sep
 in the input and the output, instead of runs of blanks.
 .I sep
-must be exactly one byte, so the empty string is an error, and so is a
-non-ASCII character where arguments are UTF-8, as on Windows 10 version
-1903 and later.
+must be at most one byte, so a non-ASCII character is an error where
+arguments are UTF-8, as on Windows 10 version 1903 and later.
+An empty
+.I sep
+is the same as no
+.BR \-t .
 It is taken literally, with no backslash escapes.
 Pass a tab as a tab character.
 .TP
@@ -360,35 +359,19 @@ and
 cannot be combined.
 .IP \(bu 2
 .B \-t
-takes exactly one byte.
-An empty argument, which makes each line one field in GNU join, is an
-error.
+takes at most one byte.
+An empty argument, which makes each line one field in GNU join, here
+means that blanks separate fields, as without
+.BR \-t .
 .PP
-Defects in this version:
-.IP \(bu 2
-With
-.BR \-o ,
-only the first line written for a pairing of two groups, or for a group
-of unpaired lines, follows
-.IR list .
-The other lines of it are empty.
-This happens whenever a join field repeats within a file, so use
-.B \-o
-only on input whose join fields are unique.
-.IP \(bu 2
-With a list whose every item is
-.BR 0 ,
-such as
-.BR "\-o 0" ,
+Without
+.BR \-t ,
+when the last line of a file has no newline and does not end in a blank,
 .B join
-reads past the end of its copy of the list, and some runs write extra
-fields, such as a second copy of the join field.
-.IP \(bu 2
-A group of more than eight lines in one file overruns the buffer that
-holds it, even if the group is never written, and
-.B join
-usually crashes.
-Nine consecutive blank lines form such a group.
+reads past the end of that line in memory, and the line can gain extra
+fields of garbage bytes, which are written and can even be its join
+field.
+End the last line with a newline.
 .PP
 Only memory limits the length of a line and the number of fields.
 .PP
@@ -398,7 +381,8 @@ CR LF and LF line endings behave alike, and output lines end with LF.
 Any other CR, such as one ending an unterminated last line, is an
 ordinary character.
 A NUL byte ends a line, as LF does, and is not written.
-The last line of a file need not end in a newline.
+The last line of a file need not end in a newline, except as described
+above.
 A read error ends a file silently.
 .PP
 .I file1

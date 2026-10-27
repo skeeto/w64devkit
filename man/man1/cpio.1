@@ -1,4 +1,4 @@
-.TH CPIO 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH CPIO 1 2026-10-27 "w64devkit" "w64devkit Manual"
 .SH NAME
 cpio \- create, list, and extract newc cpio archives
 .SH SYNOPSIS
@@ -275,9 +275,11 @@ With
 print a long listing.
 With
 .BR \-i ,
-print the name of each entry on standard output after processing it,
-including entries not created because a newer file exists, but not hard
-links without contents.
+print the name of each entry on standard output, or on standard error
+with
+.BR \-\-to\-stdout ,
+after processing it, including entries not created because a newer file
+exists, but not hard links without contents.
 Names are printed in the form of a plain
 .B \-t
 listing.
@@ -373,7 +375,7 @@ write the contents of each matching entry to standard output, one after
 another, instead of creating anything.
 With
 .BR \-v ,
-the names are mixed into the same output.
+the names go to standard error.
 .TP
 .B \-\-help
 As the first argument, print a usage message on standard output and
@@ -659,6 +661,10 @@ or contains
 or that cannot be made at once, is made after all other entries, and
 failing then ends the command with
 .BR "can't create symlink" .
+A link made after all other entries, symbolic or hard, is not made when
+a directory in its own name is missing, is a symbolic link or junction,
+or is not a directory: that fails with
+.BR "Not a directory" .
 .PP
 Standard input and output are in binary mode, so archives pass through
 unchanged.

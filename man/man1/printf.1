@@ -1,4 +1,4 @@
-.TH PRINTF 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH PRINTF 1 2026-10-27 "w64devkit" "w64devkit Manual"
 .SH NAME
 printf \- format and write data
 .SH SYNOPSIS
@@ -30,7 +30,7 @@ A pass that uses no argument, such as the only pass of a format with no
 conversion specification, ends this repetition, and arguments left over
 are ignored.
 When the arguments run out partway through a pass, the rest of that pass
-still runs and each remaining conversion uses an empty argument; see
+still runs and each remaining conversion has no argument; see
 .BR Arguments .
 With no arguments at all, the format is written once in the same way.
 .PP
@@ -293,7 +293,12 @@ and the
 .B \(aq
 flag are not supported.
 .SS Arguments
-Whatever the conversion, an argument that was not given is empty.
+An argument that was not given is 0 for the numeric conversions and
+empty for
+.BR c ,
+.BR s ,
+and
+.BR b .
 .PP
 For
 .BR d ,
@@ -321,7 +326,7 @@ of
 .B \-1
 is
 .BR 18446744073709551615 .
-An empty or missing argument is an error here.
+An empty argument is an error here, but a missing one is 0.
 .PP
 For
 .BR e ,
@@ -572,9 +577,6 @@ $ printf \(aq%s\e0\(aq *.c | xargs \-0 wc \-c
 Differences from GNU
 .B printf
 and bash:
-.IP \(bu 2
-A missing argument for an integer conversion is an error, with exit
-status 1, where they use 0.
 .IP \(bu 2
 A numeric argument with trailing characters is an error, and its value
 is 0, instead of the number that began it.

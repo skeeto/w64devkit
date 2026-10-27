@@ -1,16 +1,22 @@
+---
+ libbb/lineedit.c |   10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
 --- a/libbb/lineedit.c
 +++ b/libbb/lineedit.c
-@@ -860,6 +860,14 @@
- 	const char *basecmd;
- 	char *dirbuf = NULL;
+@@ -946,6 +946,16 @@
+ 	oldflag = stat(&stat_flag, NULL);
+ #endif
  
 +	/* Discovering all commands in PATH is painfully expensive (typically
 +	 * several seconds) on Windows where file access is slow, so don't do
 +	 * it. Worse, due to an alt-tab handling bug in the Windows console
 +	 * it's very easy to activate this completion by accident.
 +	 */
-+	if (type == FIND_EXE_ONLY && !command[0])
++	if (type == FIND_EXE_ONLY && !command[0]) {
++		IF_PLATFORM_MINGW32(stat(&oldflag, NULL);)
 +		return 0;
++	}
 +
  	npaths = 1;
  	path1[0] = (char*)".";

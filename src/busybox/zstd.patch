@@ -1,10 +1,23 @@
+---
+ archival/libarchive/Kbuild.src          |    2 +-
+ archival/libarchive/decompress_unzstd.c |   12 ++++++++++++
+ archival/libarchive/open_transformer.c  |   11 +++++++++++
+ archival/tar.c                          |   16 +++++++++++++++-
+ include/bb_archive.h                    |    6 ++++++
+ win32/popen.c                           |    6 ++----
+ 6 files changed, 47 insertions(+), 6 deletions(-)
+
 --- a/archival/libarchive/Kbuild.src
 +++ b/archival/libarchive/Kbuild.src
-@@ -6,3 +6,3 @@
+@@ -4,7 +4,7 @@
+ #
+ # Licensed under GPLv2 or later, see file LICENSE in this source tree.
  
 -lib-y:= common.o
 +lib-y:= common.o decompress_unzstd.o
  
+ COMMON_FILES:= \
+ \
 --- /dev/null
 +++ b/archival/libarchive/decompress_unzstd.c
 @@ -0,0 +1,12 @@
@@ -22,7 +35,9 @@
 +}
 --- a/archival/libarchive/open_transformer.c
 +++ b/archival/libarchive/open_transformer.c
-@@ -212,2 +212,12 @@ static transformer_state_t *setup_transformer_on_fd(int fd, int die_if_not_compr
+@@ -210,11 +210,22 @@
+ 		}
+ 	}
  
 +	if (xstate->magic.b16[0] == ZSTD_MAGIC1) {
 +		xstate->signature_skipped = 4;
@@ -35,72 +50,121 @@
 +	}
 +
  	/* No known magic seen */
-@@ -217,2 +227,3 @@ static transformer_state_t *setup_transformer_on_fd(int fd, int die_if_not_compr
+ 	if (die_if_not_compressed)
+ 		bb_simple_error_msg_and_die("no gzip"
+ 			IF_FEATURE_SEAMLESS_BZ2("/bzip2")
  			IF_FEATURE_SEAMLESS_XZ("/xz")
 +			"/zstd"
  			" magic");
+ 
+ 	/* Some callers expect this function to "consume" fd
 --- a/archival/tar.c
 +++ b/archival/tar.c
-@@ -813,2 +813,5 @@ static llist_t *append_file_list_to_list(llist_t *list)
+@@ -812,6 +812,9 @@
+ //usage:     "\n	--lzma	(De)compress using lzma"
+ //usage:	)
  //usage:	)
 +//usage:	IF_FEATURE_TAR_LONG_OPTIONS(
 +//usage:     "\n	--zstd	(De)compress using zstd"
 +//usage:	)
  //usage:     "\n	-a	(De)compress based on extension"
-@@ -854,2 +857,3 @@ enum {
+ //usage:	IF_FEATURE_TAR_CREATE(
+ //usage:     "\n	-h	Follow symlinks"
+@@ -853,6 +856,7 @@
+ #if ENABLE_FEATURE_TAR_LONG_OPTIONS
+ 	OPTBIT_STRIP_COMPONENTS,
  	IF_FEATURE_SEAMLESS_LZMA(OPTBIT_LZMA        ,)
 +	OPTBIT_ZSTD,
  	OPTBIT_NORECURSION,
-@@ -881,2 +885,3 @@ enum {
+ 	IF_FEATURE_TAR_TO_COMMAND(OPTBIT_2COMMAND   ,)
+ 	OPTBIT_NUMERIC_OWNER,
+@@ -880,13 +884,14 @@
+ 	OPT_NOPRESERVE_TIME  = IF_FEATURE_TAR_NOPRESERVE_TIME((1 << OPTBIT_NOPRESERVE_TIME)) + 0, // m
+ 	OPT_STRIP_COMPONENTS = IF_FEATURE_TAR_LONG_OPTIONS((1 << OPTBIT_STRIP_COMPONENTS)) + 0, // strip-components
  	OPT_LZMA             = IF_FEATURE_TAR_LONG_OPTIONS(IF_FEATURE_SEAMLESS_LZMA((1 << OPTBIT_LZMA))) + 0, // lzma
 +	OPT_ZSTD             = IF_FEATURE_TAR_LONG_OPTIONS((1 << OPTBIT_ZSTD)) + 0, // zstd
  	OPT_NORECURSION      = IF_FEATURE_TAR_LONG_OPTIONS((1 << OPTBIT_NORECURSION    )) + 0, // no-recursion
-@@ -887,3 +892,3 @@ enum {
+ 	OPT_2COMMAND         = IF_FEATURE_TAR_TO_COMMAND(  (1 << OPTBIT_2COMMAND       )) + 0, // to-command
+ 	OPT_NUMERIC_OWNER    = IF_FEATURE_TAR_LONG_OPTIONS((1 << OPTBIT_NUMERIC_OWNER  )) + 0, // numeric-owner
+ 	OPT_NOPRESERVE_PERM  = IF_FEATURE_TAR_LONG_OPTIONS((1 << OPTBIT_NOPRESERVE_PERM)) + 0, // no-same-permissions
+ 	OPT_OVERWRITE        = IF_FEATURE_TAR_LONG_OPTIONS((1 << OPTBIT_OVERWRITE      )) + 0, // overwrite
  
 -	OPT_ANY_COMPRESS = (OPT_BZIP2 | OPT_LZMA | OPT_GZIP | OPT_XZ | OPT_COMPRESS),
 +	OPT_ANY_COMPRESS = (OPT_BZIP2 | OPT_LZMA | OPT_GZIP | OPT_XZ | OPT_COMPRESS | OPT_ZSTD),
  };
-@@ -931,2 +936,3 @@ static const char tar_longopts[] ALIGN1 =
+ #if ENABLE_FEATURE_TAR_LONG_OPTIONS
+ static const char tar_longopts[] ALIGN1 =
+@@ -930,6 +935,7 @@
+ # if ENABLE_FEATURE_SEAMLESS_LZMA
+ 	"lzma\0"                No_argument       "\xf9"
  # endif
 +	"zstd\0"                No_argument       "\xf7"
  	"no-recursion\0"	No_argument       "\xfa"
-@@ -1208,2 +1214,4 @@ int tar_main(int argc UNUSED_PARAM, char **argv)
+ # if ENABLE_FEATURE_TAR_TO_COMMAND
+ 	"to-command\0"		Required_argument "\xfb"
+@@ -1210,6 +1216,8 @@
+ 					opt |= OPT_XZ;
+ 				if (OPT_LZMA != 0 && is_suffixed_with(tar_filename, "lzma"))
  					opt |= OPT_LZMA;
 +				if (is_suffixed_with(tar_filename, "zst"))
 +					opt |= OPT_ZSTD;
  			}
-@@ -1232,2 +1240,4 @@ int tar_main(int argc UNUSED_PARAM, char **argv)
+ #endif
+ 		}
+@@ -1234,6 +1242,8 @@
+ 			zipMode = "lzma";
+ 		if (opt & OPT_XZ)
  			zipMode = "xz";
 +		if (opt & OPT_ZSTD)
 +			zipMode = "zstd";
  # endif
-@@ -1272,2 +1282,6 @@ int tar_main(int argc UNUSED_PARAM, char **argv)
+ 		tbInfo = xzalloc(sizeof(*tbInfo));
+ 		tbInfo->tarFd = tar_handle->src_fd;
+@@ -1274,6 +1284,10 @@
+ 			USE_FOR_MMU(IF_FEATURE_SEAMLESS_XZ(xformer = unpack_xz_stream;))
+ 			USE_FOR_NOMMU(xformer_prog = "unxz";)
  		}
 +		if (opt & OPT_ZSTD) {
 +			USE_FOR_MMU(xformer = unpack_zstd_stream;)
 +			USE_FOR_NOMMU(xformer_prog = "unzstd";)
 +		}
  
+ 		fork_transformer_with_sig(tar_handle->src_fd, xformer, xformer_prog);
+ 		/* Can't lseek over pipes */
 --- a/include/bb_archive.h
 +++ b/include/bb_archive.h
-@@ -29,2 +29,5 @@ enum {
+@@ -27,6 +27,9 @@
+ 	/* (unsigned) cast suppresses "integer overflow in expression" warning */
+ 	XZ_MAGIC1a  = 256 * (unsigned)(256 * (256 * 0xfd + '7') + 'z') + 'X',
  	XZ_MAGIC2a  = 256 * 'Z' + 0,
 +	/* .zst signature: 0x28, 0xb5, 0x2f, 0xfd */
 +	ZSTD_MAGIC1 = 256 * 0x28 + 0xb5,
 +	ZSTD_MAGIC2 = 256 * 0x2f + 0xfd,
  #else
-@@ -37,2 +40,4 @@ enum {
+ 	COMPRESS_MAGIC = 0x9d1f,
+ 	GZIP_MAGIC  = 0x8b1f,
+@@ -35,6 +38,8 @@
+ 	XZ_MAGIC2   = 'z' + ('X' + ('Z' + 0 * 256) * 256) * 256,
+ 	XZ_MAGIC1a  = 0xfd + ('7' + ('z' + 'X' * 256) * 256) * 256,
  	XZ_MAGIC2a  = 'Z' + 0 * 256,
 +	ZSTD_MAGIC1 = 0x28 + 0xb5 * 256,
 +	ZSTD_MAGIC2 = 0x2f + 0xfd * 256,
  #endif
-@@ -266,2 +271,3 @@ IF_DESKTOP(long long) int unpack_lzma_stream(transformer_state_t *xstate) FAST_F
+ };
+ 
+@@ -265,6 +270,7 @@
+ IF_DESKTOP(long long) int unpack_bz2_stream(transformer_state_t *xstate) FAST_FUNC;
+ IF_DESKTOP(long long) int unpack_lzma_stream(transformer_state_t *xstate) FAST_FUNC;
  IF_DESKTOP(long long) int unpack_xz_stream(transformer_state_t *xstate) FAST_FUNC;
 +IF_DESKTOP(long long) int unpack_zstd_stream(transformer_state_t *xstate) FAST_FUNC;
  
+ char* append_ext(char *filename, const char *expected_ext) FAST_FUNC;
+ int bbunpack(char **argv,
 --- a/win32/popen.c
 +++ b/win32/popen.c
-@@ -302,8 +302,6 @@ pid_t mingw_fork_compressor(int fd, const char *compressor, const char *mode)
+@@ -320,12 +320,10 @@
+ 	pid_t pid;
+ 
  	cmd = xasprintf("%s -cf -", compressor);
 -#if ENABLE_FEATURE_SEAMLESS_XZ || ENABLE_FEATURE_SEAMLESS_LZMA
 -	// xz and lzma applets don't support compression, we must use
@@ -111,3 +175,5 @@
  		mode = "w+";
 -#endif
  
+ 	if ((fd1 = mingw_popen_fd(compressor, cmd, mode, fd, &pid)) == -1)
+ 		bb_perror_msg_and_die("can't execute '%s'", compressor);

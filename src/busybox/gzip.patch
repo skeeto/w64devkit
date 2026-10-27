@@ -1,3 +1,8 @@
+---
+ archival/libarchive/Kbuild.src                   |    2 +-
+ archival/libarchive/decompress_gunzip_external.c |   12 ++++++++++++
+ 2 files changed, 13 insertions(+), 1 deletion(-)
+
 --- a/archival/libarchive/Kbuild.src
 +++ b/archival/libarchive/Kbuild.src
 @@ -87,7 +87,7 @@

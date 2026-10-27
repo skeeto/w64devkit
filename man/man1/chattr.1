@@ -1,4 +1,4 @@
-.TH CHATTR 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.TH CHATTR 1 2026-10-27 "w64devkit" "w64devkit Manual"
 .SH NAME
 chattr \- change Windows file attributes
 .SH SYNOPSIS
@@ -114,6 +114,8 @@ Recurse: after changing a directory, change every entry in it, including
 hidden entries and names that begin with a dot, and the entries of its
 subdirectories.
 Symbolic links and junctions are changed but not descended into.
+A volume mount point is a directory, so the files of the volume mounted
+there are changed too.
 The entries of a directory that cannot be read are skipped without a
 message.
 .TP

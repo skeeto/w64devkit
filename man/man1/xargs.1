@@ -1,4 +1,4 @@
-.TH XARGS 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.TH XARGS 1 2026-10-27 "w64devkit" "w64devkit Manual"
 .SH NAME
 xargs \- run a command with arguments read from input
 .SH SYNOPSIS
@@ -316,7 +316,7 @@ Run up to
 commands at the same time.
 It is from 0 to 2147483647.
 The default is 1, which waits for each command before starting the
-next, and 0 means 64.
+next, and 0, or a number above 64, means 64.
 .B xargs
 waits for the running commands before it exits.
 See
@@ -660,11 +660,6 @@ be interleaved.
 looks at the exit code of a command only when it needs its slot, or at
 the end, so after a failure it may start one more command before it
 stops.
-While 64 or more commands are running, which takes
-.B \-P
-0 or at least 64,
-.B xargs
-waits for one to end in a busy loop that keeps a processor busy.
 It uses the Windows exit code as it is, without the mapping above: a
 code from 256 to 0x17F counts as a failure, with status 123, a code of
 0x180 or more is reported as a signal, with status 125, and a code of

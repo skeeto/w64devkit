@@ -1,4 +1,4 @@
-.TH WGET 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.TH WGET 1 2026-10-27 "w64devkit" "w64devkit Manual"
 .SH NAME
 wget \- retrieve files over HTTP, HTTPS, and FTP
 .SH SYNOPSIS
@@ -91,7 +91,11 @@ the file is created or replaced.
 .PP
 The file is opened only after the server has accepted the request, so a
 request that fails creates and truncates nothing.
-If the connection ends early, what was received stays in the file, and
+If the connection ends early,
+.B wget
+retries as described under
+.BR \-t ,
+and what was received stays in the file, where
 .B \-c
 can continue it.
 .SS HTTP
@@ -108,6 +112,9 @@ sends
 .B User\-Agent
 (default
 .BR Wget ),
+.B Accept
+(always
+.BR */* ),
 and
 .B Connection
 headers.
@@ -170,10 +177,18 @@ says, or in chunks for
 .BR "Transfer\-Encoding: chunked" ,
 or else to the end of the connection.
 Any other transfer encoding is an error.
-Fewer octets than
+A connection that closes before the octets that
 .B Content\-Length
-promised fail with
-.BR "connection closed prematurely" .
+promised, or before the last chunk, is reported as
+.BI "connection closed at byte " n\fR,
+where
+.I n
+counts the octets received over that connection, and the download is
+retried as described under
+.BR \-t .
+So is a body read to the end of the connection: that end is reported and
+retried the same way, even though nothing is missing; see
+.BR NOTES .
 .PP
 Lines from the server, in HTTP and FTP alike, are cut at their first
 control character other than a tab, and tabs become spaces.
@@ -327,6 +342,7 @@ A header whose name is
 .BR User\-Agent ,
 .BR Range ,
 .BR Content\-Type ,
+.BR Accept ,
 .BR Authorization ,
 .BR Proxy\-Authorization ,
 or
@@ -336,6 +352,15 @@ header
 .B wget
 would otherwise send.
 All headers are sent again after a redirection, even to another host.
+.TP
+\fB\-U\fR \fIstring\fR, \fB\-\-user\-agent\fR=\fIstring\fR
+Send
+.I string
+as the
+.B User\-Agent
+header.
+The default is
+.BR Wget .
 .TP
 .BI "\-\-post\-data " string
 Send
@@ -406,8 +431,12 @@ is ignored.
 Do not print the messages and progress meter described under
 .BR Messages .
 Errors, the
+.B connection closed
+and
 .B restart failed
-message of
+messages of
+.B \-t
+and
 .BR \-c ,
 and the output of
 .B \-S
@@ -437,6 +466,38 @@ followed by an empty line; that includes the password, in the
 .B PASS
 command.
 .TP
+\fB\-t\fR \fItries\fR, \fB\-\-tries\fR=\fItries\fR
+Retry a download whose connection closes while the body is read, up to
+.I tries
+times after the first request.
+The default is 20, and 0 means no limit.
+.I tries
+is a decimal number; anything else is an error.
+Other failures, such as a refused connection or an error status, are
+not retried.
+.IP
+Each retry connects again, to the URL that any redirections reached, and
+asks for the rest of the document, with
+.B Range
+for HTTP and
+.B REST
+for FTP, as
+.B \-c
+does.
+The rest is written after what was received.
+When the server sends the whole document instead, the message
+.B wget: restart failed
+appears, and the document is written again from where it began in the
+output file.
+Standard output that is a pipe cannot be rewound, so there that ends
+the command with an error.
+When the tries run out,
+.B wget
+keeps what it received, without the
+.B saved
+message, and goes on to the next URL.
+That is not a failure, so the exit status can still be 0.
+.TP
 .BI "\-T " sec
 Not supported.
 This build has no timeout feature, and
@@ -459,6 +520,14 @@ is standard output.
 The file is created, or replaced if it exists.
 When there are several URLs, their documents are written to the file one
 after another.
+After each complete document the file is cut off at the end of what was
+written.
+That applies to standard output too, when it is a file, so a file opened
+with
+.B 1<>
+loses the old data after the document, though one opened with
+.B >>
+does not.
 .TP
 \fB\-o\fR \fIlogfile\fR, \fB\-\-output\-file\fR=\fIlogfile\fR
 Write messages to
@@ -477,15 +546,6 @@ of
 .B \-
 leaves standard error alone.
 .TP
-\fB\-U\fR \fIstring\fR, \fB\-\-user\-agent\fR=\fIstring\fR
-Send
-.I string
-as the
-.B User\-Agent
-header.
-The default is
-.BR Wget .
-.TP
 \fB\-Y\fR \fIon/off\fR, \fB\-\-proxy\fR=\fIon/off\fR
 A value of
 .B off
@@ -494,10 +554,6 @@ makes
 ignore the proxy variables described under
 .BR ENVIRONMENT .
 Any other value, and the default, uses them.
-.TP
-\fB\-t\fR \fItries\fR, \fB\-\-tries\fR=\fItries\fR
-Accepted and ignored.
-There are no retries.
 .TP
 .BI \-n arg
 Accepted and ignored, as in
@@ -616,6 +672,9 @@ The message is on standard error, prefixed with
 .PP
 The first failure ends the command: the remaining URLs are not
 retrieved, and the files already saved stay.
+A body still cut short after the retries of
+.B \-t
+is not a failure.
 .SH EXAMPLES
 Download a file into the current directory:
 .PP
@@ -693,10 +752,42 @@ timestamping, no way to give a user and password except in the URL or an
 .B Authorization
 header, no cookies, and no rate limit.
 .IP \(bu 2
-Nothing is retried.
+Only a body cut short is retried, at once and without a wait, and
+running out of tries is not an error.
 .IP \(bu 2
 An existing file is an error: it is not kept by saving the new one as
 .IR name.1 .
+.PP
+A body with neither
+.B Content\-Length
+nor chunked encoding, such as the output of a CGI program from
+.BR httpd (1),
+ends with the connection, and
+.B wget
+treats that end as a connection closed early.
+So does every FTP transfer from a server that does not answer
+.BR SIZE .
+It reports
+.BR "connection closed at byte" ,
+requests the document again with
+.B Range
+or
+.BR REST ,
+and, when the server sends it whole, as most do, writes it again after
+.BR "restart failed" ,
+until the tries of
+.B \-t
+run out: 21 requests by default.
+The file holds the whole document, but the
+.B saved
+message never appears.
+The exit status is 0, unless the output is a pipe, which fails at the
+first retry, or the server answers the
+.B Range
+with an error status.
+Use
+.B "\-t 1"
+to stop after two requests.
 .PP
 There is no timeout: a stalled transfer waits forever, though Windows
 gives up on a connection attempt that gets no answer.
@@ -796,6 +887,7 @@ line shows
 in the parentheses instead of the address.
 .SH SEE ALSO
 .BR busybox (1),
+.BR httpd (1),
 .BR nc (1),
 .BR ssl_client (1),
 .BR timeout (1)

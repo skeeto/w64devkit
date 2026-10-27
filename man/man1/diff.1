@@ -1,4 +1,4 @@
-.TH DIFF 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.TH DIFF 1 2026-10-27 "w64devkit" "w64devkit Manual"
 .SH NAME
 diff \- compare files line by line
 .SH SYNOPSIS
@@ -11,6 +11,7 @@ diff \- compare files line by line
 .RB [ \-U
 .IR lines ]
 .RB [ \-\-binary ]
+.RB [ \-\-no\-dereference ]
 .I file1
 .I file2
 .SH DESCRIPTION
@@ -158,8 +159,9 @@ Without
 only the entries of the two directories are compared.
 With
 .BR \-r ,
-every subdirectory is entered, through symbolic links too, and files are
-matched by path relative to the operands.
+every subdirectory is entered, through symbolic links too unless
+.B \-\-no\-dereference
+is given, and files are matched by path relative to the operands.
 A subdirectory that is missing from the other operand, or is not a
 directory there, is not entered and is not reported, but sets exit
 status 1.
@@ -263,6 +265,17 @@ Binary files are always reported this way.
 .BR \-r ", " \-\-recursive
 Compare directories recursively.
 Has no effect unless both operands are directories.
+.TP
+.B \-\-no\-dereference
+When directories are compared, do not follow symbolic links and
+junctions to directories.
+With
+.BR \-r ,
+they are not entered, and each is listed as an entry of its directory,
+as a subdirectory is without
+.BR \-r .
+An operand that is such a link is listed the same way, so its contents
+are not compared.
 .TP
 \fB\-S\fR \fIfile\fR, \fB\-\-starting\-file=\fIfile\fR
 When comparing directories, start with
