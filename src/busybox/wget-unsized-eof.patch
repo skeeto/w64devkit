@@ -1,0 +1,27 @@
+End a body that has neither Content-Length nor chunked encoding at the
+end of the connection, as before FRP-6354. The retry support added there
+treats every end of connection as a body cut short, so such a download,
+such as the output of an httpd CGI program, was requested again and
+again until the tries ran out, never reported as saved, and still exited
+with status 0. A body that is shorter than its Content-Length or that
+ends before its last chunk is still retried. Clear content_len on the
+way out, since a redirect's Content-Length may be left in it.
+
+---
+ networking/wget.c |    5 +++++
+ 1 file changed, 5 insertions(+)
+
+--- a/networking/wget.c
++++ b/networking/wget.c
+@@ -1072,6 +1072,11 @@
+ 			 * fread does not distinguish between EOF and error.
+ 			 */
+ 			if (errno != EAGAIN) {
++				/* With no length and no chunks, EOF ends the body */
++				if (!G.got_clen && !ferror(dfp)) {
++					G.content_len = 0; /* may be left from a redirect */
++					break;
++				}
+ 				progress_meter(PROGRESS_END);
+ 				if (ferror(dfp)) {
+ 					bb_simple_perror_msg(bb_msg_read_error);

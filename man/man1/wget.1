@@ -186,9 +186,6 @@ where
 counts the octets received over that connection, and the download is
 retried as described under
 .BR \-t .
-So is a body read to the end of the connection: that end is reported and
-retried the same way, even though nothing is missing; see
-.BR NOTES .
 .PP
 Lines from the server, in HTTP and FTP alike, are cut at their first
 control character other than a tab, and tabs become spaces.
@@ -467,7 +464,8 @@ followed by an empty line; that includes the password, in the
 command.
 .TP
 \fB\-t\fR \fItries\fR, \fB\-\-tries\fR=\fItries\fR
-Retry a download whose connection closes while the body is read, up to
+Retry a download whose connection closes before the body is complete,
+up to
 .I tries
 times after the first request.
 The default is 20, and 0 means no limit.
@@ -757,37 +755,6 @@ running out of tries is not an error.
 .IP \(bu 2
 An existing file is an error: it is not kept by saving the new one as
 .IR name.1 .
-.PP
-A body with neither
-.B Content\-Length
-nor chunked encoding, such as the output of a CGI program from
-.BR httpd (1),
-ends with the connection, and
-.B wget
-treats that end as a connection closed early.
-So does every FTP transfer from a server that does not answer
-.BR SIZE .
-It reports
-.BR "connection closed at byte" ,
-requests the document again with
-.B Range
-or
-.BR REST ,
-and, when the server sends it whole, as most do, writes it again after
-.BR "restart failed" ,
-until the tries of
-.B \-t
-run out: 21 requests by default.
-The file holds the whole document, but the
-.B saved
-message never appears.
-The exit status is 0, unless the output is a pipe, which fails at the
-first retry, or the server answers the
-.B Range
-with an error status.
-Use
-.B "\-t 1"
-to stop after two requests.
 .PP
 There is no timeout: a stalled transfer waits forever, though Windows
 gives up on a connection attempt that gets no answer.

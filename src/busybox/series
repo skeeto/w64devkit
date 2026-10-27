@@ -14,3 +14,4 @@ drop-test2.patch
 stty-winsize.patch
 flock-range.patch
 login-no-chdir.patch
+wget-unsized-eof.patch
