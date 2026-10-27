@@ -1,0 +1,38 @@
+A login shell (sh -l) changed to $HOME before reading the profiles,
+unlike every other shell, so starting one anywhere else, such as from an
+editor or a terminal opened in a project, lost the current directory.
+Leave the working directory alone, as other shells do, and normalize it
+the same way a non-login interactive shell does.
+
+---
+ shell/ash.c |   12 +-----------
+ 1 file changed, 1 insertion(+), 11 deletions(-)
+
+--- a/shell/ash.c
++++ b/shell/ash.c
+@@ -16716,7 +16716,7 @@
+ #endif
+ 
+ #if ENABLE_PLATFORM_MINGW32
+-	if (!dirarg && !login_sh && iflag) {
++	if (!dirarg && iflag) {
+ 		char *cwd = getcwd(NULL, 0);
+ 		if (cwd) {
+ 			chdir(cwd);
+@@ -16732,16 +16732,6 @@
+ 	if (login_sh) {
+ 		const char *hp;
+ 
+-#if ENABLE_PLATFORM_MINGW32
+-		if (!dirarg) {
+-			hp = lookupvar("HOME");
+-			if (hp == NULL || *hp == '\0')
+-				hp = xgetpwuid(getuid())->pw_dir;
+-			chdir(hp);
+-			setpwd(NULL, 0);
+-		}
+-#endif
+-
+ 		state = 1;
+ #if ENABLE_PLATFORM_MINGW32
+ 		hp = concat_path_file(get_system_drive(), "/etc/profile");

@@ -3,6 +3,7 @@
 // * Sets $W64DEVKIT_HOME to the install location
 // * Maybe sets $HOME according to w64devkit.ini
 // * Maybe sets $PATH according to w64devkit.ini
+// * Changes to the home directory
 // * Starts a login shell with "sh -l"
 //
 // $ gcc -DVERSION="$VERSION" -nostartfiles -o w64devkit.exe
@@ -649,6 +650,16 @@ static i32 w64devkit()
     if (conf.title) {
         SetConsoleTitleW(conf.title);  // ignore errors
     }
+
+    // Start in the home directory. Like other shells, the login shell
+    // does not change directory on its own.
+    Buf16 home = newbuf16(&scratch, MAX_ENVVAR);
+    buf16getenv(&home, u"HOME", scratch);
+    if (!home.len) {
+        buf16getenv(&home, u"USERPROFILE", scratch);
+    }
+    buf16c16(&home, 0);  // null terminator
+    SetCurrentDirectoryW(home.buf);  // ignore errors
 
     path = moduledir;
     buf16cat(&path, U(u"\\bin\\busybox.exe"));
