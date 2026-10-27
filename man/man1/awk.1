@@ -1350,7 +1350,7 @@ a NUL byte in the input also ends a record.
 Numbers are formatted by the Microsoft C runtime, so exponents have
 three digits, as in
 .BR 1e+020 ;
-the floating-point conversions write infinity and NaN as
+infinity and NaN are written as
 .BR 1.#INF ,
 .BR \-1.#INF ,
 .BR 1.#QNAN ,
@@ -1377,20 +1377,16 @@ conversions of
 .BR printf .
 This gives at most 17 significant digits, followed by zeros, as in
 .BR 18446744073709552000 .
-Infinity counts as integral and converts to
-.B 1
-or
-.BR \-1 ,
-and so do infinity and NaN with
-.B d
-and
-.BR i .
-Negative zero becomes
-.BR \-0 ,
+Infinity and NaN are not integral, and the integer conversions write
+them as
+.B %g
+does.
+Negative zero converts to
+.BR 0 ,
 so
 .B printf \(dq%d\(dq, \-0.5
 writes
-.BR \-0 .
+.BR 0 .
 .PP
 .B mktime
 returns a 32-bit value, so it wraps around for times after 03:14:07 UTC

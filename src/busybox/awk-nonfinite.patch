@@ -1,0 +1,44 @@
+Keep infinity and NaN off awk's integer formatting, which writes numbers
+with "%.0f": msvcrt formats infinity as "1.#INF" and rounds that to "1"
+at zero precision, so "print log(0)" printed -1. An infinite value now
+goes through OFMT or CONVFMT, as before FRP-6354, and printf's integer
+conversions write infinity and NaN with %g. Also print a zero integer as
+0, not -0, as before.
+
+---
+ editors/awk.c |   14 ++++++++++++--
+ 1 file changed, 12 insertions(+), 2 deletions(-)
+
+--- a/editors/awk.c
++++ b/editors/awk.c
+@@ -977,8 +977,10 @@
+  */
+ static const char *fmt_num(const char *format, double n)
+ {
+-	if (n == trunc(n)) {
++	if (n == trunc(n) && !isinf(n)) {
+ 		/* No fractionals? Try: awk -v OFMT='R:%d!' 'BEGIN { print 2**128 }' */
++		if (n == 0)
++			n = 0; /* no "-0" */
+ 		snprintf(g_buf, MAXVARFMT, "%.0f", n);
+ 	} else {
+ 		const char *s = format;
+@@ -2703,9 +2705,17 @@
+ 				s = xasprintf(use_fmt, cs);
+ 			} else { /* numeric conversion */
+ 				double d = getvar_i(arg);
+-				if (diouxX)
++				if (diouxX) {
+ 					d = trunc(d);
++					if (d == 0)
++						d = 0; /* no "-0" */
++				}
+ //bb_error_msg("d:%f", d);
++				if (diouxX && !isfinite(d)) {
++					/* "%.0f" would round msvcrt's "1.#INF" to "1" */
++					sprintf(baked_cur, "g%s", fmt_cur + 1);
++					s = xasprintf(use_fmt, d);
++				} else
+ 				if ((c|0x20) == 'x' || c == 'o' || (c == 'u' && d < 0)) {
+ 					sprintf(baked_cur, "ll%s", fmt_cur);
+ 					// -1.9 => -1 => integer (0xfff..fff)
