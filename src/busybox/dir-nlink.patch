@@ -1,0 +1,27 @@
+Report two links for a directory unless the subdirectories are counted,
+as before FRP-6354. Windows reports one link for a directory on NTFS,
+and du skips an already counted directory only when it has more than one
+link, so "du d d" counted d twice and "du -L" followed a junction to its
+own parent until the path was too long.
+
+---
+ win32/mingw.c |    8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+--- a/win32/mingw.c
++++ b/win32/mingw.c
+@@ -851,9 +851,11 @@
+ 					buf->st_ino = hdata.nFileIndexLow |
+ 							(((ino_t)hdata.nFileIndexHigh)<<32);
+ 					buf->st_nlink = hdata.nNumberOfLinks;
+-					if ((buf->st_attr & FILE_ATTRIBUTE_DIRECTORY) &&
+-							(flag & BB_STAT_COUNT_SUBDIRS)) {
+-						buf->st_nlink = count_subdirs(file_name);
++					/* Windows reports one link for a directory, but
++					 * applets such as du expect at least two. */
++					if (buf->st_attr & FILE_ATTRIBUTE_DIRECTORY) {
++						buf->st_nlink = (flag & BB_STAT_COUNT_SUBDIRS) ?
++											count_subdirs(file_name) : 2;
+ 					}
+ 				}
+ 				buf->st_uid = buf->st_gid = file_owner(fh, buf);

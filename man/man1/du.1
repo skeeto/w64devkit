@@ -68,16 +68,21 @@ reaches.
 Its other names add nothing and get no line, even with
 .BR \-a .
 .IP \(bu 2
-A directory is counted again each time
+A directory that
 .B du
-reaches it: Windows reports one link for a directory, at least on NTFS,
-so the rule above does not apply to it.
+has already reached is skipped: it is not counted and gets no line.
 So
 .B "du a a/b"
-prints the lines of
-.B "du a"
-and then those of
-.BR "du a/b" .
+prints the same as
+.BR "du a" ,
+and
+.B "du a/b a"
+prints the lines for
+.B a/b
+and then those for
+.BR a ,
+whose size leaves out
+.BR a/b .
 .IP \(bu 2
 A symbolic link counts as itself, and
 .B du
@@ -88,7 +93,7 @@ or
 says to follow it.
 .PP
 .B \-l
-turns off the first rule.
+turns off the first two rules.
 .SH OPTIONS
 Options may be grouped, as in
 .BR \-sh ,
@@ -143,9 +148,11 @@ Follow all symbolic links.
 A link counts as what it points to, and a link to a directory is
 entered.
 A link whose target cannot be examined is an error.
-A directory reached again through a link is entered again, so a link
-that points to its own directory loops until the path is too long to
-examine, which is an error.
+A directory reached again through a link is skipped, so a link that
+points to its own directory does not loop.
+With
+.B \-l
+it does, until the path is too long to examine, which is an error.
 .TP
 .B \-H
 Follow symbolic links named as operands.
@@ -172,7 +179,8 @@ with the sum of the operands' sizes.
 Anything skipped as already counted is not in the sum.
 .TP
 .B \-l
-Count and print a file once for each of its hard links.
+Count and print a file once for each of its hard links, and do not skip
+a directory that has been reached before.
 .TP
 .B \-s
 Print only a line for each operand.

@@ -862,9 +862,8 @@ is the file index of the volume, and
 .B \-xdev
 compares volume serial numbers.
 .B \-links
-counts the hard links that Windows reports, which on NTFS is 1 for a
-directory and for a junction or other link to one.
-A directory that busybox cannot open counts as 2.
+counts the hard links to a file, and is always 2 for a directory, and for
+a junction or other link to a directory.
 .PP
 To decide whether a regular file is executable for
 .BR \-executable ,
