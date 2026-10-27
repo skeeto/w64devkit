@@ -1,0 +1,20 @@
+Set errno to ECHILD when waitpid_child() finds no running process, as
+waitpid() does. The reworked wait -n in FRP-6354 loops until that error,
+so "wait -n PID" for a PID that is not a job, or with every job done,
+spun forever at full CPU.
+
+---
+ shell/ash.c |    2 ++
+ 1 file changed, 2 insertions(+)
+
+--- a/shell/ash.c
++++ b/shell/ash.c
+@@ -4998,6 +4998,8 @@
+ 					(pending_int || waitcmd_int == 1))
+ 				return 0;
+ 		} while (blocking);
++	} else {
++		errno = ECHILD;  /* as waitpid() does, which wait -n relies on */
+ 	}
+ 	return -1;
+ }

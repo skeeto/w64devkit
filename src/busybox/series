@@ -19,3 +19,4 @@ dir-nlink.patch
 awk-nonfinite.patch
 ping-icmp-code.patch
 kill-s-prefix.patch
+wait-n-echild.patch
