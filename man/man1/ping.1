@@ -249,12 +249,6 @@ Fill the data with the byte
 a hexadecimal number from 0 to ff.
 The default is 0.
 The first 4 bytes of the data hold the send time instead.
-Any value but 0 also lands in the code field of the ICMP header, and
-Windows refuses to send such a request from a process that is not
-elevated:
-.B ping
-exits with
-.BR "ping: sendto: 10013: WSA error" .
 .TP
 .B \-v
 Accepted, and has no effect.

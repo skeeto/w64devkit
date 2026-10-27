@@ -1,0 +1,31 @@
+Clear the ICMP code byte after filling the packet with the -p pattern.
+The code was left as the pattern, so the echo request was malformed, and
+Windows refused to send it from a process that is not elevated, failing
+with WSAEACCES for any pattern but 0. Clear the ICMPv6 checksum too.
+
+---
+ networking/ping.c |    6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+--- a/networking/ping.c
++++ b/networking/ping.c
+@@ -607,7 +607,7 @@
+ 
+ 	memset(pkt, G.pattern, datalen + ICMP_MINLEN + 4);
+ 	pkt->icmp_type = ICMP_ECHO;
+-	/*pkt->icmp_code = 0;*/
++	pkt->icmp_code = 0; /* memset() filled it with the pattern */
+ 	pkt->icmp_cksum = 0; /* cksum is calculated with this field set to 0 */
+ 	pkt->icmp_seq = htons(G.ntransmitted); /* don't ++ here, it can be a macro */
+ 	pkt->icmp_id = myid;
+@@ -630,8 +630,8 @@
+ 
+ 	memset(pkt, G.pattern, datalen + sizeof(struct icmp6_hdr) + 4);
+ 	pkt->icmp6_type = ICMP6_ECHO_REQUEST;
+-	/*pkt->icmp6_code = 0;*/
+-	/*pkt->icmp6_cksum = 0;*/
++	pkt->icmp6_code = 0; /* memset() filled it with the pattern */
++	pkt->icmp6_cksum = 0;
+ 	pkt->icmp6_seq = htons(G.ntransmitted); /* don't ++ here, it can be a macro */
+ 	pkt->icmp6_id = myid;
+ 

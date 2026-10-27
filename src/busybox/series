@@ -17,3 +17,4 @@ login-no-chdir.patch
 wget-unsized-eof.patch
 dir-nlink.patch
 awk-nonfinite.patch
+ping-icmp-code.patch
