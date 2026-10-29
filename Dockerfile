@@ -116,16 +116,14 @@ ADD --checksum=sha256:$VIM_SHA256 \
 RUN mkdir vim \
  && tar xjf vim-$VIM_VERSION.tar.bz2 -C vim --strip-components=1
 
-FROM base AS dl-ctags
-ARG CTAGS_VERSION=6.2.1 \
-    CTAGS_SHA256=f56829e9a576025e98955597ee967099a871987b3476fbd8dbbc2b9dc921f824
+FROM base AS dl-quicktags
+ARG QUICKTAGS_VERSION=0.2.0 \
+    QUICKTAGS_SHA256=c55292068c43b638a4859b553017e425053ae67c9d709ad6b5ce69c581377f94
 WORKDIR /dl
-ADD --checksum=sha256:$CTAGS_SHA256 \
-    https://github.com/universal-ctags/ctags/archive/refs/tags/v$CTAGS_VERSION.tar.gz \
-    ctags-$CTAGS_VERSION.tar.gz
-RUN mkdir ctags \
- && tar xzf ctags-$CTAGS_VERSION.tar.gz -C ctags --strip-components=1 \
- && echo $CTAGS_VERSION >ctags/.version
+ADD --checksum=sha256:$QUICKTAGS_SHA256 \
+    https://github.com/skeeto/quicktags/releases/download/v$QUICKTAGS_VERSION/quicktags-$QUICKTAGS_VERSION.tar.gz ./
+RUN mkdir quicktags \
+ && tar xzf quicktags-$QUICKTAGS_VERSION.tar.gz -C quicktags --strip-components=1
 
 FROM base AS dl-zstd
 ARG ZSTD_VERSION=1.5.7 \
@@ -857,20 +855,15 @@ RUN QUILT_PATCHES=$PREFIX/src/vim quilt push -a \
  && $ARCH-gcc -nostartfiles -O2 -funroll-loops -s -o /out/bin/xxd.exe \
         $PREFIX/src/rexxd.c -lmemory
 
-FROM cross AS build-ctags
-COPY --from=dl-ctags /dl/ /dl/
+FROM cross AS build-quicktags
+COPY --from=dl-quicktags /dl/ /dl/
 
-WORKDIR /dl/ctags
-COPY src/ctags/ $PREFIX/src/ctags/
-RUN QUILT_PATCHES=$PREFIX/src/ctags quilt push -a \
- && rm -rf .pc \
- && sed -i /RT_MANIFEST/d win32/ctags.rc \
- && make -j$(nproc) -f mk_mingw.mak CC=gcc packcc.exe \
- && make -j$(nproc) -f mk_mingw.mak \
-        CC=$ARCH-gcc WINDRES=$ARCH-windres \
-        OPT= CFLAGS=-O2 LDFLAGS=-s \
- && mkdir -p /out/bin \
- && cp ctags.exe /out/bin/
+WORKDIR /dl/quicktags
+RUN mkdir -p /out/bin /out/share/man/man1 \
+ && $ARCH-g++ -O2 -nostartfiles -static-libgcc -s \
+        -Wl,--stack,0x800000 -Wl,--gc-sections $LARGE_ADDRESS_FLAG \
+        -o /out/bin/ctags.exe main_win32.cpp \
+ && cp man/ctags.1 /out/share/man/man1/
 
 FROM cross AS build-zstd
 COPY --from=dl-zstd /dl/ /dl/
@@ -1143,28 +1136,17 @@ RUN if [ "$GCC_MULTILIB" = enable ]; then \
             install-stubs install-plugins ; \
     fi
 
-# Manual pages that need documentation tools to generate: ctags (docutils),
-# CMake (Sphinx), and ccache (asciidoctor). The tools stay in this stage.
+# Manual pages that need documentation tools to generate: CMake (Sphinx)
+# and ccache (asciidoctor). The tools stay in this stage.
 FROM base AS docs
 RUN apt-get update \
  && apt-get install --yes --no-install-recommends \
-      asciidoctor python3-docutils python3-sphinx \
+      asciidoctor python3-sphinx \
  && rm -rf /var/lib/apt/lists/*
-COPY --from=dl-ctags /dl/ctags /dl/ctags
 COPY --from=dl-cmake /dl/cmake /dl/cmake
 COPY --from=dl-ccache /dl/ccache /dl/ccache
-RUN mkdir -p /out/share/man/man1 /out/share/man/man5 /out/share/man/man7 \
- && version=$(cat /dl/ctags/.version) \
- && for f in /dl/ctags/man/*.rst.in; do \
-        page=$(basename $f .rst.in) \
-     && case $page in readtags.1) continue;; esac \
-     && rst2man --syntax-highlight=none $f \
-        | sed -e s/@CTAGS_NAME_EXECUTABLE@/ctags/g \
-              -e s/@ETAGS_NAME_EXECUTABLE@/etags/g \
-              -e s/@VERSION@/$version/g \
-        >/out/share/man/man${page##*.}/$page ; \
-    done
-RUN VERBOSE=1 cmake -S /dl/cmake/Utilities/Sphinx -B /x-cmake-doc -DSPHINX_MAN=ON \
+RUN mkdir -p /out/share/man/man1 /out/share/man/man7 \
+ && VERBOSE=1 cmake -S /dl/cmake/Utilities/Sphinx -B /x-cmake-doc -DSPHINX_MAN=ON \
  && VERBOSE=1 cmake --build /x-cmake-doc \
  && rm /x-cmake-doc/man/cmake-gui.1 \
  && cp /x-cmake-doc/man/*.1 /out/share/man/man1/ \
@@ -1181,7 +1163,7 @@ COPY --from=dl-pdcurses /dl/*.* /source/
 COPY --from=dl-make /dl/*.* /source/
 COPY --from=dl-busybox /dl/*.* /source/
 COPY --from=dl-vim /dl/*.* /source/
-COPY --from=dl-ctags /dl/*.* /source/
+COPY --from=dl-quicktags /dl/*.* /source/
 COPY --from=dl-zstd /dl/*.* /source/
 COPY --from=dl-tugz /dl/*.* /source/
 COPY --from=dl-quilt /dl/*.* /source/
@@ -1206,7 +1188,7 @@ COPY --from=build-gdb /out/ $PREFIX/
 COPY --from=build-make /out/ $PREFIX/
 COPY --from=build-busybox /out/ $PREFIX/
 COPY --from=build-vim /out/ $PREFIX/
-COPY --from=build-ctags /out/ $PREFIX/
+COPY --from=build-quicktags /out/ $PREFIX/
 COPY --from=build-zstd /out/ $PREFIX/
 COPY --from=build-tugz /out/ $PREFIX/
 COPY --from=build-ccache /out/ $PREFIX/

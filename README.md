@@ -12,7 +12,7 @@ Included tools:
 * [CMake][cmake] with [Ninja][ninja] and [a debugger][dcmake] : build system
 * [busybox-w32][bb] : standard unix utilities, including sh
 * [Vim][vim] : powerful text editor
-* [Universal Ctags][ctags] : source navigation
+* [quicktags][ctags] : source navigation (ctags)
 * [Ccache][ccache] : compiler cache
 * [NSIS][nsis] : Windows installer compiler (`makensis`)
 * [aas-sign][aas-sign] : Authenticode signing via Azure Trusted Signing
@@ -273,7 +273,7 @@ binaries.
 [cmake]: https://cmake.org/
 [crt]: https://nullprogram.com/blog/2023/02/15/
 [dcmake]: https://github.com/skeeto/dcmake
-[ctags]: https://github.com/universal-ctags/ctags
+[ctags]: https://github.com/skeeto/quicktags
 [debugbreak]: https://nullprogram.com/blog/2022/07/31/
 [doc-cpp]: https://en.cppreference.com/w/Cppreference:Archives
 [doc-gcc]: https://gcc.gnu.org/onlinedocs/
