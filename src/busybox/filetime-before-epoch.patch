@@ -1,0 +1,30 @@
+Round a file time before 1970 down to a whole second, not up.
+filetime_to_timespec() split the 100-nanosecond count since the epoch
+with C division, which truncates toward zero. For a time before the
+epoch with a fraction of a second, tv_sec came out one second too high
+and tv_nsec negative. stat showed a time of 1969-12-31 23:59:58.25 UTC
+as -1 seconds since the epoch, with a fraction of .3544967296, and
+touch -r with such a file as the reference failed with "Invalid
+argument", since utimensat() rejects a negative tv_nsec.
+
+Borrow a second when tv_nsec is negative, so that tv_nsec always lies
+from 0 to 999999999 as POSIX requires.
+
+---
+ win32/mingw.c |    5 +++++
+ 1 file changed, 5 insertions(+)
+
+--- a/win32/mingw.c
++++ b/win32/mingw.c
+@@ -397,6 +397,11 @@
+ 
+ 	ts.tv_sec = (time_t)(winTime / 10000000);
+ 	ts.tv_nsec = (long)(winTime % 10000000) * 100;
++	if (ts.tv_nsec < 0) {
++		/* round down a time before the epoch */
++		ts.tv_sec--;
++		ts.tv_nsec += 1000000000;
++	}
+ 
+ 	return ts;
+ }

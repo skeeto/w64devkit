@@ -1,0 +1,89 @@
+Reject a seconds-since-the-epoch time that localtime() can't convert.
+The Microsoft runtime's localtime() returns NULL for a time before 1970
+or after the year 3000. parse_datestr() checks for that in the @seconds
+form, and strptime() does for %s, but both go through the localtime()
+wrapper (strptime() by way of localtime_r()), which substitutes the
+epoch for such a time so that it never returns NULL. So date -d @-86400,
+date -d @99999999999, touch -d @-1, and date -D %s with too large a
+number all silently used 1970-01-01 00:00:00 UTC, printing it, setting
+the clock to it, or giving it to the file.
+
+Add localtime_or_null(), the runtime's localtime() without the
+substitution, and use it in these two places, so that such a time is
+reported as an invalid date like any other time out of range.
+
+---
+ include/mingw.h  |    1 +
+ libbb/time.c     |    5 +++++
+ win32/mingw.c    |   10 ++++++++++
+ win32/strptime.c |    6 +++++-
+ 4 files changed, 21 insertions(+), 1 deletion(-)
+
+--- a/include/mingw.h
++++ b/include/mingw.h
+@@ -349,6 +349,7 @@
+ int clock_gettime(clockid_t clockid, struct timespec *tp) FAST_FUNC;
+ int clock_settime(clockid_t clockid, const struct timespec *tp) FAST_FUNC;
+ struct tm *mingw_localtime(const time_t *timep) FAST_FUNC;
++struct tm *localtime_or_null(const time_t *timep) FAST_FUNC;
+ 
+ #define localtime mingw_localtime
+ 
+--- a/libbb/time.c
++++ b/libbb/time.c
+@@ -151,7 +151,12 @@
+ 		if (!errno) {
+ 			struct tm *lt;
+  IF_FEATURE_TIMEZONE(localise:)
++#if ENABLE_PLATFORM_MINGW32
++			/* localtime() would give the epoch for an invalid time */
++			lt = localtime_or_null(&t);
++#else
+ 			lt = localtime(&t);
++#endif
+ 			if (lt) {
+ 				*ptm = *lt;
+ 				return 0;
+--- a/win32/mingw.c
++++ b/win32/mingw.c
+@@ -1202,6 +1202,16 @@
+ #if !defined(_WIN64) && __MINGW64_VERSION_MAJOR >= 10
+ # define localtime(t) _localtime64(t)
+ #endif
++/*
++ * The runtime's localtime(), which returns NULL for a time it can't
++ * convert.  mingw_localtime() below substitutes the epoch instead, so
++ * callers that report out-of-range times as errors must use this.
++ */
++struct tm * FAST_FUNC localtime_or_null(const time_t *timep)
++{
++	return localtime(timep);
++}
++
+ struct tm * FAST_FUNC mingw_localtime(const time_t *timep)
+ {
+ 	struct tm *tm = localtime(timep);
+--- a/win32/strptime.c
++++ b/win32/strptime.c
+@@ -341,6 +341,7 @@
+                character for character and construct the result while
+                doing this.  */
+             time_t secs = 0;
++            struct tm *lt;
+             if (*rp < '0' || *rp > '9')
+               /* We need at least one digit.  */
+               return NULL;
+@@ -352,9 +353,12 @@
+               }
+             while (*rp >= '0' && *rp <= '9');
+ 
+-            if (localtime_r (&secs, tm) == NULL)
++            /* localtime_r() would give the epoch for an invalid time */
++            lt = localtime_or_null (&secs);
++            if (lt == NULL)
+               /* Error in function.  */
+               return NULL;
++            *tm = *lt;
+           }
+           break;
+         case 'S':

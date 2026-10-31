@@ -82,3 +82,5 @@ ash-not-found-hook-args.patch
 ash-hidden-glob-path.patch
 ash-unix-path-search.patch
 ash-builtin-ferror-status.patch
+date-seconds-range.patch
+filetime-before-epoch.patch

@@ -839,22 +839,20 @@ which are 0 through 32535244799 seconds since the epoch, can be
 converted.
 A
 .I time
-outside that range, written in a form other than
-.BR @ ,
+outside that range, in any form, including any negative
+.BI @ seconds
+and a
+.B %s
+value with
+.BR \-D ,
 is an invalid date.
 In the form with a
 .IR zone ,
 the latest time is 3000\-12\-31 23:59:59 UTC.
-An
-.BI @ seconds
-outside the range, including every negative value, or a
-.B %s
-value outside it with
-.BR \-D ,
-is not an error but is taken to be the epoch, 1970\-01\-01 00:00:00 UTC,
-which is then printed, or with
-.B \-s
-set.
+A file time outside the range, read with
+.BR \-r ,
+is taken to be the epoch, 1970\-01\-01 00:00:00 UTC, though with its own
+nanoseconds.
 .PP
 The names of the days and months are English whatever the system
 language, and
