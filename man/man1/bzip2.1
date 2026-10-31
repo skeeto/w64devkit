@@ -362,21 +362,6 @@ environment variables are ignored.
 .IP \(bu 2
 Blocks in the obsolete randomized format are rejected.
 .PP
-A
-.B \-
-operand after a
-.I file
-operand does not read standard input.
-With
-.B \-c
-or
-.BR \-t ,
-it is read as empty input, which compresses to an empty stream and
-fails to decompress with
-.BR "invalid magic" .
-Otherwise it fails and ends the command, and later operands are not
-processed.
-.PP
 Standard input and output are in binary mode.
 Output names are formed from the input path as written, so drive
 letters and backslashes work, and the suffix test looks only at the text

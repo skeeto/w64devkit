@@ -41,13 +41,6 @@ operands, or for a
 named
 .BR \- ,
 the command reads standard input and writes standard output.
-Each named file replaces standard input in turn, so a
-.B \-
-after a named file fails with
-.BR "invalid magic" ,
-and without
-.B \-c
-then ends the command, so later operands are not processed.
 With
 .BR \-c ,
 all output goes to standard output, the input files are kept, and

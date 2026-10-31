@@ -1,4 +1,4 @@
-.TH XZ 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.TH XZ 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 xz, unxz, xzcat \- decompress .xz files
 .SH SYNOPSIS
@@ -242,8 +242,13 @@ Every decoding failure is reported as
 .BR "corrupted data" ,
 without the file name.
 .PP
-Where a stream may begin, zero bytes are skipped, and any byte other
-than
+Input must begin with an
+.B .xz
+stream, so empty input, or a file in another format such as gzip, fails
+as corrupted data.
+After a stream, zero bytes are skipped as stream padding, even when
+their count is not the multiple of four that the format requires, and
+any byte other than
 .BR 0xFD ,
 the first byte of the
 .B .xz
@@ -251,17 +256,6 @@ signature, ends decoding without error.
 So data after the last stream is ignored unless its first nonzero byte
 is
 .BR 0xFD .
-Input whose first nonzero byte is not
-.BR 0xFD ,
-including empty input, decodes to nothing and succeeds.
-As a result,
-.B unxz
-replaces a file with the
-.B .xz
-suffix that is empty or holds another format, such as gzip, with an
-empty file.
-Zero bytes at the end of the input, which the format allows as stream
-padding, are reported as corrupted data.
 .PP
 Only the suffix
 .B .xz
@@ -273,24 +267,6 @@ Use
 .B \-c
 to decompress files with other names.
 A read-only input file is deleted after decompression like any other.
-.PP
-A
-.B \-
-operand after a
-.I file
-operand does not read standard input.
-With
-.B \-c
-or
-.BR \-t ,
-it decodes nothing and succeeds.
-Otherwise it fails with
-.BR "read error" ,
-and
-.B xz
-exits without processing the
-.I file
-operands after it.
 .SH SEE ALSO
 .BR busybox (1),
 .BR bzip2 (1),

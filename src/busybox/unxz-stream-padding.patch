@@ -1,0 +1,26 @@
+Accept xz stream padding that runs to the end of the input buffer.
+After a stream ends, the decoder skips the zero bytes of stream padding
+and resets itself when the next stream begins. When the padding ran to
+the end of the bytes read so far, the loop fell through and called the
+decoder anyway, still positioned past the old stream's footer. It made
+no progress, so at end of input the decoder reported a buffer error and
+a valid file ending in padding failed with "corrupted data", as did
+concatenated streams whose padding crossed a read boundary. The patch
+reads more input instead, so end of input after padding is a clean end
+and a following stream is found where it starts.
+
+---
+ archival/libarchive/decompress_unxz.c |    2 ++
+ 1 file changed, 2 insertions(+)
+
+--- a/archival/libarchive/decompress_unxz.c
++++ b/archival/libarchive/decompress_unxz.c
+@@ -119,6 +119,8 @@
+ 				}
+ 				iobuf.in_pos++;
+ 			} while (iobuf.in_pos < iobuf.in_size);
++			/* All of it was padding: EOF or more data may follow */
++			continue;
+ 		}
+  do_run:
+ //		bb_error_msg(">in pos:%d size:%d out pos:%d size:%d",

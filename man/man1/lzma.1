@@ -1,4 +1,4 @@
-.TH LZMA 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH LZMA 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 lzma, unlzma, lzcat \- decompress .lzma files
 .SH SYNOPSIS
@@ -301,12 +301,6 @@ A read-only input file is deleted after decompression like any other,
 and
 .B \-f
 replaces a read-only output file.
-.PP
-A
-.B \-
-operand after a
-.I file
-operand does not read standard input, and fails.
 .PP
 Decompression holds the dictionary in memory, up to the decompressed
 size, and a dictionary may be as large as 4 GiB.

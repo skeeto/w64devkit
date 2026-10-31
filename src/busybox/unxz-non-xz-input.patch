@@ -1,0 +1,28 @@
+Initialize the xz decoder status to XZ_OK, not X_OK.
+The status variable started out as X_OK, the access(2) mode from
+unistd.h, rather than XZ_OK. X_OK is 1, which is XZ_STREAM_END, so the
+loop believed a stream had just ended before reading anything. Empty
+input then ended the loop as a clean end of data, and input whose first
+nonzero byte was not the start of an xz header was taken for trailing
+garbage after a stream. Either way nothing was decoded and the status
+was success: xzcat printed nothing and exited 0, and unxz replaced a
+file that was not xz data with an empty file and deleted the original.
+Zero bytes before the first stream were also skipped as stream padding,
+which the format allows only after a stream; they are now rejected as
+corrupted data, as is empty input.
+
+---
+ archival/libarchive/decompress_unxz.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/archival/libarchive/decompress_unxz.c
++++ b/archival/libarchive/decompress_unxz.c
+@@ -69,7 +69,7 @@
+ 	/* Limit memory usage to about 64 MiB. */
+ 	state = xz_dec_init(XZ_DYNALLOC, 64*1024*1024);
+ 
+-	xz_result = X_OK;
++	xz_result = XZ_OK;
+ 	while (1) {
+ 		if (iobuf.in_pos == iobuf.in_size) {
+ 			int rd = safe_read(xstate->src_fd, membuf, BUFSIZ);

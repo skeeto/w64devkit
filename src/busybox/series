@@ -22,3 +22,6 @@ kill-s-prefix.patch
 wait-n-echild.patch
 join-last-field.patch
 ls-time-range.patch
+unxz-non-xz-input.patch
+unxz-stream-padding.patch
+bbunpack-stdin-operand.patch

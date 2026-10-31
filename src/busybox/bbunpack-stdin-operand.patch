@@ -1,0 +1,50 @@
+Keep stdin and stdout for a "-" operand that follows a FILE operand.
+For each FILE operand, the shared driver of the compression applets
+opens the file onto stdin and, unless writing to stdout, the output
+file onto stdout, closing it when done. A later "-" operand then used
+whatever those descriptors had become instead of the real stdin and
+stdout: the exhausted or closed input file, and a closed output. For
+example, "bunzip2 -c a.bz2 - <b.bz2" printed a.bz2's data and then
+failed with "invalid magic", and "unxz a.xz - <b.xz >out" failed with a
+read or write error. The patch duplicates stdin and stdout before the
+first operand when there is more than one, and restores them for each
+"-" operand. The copies are placed above fd 2, so that when stdin or
+stdout is closed at startup, the copy of the other cannot land on its
+number and be replaced by a FILE operand.
+
+---
+ archival/bbunzip.c |   15 ++++++++++++++-
+ 1 file changed, 14 insertions(+), 1 deletion(-)
+
+--- a/archival/bbunzip.c
++++ b/archival/bbunzip.c
+@@ -47,15 +47,28 @@
+ 	IF_DESKTOP(long long) int status = 0;
+ 	char *filename, *new_name;
+ 	smallint exitcode = 0;
++	int stdin_fd = -1, stdout_fd = -1;
+ 	transformer_state_t xstate;
+ 
++	/* FILE operands replace stdin and stdout: keep them for "-",
++	 * above fd 2 so that a closed fd 0 or 1 can't take a copy */
++	if (*argv && argv[1]) {
++		stdin_fd = fcntl(STDIN_FILENO, F_DUPFD, 3);
++		stdout_fd = fcntl(STDOUT_FILENO, F_DUPFD, 3);
++	}
++
+ 	do {
+ 		/* NB: new_name is *maybe* malloc'ed! */
+ 		new_name = NULL;
+ 		filename = *argv; /* can be NULL - 'streaming' bunzip2 */
+ 
+-		if (filename && LONE_DASH(filename))
++		if (filename && LONE_DASH(filename)) {
+ 			filename = NULL;
++			if (stdin_fd >= 0)
++				xdup2(stdin_fd, STDIN_FILENO);
++			if (stdout_fd >= 0)
++				xdup2(stdout_fd, STDOUT_FILENO);
++		}
+ 
+ 		/* Open src */
+ 		if (filename) {
