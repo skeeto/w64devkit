@@ -1,0 +1,32 @@
+Check the matched path, not the bare name, for nohiddenglob.
+With nohiddenglob or nohidsysglob set, the shell asks ash_accept_glob()
+whether each match may be kept, but it passed the directory entry's bare
+name, so lstat() looked in the current directory rather than in the
+directory being searched. For a pattern such as dir/* a match was
+dropped when a hidden file of the same name happened to exist in the
+current directory, and kept when it was itself hidden but the current
+directory had no such file.
+
+Copy the entry's name into place first and pass the whole path, as tab
+completion already does.
+
+---
+ shell/ash.c |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+--- a/shell/ash.c
++++ b/shell/ash.c
+@@ -9405,11 +9405,11 @@
+ #endif
+ 		if (pmatch(start, dp->d_name)) {
+ 			if (atend) {
++				strcpy(enddir, dp->d_name);
+ #if ENABLE_ASH_GLOB_OPTIONS
+-				if (!ash_accept_glob(dp->d_name))
++				if (!ash_accept_glob(expdir))
+ 					continue;
+ #endif
+-				strcpy(enddir, dp->d_name);
+ 				addfname(expdir);
+ 			} else {
+ 				unsigned offset;

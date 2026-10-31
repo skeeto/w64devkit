@@ -78,3 +78,7 @@ awk-length-array-arg.patch
 awk-getline-next-file.patch
 awk-fmod.patch
 awk-int-trunc.patch
+ash-not-found-hook-args.patch
+ash-hidden-glob-path.patch
+ash-unix-path-search.patch
+ash-builtin-ferror-status.patch

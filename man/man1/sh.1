@@ -205,9 +205,13 @@ and
 .IP \(bu 2
 When a command is not found and a function named
 .B command_not_found_handle
-exists, the shell calls that function, with the command name as its
-only argument, instead of printing an error.
-The status is 127, whatever the function returns.
+exists, the shell calls that function, with the command name and its
+arguments as the function's arguments, instead of printing an error.
+The function's status becomes the status of the command.
+Unlike bash, the shell runs the function in the current shell rather
+than in a subshell, so its variable assignments remain and
+.B exit
+in it ends the shell.
 .IP \(bu 2
 A pipeline may begin with more than one
 .BR ! ,
@@ -335,14 +339,6 @@ systems are not.
 .TP
 .B nohiddenglob
 Do not let patterns match files that have the Windows hidden attribute.
-For a pattern in another directory, as in
-.IR dir/* ,
-the shell checks the file of the same name in the current directory,
-not the match itself: it drops
-.I dir/name
-only when
-.I ./name
-exists and is hidden.
 .TP
 .B nohidsysglob
 Like
@@ -381,10 +377,14 @@ The names
 .IR /sbin/name ,
 and
 .I /usr/sbin/name
-are special: the shell runs a file of that name on the current drive if
-it exists, and otherwise the builtin or applet
-.IR name .
-The shell looks nowhere else, so
+are special: the shell runs a program of that name on the current drive
+if there is one, and otherwise the builtin or applet
+.IR name ,
+or else the program
+.I name
+found by searching
+.BR PATH .
+So
 .B #!/bin/sh
 and
 .B /bin/ls

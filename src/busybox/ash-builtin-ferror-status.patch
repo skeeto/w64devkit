@@ -1,0 +1,25 @@
+Give status 1, not ferror()'s value, after a builtin's write error.
+After running a builtin, evalbltin() ORs ferror(stdout) into its status
+to report an output error. ferror() only promises a nonzero value, and
+the Microsoft C runtime returns its _IOERR flag, 32. So a builtin such
+as "kill -l" or "pwd" whose output went to a closed descriptor or a pipe
+with no reader exited with status 32 rather than 1.
+
+Use the truth value of ferror().
+
+---
+ shell/ash.c |    3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+--- a/shell/ash.c
++++ b/shell/ash.c
+@@ -12752,7 +12752,8 @@
+ 	else
+ 		status = (*cmd->builtin)(argc, argv);
+ 	flush_stdout_stderr();
+-	status |= ferror(stdout);
++	/* ferror() is any nonzero value on error, not necessarily 1 */
++	status |= (ferror(stdout) != 0);
+ 	exitstatus = status;
+  cmddone:
+ 	clearerr(stdout);

@@ -493,11 +493,12 @@ or
 .I /usr/sbin/name
 runs the applet
 .IR name .
-The shell does so only when no such file exists, and otherwise runs the
-file.
+The shell does so only when no such program exists, and otherwise runs
+the program.
 For a
 .I name
-that is not an applet, the other applets run the file, or else look up
+that is not an applet, the shell and the other applets alike run the
+program if there is one, or else look up
 .I name
 in
 .BR PATH .
@@ -1202,9 +1203,7 @@ Bugs are fixed in
 .BR wget ,
 .BR xargs ,
 .BR xz ,
-and the shell's
-.B wait
-command.
+and the shell.
 .IP \(bu 2
 A pipe whose reader has exited ends an applet with status 141, as on
 Linux, even when it is found by flushing buffered output, which in

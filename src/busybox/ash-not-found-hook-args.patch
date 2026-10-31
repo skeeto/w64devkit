@@ -1,0 +1,103 @@
+Pass the whole command to command_not_found_handle and keep its status.
+bash runs command_not_found_handle with the command name and all of its
+arguments, and the handler's exit status becomes the command's. ash
+called the handler from find_command(), which only knows the name, so
+the handler got just the name, its status was discarded and the command
+always failed with status 127. Since find_command() also serves "hash",
+"hash name" ran the handler too, and an exit or error in the handler was
+caught by evalfun() and ignored.
+
+Run the handler from evalcommand() instead, which has the arguments.
+find_command() again only reports the failure, and evalcommand() asks it
+not to when the handler exists. The handler runs like any other function
+call: its status is the command's, and an exit or error in it propagates
+as it would from a function. (bash runs the handler in a subshell; ash
+runs it in the current shell, as before.)
+
+---
+ shell/ash.c |   44 ++++++++++++++++++++++++++------------------
+ 1 file changed, 26 insertions(+), 18 deletions(-)
+
+--- a/shell/ash.c
++++ b/shell/ash.c
+@@ -9904,9 +9904,6 @@
+ 
+ /* Circular dep: find_command->find_builtin->builtintab[]->hashcmd->find_command */
+ static const struct builtincmd *find_builtin(const char *name);
+-#if ENABLE_ASH_BASH_NOT_FOUND_HOOK
+-static int evalfun(struct funcnode *func, int argc, char **argv, int flags);
+-#endif
+ static void readcmdfile(char *name);
+ 
+ /*
+@@ -10121,21 +10118,8 @@
+ 	/* We failed.  If there was an entry for this command, delete it */
+ 	if (cmdp && updatetbl)
+ 		delete_cmd_entry(cmdpp);
+-	if (act & DO_ERR) {
+-#if ENABLE_ASH_BASH_NOT_FOUND_HOOK
+-		struct tblentry *hookp = cmdlookup("command_not_found_handle", 0);
+-		if (hookp && hookp->cmdtype == CMDFUNCTION) {
+-			char *argv[3];
+-			argv[0] = (char*) "command_not_found_handle";
+-			argv[1] = name;
+-			argv[2] = NULL;
+-			evalfun(hookp->param.func, 2, argv, 0);
+-			entry->cmdtype = CMDUNKNOWN;
+-			return;
+-		}
+-#endif
++	if (act & DO_ERR)
+ 		ash_msg("%s: %s", name, errmsg(e, E_EXEC));
+-	}
+  fail:
+ 	entry->cmdtype = CMDUNKNOWN;
+ 	return;
+@@ -12396,6 +12380,9 @@
+ 	int cmd_flag;
+ 	int status;
+ 	char **nargv;
++#if ENABLE_ASH_BASH_NOT_FOUND_HOOK
++	struct funcnode *hook = NULL;
++#endif
+ 	smallint cmd_is_exec;
+ 	int vflags;
+ 	int vlocal;
+@@ -12577,8 +12564,17 @@
+ 	if (cmdentry.cmdtype != CMDBUILTIN
+ 	 || !(IS_BUILTIN_REGULAR(cmdentry.u.cmd))
+ 	) {
++		int act = cmd_flag | DO_ERR;
++#if ENABLE_ASH_BASH_NOT_FOUND_HOOK
++		struct tblentry *hookp = cmdlookup("command_not_found_handle", 0);
++		if (hookp && hookp->cmdtype == CMDFUNCTION) {
++			/* The hook replaces the "not found" message */
++			hook = hookp->param.func;
++			act = cmd_flag;
++		}
++#endif
+ 		path = path ? path : pathval();
+-		find_command(argv[0], &cmdentry, cmd_flag | DO_ERR, path);
++		find_command(argv[0], &cmdentry, act, path);
+ 	}
+ 
+ 	jp = NULL;
+@@ -12586,6 +12582,18 @@
+ 	/* Execute the command. */
+ 	switch (cmdentry.cmdtype) {
+ 	case CMDUNKNOWN:
++#if ENABLE_ASH_BASH_NOT_FOUND_HOOK
++		if (hook) {
++			/* Like bash, pass the command and its arguments,
++			 * and let the hook's status be the command's */
++			nargv = stalloc(sizeof(char *) * (argc + 2));
++			nargv[0] = (char *)"command_not_found_handle";
++			memcpy(nargv + 1, argv, sizeof(char *) * (argc + 1));
++			if (evalfun(hook, argc + 1, nargv, flags))
++				goto raise;
++			break;
++		}
++#endif
+ 		status = 127;
+ 		flush_stdout_stderr();
+ 		goto bail;

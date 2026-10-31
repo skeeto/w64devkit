@@ -193,8 +193,8 @@ The status is this count modulo 256, so 256 failures give 0.
 .PP
 In the kit's shell, the built-in
 .B kill \-l
-exits with status 32 instead of 0 when standard output is a pipe that
-was closed before the list was written.
+exits with status 1 when standard output cannot be written, as when it
+is closed.
 .SH EXAMPLES
 Ask a process to end:
 .PP

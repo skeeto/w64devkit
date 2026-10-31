@@ -1,0 +1,31 @@
+Search PATH for /bin/name when no such file exists.
+A command of the form /bin/name, /usr/bin/name, /sbin/name or
+/usr/sbin/name runs the file if there is one, and otherwise the applet
+or builtin of that name. For any other name find_command() searches
+PATH, so "command -v /sbin/name" reports the program found there, and
+the applets (env, xargs, find -exec, ...) run it, but shellexec()
+rewrote argv[0] to the bare name and then skipped the PATH search
+because the original name had a path. The shell failed with "not found"
+when running a command it had just located.
+
+Search PATH in shellexec() too, unless find_command() picked the file
+itself (index -1). "exec /bin/name", which does not go through
+find_command(), searches the whole PATH as the applets do.
+
+---
+ shell/ash.c |    4 ++++
+ 1 file changed, 4 insertions(+)
+
+--- a/shell/ash.c
++++ b/shell/ash.c
+@@ -7313,6 +7313,10 @@
+ 			}
+ 			if (!find_builtin(name)) {
+ 				argv[0] = (char *)name;
++				/* Search PATH for the name, unless
++				 * find_command() chose the file itself */
++				if (idx >= 0)
++					path_fail = FALSE;
+ 			}
+ 		}
+ 		if (!path_fail) {
