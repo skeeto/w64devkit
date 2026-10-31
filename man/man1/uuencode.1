@@ -1,4 +1,4 @@
-.TH UUENCODE 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH UUENCODE 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 uuencode \- encode a file as text in uuencode or base64 form
 .SH SYNOPSIS
@@ -86,11 +86,15 @@ made up:
 .IP \(bu 2
 For a named
 .IR file ,
-it is 644, or 444 if the file is read-only.
+it is the permissions that
+.BR stat (1)
+reports for the file, less any execute bits: 444 if the file is
+read-only, and otherwise 666 without the group and other write bits of
+the file mode creation mask, so 664 by default and 644 with a mask of
+022.
 No execute bits are ever set, even for an
 .I .exe
 file.
-The file mode creation mask has no effect.
 .IP \(bu 2
 For standard input, it is 666 without the bits of the file mode
 creation mask.
@@ -115,8 +119,8 @@ exit.
 .SH ENVIRONMENT
 .TP
 .B BB_UMASK
-The file mode creation mask, in octal, used for the mode of standard
-input.
+The file mode creation mask, in octal, used for the mode in the
+header.
 The default is
 .BR 002 .
 The
@@ -169,7 +173,7 @@ Encode a file under its own name:
 .RS 4
 .EX
 $ uuencode hello.txt hello.txt
-begin 644 hello.txt
+begin 664 hello.txt
 \&.2&5L;&\eL(\(aq=O<FQD(0H\(ga
 \(ga
 end
@@ -181,7 +185,7 @@ Encode as base64 instead:
 .RS 4
 .EX
 $ uuencode \-m hello.txt hello.txt
-begin\-base64 644 hello.txt
+begin\-base64 664 hello.txt
 SGVsbG8sIHdvcmxkIQo=
 ====
 .EE
@@ -250,4 +254,5 @@ There is no limit on the size of the input.
 .BR base64 (1),
 .BR busybox (1),
 .BR sh (1),
+.BR stat (1),
 .BR uudecode (1)

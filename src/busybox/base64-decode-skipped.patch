@@ -1,0 +1,95 @@
+Keep the whole partial block when decoding base64 or base32 piecewise.
+read_base64() decodes its input in pieces of up to 80 characters that
+end at white space, and carries a partial block over to the next piece.
+decode_base64() and decode_base32() located that block as the last i
+characters read, but characters they skip inside a block, such as an
+invalid character or an '=' that is not yet known to be padding, are
+read without being counted in i. The carried-over block then lost its
+first characters and decoding went astray. The most common case is an
+'=' that ends a line before the '=' that starts the next, which an
+encoder writes when it wraps at an odd width: "printf a | base64 -w 3 |
+base64 -d" printed nothing and succeeded. Other cases printed wrong
+bytes or failed with "truncated input".
+
+The patch has both decoders remember where the partial block starts
+and return that, so the block, with the characters skipped inside it,
+is decoded again with more input and the result is the same as for
+the whole input at once. A block whose characters are spread over more
+than the 80-character buffer could then never be completed, so
+read_base64() fails with "invalid input" rather than loop forever.
+
+---
+ libbb/uuencode.c |   23 ++++++++++++++++++++---
+ 1 file changed, 20 insertions(+), 3 deletions(-)
+
+--- a/libbb/uuencode.c
++++ b/libbb/uuencode.c
+@@ -90,11 +90,14 @@
+ char* FAST_FUNC decode_base64(char *dst, const char **pp_src)
+ {
+ 	const char *src = pp_src ? *pp_src : dst; /* for httpd.c, support NULL 2nd param */
++	const char *block = src;
+ 	unsigned ch = 0;
+ 	unsigned t;
+ 	int i = 0;
+ 
+ 	while ((t = (unsigned char)*src) != '\0') {
++		if (i == 0)
++			block = src;
+ 		src++;
+ 
+ 		/* "if" forest is faster than strchr(bb_uuenc_tbl_base64, t) */
+@@ -130,9 +133,14 @@
+ 			ch = 0;
+ 		}
+ 	}
+-	/* i is zero here if full 4-char block was decoded */
++	/* i is zero here if full 4-char block was decoded.
++	 * Otherwise point back to the start of the partial block,
++	 * including any invalid chars skipped inside it: this signals
++	 * truncation, e.g. "MQ" and "MQ=" (correct encoding is "MQ==" -> "1"),
++	 * and lets read_base64() decode the block again with more input.
++	 */
+ 	if (pp_src)
+-		*pp_src = src - i; /* -i signals truncation: e.g. "MQ" and "MQ=" (correct encoding is "MQ==" -> "1") */
++		*pp_src = i ? block : src;
+ 	return dst;
+ }
+ 
+@@ -140,11 +148,14 @@
+ char* FAST_FUNC decode_base32(char *dst, const char **pp_src)
+ {
+ 	const char *src = *pp_src;
++	const char *block = src;
+ 	uint64_t ch = 0;
+ 	unsigned t;
+ 	int i = 0;
+ 
+ 	while ((t = (unsigned char)*src) != '\0') {
++		if (i == 0)
++			block = src;
+ 		src++;
+ 
+ 		/* "if" forest is faster than strchr(bb_uuenc_tbl_base32, t) */
+@@ -172,7 +183,7 @@
+ 		}
+ 	}
+ 	/* i is zero here if full 8-char block was decoded */
+-	*pp_src = src - i;
++	*pp_src = i ? block : src;
+ 	return dst;
+  tail:
+ 	{
+@@ -271,6 +282,12 @@
+ 
+ 		/* It was partial decode */
+ 		in_count = strlen(in_tail);
++		/* The partial block is a few chars plus the invalid chars
++		 * skipped inside it. If that fills the buffer, no further
++		 * input could ever be decoded: give up instead of looping.
++		 */
++		if (in_count == BUFFER_SIZE)
++			bb_simple_error_msg_and_die("invalid input");
+ 		memmove(buf, in_tail, in_count);
+ 	}
+ }

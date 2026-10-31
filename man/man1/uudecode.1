@@ -1,4 +1,4 @@
-.TH UUDECODE 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH UUDECODE 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 uudecode \- decode a uuencoded or base64 file
 .SH SYNOPSIS
@@ -109,6 +109,10 @@ If the input ends in the middle of a group of 4 characters,
 .B uudecode
 writes what it has decoded and fails with
 .BR "truncated input" .
+A group with so many skipped characters inside it that it spans more
+than 80 characters, not counting characters with code 32 (space) or
+less, fails the same way with
+.BR "invalid input" .
 .SH OPTIONS
 Options may follow
 .IR infile ,

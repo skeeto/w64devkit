@@ -43,8 +43,11 @@ When the input ends inside a group of 8 characters,
 writes the octets of the complete groups, reports
 .BR "truncated input" ,
 and exits with status 1.
-Decoding continues after padding, so encodings joined with line breaks
-between them decode as one.
+A group with so many ignored characters inside it that it spans more
+than 80 characters, not counting characters with code 32 (space) or
+less, fails the same way with
+.BR "invalid input" .
+Decoding continues after padding, so joined encodings decode as one.
 .SH OPTIONS
 Options may be grouped and may follow
 .IR file .
@@ -96,8 +99,8 @@ Invalid option or
 more than one
 .IR file ,
 .I file
-could not be opened or read, truncated input when decoding, or a write
-error.
+could not be opened or read, truncated or invalid input when decoding,
+or a write error.
 .TP
 .B 141
 Standard output is a pipe whose reader exited before
@@ -150,18 +153,6 @@ Decoding accepts lowercase letters.
 .IP \(bu 2
 Decoding ignores characters outside the alphabet even without
 .BR \-i .
-.PP
-Decoding works through the input in pieces that end at a character with
-code 32 (space) or less, or after 80 characters, which causes two bugs:
-.IP \(bu 2
-A character outside the alphabet with a code above 32, inside a group of
-8 that continues into the next piece, shifts the decoding, which
-corrupts the output or ends in truncated input.
-.IP \(bu 2
-Data after padding in the last piece is reported as truncated input,
-as in
-.B MZXW6===MZXW6===
-with no final newline.
 .PP
 Standard input and output are binary.
 Encoded lines end with LF, and carriage returns in encoded input are

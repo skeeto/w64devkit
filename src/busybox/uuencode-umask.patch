@@ -1,0 +1,26 @@
+Restore the umask after reading it. uuencode read the umask with
+umask(0666) for the stdin case and left it set, so a named file was
+then stat()ed under a umask of 0666. On a system that derives the
+permission bits it reports from the umask, as busybox-w32 does, the
+begin line for a writable named file always showed 644, whatever the
+umask was, instead of the mode stat() reports for it elsewhere (666
+under a umask of 0, for example). The patch reads the umask, puts it
+back at once, and computes the stdin mode from the saved value.
+
+---
+ coreutils/uuencode.c |    4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+--- a/coreutils/uuencode.c
++++ b/coreutils/uuencode.c
+@@ -48,7 +48,9 @@
+ 	char dst_buf[DST_BUF_SIZE + 1];
+ 
+ 	tbl = bb_uuenc_tbl_std;
+-	mode = 0666 & ~umask(0666);
++	mode = umask(0);
++	umask(mode);
++	mode = 0666 & ~mode;
+ 	if (getopt32(argv, "^" "m" "\0" "-1:?2"/*must have 1 or 2 args*/)) {
+ 		tbl = bb_uuenc_tbl_base64;
+ 	}

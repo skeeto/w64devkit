@@ -1,0 +1,41 @@
+Decode data that follows padding in the last piece of input.
+read_base64() decodes in pieces, and decode_base64() and
+decode_base32() stop after a padded block, leaving the rest of the
+piece to be decoded next time round. In the last piece, at end of input
+or the stop character, read_base64() instead took any undecoded
+characters to be a partial block and failed with "truncated input". So
+"YQ==YQ==" followed by a newline decoded to "aa", but without the
+newline it printed "a" and failed, and so did "YQ==" followed by any
+character the decoder ignores. The patch keeps decoding the last piece,
+without reading more input, until decoding makes no progress, and only
+then reports truncated input.
+
+---
+ libbb/uuencode.c |    9 ++++++---
+ 1 file changed, 6 insertions(+), 3 deletions(-)
+
+--- a/libbb/uuencode.c
++++ b/libbb/uuencode.c
+@@ -236,7 +236,7 @@
+ 		char *out_tail;
+ 		const char *in_tail;
+ 
+-		while (in_count < BUFFER_SIZE) {
++		while (!term_seen && in_count < BUFFER_SIZE) {
+ 			int ch = fgetc(src_stream);
+ 			if (ch == exit_char) {
+ 				if (in_count == 0)
+@@ -276,8 +276,11 @@
+ 			/* Did we consume ALL characters? */
+ 			if (*in_tail == '\0')
+ 				return;
+-			/* No */
+-			bb_simple_error_msg_and_die("truncated input");
++			/* No. Unless decoding stopped after a padded block
++			 * ("YQ==YQ=="), the rest is a partial block.
++			 */
++			if (in_tail == buf)
++				bb_simple_error_msg_and_die("truncated input");
+ 		}
+ 
+ 		/* It was partial decode */

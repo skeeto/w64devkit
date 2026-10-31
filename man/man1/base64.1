@@ -48,12 +48,16 @@ An
 .B =
 is padding only where it completes a group of 4 characters, and is
 otherwise skipped.
-Decoding continues after padding, so encodings joined with line breaks
-between them decode to the joined data.
+Decoding continues after padding, so joined encodings decode to the
+joined data.
 If the input ends inside a group, as unpadded input may,
 .B base64
 writes what it has decoded and fails with
 .BR "truncated input" .
+A group with so many skipped characters inside it that it spans more
+than 80 characters, not counting characters with code 32 (space) or
+less, fails the same way with
+.BR "invalid input" .
 .SH OPTIONS
 Options may be grouped and may follow
 .IR file .
@@ -103,8 +107,8 @@ Success.
 .B 1
 Invalid command line,
 .I file
-could not be opened or read, truncated input, or an error writing
-standard output.
+could not be opened or read, truncated or invalid input, or an error
+writing standard output.
 .TP
 .B 141
 Standard output is a pipe that was closed while
@@ -166,27 +170,6 @@ When standard output is a console, decoded data passes through the
 busybox-w32 console layer as text, so binary data does not display
 faithfully.
 Redirect it to a file or a pipe.
-.PP
-Decoding reads the input in pieces that end at a character with code 32
-(space) or less, or after 80 characters, and has two bugs:
-.IP \(bu 2
-A group of 4 characters that continues into the next piece decodes
-wrongly, or fails as truncated input, when a skipped character falls
-inside the group before the break.
-This includes an
-.B =
-that ends a line before the
-.B =
-that starts the next, which an encoder writes for some inputs when it
-wraps at an odd width, such as
-.BR "\-w 3" .
-The last byte of such encoded data is lost without an error.
-.IP \(bu 2
-Characters that follow
-.B =
-padding with no space or line break in between, as in
-.BR YQ==YQ== ,
-can fail as truncated input.
 .PP
 .I file
 may be a Windows path, with a drive letter and either kind of slash, or
