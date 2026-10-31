@@ -1,4 +1,4 @@
-.TH PGREP 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH PGREP 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 pgrep, pkill \- find or signal processes by name
 .SH SYNOPSIS
@@ -178,7 +178,7 @@ and ignores it.
 .TP
 .B \-\-help
 As the first argument, print a usage message on standard output and
-exit.
+exit with status 0.
 .SH ENVIRONMENT
 .TP
 .B BB_GLOBBING
@@ -223,6 +223,14 @@ or regular expression.
 Selecting only process 0,
 .BR "[System\ Process]" ,
 also exits 1.
+.TP
+.B 141
+Standard output is a pipe that was closed before all the output was
+written.
+A closed pipe found only when
+.B pgrep
+flushes its output at exit, as for a short list such as a single
+process ID, is not detected, and the status is 0.
 .PP
 A
 .B pkill
@@ -300,9 +308,11 @@ Errors exit with status 1, the same as no match, not 2 or 3.
 Every process on the system is listed, including those of other users
 and system processes such as
 .BR System .
-A process whose parent has exited has parent ID 1, unless Windows has
-since reused the parent's ID, in which case it appears to be a child of
-the process now holding that ID.
+A process whose parent has exited has parent ID 1, even when Windows has
+since reused the parent's ID, because a process that started later is
+not taken for its parent.
+Only when the start time of the process now holding that ID cannot be
+read does the process appear to be its child.
 .B pkill
 silently fails to signal a process it cannot open.
 .PP

@@ -1,4 +1,4 @@
-.TH FLOCK 1 2026-10-22 "w64devkit" "w64devkit Manual"
+.TH FLOCK 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 flock \- run a program while holding a lock on a file
 .SH SYNOPSIS
@@ -182,6 +182,8 @@ must be a single argument.
 .TP
 .B \-\-help
 Print a usage message on standard output and exit with status 0.
+It is recognized only as the first argument, and any further arguments
+are ignored.
 .SH ENVIRONMENT
 .TP
 .B SHELL
@@ -230,6 +232,9 @@ ran and exited with status
 A
 .I prog
 that ended as if by a signal gives 128 plus the signal number.
+Any other Windows exit code above 255 becomes its low byte, or 255 when
+that is zero, after a message on standard error, as described in
+.BR time (1).
 .TP
 .B 0
 In the
@@ -356,4 +361,5 @@ or fails.
 .SH SEE ALSO
 .BR busybox (1),
 .BR sh (1),
+.BR time (1),
 .BR timeout (1)

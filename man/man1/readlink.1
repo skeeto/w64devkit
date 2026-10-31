@@ -1,4 +1,4 @@
-.TH READLINK 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH READLINK 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 readlink \- print the target of a symbolic link, or a canonical path
 .SH SYNOPSIS
@@ -46,6 +46,9 @@ The NT prefix that Windows stores with an absolute target, such as
 .BR \e??\e ,
 is removed, and a network target is printed in the form
 .IR //server/share/dir .
+A folder where a volume is mounted is read too, and its target is
+printed exactly as stored, as in
+\fB\e??\eVolume{\fIguid\fB}\e\fR.
 .PP
 Anything else is an error without
 .BR \-f :

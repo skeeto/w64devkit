@@ -1,4 +1,4 @@
-.TH PIDOF 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH PIDOF 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 pidof \- list the process IDs of running programs by name
 .SH SYNOPSIS
@@ -97,7 +97,7 @@ A shorter process name must match the whole operand.
 .PP
 The idle process, with process ID 0 and the name
 .BR "[System\ Process]" ,
-is never written.
+is never written, and an operand that matches it writes nothing.
 .SH OPTIONS
 Options may be grouped, as in
 .BR \-so ,
@@ -131,8 +131,9 @@ which stands for the ID of the parent of
 .BR pidof ,
 the process that started it; see
 .BR NOTES .
-A parent that has exited has ID 1, unless Windows has since reused its
-ID.
+A parent that has exited has ID 1, even when Windows has since reused
+its ID, unless the start time of the process now holding it cannot be
+read.
 .IP
 A value that is neither, including a number with a sign or a
 .B 0x
@@ -203,6 +204,14 @@ Also an invalid option, a
 with no argument, or an invalid
 .B \-o
 value.
+.TP
+.B 141
+Standard output is a pipe that was closed before all the output was
+written.
+A closed pipe found only when
+.B pidof
+flushes its output at exit, as for a short list such as a single
+process ID, is not detected, and the status is 0.
 .PP
 An invalid option or a missing argument is reported on standard error,
 followed by the usage message.

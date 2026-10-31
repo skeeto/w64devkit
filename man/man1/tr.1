@@ -1,4 +1,4 @@
-.TH TR 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH TR 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 tr \- translate, squeeze, or delete characters
 .SH SYNOPSIS
@@ -96,7 +96,7 @@ Any other backslash, including one at the end of a string, is an
 ordinary byte, and the byte after it is read as usual, so
 .B \e8
 is a backslash and an 8.
-A backslash, or an escape for one, before a dash is the exception; see
+A backslash before a dash is the exception; see
 .BR NOTES .
 .TP
 .BI [: class :]
@@ -356,28 +356,25 @@ still accepts them.
 .PP
 A backslash before a dash does not work as in GNU
 .BR tr .
-When a backslash, or an escape for one such as
-.B \e\e
-or
-.BR \e134 ,
-comes right before a dash,
 .B tr
-adds a dash and then reads on from the byte after the first backslash.
+adds a dash for the
+.BR \e\- ,
+and then reads the dash again as an ordinary byte.
 So
 .B \e\-
 is two dashes, not one, which moves the later bytes out of line with the
-other string,
-.B \e\e\-
-is three dashes with no backslash, and a final
-.B \e134\-
-is the bytes
-.BR \-134\- .
+other string.
 Instead, write a dash as
 .B \e055
 or
 .BR [=\-=] ,
-or last in the string, and a backslash before a dash as
-.BR [=\e=] .
+or last in the string.
+An escape for a backslash, such as
+.B \e\e
+or
+.BR \e134 ,
+before a dash is not affected: it starts a range, or is a backslash and
+a dash at the end of a string.
 .PP
 Strings reach
 .B tr

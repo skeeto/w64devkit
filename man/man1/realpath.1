@@ -1,4 +1,4 @@
-.TH REALPATH 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH REALPATH 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 realpath \- print the canonical absolute name of each file
 .SH SYNOPSIS
@@ -183,7 +183,7 @@ written.
 Standard output is a pipe whose reader exited before
 .B realpath
 finished writing.
-Nothing is printed.
+No message is printed.
 When this is first detected as the output is flushed at exit, the
 status is 1 instead.
 .PP
@@ -320,6 +320,7 @@ runs
 inside the shell process, without starting a new one, except where the
 shell needs a separate process anyway, as for a command substitution or
 a pipeline.
+Exit status 141 then ends the shell too.
 .SH SEE ALSO
 .BR basename (1),
 .BR busybox (1),

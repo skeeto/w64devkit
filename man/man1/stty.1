@@ -1,4 +1,4 @@
-.TH STTY 1 2026-10-27 "w64devkit" "w64devkit Manual"
+.TH STTY 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 stty \- print or change console input settings
 .SH SYNOPSIS
@@ -82,6 +82,13 @@ Windows allows echo only with line input, so use
 .B raw
 together with
 .BR \-echo .
+While echo is on,
+.B raw
+alone is rejected by the console:
+.B stty
+prints
+.BR "stty: standard input: Invalid argument" ,
+exits with status 1, and leaves the mode as it was.
 .TP
 .B sane
 Turn on echo, line input, and processed input.
@@ -95,11 +102,11 @@ It does not change the console.
 .PP
 The size comes from the console's active screen buffer, whatever
 standard output and standard error are.
-When busybox cannot open that buffer,
+When busybox cannot read the size from that buffer,
 .B size
-prints an error message instead of the size, and
+and
 .B \-a
-leaves out the size line.
+print an error message on standard error in place of the size.
 The variables
 .B LINES
 and
@@ -153,7 +160,10 @@ even when a console is present.
 .B COLUMNS
 When set, replaces the width in the same way.
 .PP
-A value that is not a number from 2 to 29999 counts as 24 for
+Only the number at the start of a value counts, so
+.B 100x
+means 100, and a value that does not start with a number from 2 to
+29999 counts as 24 for
 .B LINES
 and 80 for
 .BR COLUMNS .

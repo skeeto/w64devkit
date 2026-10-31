@@ -170,11 +170,6 @@ large number.
 Print a usage message on standard output and exit with status 0.
 It is recognized only as the first argument.
 .SH ENVIRONMENT
-The other
-.B BB_
-variables described in
-.BR busybox (1)
-apply to this command as to every applet.
 .TP
 .B BB_GLOBBING
 Unless it is
@@ -202,6 +197,12 @@ When set, the first
 operand ends the options, and later arguments that begin with
 .B \-
 are file names.
+.PP
+The other
+.B BB_
+variables described in
+.BR busybox (1)
+apply to this command as to every applet.
 .SH EXIT STATUS
 .TP
 .B 0

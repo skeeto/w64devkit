@@ -1,4 +1,4 @@
-.TH REV 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH REV 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 rev \- reverse the characters of each line
 .SH SYNOPSIS
@@ -183,7 +183,7 @@ A last line with no LF is lost, with no message, when its length in
 bytes is 255, 351, 459, 580, 716, or a later length at which
 .B rev
 enlarges its line buffer, unless an earlier line, in this or a previous
-file, was at least as long.
+file, was at least as long, not counting its LF.
 .PP
 Each line is held in memory whole, and in UTF-8 mode also as a decoded
 copy of four bytes per byte.

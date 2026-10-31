@@ -1,4 +1,4 @@
-.TH PS 1 2026-10-27 "w64devkit" "w64devkit Manual"
+.TH PS 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 ps \- list the processes running on the system
 .SH SYNOPSIS
@@ -261,6 +261,13 @@ was given.
 An invalid option, a missing argument to
 .BR \-o ,
 or an unknown column name.
+.TP
+.B 141
+Standard output is a pipe that was closed before all the output was
+written.
+A closed pipe found only when
+.B ps
+flushes its output at exit is not detected, and the status is 0.
 .PP
 Failure to list the processes is not detected: if Windows refuses to
 supply the list, only the header is printed and the status is 0.

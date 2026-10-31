@@ -1,4 +1,4 @@
-.TH CPIO 1 2026-10-27 "w64devkit" "w64devkit Manual"
+.TH CPIO 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 cpio \- create, list, and extract newc cpio archives
 .SH SYNOPSIS
@@ -453,6 +453,11 @@ error, an unknown
 .B \-R
 user or group, or an error that ends the command: a damaged or truncated
 archive, or a file or link that could not be read, created, or removed.
+.TP
+.B 141
+Writing to a pipe whose reader has exited, such as in
+.BR "cpio \-t <big.cpio | head \-1" .
+There is no message.
 .PP
 Errors are reported on standard error as
 .PP
@@ -564,10 +569,11 @@ and
 .IR group ,
 not a period.
 .IP \(bu 2
+Neither
 .B \-t
-and
-.B \-v
-do not list the names of a hard-linked file that have no contents.
+nor
+.B "\-i \-v"
+lists the names of a hard-linked file that have no contents.
 .PP
 Without
 .BR \-u ,
@@ -595,10 +601,11 @@ components is extracted at that location, even outside the current
 directory, so list an archive from an untrusted source with
 .B \-t
 first.
-A name that is not a valid Windows file name, or a path longer than
+A name that is not a valid Windows file name, or a path of
 .BR MAX_PATH ,
-260 characters, fails like any other directory or file that cannot be
-created.
+260 characters, or more, counting the current directory, or of 248
+characters or more for a directory, fails like any other directory or
+file that cannot be created.
 .PP
 Listings, including those of
 .BR \-v ,

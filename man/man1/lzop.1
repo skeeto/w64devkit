@@ -1,4 +1,4 @@
-.TH LZOP 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH LZOP 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 lzop, unlzop, lzopcat \- compress or expand files in lzop format
 .SH SYNOPSIS
@@ -296,6 +296,20 @@ The output of a read-only file is read-only.
 .PP
 When decompressing, blocks larger than 64 MiB are rejected as corrupted
 data.
+.PP
+A
+.B \-
+operand after a
+.I file
+operand does not read standard input.
+When compressing with
+.B \-c
+or
+.BR \-t ,
+it is read as empty input and gives an empty stream.
+In every other case
+.B lzop
+fails at once.
 .SH SEE ALSO
 .BR busybox (1),
 .BR bzip2 (1),

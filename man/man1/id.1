@@ -1,4 +1,4 @@
-.TH ID 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH ID 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 id \- print the user and group identity
 .SH SYNOPSIS
@@ -45,6 +45,11 @@ which is user 4095 even in an elevated process, and
 .BR root ,
 which is user 0.
 The current user's name must match exactly, case included.
+It is checked first, so an account that is itself named
+.B root
+makes
+.B root
+user 4095.
 Any other name fails.
 .B id
 takes at most one
@@ -56,7 +61,7 @@ prints one line:
 .PP
 .RS 4
 .EX
-uid=4095(name) gid=4095(name) groups=4095(name)
+uid=4095(\fIname\fR) gid=4095(\fIname\fR) groups=4095(\fIname\fR)
 .EE
 .RE
 .PP
@@ -185,11 +190,12 @@ uid=0(root) gid=0(root) groups=0(root)
 .EE
 .RE
 .PP
-Do something only when elevated:
+Do something only when running as
+.BR root :
 .PP
 .RS 4
 .EX
-$ [ "$(id \-u)" = 0 ] && echo elevated
+$ [ "$(id \-u)" = 0 ] && echo root
 .EE
 .RE
 .PP

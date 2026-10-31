@@ -1,4 +1,4 @@
-.TH SHUF 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH SHUF 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 shuf \- write the lines of its input in random order
 .SH SYNOPSIS
@@ -304,7 +304,7 @@ accepts.
 .PP
 The shuffle is a Fisher-Yates shuffle driven by the C library's
 .BR rand ,
-seeded from the system time in microseconds.
+seeded from the time since the system started, in microseconds.
 It is not suitable for security use, and it cannot be seeded or
 repeated.
 Each swap partner is chosen as a random value modulo the number of lines

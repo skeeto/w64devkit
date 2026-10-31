@@ -1,4 +1,4 @@
-.TH FALSE 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH FALSE 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 false \- do nothing, unsuccessfully
 .SH SYNOPSIS
@@ -75,13 +75,17 @@ on standard output, and exits with status 0.
 In the kit's shell,
 .B false
 is a builtin, so typing it does not start the applet.
-Programs that run commands by name, such as
-.BR env ,
-run the applet by starting
-.IR busybox.exe ,
-unless
+Applets that run a command run this applet inside their own process, as
+.B find \-exec
+does, or start
+.I busybox.exe
+to run it, as
+.B env
+does.
 .B BB_OVERRIDE_APPLETS
-says otherwise; see
+can make them run a program from
+.B PATH
+instead; see
 .BR busybox (1).
 From
 .BR cmd.exe ,
@@ -93,5 +97,6 @@ runs it.
 .SH SEE ALSO
 .BR busybox (1),
 .BR env (1),
+.BR find (1),
 .BR sh (1),
 .BR true (1)

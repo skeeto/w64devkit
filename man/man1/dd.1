@@ -1,4 +1,4 @@
-.TH DD 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH DD 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 dd \- copy a file, converting and formatting it
 .SH SYNOPSIS
@@ -60,7 +60,7 @@ bytes, and the second counts blocks written, in units of
 .B obs
 bytes.
 A block read or written short, as at the end of the input, is partial.
-A write to a closed pipe, or any other error, ends
+Any other error, and a write to a closed pipe, ends
 .B dd
 at once without the counts.
 .B status=none
@@ -239,7 +239,7 @@ With
 .I n
 is a number of bytes.
 The output must be seekable: standard output that is a pipe fails with
-.B Invalid seek
+.B "standard output: Invalid seek"
 and status 1.
 .TP
 .B conv=notrunc
@@ -278,9 +278,12 @@ With different
 and
 .BR obs ,
 the flush comes before the final short output block is written.
-It fails when the output is
-.I /dev/null
-or a console.
+It fails with status 1 when the output is
+.IR /dev/null ,
+with
+.BR "Input/output error" ,
+or a console, with
+.BR "Invalid argument" .
 .TP
 .B conv=swab
 Swap each pair of bytes of the input.
@@ -321,7 +324,7 @@ Open the output file in append mode, so every write goes to the end of
 the file.
 Without
 .BR conv=notrunc ,
-the file is still truncated first, to the
+the file is still truncated or extended first, to the
 .B seek
 offset, which is 0 by default.
 It has no effect on standard output.

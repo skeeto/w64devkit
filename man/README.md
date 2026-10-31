@@ -181,6 +181,8 @@ else, not even a comment. busybox `man` only follows `.so` in files of
 300 bytes or less that begin with `.so `, and resolves a target
 containing a `/` against the man root. Name the stub after the alias, as
 in `man1/egrep.1`, and list the alias in the target page's NAME line.
+An upstream target, such as `gcc.1` for `cc`, is exempt, since its NAME
+line is not ours to change.
 
 Commands with a target triplet prefix, such as `x86_64-w64-mingw32-gcc`,
 need no stubs: `man` retries with the part after `-w64-mingw32-`.

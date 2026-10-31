@@ -1,4 +1,4 @@
-.TH UNEXPAND 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH UNEXPAND 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 unexpand \- convert spaces to tabs
 .SH SYNOPSIS
@@ -96,10 +96,12 @@ Convert only the first run of blanks in each line, as described under
 .BR DESCRIPTION .
 This is the default.
 It overrides
-.B \-a
-and
+.BR \-a ,
+whether given or implied by
 .BR \-t ,
-wherever they appear on the command line.
+wherever they appear on the command line, but the tab stops that
+.B \-t
+sets still apply.
 .TP
 \fB\-t\fR \fIN\fR, \fB\-\-tabs=\fIN\fR
 Set tab stops every
@@ -119,9 +121,9 @@ Giving
 .B \-t
 also gives
 .BR \-a ,
-and
+unless
 .B \-f
-overrides both.
+is given.
 If
 .B \-t
 is repeated, the last one applies.

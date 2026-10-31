@@ -1,4 +1,4 @@
-.TH LSATTR 1 2026-10-27 "w64devkit" "w64devkit Manual"
+.TH LSATTR 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 lsattr \- list Windows file attributes
 .SH SYNOPSIS
@@ -251,6 +251,9 @@ Files that could not be found or listed do not affect the status.
 .TP
 .B 1
 An invalid option, with a usage message on standard error.
+.TP
+.B 141
+Standard output is a pipe that was closed before all output was written.
 .SH EXAMPLES
 Show the attributes of a directory itself, and of a file in it:
 .PP

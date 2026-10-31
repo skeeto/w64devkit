@@ -1,4 +1,4 @@
-.TH GETOPT 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH GETOPT 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 getopt \- parse command-line options for shell scripts
 .SH SYNOPSIS
@@ -349,6 +349,13 @@ or an empty long option name.
 .B 4
 .B \-T
 was given.
+.TP
+.B 141
+Standard output is a pipe whose reader has exited, detected only when
+the output fills a buffer before
+.B getopt
+finishes.
+No message is printed.
 .SH EXAMPLES
 Read the options of a script.
 The loop ends at the

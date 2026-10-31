@@ -1,4 +1,4 @@
-.TH BUSYBOX 1 2026-10-27 "w64devkit" "w64devkit Manual"
+.TH BUSYBOX 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 busybox \- one program providing the shell and many Unix commands
 .SH SYNOPSIS
@@ -194,7 +194,7 @@ provides each applet as a link to the BusyBox program.
 Hard links would require that step after the kit is unpacked, symbolic
 links require administrator rights or developer mode, and copies of
 .I busybox.exe
-would take far more space than the launchers, which are about 3 kB
+would take far more space than the launchers, which are 3 or 4 kB
 each.
 A batch file is no substitute, since
 .B cmd.exe
@@ -492,8 +492,15 @@ A command given as
 or
 .I /usr/sbin/name
 runs the applet
+.IR name .
+The shell does so only when no such file exists, and otherwise runs the
+file.
+For a
 .I name
-when no such file exists.
+that is not an applet, the other applets run the file, or else look up
+.I name
+in
+.BR PATH .
 .IP \(bu 2
 Any other command without a directory part is looked up in the
 directories in
@@ -853,8 +860,9 @@ and
 and the width of the applet list that
 .B busybox
 prints with no arguments.
-By default they are the size of the console window, or 80 by 24 when
-neither standard output nor standard error is a console.
+By default they are the size of the console window, even when standard
+output and standard error are redirected, or 80 by 24 when busybox has
+no console.
 When set, they override the console window size.
 A value of 1 or less, or of 30000 or more, means 80 for
 .B COLUMNS
@@ -909,7 +917,9 @@ such as when it is missing from the launcher's directory.
 The launcher writes a message that begins with
 .B w64devkit:
 to standard error.
-The kit's shell sees this status as 126, its low byte.
+The kit's shell writes a message that ends in
+.BR "Error 0x17e" ,
+and sees the status as 126, its low byte.
 .PP
 Otherwise the exit status is that of the applet.
 .SH EXAMPLES
@@ -1074,6 +1084,10 @@ in the directory that holds
 instead; see
 .BR w64devkit (1).
 .IP \(bu 2
+A login shell does not change to
+.B HOME
+before it reads the profiles.
+.IP \(bu 2
 Line editing in the shell never beeps.
 .IP \(bu 2
 In the shell, Tab does nothing where a command name should be typed but
@@ -1140,6 +1154,21 @@ and
 .BR .. ,
 .B rm
 refuses to remove a bare drive.
+.IP \(bu 2
+Bugs are fixed in
+.BR awk ,
+.BR du ,
+.BR flock ,
+.BR join ,
+.BR kill ,
+.BR killall ,
+.BR ping ,
+.BR ping6 ,
+.BR stty ,
+.BR wget ,
+and the shell's
+.B wait
+command.
 .IP \(bu 2
 The 64-bit
 .B busybox

@@ -1,4 +1,4 @@
-.TH KILLALL 1 2026-10-27 "w64devkit" "w64devkit Manual"
+.TH KILLALL 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 killall \- send a signal to all processes with a given name
 .SH SYNOPSIS
@@ -112,16 +112,16 @@ started, so
 .B killall sleep
 signals the busybox process and leaves the launcher to exit with it.
 .PP
-Only the first 15 characters of a long name are compared.
-A process name of 15 or more characters matches any operand that agrees
-with it in its first 15 characters, however the two differ after that,
-so the extension may be left off a name with 15 or more characters
-before it.
+Only the first 15 bytes of a long name are compared.
+A process name of 15 or more bytes matches any operand that agrees with
+it in its first 15 bytes, however the two differ after that, so the
+extension may be left off a name with 15 or more bytes before it.
 A shorter process name must match the whole operand.
 .PP
 The idle process, with process ID 0 and the name
 .BR "[System\ Process]" ,
-is never selected.
+is never selected, and an operand that matches it is reported as
+matching no process.
 .SH OPTIONS
 Options are recognized only at the start of the command line.
 First comes
@@ -141,8 +141,8 @@ even one that begins with a dash, and options cannot be grouped.
 .TP
 .B \-l
 List or convert signals, then exit without signaling anything.
-With no further arguments, write one signal per line as a number, a
-parenthesis, a space, and a name, such as
+With no further arguments, write one signal per line as a number
+right-aligned to width 2, a parenthesis, a space, and a name, such as
 .B "\ 9)\ KILL"
 and
 .BR "15)\ TERM" .
@@ -357,7 +357,7 @@ the name or full path of its executable.
 There are no options to select processes by pattern, owner, or age, or
 to wait for them to exit.
 .IP \(bu 2
-Only the ten signals listed by
+Only 0 and the ten signals listed by
 .B \-l
 exist.
 There is no

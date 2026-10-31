@@ -1,4 +1,4 @@
-.TH NPROC 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH NPROC 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 nproc \- print the number of processors available
 .SH SYNOPSIS
@@ -66,6 +66,11 @@ In any other position it is an unknown option.
 Read by the C library's option parser.
 When set, option parsing stops at the first operand, so options after it
 are treated as operands and ignored.
+.PP
+The variables that busybox reads for every applet, such as
+.BR BB_GLOBBING ,
+are described in
+.BR busybox (1).
 .SH EXIT STATUS
 .TP
 .B 0

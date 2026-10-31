@@ -1,4 +1,4 @@
-.TH UPTIME 1 2026-10-27 "w64devkit" "w64devkit Manual"
+.TH UPTIME 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 uptime \- show how long the system has been running
 .SH SYNOPSIS
@@ -97,13 +97,10 @@ or
 .BR JST\-9 ;
 it is described in
 .BR date (1).
-A zone database name is misread: with
+A zone database name, such as
 .BR Europe/Paris ,
-the zone is
-.B Eur
-at UTC, with daylight saving time named
-.B ope
-on the United States rules.
+is ignored, as is any value that contains a slash or begins with a
+colon.
 .TP
 .B POSIXLY_CORRECT
 If set, the first operand ends the options, so that a later
@@ -142,7 +139,7 @@ Show when Windows started:
 .RS 4
 .EX
 $ uptime \-s
-2026-10-18 15:43:41
+2026\-10\-18 15:43:41
 .EE
 .RE
 .PP

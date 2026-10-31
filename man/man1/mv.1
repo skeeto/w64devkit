@@ -1,4 +1,4 @@
-.TH MV 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.TH MV 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 mv \- move or rename files and directories
 .SH SYNOPSIS
@@ -119,7 +119,7 @@ reports each error on standard error as
 and goes on with the remaining operands.
 A source that cannot be moved is reported as
 .BI "mv: can\(aqt rename \(aq" source "\(aq: " reason \c
-.RI .
+\&.
 Prompts go to standard error.
 Only
 .B \-v
@@ -182,7 +182,8 @@ Requires exactly two operands, and is incompatible with
 .BR \-t .
 If
 .I dest
-is an existing directory, the move fails: a
+is an existing directory, or a symbolic link or junction to one, the
+move fails: a
 .I source
 that is not a directory is refused with
 .BI "mv: \(aq" dest "\(aq is a directory"

@@ -1,4 +1,4 @@
-.TH ED 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH ED 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 ed \- line-oriented text editor
 .SH SYNOPSIS
@@ -216,7 +216,7 @@ An unset mark is line 0.
 Print the lines unambiguously.
 A control character appears as
 .B ^
-and a character, such as
+followed by a character, such as
 .B ^I
 for a tab,
 .B ^M
@@ -495,6 +495,10 @@ the status.
 .B 1
 An invalid option or a missing option argument, with a usage message on
 standard error, or out of memory.
+.TP
+.B 141
+Lines were printed to a pipe whose reader has exited, as in
+.BR "printf \(aq,p\en\(aq | ed \-s big.txt | head \-1" .
 .SH EXAMPLES
 Replace every
 .B old

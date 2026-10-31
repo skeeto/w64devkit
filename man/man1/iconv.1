@@ -1,4 +1,4 @@
-.TH ICONV 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH ICONV 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 iconv \- convert text between character encodings
 .SH SYNOPSIS
@@ -238,9 +238,22 @@ Print the name of each encoding the program knows, one per line, and
 exit, ignoring any other options and operands.
 The names are in the order of the program's table and not sorted, and
 some appear more than once.
-The list has neither the numeric forms nor
-.B char
+The only bare numbers in the list are those of some OEM code pages:
+.BR 437 ,
+.BR 850 ,
+.BR 852 ,
+.BR 855 ,
+.BR 857 ,
+.B 860
+to
+.BR 863 ,
+.BR 865 ,
+.BR 866 ,
 and
+.BR 869 .
+The list has neither
+.B char
+nor
 .BR wchar_t ,
 and it includes names that do not work: the five
 .B CP

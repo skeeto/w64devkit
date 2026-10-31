@@ -1,4 +1,4 @@
-.TH DC 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH DC 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 dc \- reverse-Polish arbitrary-precision calculator
 .SH SYNOPSIS
@@ -729,6 +729,13 @@ The input ended, or a quit command ran.
 An invalid option, a file that cannot be opened, an error in the
 commands, input that is not text, a read or write error, or running out
 of memory.
+.TP
+.B 141
+Standard output is a pipe that was closed while one command, such as
+printing a long number, wrote more than 4096 bytes.
+Output is flushed after each command, and a closed pipe found by that
+flush gives status 1 instead, with the message
+.BR "output error: Invalid argument" .
 .PP
 With a console on standard input, errors in the commands of typed lines,
 or of a

@@ -1,4 +1,4 @@
-.TH BC 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH BC 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 bc \- arbitrary-precision calculator language
 .SH SYNOPSIS
@@ -313,12 +313,21 @@ The remainder
 .B a % b
 is
 .BR "a \- (a / b) * b" ,
-computed with the larger of
+with the quotient truncated to
+.B scale
+digits as for
+.BR / .
+The result has the larger of
 .B scale
 plus the scale of
 .I b
 and the scale of
-.IR a .
+.I a
+digits after the point, so with a
+.B scale
+of 0,
+.B 7.5 % 2
+is 1.5.
 .SS Statements
 .TP
 .I expression
@@ -672,9 +681,10 @@ The line length for numbers, as a decimal number.
 A line, including its trailing backslash, has at most one character less
 than this.
 The default is 70, and
-.B 0
-never breaks lines.
-A value that is not a number, is negative, or is 1 or 2 means the default.
+.BR 0 ,
+or a value from 2147483648 to 4294967295, never breaks lines.
+A value that is not a number, is negative, is 1 or 2, or is over
+4294967295 means the default.
 .TP
 .B POSIXLY_CORRECT
 When set, has the effect of
@@ -708,6 +718,14 @@ that cannot be opened or holds a byte that is not allowed, an error in
 the input when standard input is not a console, Ctrl-C while a
 .I file
 runs, or an error reading or writing.
+.TP
+.B 141
+Standard output is a pipe that was closed while
+.B bc
+was writing a single number or string of more than 4096 bytes.
+Output is flushed after each step of the program, and a closed pipe found
+by that flush gives status 1 instead, with the message
+.BR "output error: Invalid argument" .
 .SH EXAMPLES
 Calculate with large numbers:
 .PP
@@ -803,7 +821,8 @@ File names may use
 or
 .B \e
 and drive letters.
-Standard input is read after the last file and cannot be named.
+Standard input is read after the last file, and can also be named as
+.IR /dev/stdin .
 .PP
 The error for
 .B ibase

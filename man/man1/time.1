@@ -1,4 +1,4 @@
-.TH TIME 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH TIME 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 time \- run a program and report how long it took
 .SH SYNOPSIS
@@ -362,10 +362,10 @@ prints
 .BR "time: wait: Invalid argument" ,
 and its report and exit status are meaningless.
 .PP
-The elapsed time comes from the system clock, not a monotonic clock, so
-changing the clock while
+The elapsed time comes from the Windows performance counter, a monotonic
+clock, so changing the system clock while
 .I prog
-runs changes the result.
+runs does not affect it.
 It is kept in 32 bits of milliseconds and wraps after about 49.7 days.
 .PP
 The Unix build of this applet also has

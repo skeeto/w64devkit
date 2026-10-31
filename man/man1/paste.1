@@ -1,4 +1,4 @@
-.TH PASTE 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH PASTE 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 paste \- merge lines of files
 .SH SYNOPSIS
@@ -193,7 +193,8 @@ was writing.
 Output still buffered when
 .B paste
 finishes is written as it exits, and a broken pipe found then is instead
-reported as a write error, with status 1.
+reported as a write error, with status 1 and the message
+.BR "paste: standard output: Invalid argument" .
 .SH EXAMPLES
 Put two files side by side:
 .PP

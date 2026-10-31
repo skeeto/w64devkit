@@ -1,4 +1,4 @@
-.TH HTTPD 1 2026-10-27 "w64devkit" "w64devkit Manual"
+.TH HTTPD 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 httpd \- serve files and CGI programs over HTTP
 .SH SYNOPSIS
@@ -173,16 +173,28 @@ header of the form
 or
 .BI bytes= first \- last
 is answered with
-.B 206
-and the bytes asked for, with
+.BR 206 ,
+a
+.B Content\-Range
+header, and the bytes asked for, with
 .I last
 cut back to the end of the file.
 A
 .I last
-of 0 also means the end of the file.
-Any other form, such as a suffix range like
-.BR bytes=\-500 ,
-is ignored, and the whole file is sent.
+of 0 after a
+.I first
+of 0 also means the end of the file, so
+.B bytes=0\-0
+asks for the whole file.
+A range whose
+.I first
+is the size of the file or more, or whose
+.I last
+is less than its
+.IR first ,
+is ignored, as is any other form, such as a suffix range like
+.B bytes=\-500
+or a list of ranges, and the whole file is sent.
 .PP
 An
 .B If\-None\-Match
@@ -484,7 +496,11 @@ A path of
 .B /
 protects the whole server.
 Without a valid password the answer is
-.BR 401 .
+.BR 401 ,
+with a
+.B WWW\-Authenticate
+header that asks for Basic authentication in the realm of
+.BR \-r .
 .PP
 The
 .B H
@@ -816,23 +832,16 @@ $ cat >public/httpd.conf <<EOF
 .RE
 .PP
 Write a CGI program, and call it while a server from the first example
-is running.
-It sends a
-.B Content\-Length
-header, without which
-.BR wget (1)
-takes the end of the connection for a failure and retries:
+is running:
 .PP
 .RS 4
 .EX
 $ mkdir public/cgi\-bin
 $ cat >public/cgi\-bin/hello.cgi <<\(aqEOF\(aq
 > #!/bin/sh
-> body="Hello, $REMOTE_ADDR"
 > echo "Content\-Type: text/plain"
-> echo "Content\-Length: $((${#body} + 1))"
 > echo
-> echo "$body"
+> echo "Hello, $REMOTE_ADDR"
 > EOF
 $ wget \-qO \- http://127.0.0.1:8080/cgi\-bin/hello.cgi
 Hello, 127.0.0.1

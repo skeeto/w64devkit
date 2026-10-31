@@ -1,4 +1,4 @@
-.TH XARGS 1 2026-10-27 "w64devkit" "w64devkit Manual"
+.TH XARGS 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 xargs \- run a command with arguments read from input
 .SH SYNOPSIS
@@ -139,9 +139,25 @@ can still make the command line too long:
 then reports
 .B Arg list too long
 and exits with status 126.
-An item that alone passes 32750 bytes ends the input without an error:
+An item that fits the limit of
+.B \-s
+but alone passes 32750 bytes, as with a large
+.B \-s
+or an item with many double quotes, ends the input without an error:
 .B xargs
 drops it and everything after it.
+If it is the first item and
+.B \-r
+is not given,
+.I command
+first runs once with no added arguments.
+If the input did not end before the
+.B \-s
+buffer filled,
+.B xargs
+instead reports
+.B argument line too long
+and exits with status 1.
 An applet that runs inside
 .B xargs
 has neither the quoting nor this limit; see
@@ -280,6 +296,14 @@ line end.
 Lines that are empty or only white space are ignored.
 Quotes and backslashes are not special.
 A line that does not fit in the size limit is an error.
+For a command started as a new process, the 32750-byte limit of
+.B "Size limits"
+counts the command and its arguments too.
+When the command line after replacement passes it,
+.B xargs
+runs the command with the arguments that fit, then tries to run the rest
+as a command line of their own, the first of them, possibly garbled, as
+the command, which usually fails.
 .B \-n
 and
 .B \-E

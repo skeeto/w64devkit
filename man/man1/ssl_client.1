@@ -1,4 +1,4 @@
-.TH SSL_CLIENT 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH SSL_CLIENT 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 ssl_client \- pipe data through TLS on a connected socket
 .SH SYNOPSIS
@@ -33,9 +33,14 @@ and talks to the pipe.
 The kit's shell and tools have no way to give it a socket, so it is not
 run by hand.
 .PP
-Windows does the TLS, through Schannel, and checks certificates against
-the Windows certificate store; see
+In the x64 kit, Windows does the TLS, through Schannel, and checks
+certificates against the Windows certificate store; see
 .BR \-c .
+In the x86 kit, busybox's own TLS code does it, and checks no
+certificate.
+This page describes the x64 kit; the differences in the x86 kit are
+under
+.BR NOTES .
 .SS Copying
 .B ssl_client
 waits until standard input or the connection has data.
@@ -114,6 +119,7 @@ ends the options, and operands are ignored.
 .TP
 .B \-c
 Do not validate the server's certificate.
+This option exists only in the x64 kit.
 Without
 .BR \-c ,
 Schannel checks the certificate chain against the Windows certificate
@@ -237,8 +243,8 @@ and
 .B \-h
 are new.
 .IP \(bu 2
-The TLS code of Unix busybox, which cannot validate certificates, is not
-built.
+In the x64 kit, the TLS code of Unix busybox, which cannot validate
+certificates, is not built.
 Schannel is used instead, and it validates.
 .PP
 Schannel is asked for TLS 1.0, 1.1, and 1.2 with strong cryptography.
@@ -259,6 +265,44 @@ and
 (the target principal name is incorrect).
 A server that closes the connection during the handshake gives
 .BR "schannel: handshake read() failed" .
+.PP
+The x86 kit builds
+.B ssl_client
+with the TLS code of Unix busybox instead of Schannel.
+There:
+.IP \(bu 2
+.B \-c
+is an unknown option, and no certificate is ever validated, so a
+server cannot be told from an impostor.
+.IP \(bu 2
+Only TLS 1.2 is spoken, with a few cipher suites that use AES and
+SHA-256.
+The name from
+.B \-n
+is sent as the server name indication even when it is an IP address.
+.IP \(bu 2
+Input is not corrupted: each read of up to 16 KiB is sent as one TLS
+record.
+Each record from the server is written to standard output as soon as it
+is decrypted, so
+.B wget
+works with ftps URLs.
+.IP \(bu 2
+At the end of standard input no
+.B close_notify
+alert is sent.
+With
+.BR \-e ,
+.B ssl_client
+exits at once.
+Without it, it goes on copying from the server until the server closes
+the connection or ends the TLS session.
+.IP \(bu 2
+Errors have other messages, such as
+.B "ssl_client: TLS error from peer (alert code 40): handshake failure"
+for a handshake the server refuses, and one that begins
+.B "ssl_client: truncated TLS record"
+for a connection closed in the middle of a record.
 .PP
 Standard input and output are binary, so bytes such as CR LF, Ctrl-Z,
 and NUL pass unchanged.

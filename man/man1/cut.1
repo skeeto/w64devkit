@@ -1,4 +1,4 @@
-.TH CUT 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH CUT 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 cut \- print selected parts of lines
 .SH SYNOPSIS
@@ -306,8 +306,8 @@ range that selects it.
 The
 .B \-O
 delimiter is written before a byte whose preceding byte in the line has
-not yet been written, but only after an earlier range has ended before
-the end of the line, and never before byte 1.
+not yet been written, but only after an earlier range has ended within
+the line, and never before byte 1.
 So on the line
 .BR abc ,
 .B "\-D \-O: \-b3,2"
@@ -402,7 +402,8 @@ was writing.
 Output still buffered when
 .B cut
 finishes is written as it exits, and a broken pipe found then is instead
-reported as a write error, with status 1.
+reported as a write error, with status 1 and the message
+.BR "cut: standard output: Invalid argument" .
 .PP
 Errors are reported on standard error, beginning with
 .BR cut: .

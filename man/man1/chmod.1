@@ -1,4 +1,4 @@
-.TH CHMOD 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.TH CHMOD 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 chmod \- change file permissions
 .SH SYNOPSIS
@@ -275,6 +275,15 @@ is reported at the first
 that exists, and
 .B chmod
 stops there, before changing anything.
+.TP
+.B 141
+With
+.B \-c
+or
+.BR \-v ,
+standard output is a pipe that was closed before all output was written.
+.B chmod
+stops there, and the remaining files are not changed.
 .SH EXAMPLES
 Make a file read-only, reporting the change:
 .PP

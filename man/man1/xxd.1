@@ -1,4 +1,4 @@
-.TH XXD 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH XXD 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 xxd \- make a hex dump, or reverse one
 .SH SYNOPSIS
@@ -89,11 +89,16 @@ Incompatible with
 .BR \-r .
 .TP
 .B \-C
-Capitalize the variable names written by
-.BR \-i ,
-including the
+Capitalize the variable names that
+.B \-i
+derives from
+.IR infile ,
+and the
 .B _LEN
 suffix.
+A name given with
+.B \-n
+is not capitalized.
 .TP
 .BI "\-c " cols
 Write
@@ -153,6 +158,8 @@ Non-ASCII characters are kept, so the names may be Unicode identifiers.
 When reading standard input without
 .BR \-n ,
 only the array elements are written.
+Incompatible with
+.BR \-r .
 .TP
 .BI "\-l " len
 Stop after

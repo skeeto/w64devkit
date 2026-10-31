@@ -1,4 +1,4 @@
-.TH DIFF 1 2026-10-27 "w64devkit" "w64devkit Manual"
+.TH DIFF 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 diff \- compare files line by line
 .SH SYNOPSIS
@@ -396,6 +396,12 @@ was not given.
 .TP
 .B 141
 Standard output is a pipe whose reader has exited.
+Output is buffered, and a closed pipe found only by the final flush at
+exit, as with a short diff or the output of
+.B \-q
+or
+.BR \-s ,
+is ignored: the status is then the same as if the output had been written.
 .PP
 Messages about common subdirectories, files of different kinds, and
 skipped files do not change the status.

@@ -1,4 +1,4 @@
-.TH TS 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH TS 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 ts \- add a timestamp to each line of standard input
 .SH SYNOPSIS
@@ -97,7 +97,7 @@ or
 .BR PM .
 .TP
 .B %s
-Seconds since 1970-01-01 00:00:00 UTC.
+Seconds since 1970\-01\-01 00:00:00 UTC.
 With
 .B \-i
 or
@@ -250,7 +250,7 @@ sets
 to
 .B UTC0
 for itself, whatever it was, and formats the elapsed time as if it were
-the time since 1970-01-01 00:00:00 UTC.
+the time since 1970\-01\-01 00:00:00 UTC.
 No time elapsed is 00:00:00 on January 1, 1970.
 So
 .B %H
@@ -364,17 +364,18 @@ A longer daylight saving name is cut to three letters.
 Daylight saving time in a
 .B TZ
 that names it follows the United States rules, whatever the zone.
-A value in another form is not rejected but misread in the same way:
-.B Europe/Paris
+A value that contains a slash, such as
+.BR Europe/Paris ,
+or begins with a colon is ignored, as is an empty value, and then the
+Windows time zone setting applies, as it does when
+.B TZ
+is unset.
+Any other value is read in this format, however wrong, so
+.B Europe
 is the zone
 .B Eur
 at UTC, with a daylight saving zone named
-.BR ope ,
-and a value beginning with a colon is read like any other.
-Only an empty value is ignored, and then the Windows time zone setting
-applies, as it does when
-.B TZ
-is unset.
+.BR ope .
 .PP
 Variables that affect every busybox applet, such as
 .B BB_TERMINAL_MODE

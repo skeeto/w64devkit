@@ -1,4 +1,4 @@
-.TH HEXDUMP 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH HEXDUMP 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 hexdump, hd \- dump files in hexadecimal or a custom format
 .SH SYNOPSIS
@@ -331,10 +331,10 @@ bytes of input, from 0 to 2147483647.
 Skip
 .I offset
 bytes from the start of the input.
-A file lying wholly within the skip is not read.
+A file that ends before the skip does is not read.
 The offsets written include the skipped bytes.
-When the skip covers all of the input, the built-in formats write only
-the final offset.
+When the skip goes past the end of the input, the built-in formats write
+only the final offset.
 See
 .B NOTES
 for limits.

@@ -1,4 +1,4 @@
-.TH WATCH 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH WATCH 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 watch \- run a command repeatedly and show its output
 .SH SYNOPSIS
@@ -63,6 +63,8 @@ The local date and time, as
 is written over the right end of the line, ending in the second-to-last
 column.
 That cuts the line short, so a long command line is truncated.
+In a narrow window the time also covers the end of the text before the
+command line.
 With a 60-column window the header of
 .B watch ls \-l
 looks like this:
@@ -217,8 +219,10 @@ The width in columns that the header is fitted to.
 A value that does not begin with a number from 2 to 29999 means 80.
 When
 .B COLUMNS
-is unset, the width is that of the console window of standard output, or
-else of standard error, and 80 if neither is a console.
+is unset, the width is that of the window of the console that
+.B watch
+is attached to, even when its output is redirected, and 80 without a
+console.
 .TP
 .B PATH
 With

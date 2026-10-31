@@ -1,4 +1,4 @@
-.TH MAN 1 2026-10-22 "w64devkit" "w64devkit Manual"
+.TH MAN 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 man \- display manual pages
 .SH SYNOPSIS
@@ -132,8 +132,11 @@ formats the next link file as a page, and
 follows its
 .B .so
 request.
-When the target cannot be found, nothing is displayed, and the operand
-counts as found.
+When the target cannot be found, the operand counts as found, and
+neither the target nor the link file is shown:
+.B nroff
+runs with no input and reports
+.BR "nroff: cannot open: \-" .
 .PP
 A
 .B .so
@@ -174,8 +177,9 @@ The line length
 .I w
 is the width of the display less 2, or the width itself when that is
 10 or less.
-The width is that of the console window of standard output, or else of
-standard error.
+The width is that of the console window that the process is attached
+to, whatever standard output and standard error are, so a page saved to
+a file from a console has the console's width.
 When
 .B COLUMNS
 is set, its value is the width instead, or 80 if its numeric value is

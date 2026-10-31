@@ -1,4 +1,4 @@
-.TH TOUCH 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH TOUCH 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 touch \- change file timestamps, or create empty files
 .SH SYNOPSIS
@@ -302,10 +302,10 @@ and
 read times in it, except
 .BI @ seconds
 and times that end in a zone.
-When it is unset or empty, the Windows time zone setting applies.
-A value in another form, such as
+When it is unset or empty, or contains a slash, such as
 .BR Europe/Paris ,
-is misread, not ignored.
+or begins with a colon, the Windows time zone setting applies.
+Any other value is read in that format, however wrong.
 In the kit's shell a change may have no effect; see
 .BR NOTES .
 .PP

@@ -1,4 +1,4 @@
-.TH TEST 1 2026-10-27 "w64devkit" "w64devkit Manual"
+.TH TEST 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 test, [ \- evaluate a conditional expression
 .SH SYNOPSIS
@@ -190,9 +190,9 @@ Always false.
 \fB\-L\fR \fIfile\fR, \fB\-h\fR \fIfile\fR
 True if
 .I file
-is a symbolic link, a directory junction or volume mount point, or an
-app execution alias.
+is a symbolic link, a directory junction, or an app execution alias.
 It does not follow the link.
+A volume mount point is a directory, not a link.
 .TP
 .BI "\-O " file
 True if
@@ -420,7 +420,7 @@ see
 .BR NOTES .
 The shell's
 .B umask
-command sets it.
+command sets and exports it.
 .PP
 Variables that affect every busybox applet are described in
 .BR busybox (1).
@@ -581,7 +581,8 @@ For other names, except
 that check reads the start of the file, unless its data is not stored
 locally.
 A file owned by someone else is writable only if, in addition, its
-access control list grants the user full access or the umask lacks the
+access control list grants the user read, write, and execute access or
+the umask lacks the
 bit
 .B 002
 that removes write permission for others; see

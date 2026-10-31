@@ -1,4 +1,4 @@
-.TH LESS 1 2026-10-27 "w64devkit" "w64devkit Manual"
+.TH LESS 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 less \- view text one screenful at a time
 .SH SYNOPSIS
@@ -488,8 +488,8 @@ reads keys with virtual terminal input; see
 .TP
 .B COLUMNS
 The window width in columns, instead of the console's.
-A value from 2 to 29999 is used.
-Any other value means 80.
+The number at the start of the value is used if it is from 2 to 29999,
+and otherwise the width is 80.
 .TP
 .B CONEMUPID
 When set, the default
@@ -531,8 +531,8 @@ is a console.
 .TP
 .B LINES
 The window height in rows, instead of the console's.
-A value from 2 to 29999 is used.
-Any other value means 24.
+The number at the start of the value is used if it is from 2 to 29999,
+and otherwise the height is 24.
 .TP
 .B POSIXLY_CORRECT
 If set, options must come before operands.

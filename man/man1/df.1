@@ -1,4 +1,4 @@
-.TH DF 1 2026-10-27 "w64devkit" "w64devkit Manual"
+.TH DF 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 df \- report the size and free space of drives
 .SH SYNOPSIS
@@ -331,6 +331,13 @@ The first two end
 before it prints anything.
 After the others the remaining operands, drives, and folders are still
 reported.
+.TP
+.B 141
+Standard output is a pipe whose reader has exited, and the output is
+longer than 4096 bytes.
+No message is printed.
+Any other write error, including one on shorter output, is ignored and
+does not change the status.
 .PP
 An operand that does not exist or is on no volume in the list is
 reported on standard error as the first line below, and a drive or

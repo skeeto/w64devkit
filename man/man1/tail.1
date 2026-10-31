@@ -1,4 +1,4 @@
-.TH TAIL 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH TAIL 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 tail \- print the last part of files
 .SH SYNOPSIS
@@ -42,7 +42,9 @@ A
 .I file
 that cannot be opened is reported on standard error and skipped, and the
 remaining files are still written.
-When none can be opened,
+Without
+.BR \-F ,
+when none can be opened,
 .B tail
 reports
 .B no files
@@ -146,8 +148,13 @@ seconds it reads each file again, in operand order, and writes any data
 added since the last read.
 When headers are on, it first writes a header, which starts with an LF,
 whenever the data comes from a different file than the data it wrote last.
-After the initial output, the last operand counts as the file written
-last, even when it did not exist yet.
+After the initial output, the last
+.I file
+that could be opened counts as the file written last.
+With
+.BR \-F ,
+if the last operand could not be opened, no file counts, and the next
+data from any file gets a header.
 .PP
 If at a poll a file is not empty but is shorter than the position
 .B tail
@@ -364,7 +371,7 @@ Write the last line of each of two files, with headers:
 $ tail \-n 1 a.txt b.txt
 ==> a.txt <==
 last line of a
-
+\&
 ==> b.txt <==
 last line of b
 .EE
@@ -450,7 +457,7 @@ GNU suffixes such as
 .BR K ,
 .BR kB ,
 and
-.BR MB
+.B MB
 are errors.
 .IP \(bu 2
 Counts are limited to 4294967295, in the 64-bit kit too.
@@ -527,7 +534,7 @@ later, and are limited to the system code page on earlier versions.
 The device names
 .IR /dev/null ,
 .IR /dev/stdin ,
-.IR /dev/tty
+.I /dev/tty
 (the console), and
 .I /dev/fd/N
 work as on Unix.

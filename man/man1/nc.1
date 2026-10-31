@@ -1,4 +1,4 @@
-.TH NC 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH NC 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 nc \- copy data to and from a TCP connection
 .SH SYNOPSIS
@@ -129,8 +129,9 @@ does not report which.
 Without
 .BR \-l ,
 .B \-p
-is accepted and ignored: the local port of an outgoing connection is
-always chosen by Windows.
+is ignored, since the local port of an outgoing connection is always
+chosen by Windows, but its value is still checked: a bad one fails with
+.BI "nc: bad port \(aq" port \(aq\fR.
 .TP
 .B \-\-help
 Print a usage message on standard output and exit.

@@ -1,4 +1,4 @@
-.TH COMM 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH COMM 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 comm \- compare two sorted files line by line
 .SH SYNOPSIS
@@ -106,6 +106,8 @@ opened; or memory ran out.
 .B 141
 A write to standard output failed because it is a pipe whose reader
 has exited.
+When this happens only at exit, while writing the output still buffered,
+the error is ignored and the status is 0.
 .SH EXAMPLES
 Show the three columns:
 .PP

@@ -1,4 +1,4 @@
-.TH DU 1 2026-10-27 "w64devkit" "w64devkit Manual"
+.TH DU 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 du \- report the disk space used by files and directories
 .SH SYNOPSIS
@@ -208,6 +208,9 @@ or
 .B E
 for the largest power of 1024 that fits, as in
 .BR 1.4M .
+The number is rounded after the suffix is chosen, so a size just under a
+power of 1024 can print as
+.BR 1024.0K .
 A size under 1024 bytes, possible only with
 .BR \-b ,
 is a plain number of bytes, and a size of 0 is

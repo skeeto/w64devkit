@@ -1,4 +1,4 @@
-.TH WGET 1 2026-10-27 "w64devkit" "w64devkit Manual"
+.TH WGET 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 wget \- retrieve files over HTTP, HTTPS, and FTP
 .SH SYNOPSIS
@@ -14,7 +14,7 @@ in turn and saves the document in a file.
 This is the busybox applet: a small non-interactive downloader with a
 fraction of the options of GNU Wget; see
 .BR NOTES .
-It speaks HTTP, HTTPS, FTP, and FTPS.
+It speaks HTTP, HTTPS, and FTP, and in the x86 kit also FTPS.
 Messages and a progress meter go to standard error, and nothing goes to
 standard output unless
 .B "\-O \-"
@@ -228,14 +228,27 @@ data connection is encrypted too when the server accepts
 .BR "PROT P" .
 .B \-\-no\-check\-certificate
 does not apply to it.
+An ftps URL works only in the x86 kit.
+In the x64 kit,
+.B wget
+waits for the server's greeting until the server gives up and closes
+the connection, then fails with
+.B "ssl_client: schannel: attempted to write to a closed connection"
+and
+.BR "wget: error getting response" ;
+see
+.BR ssl_client (1).
 .SS HTTPS and FTPS
 .B wget
 runs
 .BR ssl_client (1)
 for each encrypted connection.
-Windows does the TLS: it checks the certificate chain against the
-Windows certificate store, and the certificate's names against the host
-name.
+In the x64 kit, Windows does the TLS: it checks the certificate chain
+against the Windows certificate store, and the certificate's names
+against the host name.
+In the x86 kit, busybox's own TLS code does it, and checks no
+certificate at all; see
+.BR NOTES .
 A failed handshake is reported by
 .B ssl_client
 on standard error, followed by
@@ -397,7 +410,7 @@ if both: the other order is an error, and in this one the file wins.
 Do not validate the certificate of an https server.
 Without it, validation is as described under
 .BR "HTTPS and FTPS" .
-It has no effect on ftps.
+It has no effect on ftps, and in the x86 kit it has no effect at all.
 .TP
 .BR \-c ", " \-\-continue
 Continue an interrupted download.
@@ -667,6 +680,9 @@ address, a refused connection, an unusable URL, a refused file, an error
 status from the server, or an error reading or writing.
 The message is on standard error, prefixed with
 .BR wget: .
+.TP
+.B 141
+Standard output is a pipe that was closed before all output was written.
 .PP
 The first failure ends the command: the remaining URLs are not
 retrieved, and the files already saved stay.
@@ -778,7 +794,7 @@ That process holds the standard output and standard error of
 .BR wget ,
 so a command substitution or pipeline that reads them waits for it too.
 .PP
-TLS is Windows's Schannel, run through
+In the x64 kit, TLS is Windows's Schannel, run through
 .BR ssl_client (1),
 which describes the protocols (TLS 1.0 through 1.2 here) and the
 handshake error messages.
@@ -786,18 +802,28 @@ A server that needs TLS 1.3 cannot be reached.
 The certificate is validated unless
 .B \-\-no\-check\-certificate
 is given.
+.PP
+In the x86 kit,
+.BR ssl_client (1)
+uses busybox's own TLS code instead.
+It speaks only TLS 1.2, with a few cipher suites that use AES and
+SHA-256, and it validates no certificate, so it cannot tell a server
+from an impostor.
+A server it cannot agree with fails with a message such as
+.BR "ssl_client: TLS error from peer (alert code 40): handshake failure" .
+.PP
 An https URL sent through
 .B http_proxy
 is not tunneled: the proxy receives the request in clear text, as
 .BR "GET https://host/path" .
 .PP
-Because of how
+In the x64 kit, because of how
 .BR ssl_client (1)
 copies data, a large request body over https, such as a
 .B \-\-post\-file
 of 40000 octets, can stall before it is all sent, or reach the server
 with earlier parts of the request repeated in place of later ones.
-Over https, a response without
+In that kit too, over https, a response without
 .B Content\-Length
 makes
 .B wget
@@ -846,12 +872,6 @@ loses the question mark and requests
 Write
 .B http://host/?q=1
 instead.
-.PP
-When the host is an IP address, the
-.B Connecting to
-line shows
-.B (null)
-in the parentheses instead of the address.
 .SH SEE ALSO
 .BR busybox (1),
 .BR httpd (1),

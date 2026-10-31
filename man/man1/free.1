@@ -1,4 +1,4 @@
-.TH FREE 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH FREE 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 free \- show the amount of free and used memory
 .SH SYNOPSIS
@@ -101,6 +101,9 @@ or
 .BR T .
 For example, 33271988 KiB is written
 .BR 31.7G .
+The decimal digit is rounded, so a size just below the next unit, such
+as 1048572 KiB, is written as
+.BR 1024.0M .
 A size of 0 is written as a plain
 .BR 0 ,
 with no suffix.
@@ -149,7 +152,7 @@ It is recognized only as the first argument, and any arguments that
 follow are ignored.
 .SH ENVIRONMENT
 .B free
-reads no environment variables.
+reads no environment variables of its own.
 The variables that busybox reads for every applet, such as
 .BR BB_GLOBBING ,
 are described in

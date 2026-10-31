@@ -1,4 +1,4 @@
-.TH TAR 1 2026-10-27 "w64devkit" "w64devkit Manual"
+.TH TAR 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 tar \- create, list, and extract tar archives
 .SH SYNOPSIS
@@ -196,8 +196,8 @@ select the members to skip in the same way, and win over
 .PP
 Each operand must also be the name of a member.
 After the whole archive has been read, the first operand that is not
-the name of a member that was listed or extracted, and does not match
-an exclusion pattern, is reported as
+the name of a member that was listed or extracted, and that no exclusion
+pattern matches as a whole, is reported as
 .IB name ": not found in archive"
 and the status is 1.
 This includes an operand with a wildcard, and an operand that names a
@@ -506,6 +506,8 @@ With
 .BR \-t ,
 the contents are written as well as the listing, which goes to standard
 error.
+No effect with
+.BR \-c .
 .TP
 .BR \-m ", " \-\-touch
 With
@@ -521,7 +523,9 @@ Ownership cannot be set on Windows, so it is never restored.
 Accepted.
 .TP
 .BR \-k ", " \-\-keep\-old
-Do not replace existing files.
+With
+.BR \-x ,
+do not replace existing files.
 If a regular file member names an existing file,
 .B tar
 reports
@@ -681,7 +685,10 @@ archive a directory without its contents.
 .TP
 .B \-\-numeric\-owner
 Accepted.
-This build never looks up user and group names.
+Listing and extraction never use the user and group names in the
+archive, and
+.B \-c
+stores them regardless.
 .TP
 .B \-\-no\-same\-permissions
 Accepted.
@@ -783,7 +790,8 @@ tar: \fImessage\fR
 .EE
 .RE
 .PP
-When creating, an error with one file does not stop the others.
+When creating, an error with one file does not stop the others, unless
+it occurs while its contents are copied, such as a short read.
 .B tar
 writes the archive anyway, reports
 .BR "error exit delayed from previous errors" ,
@@ -952,10 +960,13 @@ or
 .BR ? ,
 or a device name such as
 .BR con ,
-ends the command with an error when extracting.
-So does a path longer than
+ends the command with an error when extracting, except for a directory,
+whose error is only reported.
+So does a path of
 .BR MAX_PATH ,
-260 characters, counting the current directory.
+260 characters, or more, counting the current directory.
+A directory whose path is 248 characters or more cannot be created, and
+that error too is only reported.
 .PP
 When creating, the stored attributes come from busybox-w32's emulation
 of Unix file information:

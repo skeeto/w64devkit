@@ -1,4 +1,4 @@
-.TH SH 1 2026-10-27 "w64devkit" "w64devkit Manual"
+.TH SH 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 sh, ash, lash \- the busybox shell
 .SH SYNOPSIS
@@ -205,8 +205,9 @@ and
 .IP \(bu 2
 When a command is not found and a function named
 .B command_not_found_handle
-exists, the shell calls that function with the command name and
-arguments.
+exists, the shell calls that function, with the command name as its
+only argument, instead of printing an error.
+The status is 127, whatever the function returns.
 .IP \(bu 2
 A pipeline may begin with more than one
 .BR ! ,
@@ -263,7 +264,9 @@ and
 .B s
 when the shell reads commands from standard input.
 .SS Shell options
-Each shell option has a name.
+Each option that
+.B set
+accepts has a name.
 .B set \-o
 .I name
 turns the option on, and
@@ -822,7 +825,9 @@ See
 Report how each
 .I name
 would run.
-With any option, print only the file, or the name, as
+With any option, print only the file or the name, or for an alias the
+.B alias
+command that defines it, as
 .B command \-v
 does.
 .TP
@@ -1800,7 +1805,8 @@ or
 .B 255
 A Windows exit code above 255 whose low byte is 0, such as 256.
 .PP
-The shell reduces any other exit code above 255 to its low byte, and
+The shell reduces any other exit code above 255 to its low byte.
+For every exit code above 255 that does not stand for a signal, it also
 prints a message with the code in hexadecimal.
 .SH EXAMPLES
 Run a script, tracing each command:

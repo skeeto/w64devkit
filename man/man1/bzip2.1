@@ -1,4 +1,4 @@
-.TH BZIP2 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH BZIP2 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 bzip2, bunzip2, bzcat \- compress or decompress files in the bzip2 format
 .SH SYNOPSIS
@@ -167,7 +167,7 @@ input even when it is a console.
 Without
 .BR \-f ,
 reading standard input from a console fails with
-.BR "compressed data not read from terminal" .
+.BR "compressed data not read from terminal, use \-f to force it" .
 .TP
 .B \-k
 Keep the input files.
@@ -361,6 +361,21 @@ and
 environment variables are ignored.
 .IP \(bu 2
 Blocks in the obsolete randomized format are rejected.
+.PP
+A
+.B \-
+operand after a
+.I file
+operand does not read standard input.
+With
+.B \-c
+or
+.BR \-t ,
+it is read as empty input, which compresses to an empty stream and
+fails to decompress with
+.BR "invalid magic" .
+Otherwise it fails and ends the command, and later operands are not
+processed.
 .PP
 Standard input and output are in binary mode.
 Output names are formed from the input path as written, so drive

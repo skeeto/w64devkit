@@ -1,4 +1,4 @@
-.TH KILL 1 2026-10-27 "w64devkit" "w64devkit Manual"
+.TH KILL 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 kill \- send a signal to processes
 .SH SYNOPSIS
@@ -188,7 +188,13 @@ failure.
 .B >1
 The number of failures: each operand that is not a valid PID, and each
 PID that could not be signaled.
+A negative PID or 0 counts once, however many of its processes fail.
 The status is this count modulo 256, so 256 failures give 0.
+.PP
+In the kit's shell, the built-in
+.B kill \-l
+exits with status 32 instead of 0 when standard output is a pipe that
+was closed before the list was written.
 .SH EXAMPLES
 Ask a process to end:
 .PP

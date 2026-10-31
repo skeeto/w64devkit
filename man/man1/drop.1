@@ -151,20 +151,6 @@ An unknown option or an option without its argument is a usage error:
 the program prints a usage message on standard error and exits with
 status 1.
 .TP
-.BI "\-c " string
-Run
-.I string
-as a command in the shell.
-The shell is given
-.B \-c
-.IR string ,
-or
-.B /c
-.I string
-for
-.BR cmd.exe .
-The operands follow as arguments.
-.TP
 .BI "\-s " shell
 .RB ( drop
 only.)
@@ -197,6 +183,20 @@ is ignored when there is a
 .I command
 operand and no
 .BR \-c .
+.TP
+.BI "\-c " string
+Run
+.I string
+as a command in the shell.
+The shell is given
+.B \-c
+.IR string ,
+or
+.B /c
+.I string
+for
+.BR cmd.exe .
+The operands follow as arguments.
 .TP
 .B \-\-help
 As the first argument, print a usage message on standard output and exit

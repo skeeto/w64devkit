@@ -1,4 +1,4 @@
-.TH LS 1 2026-10-27 "w64devkit" "w64devkit Manual"
+.TH LS 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 ls \- list directory contents
 .SH SYNOPSIS
@@ -142,6 +142,11 @@ writes
 instead, with the zone as a signed offset from UTC such as
 .BR \-0500 ,
 and no fraction of a second.
+A time before 1970 or after the year 3000 makes
+.B ls
+crash, except with
+.BR \-\-full\-time ,
+which writes it as the Unix epoch.
 .PP
 A symbolic link's name is followed by
 .B \->
@@ -398,8 +403,10 @@ Fit the column formats to
 characters.
 The default is one less than
 .B COLUMNS
-when that is set, or else than the width of the console window of
-standard output, or failing that of standard error.
+when that is set, or else than the width of the window of the console
+that
+.B ls
+is attached to, even when its output is redirected.
 Without either, it is 79.
 A
 .I width
@@ -551,6 +558,16 @@ An operand or an entry of a directory could not be examined, a
 directory could not be opened, or an option or the argument of
 .B \-w
 was invalid.
+.TP
+.B 139
+.B ls
+crashed with the access violation
+.BR 0xC0000005 ,
+as it does on a time before 1970 or after the year 3000 in the long
+format; see
+.BR "Long format" .
+The shell reports this as status 139 and prints
+.BR SEGV .
 .TP
 .B 141
 Standard output is a pipe that was closed before all output was written.
@@ -766,6 +783,11 @@ for a device,
 for a named pipe, and
 .B ESC[0;0m
 for any other file.
+A link that
+.B ls
+follows, as with
+.BR \-L ,
+is still colored as a link.
 In the long format, the target of a link is colored for its own type,
 or with
 .B ESC[1;31m

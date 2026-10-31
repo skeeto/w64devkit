@@ -1,4 +1,4 @@
-.TH PING 1 2026-10-27 "w64devkit" "w64devkit Manual"
+.TH PING 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 ping, ping6 \- send ICMP echo requests to a network host
 .SH SYNOPSIS
@@ -413,6 +413,21 @@ To bound a run and still get statistics, use
 .B \-c
 or
 .BR \-w .
+.PP
+A closed output pipe does not stop
+.BR ping .
+In
+.BR "ping \-c 5 host | head \-n 1" ,
+it goes on sending all five requests after
+.B head
+exits, and its exit status is the usual one, not 141.
+Without
+.B \-c
+or
+.BR \-w ,
+such a pipeline runs until
+.B ping
+is interrupted.
 .PP
 Round-trip times come from the Windows performance counter, so they
 are accurate to the microsecond.

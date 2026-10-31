@@ -1,4 +1,4 @@
-.TH CMCLDEPS 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.TH CMCLDEPS 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 cmcldeps \- run rc and record the headers a resource script includes
 .SH SYNOPSIS
@@ -60,11 +60,11 @@ Run
 with the
 .I argument
 list in the current directory, and exit with its status.
-If the list contained
+Of the changes in step 1, only the removal of
 .B /nologo
-or
+and
 .B \-nologo
-followed by a space,
+applies to this list, and if any was removed,
 .I rc
 gets a single
 .B /nologo

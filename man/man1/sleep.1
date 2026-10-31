@@ -1,4 +1,4 @@
-.TH SLEEP 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH SLEEP 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 sleep \- pause for a specified time
 .SH SYNOPSIS
@@ -90,7 +90,13 @@ and may trim a trailing semicolon from
 .BR PATH .
 None of these affects how
 .B sleep
-waits.
+waits, except that unless
+.B BB_GLOBBING
+is
+.BR 0 ,
+an argument that contains a wildcard is replaced by the names of
+matching files, as needed when run from
+.BR cmd.exe .
 Variables that affect every busybox applet, such as
 .B BB_TERMINAL_MODE
 for console output, are described in

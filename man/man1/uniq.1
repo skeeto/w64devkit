@@ -1,4 +1,4 @@
-.TH UNIQ 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH UNIQ 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 uniq \- report or omit repeated lines
 .SH SYNOPSIS
@@ -202,6 +202,11 @@ not be opened; a read or write error; or memory ran out.
 .TP
 .B 141
 Standard output is a pipe whose reader has exited.
+Output still buffered when
+.B uniq
+finishes is written as it exits, and a broken pipe found then is instead
+reported as a write error, with status 1 and the message
+.BR "uniq: standard output: Invalid argument" .
 .SH EXAMPLES
 Count how many times each word appears, most frequent first:
 .PP
@@ -318,6 +323,9 @@ closes its standard input to open
 in its place; give
 .B \-
 instead.
+.I /dev/fd/0
+is reported as
+.BR "No such file or directory" .
 A directory fails as
 .I file
 with

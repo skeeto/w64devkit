@@ -1,4 +1,4 @@
-.TH CP 1 2026-10-27 "w64devkit" "w64devkit Manual"
+.TH CP 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 cp \- copy files and directories
 .SH SYNOPSIS
@@ -266,6 +266,14 @@ and merged with it if it is an existing directory.
 A source that is not a directory, and a
 .I dest
 that is, is an error.
+A symbolic link or junction at
+.I dest
+is not followed: a source that is not a directory replaces the link, and
+with
+.B \-R
+a source directory fails with
+.BI "target \(aq" dest "\(aq is not a directory" \c
+\&.
 Requires exactly two operands, and is ignored with
 .BR \-t .
 .TP

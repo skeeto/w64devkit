@@ -1,4 +1,4 @@
-.TH DATE 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH DATE 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 date \- print or set the date and time
 .SH SYNOPSIS
@@ -128,7 +128,7 @@ An offset is accurate to only 36 seconds, so minutes that are not a
 multiple of 3 are inexact.
 .TP
 \fB@\fIseconds\fR
-Seconds since 1970-01-01 00:00:00 UTC, as decimal digits with an
+Seconds since 1970\-01\-01 00:00:00 UTC, as decimal digits with an
 optional minus sign and nothing else.
 .TP
 [[[[[\fIYY\fR]\fIYY\fR]\fIMM\fR]\fIDD\fR]\fIhh\fR]\fImm\fR[\fB.\fIss\fR]
@@ -358,7 +358,7 @@ or
 .BR PM .
 .TP
 .B %s
-Seconds since 1970-01-01 00:00:00 UTC.
+Seconds since 1970\-01\-01 00:00:00 UTC.
 .TP
 .B %S
 The second, 00 to 59.
@@ -663,10 +663,18 @@ A longer daylight saving name is cut to three letters.
 Daylight saving time in a
 .B TZ
 that names it follows the United States rules, whatever the zone.
-A value the C runtime rejects, such as
-.B Europe/Paris
-or one beginning with a colon, is ignored, as is an empty value.
-Then the Windows time zone setting applies.
+A value that contains a slash, such as
+.BR Europe/Paris ,
+or begins with a colon is ignored, as is an empty value, and then the
+Windows time zone setting applies, as it does when
+.B TZ
+is unset.
+Any other value is read in this format, however wrong, so
+.B Europe
+is the zone
+.B Eur
+at UTC, with a daylight saving zone named
+.BR ope .
 .B \-u
 sets it to
 .B UTC0
@@ -826,7 +834,7 @@ and
 .B ^
 flags and field widths.
 .PP
-Only times from 1970-01-01 00:00:00 UTC to 3001-01-01 07:59:59 UTC,
+Only times from 1970\-01\-01 00:00:00 UTC to 3001\-01\-01 07:59:59 UTC,
 which are 0 through 32535244799 seconds since the epoch, can be
 converted.
 A
@@ -836,14 +844,14 @@ outside that range, written in a form other than
 is an invalid date.
 In the form with a
 .IR zone ,
-the latest time is 3000-12-31 23:59:59 UTC.
+the latest time is 3000\-12\-31 23:59:59 UTC.
 An
 .BI @ seconds
 outside the range, including every negative value, or a
 .B %s
 value outside it with
 .BR \-D ,
-is not an error but is taken to be the epoch, 1970-01-01 00:00:00 UTC,
+is not an error but is taken to be the epoch, 1970\-01\-01 00:00:00 UTC,
 which is then printed, or with
 .B \-s
 set.

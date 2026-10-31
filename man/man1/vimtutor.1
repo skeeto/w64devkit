@@ -1,1 +1,43 @@
-.so ../vim/doc/vimtutor.1
+.TH VIMTUTOR 1 2026-10-31 "w64devkit" "w64devkit Manual"
+.SH NAME
+vimtutor \- start the Vim tutor on a scratch copy
+.SH SYNOPSIS
+.B vimtutor
+.SH DESCRIPTION
+.B vimtutor
+starts
+.BR vim (1)
+on a new copy of the Vim tutor, a lesson file to read and edit, so the
+original is never changed.
+The copy is a file in the directory named by
+.BR TMP ,
+named
+.B tutor
+followed by a random number, and it is not deleted afterwards.
+.PP
+Vim runs with
+.BR "\-N \-u NONE" ,
+so it is not Vi compatible and reads no initialization files.
+.SH OPTIONS
+None.
+.B vimtutor
+is a batch file that ignores its arguments.
+.SH ENVIRONMENT
+.TP
+.B TMP
+The directory for the copy.
+.TP
+.B PATH
+Where
+.B cmd.exe
+finds
+.BR vim .
+.SH NOTES
+Only the English tutor is installed, and there is no
+.B \-g
+option to use gvim.
+This page replaces the upstream
+.B vimtutor
+page, which describes the Unix shell script.
+.SH SEE ALSO
+.BR vim (1)

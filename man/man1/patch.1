@@ -1,4 +1,4 @@
-.TH PATCH 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH PATCH 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 patch \- apply a unified diff to files
 .SH SYNOPSIS
@@ -57,6 +57,14 @@ or
 .B \e
 comes first, the hunk fails, and if the diff ends first, the hunk is
 ignored.
+If such a line is the first line of a hunk, the hunk and the rest of
+the file's hunks are ignored, with no message, and the exit status is
+not affected.
+A hunk whose first line starts with
+.B \e
+makes
+.B patch
+crash, leaving the file unchanged and its temporary file beside it.
 .SS "File names"
 The file to change is named on the
 .B +++

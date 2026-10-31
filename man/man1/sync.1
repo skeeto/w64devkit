@@ -1,4 +1,4 @@
-.TH SYNC 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH SYNC 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 sync \- flush the buffers of every drive to disk
 .SH SYNOPSIS
@@ -11,11 +11,15 @@ It reads no input and writes nothing on standard output.
 It visits each drive letter, from A to Z, whose type is fixed,
 removable, CD-ROM, or network and whose volume information can be read,
 so a drive with no disk in it is passed over.
-For each, it opens the volume,
-.IR \e\e.\eX: ,
-for reading and writing, calls
+It then visits each local volume mounted in a folder, such as
+.IR c:/mnt/data .
+For each, it opens the volume for reading and writing, calls
 .B FlushFileBuffers
 on it, and closes it.
+It opens a volume by its GUID path, as in
+.IR \e\e?\eVolume{guid} ,
+and a drive that has none, such as a network drive, as
+.IR \e\e.\eX: .
 A drive that cannot be opened or flushed is skipped without a message.
 .PP
 .B sync
@@ -83,9 +87,8 @@ the system drive, for writing, though it may allow it for a USB drive.
 ignores the failure, so without elevation it may flush only some drives
 or none, and it still exits with status 0.
 .PP
-Only drive letters are visited.
-Volumes mounted in folders, and network shares without a drive letter,
-are not flushed.
+Network shares without a drive letter, and volumes with neither a drive
+letter nor a folder mount point, are not flushed.
 .PP
 Unlike GNU
 .BR sync ,

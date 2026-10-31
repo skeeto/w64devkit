@@ -1,4 +1,4 @@
-.TH JN 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH JN 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 jn \- create a directory junction
 .SH SYNOPSIS
@@ -22,7 +22,7 @@ setting to create.
 must exist and be a directory.
 The junction stores the name that
 .BR realpath (1)
-prints for it.
+prints for it, with backslashes in place of slashes.
 A relative
 .I dir
 is taken from the current directory, not from the directory of
@@ -62,7 +62,9 @@ Any other argument that begins with
 .BR \- ,
 other than
 .B \-
-itself, is an unknown option and an error, even after the operands
+itself and
+.BR \-\- ,
+is an unknown option and an error, even after the operands
 unless
 .B POSIXLY_CORRECT
 is set.

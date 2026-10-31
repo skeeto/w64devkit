@@ -1,4 +1,4 @@
-.TH MAKE2COMPDB 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH MAKE2COMPDB 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 make2compdb \- generate a compilation database from make output
 .SH SYNOPSIS
@@ -35,7 +35,9 @@ make[1]: Entering directory \(aqC:/src/lib\(aq
 .EE
 .RE
 .PP
-whose first word ends in a colon, and its matching
+whose first word ends in a colon and whose next two words are
+.BR "Entering directory" ,
+and its matching
 .B Leaving directory
 line.
 These maintain a stack of directories, which starts with the current

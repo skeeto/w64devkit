@@ -1,4 +1,4 @@
-.TH W64DEVKIT 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH W64DEVKIT 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 w64devkit \- start a shell in the w64devkit environment
 .SH SYNOPSIS
@@ -36,8 +36,14 @@ directory at the front of
 .BR PATH ,
 as the configuration says;
 .IP 5. 4
-sets the console title; and
+sets the console title;
 .IP 6. 4
+changes to
+.BR HOME ,
+or when it is unset or empty, to
+.BR USERPROFILE ,
+staying in the kit directory if that fails; and
+.IP 7. 4
 runs
 .I bin/busybox.exe
 as
@@ -61,10 +67,10 @@ When a key repeats, the last value wins, except for
 A line whose first non-blank character is
 .B ;
 is a comment, and a comment cannot follow a value on the same line.
-Whitespace around section names, keys and values is trimmed.
+Whitespace around section names, keys, and values is trimmed.
 Double quotes around a value keep its leading and trailing whitespace,
 and cannot be escaped.
-Unknown keys, and lines that are not sections, keys or comments, are
+Unknown keys, and lines that are not sections, keys, or comments, are
 ignored.
 .TP
 .BI "home = " path
@@ -135,10 +141,8 @@ The default is
 .SS Login shell
 As a login shell, busybox
 .B sh
-changes to
-.BR HOME ,
-or when it is unset, to the user's profile directory.
-It then runs these scripts, each if it exists:
+stays in the directory it was started in, and runs these scripts, each
+if it exists:
 .IP 1. 4
 .I /etc/profile
 on the system drive;

@@ -1,4 +1,4 @@
-.TH WHOAMI 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH WHOAMI 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 whoami \- print the name of the current user
 .SH SYNOPSIS
@@ -131,11 +131,15 @@ $ c:/windows/system32/whoami
 .EE
 .RE
 .PP
-Tell whether the process is elevated:
+Tell whether the process runs as
+.BR root ,
+which a process started by
+.B drop
+does not, though Windows still reports it as elevated:
 .PP
 .RS 4
 .EX
-$ [ "$(id \-u)" = 0 ] && echo elevated
+$ [ "$(id \-u)" = 0 ] && echo root
 .EE
 .RE
 .SH NOTES

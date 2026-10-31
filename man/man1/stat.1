@@ -1,4 +1,4 @@
-.TH STAT 1 2026-10-27 "w64devkit" "w64devkit Manual"
+.TH STAT 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 stat \- display the status of files or file systems
 .SH SYNOPSIS
@@ -679,7 +679,9 @@ path of the executable.
 .PP
 The change time is the time the file was created.
 A time before 1970 or after the year 3000 prints in text as the Unix
-epoch, and the fraction of a time before 1970 prints wrong.
+epoch.
+A time before 1970 with a fraction of a second has its fraction printed
+wrong, and its seconds since 1970 one too large.
 .PP
 Allocated sizes are space on disk.
 .B stat
