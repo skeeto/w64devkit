@@ -340,7 +340,7 @@ An invalid option or count, a
 .I file
 that could not be opened (except with
 .BR \-F ),
-a read error, or a write error.
+a read error, a write error, or memory ran out.
 With
 .B \-c
 on a seekable file, a read error, or a write error other than a closed
@@ -498,7 +498,7 @@ A count that begins with
 .B +
 reads from the start of the input.
 .PP
-On input that cannot seek, such as a pipe,
+On input that cannot seek, such as a pipe, and on an empty file,
 .B tail
 reads all of the input.
 It holds the last
@@ -507,22 +507,14 @@ lines in memory, or with
 .B \-c
 allocates
 .I count
-bytes in advance.
-.PP
-Very large counts without a leading
-.B +
-fail.
+bytes in advance, so a large count can fail with
+.B out of memory
+even for short input.
 A
-.B \-n
-count of 2147483648 or more, or a
 .B \-c
-count of 4294966784 or more on input that cannot seek, crashes
-.B tail
-when the input is not empty.
-In the 64-bit kit, a smaller
-.B \-c
-count of 2147483136 or more on input that cannot seek fails with
-.BR "read error: Invalid argument" .
+count of 2147483136 or more without a leading
+.B +
+always fails that way on such input.
 .PP
 Files and standard input and output are binary, so CR LF line endings
 are copied unchanged, and lines end only at LF.

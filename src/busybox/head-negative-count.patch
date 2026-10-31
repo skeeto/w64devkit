@@ -1,0 +1,31 @@
+Stop head when a count from the end is too big.
+With -n -N or -c -N, head checked the count against the size of the
+array of saved lines but only printed "count is too big" and carried
+on. For 4294967295 the ++count in print_except_N_last_lines and
+print_except_N_last_bytes wrapped to zero, and on 32-bit hosts
+(count + 1) * sizeof(char*) wrapped for line counts of 2^30 - 1 and
+above, so the ring buffer was undersized and written past its end.
+Where long is 64 bits, a count above 4294967295 was also truncated
+when passed on as unsigned.
+
+Make the error fatal, as intended. The limit for lines stays the one
+that keeps the array size in range; bytes need only one byte each, so
+allow them up to INT_MAX rather than refusing counts that worked.
+
+---
+ coreutils/head.c |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+--- a/coreutils/head.c
++++ b/coreutils/head.c
+@@ -235,8 +235,8 @@
+ #endif
+ 	}
+ 	if (negative_N) {
+-		if (count >= INT_MAX / sizeof(char*))
+-			bb_error_msg("count is too big: %lu", count);
++		if (count >= (count_bytes ? INT_MAX : INT_MAX / sizeof(char*)))
++			bb_error_msg_and_die("count is too big: %lu", count);
+ 	}
+ 
+ 	do {

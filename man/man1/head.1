@@ -309,14 +309,10 @@ allocates memory in proportion to
 before it reads any input, so a large count can fail with
 .B out of memory
 even for short input.
-A count of 268435455 or more, or 536870911 or more in the 32-bit kit,
-also prints
+A line count of 268435455 or more (536870911 or more in the 32-bit
+kit), or a byte count of 2147483647 or more, is refused with
 .B count is too big
-as a warning, and
-.B head
-still runs.
-A count of 4294967295, or in the 32-bit kit a line count of 1073741823
-or more, can crash it.
+before any file is read.
 .PP
 .B head
 reads its input in blocks, and leaves a seekable standard input at the

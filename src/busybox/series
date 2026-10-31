@@ -37,3 +37,5 @@ mingw-read-bad-fd.patch
 patch-negative-strip.patch
 patch-no-newline-first-line.patch
 patch-bad-first-line.patch
+tail-large-count.patch
+head-negative-count.patch

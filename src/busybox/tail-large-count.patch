@@ -1,0 +1,74 @@
+Handle tail counts of 2^31 and above without crashing.
+The count is unsigned, but tail_main mixed it with int lengths in three
+places. With -n of 2147483648 or more, (int)count went negative, so
+every read took the "enough lines" branch and the scan for the first
+line to keep ran off the end of the buffer. With -c from the end on a
+pipe, count + BUFSIZ wrapped around for counts near 4294967295 and left
+a buffer far too small, and on 64-bit hosts a count of 2^31 or more got
+a buffer that the int length and (int)count compare could not use; both
+crashed in memmove. With -c +N, nwrite - (count - seen) wrapped around
+for N above about 2^31 and wrote garbage or failed with "Invalid
+argument" instead of skipping the input.
+
+Compare the line counts as unsigned. Refuse with "out of memory" a byte
+count that would need a buffer larger than INT_MAX, as 32-bit hosts
+already did when the allocation failed, but only once the buffer is
+needed, so seekable files still work. For -c +N, skip at most the bytes
+just read.
+
+---
+ coreutils/tail.c |   20 ++++++++++++++------
+ 1 file changed, 14 insertions(+), 6 deletions(-)
+
+--- a/coreutils/tail.c
++++ b/coreutils/tail.c
+@@ -192,9 +192,11 @@
+ 	/* prepare the buffer */
+ 	tailbufsize = BUFSIZ;
+ 	if (!G.from_top && COUNT_BYTES) {
+-		if (tailbufsize < count + BUFSIZ) {
++		/* taillen is an int, the buffer can't be larger */
++		if (count > INT_MAX - BUFSIZ)
++			tailbufsize = 0; /* too big, fail if it's needed */
++		else if (tailbufsize < count + BUFSIZ)
+ 			tailbufsize = count + BUFSIZ;
+-		}
+ 	}
+ 	/* tail -c1024m REGULAR_FILE doesn't really need 1G mem block.
+ 	 * (In fact, it doesn't need ANY memory). So delay allocation.
+@@ -254,8 +256,11 @@
+ 			}
+ 		}
+ 
+-		if (!tailbuf)
++		if (!tailbuf) {
++			if (!tailbufsize)
++				bb_die_memory_exhausted();
+ 			tailbuf = xmalloc(tailbufsize);
++		}
+ 
+ 		buf = tailbuf;
+ 		taillen = 0;
+@@ -269,8 +274,11 @@
+ 				if (seen < count) {
+ 					/* We need to skip a few more bytes/lines */
+ 					if (COUNT_BYTES) {
+-						nwrite -= (count - seen);
+-						seen += nread;
++						unsigned skip = count - seen;
++						if (skip > (unsigned)nread)
++							skip = nread;
++						nwrite -= skip;
++						seen += skip;
+ 					} else {
+ 						char *s = buf;
+ 						do {
+@@ -301,7 +309,7 @@
+ 						}
+ 					} while (k);
+ 
+-					if (newlines_seen + newlines_in_buf < (int)count) {
++					if ((unsigned)(newlines_seen + newlines_in_buf) < count) {
+ 						newlines_seen += newlines_in_buf;
+ 						taillen += nread;
+ 					} else {
