@@ -1,7 +1,7 @@
 ---
  archival/libarchive/Kbuild.src                   |    2 +-
- archival/libarchive/decompress_gunzip_external.c |   12 ++++++++++++
- 2 files changed, 13 insertions(+), 1 deletion(-)
+ archival/libarchive/decompress_gunzip_external.c |   11 +++++++++++
+ 2 files changed, 12 insertions(+), 1 deletion(-)
 
 --- a/archival/libarchive/Kbuild.src
 +++ b/archival/libarchive/Kbuild.src
@@ -16,16 +16,15 @@
  lib-$(CONFIG_FEATURE_SEAMLESS_XZ)       += open_transformer.o decompress_unxz.o
 --- /dev/null
 +++ b/archival/libarchive/decompress_gunzip_external.c
-@@ -0,0 +1,12 @@
+@@ -0,0 +1,11 @@
 +#include "libbb.h"
 +#include "bb_archive.h"
 +
 +IF_DESKTOP(long long) int FAST_FUNC
-+unpack_gz_stream(transformer_state_t *xstate)
++unpack_gz_stream(transformer_state_t *xstate UNUSED_PARAM)
 +{
-+	/* This runs in a forked child. Exec external gunzip. */
-+	xmove_fd(xstate->src_fd, STDIN_FILENO);
-+	xmove_fd(xstate->dst_fd, STDOUT_FILENO);
-+	execlp("gunzip", "gunzip", (char *)0);
-+	bb_perror_msg_and_die("can't execute '%s'", "gunzip");
++	/* Never called: Windows archive code is NOMMU, and
++	 * xmalloc_open_zipped_read_close() uses a subprocess there,
++	 * so gzip data always goes through the external gunzip. */
++	bb_simple_error_msg_and_die("no built-in gzip decompressor");
 +}

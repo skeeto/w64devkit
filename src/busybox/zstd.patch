@@ -1,11 +1,11 @@
 ---
  archival/libarchive/Kbuild.src          |    2 +-
- archival/libarchive/decompress_unzstd.c |   12 ++++++++++++
- archival/libarchive/open_transformer.c  |   11 +++++++++++
+ archival/libarchive/decompress_unzstd.c |   11 +++++++++++
+ archival/libarchive/open_transformer.c  |   15 ++++++++++++++-
  archival/tar.c                          |   16 +++++++++++++++-
  include/bb_archive.h                    |    6 ++++++
  win32/popen.c                           |    6 ++----
- 6 files changed, 47 insertions(+), 6 deletions(-)
+ 6 files changed, 49 insertions(+), 7 deletions(-)
 
 --- a/archival/libarchive/Kbuild.src
 +++ b/archival/libarchive/Kbuild.src
@@ -20,18 +20,17 @@
  \
 --- /dev/null
 +++ b/archival/libarchive/decompress_unzstd.c
-@@ -0,0 +1,12 @@
+@@ -0,0 +1,11 @@
 +#include "libbb.h"
 +#include "bb_archive.h"
 +
 +IF_DESKTOP(long long) int FAST_FUNC
-+unpack_zstd_stream(transformer_state_t *xstate)
++unpack_zstd_stream(transformer_state_t *xstate UNUSED_PARAM)
 +{
-+	/* This runs in a forked child. Exec external unzstd. */
-+	xmove_fd(xstate->src_fd, STDIN_FILENO);
-+	xmove_fd(xstate->dst_fd, STDOUT_FILENO);
-+	execlp("unzstd", "unzstd", (char *)0);
-+	bb_perror_msg_and_die("can't execute '%s'", "unzstd");
++	/* Never called: Windows archive code is NOMMU, and
++	 * xmalloc_open_zipped_read_close() uses a subprocess there,
++	 * so zstd data always goes through the external unzstd. */
++	bb_simple_error_msg_and_die("no built-in zstd decompressor");
 +}
 --- a/archival/libarchive/open_transformer.c
 +++ b/archival/libarchive/open_transformer.c
@@ -58,6 +57,17 @@
  			" magic");
  
  	/* Some callers expect this function to "consume" fd
+@@ -331,7 +342,9 @@
+ 
+ void* FAST_FUNC xmalloc_open_zipped_read_close(const char *fname, size_t *maxsz_p)
+ {
+-# if 1
++	/* On Windows gunzip and unzstd are external programs, so their
++	 * transformers cannot be called in-process: use the subprocess. */
++# if !ENABLE_PLATFORM_MINGW32
+ 	transformer_state_t *xstate;
+ 	char *image;
+ 
 --- a/archival/tar.c
 +++ b/archival/tar.c
 @@ -812,6 +812,9 @@
