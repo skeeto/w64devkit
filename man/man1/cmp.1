@@ -1,4 +1,4 @@
-.TH CMP 1 2026-10-27 "w64devkit" "w64devkit Manual"
+.TH CMP 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 cmp \- compare two files byte by byte
 .SH SYNOPSIS
@@ -187,14 +187,10 @@ with a message on standard error.
 .TP
 .B 2
 A file could not be opened or read, or standard output could not be
-written, as when it is a pipe whose reader has exited.
+written.
 .TP
 .B 141
-With
-.BR \-l ,
-standard output is a pipe whose reader exited before
-.B cmp
-finished writing a long listing.
+Standard output is a pipe whose reader has exited.
 .SH EXAMPLES
 Compare two files:
 .PP

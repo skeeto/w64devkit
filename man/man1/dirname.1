@@ -1,4 +1,4 @@
-.TH DIRNAME 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH DIRNAME 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 dirname \- strip the last component from a path
 .SH SYNOPSIS
@@ -135,13 +135,12 @@ Invalid command line: no
 or more than one, with a usage message on standard error.
 .TP
 .B 141
-Standard output is a pipe whose reader has exited, and the result is
-4096 bytes or longer.
+Standard output is a pipe whose reader has exited.
 No message is printed.
 .TP
 .B 255
-Standard output could not be written, as when it is closed or is a pipe
-whose reader has exited, and the result is shorter than 4096 bytes.
+Standard output could not be written, as when it is closed, and the
+result is shorter than 4096 bytes.
 No message is printed.
 .SH EXAMPLES
 Print the directory of a file:

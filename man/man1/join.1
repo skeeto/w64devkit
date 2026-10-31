@@ -267,9 +267,6 @@ A message or the usage is written to standard error.
 .B 141
 A write to standard output failed because it is a pipe whose reader has
 exited.
-When this happens only at exit, while writing the output still buffered,
-the status is 1 instead, with the message
-.BR "join: standard output: Invalid argument" .
 .SH EXAMPLES
 Join two files on their first field, writing only the keys found in
 both:

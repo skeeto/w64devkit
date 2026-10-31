@@ -1,4 +1,4 @@
-.TH PWD 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH PWD 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 pwd \- print the current directory
 .SH SYNOPSIS
@@ -136,9 +136,12 @@ Success.
 An unknown option, or a failure to get the name of the current
 directory.
 .TP
+.B 141
+Standard output is a pipe whose reader has exited.
+No message is printed.
+.TP
 .B 255
-The output could not be written, as when standard output is closed or is
-a pipe whose reader has exited.
+The output could not be written, as when standard output is closed.
 No message is printed.
 .PP
 An unknown option is reported on standard error, followed by a usage

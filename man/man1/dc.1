@@ -623,11 +623,10 @@ or the exponent of
 .B array too long; must be [1,2147483647]
 An array index is too large.
 .TP
-.B bad ibase; must be [2,16]
+.B bad ibase; must be [2,36]
 The value for
 .B i
 is out of range.
-The upper limit is 36, not 16 as the message says.
 .TP
 .B bad obase; must be [2,999]
 The value for
@@ -731,11 +730,8 @@ commands, input that is not text, a read or write error, or running out
 of memory.
 .TP
 .B 141
-Standard output is a pipe that was closed while one command, such as
-printing a long number, wrote more than 4096 bytes.
-Output is flushed after each command, and a closed pipe found by that
-flush gives status 1 instead, with the message
-.BR "output error: Invalid argument" .
+Standard output is a pipe whose reader has exited.
+No message is printed.
 .PP
 With a console on standard input, errors in the commands of typed lines,
 or of a
@@ -879,8 +875,7 @@ after
 .B 5 sa
 is an error.
 .IP \(bu 2
-The input base may be up to 36, though the error message says 16, and
-only the digits
+The input base may be up to 36, though only the digits
 .B 0
 to
 .B F

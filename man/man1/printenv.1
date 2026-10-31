@@ -1,4 +1,4 @@
-.TH PRINTENV 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH PRINTENV 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 printenv \- print environment variables
 .SH SYNOPSIS
@@ -132,12 +132,8 @@ Also standard output could not be written, with a message such as
 on standard error.
 .TP
 .B 141
-Standard output is a pipe that was closed before the output was written,
-and the output is too long for the C library's buffer.
+Standard output is a pipe that was closed before the output was written.
 No message is written.
-Shorter output fails when
-.B printenv
-exits, with status 1.
 .SH EXAMPLES
 Write the value of one variable:
 .PP

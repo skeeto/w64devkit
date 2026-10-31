@@ -450,11 +450,6 @@ standard output; or memory that ran out.
 .TP
 .B 141
 Standard output is a pipe whose reader has exited.
-Output still buffered when
-.B sort
-finishes is written as it exits, and a broken pipe found then is instead
-reported as a write error, with status 2 and the message
-.BR "sort: standard output: Invalid argument" .
 .PP
 Errors are reported on standard error, beginning with
 .BR sort: .

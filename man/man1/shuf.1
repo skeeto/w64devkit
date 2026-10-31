@@ -220,9 +220,6 @@ standard error in one line that begins with
 .TP
 .B 141
 Standard output is a pipe that was closed before all output was written.
-Output is written in 4096-byte blocks, and a closed pipe found when the
-last block is written at exit, as when the output is 4096 bytes or less,
-is instead an error with status 1.
 .SH EXAMPLES
 Shuffle the lines of a file:
 .PP

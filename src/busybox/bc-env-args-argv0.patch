@@ -1,0 +1,39 @@
+Give the options parsed from BC_ENV_ARGS a real argv[0]. bc passed
+getopt32 an array whose argv[0] was the word before the start of its
+buffer, so when getopt reported an unknown option in BC_ENV_ARGS, it
+used that garbage as the program name in the message: bc crashed, or
+printed a nonsense name, instead of the usual message and usage. Put
+applet_name there.
+
+---
+ miscutils/bc.c |    6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+--- a/miscutils/bc.c
++++ b/miscutils/bc.c
+@@ -7136,6 +7136,8 @@
+ 	buf = G.env_args;
+ 
+ 	bc_vec_init(&v, sizeof(char *), NULL);
++	// argv[0], which getopt uses in its error messages
++	bc_vec_push(&v, &applet_name);
+ 
+ 	while (*(buf = skip_whitespace(buf)) != '\0') {
+ 		bc_vec_push(&v, &buf);
+@@ -7145,14 +7147,14 @@
+ 		*buf++ = '\0';
+ 	}
+ 
+-	// NULL terminate, and pass argv[] so that first arg is argv[1]
++	// NULL terminate
+ 	if (sizeof(int) == sizeof(char*)) {
+ 		bc_vec_push(&v, &const_int_0);
+ 	} else {
+ 		static char *const nullptr = NULL;
+ 		bc_vec_push(&v, &nullptr);
+ 	}
+-	bc_args(((char **)v.v) - 1);
++	bc_args((char **)v.v);
+ 
+ 	bc_vec_free(&v);
+ }

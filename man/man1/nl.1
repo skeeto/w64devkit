@@ -1,4 +1,4 @@
-.TH NL 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH NL 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 nl \- number the lines of files
 .SH SYNOPSIS
@@ -208,8 +208,6 @@ or standard output could not be written.
 Standard output is a pipe whose reader closed it while
 .B nl
 was still writing.
-If the closed pipe is found only by the final flush at exit, as with
-output shorter than the output buffer, the status is 1 instead.
 .SH EXAMPLES
 Number the nonempty lines of a file:
 .PP

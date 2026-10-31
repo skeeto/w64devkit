@@ -411,11 +411,9 @@ Goes on to the next iteration of the innermost loop, running the
 expression of a
 .B for
 loop.
-Outside a loop,
-.B continue
-makes
-.B bc
-crash.
+Outside a loop, it is an error, as
+.B break
+is.
 .TP
 .BI "return (" expression )
 Ends a function, with the value of the expression.
@@ -670,11 +668,8 @@ operands are expanded, as needed when run from
 .B BC_ENV_ARGS
 Options and file operands, separated by white space with no quoting,
 handled before the command line.
-The files are read first.
-Only the files and
-.B \-v
-have an effect; see
-.BR NOTES .
+The files are read first, and the options add to those of the command
+line.
 .TP
 .B BC_LINE_LENGTH
 The line length for numbers, as a decimal number.
@@ -720,12 +715,8 @@ the input when standard input is not a console, Ctrl-C while a
 runs, or an error reading or writing.
 .TP
 .B 141
-Standard output is a pipe that was closed while
-.B bc
-was writing a single number or string of more than 4096 bytes.
-Output is flushed after each step of the program, and a closed pipe found
-by that flush gives status 1 instead, with the message
-.BR "output error: Invalid argument" .
+Standard output is a pipe whose reader has exited.
+No message is printed.
 .SH EXAMPLES
 Calculate with large numbers:
 .PP
@@ -823,22 +814,6 @@ or
 and drive letters.
 Standard input is read after the last file, and can also be named as
 .IR /dev/stdin .
-.PP
-The error for
-.B ibase
-says the range is 2 to 16, but values up to 36 are accepted.
-.PP
-Only the file operands and
-.B \-v
-of
-.B BC_ENV_ARGS
-take effect.
-Parsing the command line replaces the options it set, so
-.B \-l
-and the others are lost.
-An unrecognized option in it makes
-.B bc
-crash.
 .PP
 Ctrl-C is handled by
 .B bc

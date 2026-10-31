@@ -399,11 +399,6 @@ that could not be opened; or a failure writing standard output.
 Standard output is a pipe whose reader exited while
 .B cut
 was writing.
-Output still buffered when
-.B cut
-finishes is written as it exits, and a broken pipe found then is instead
-reported as a write error, with status 1 and the message
-.BR "cut: standard output: Invalid argument" .
 .PP
 Errors are reported on standard error, beginning with
 .BR cut: .

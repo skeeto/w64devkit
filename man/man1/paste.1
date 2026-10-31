@@ -190,11 +190,6 @@ Each is reported on standard error.
 Standard output is a pipe whose reader exited while
 .B paste
 was writing.
-Output still buffered when
-.B paste
-finishes is written as it exits, and a broken pipe found then is instead
-reported as a write error, with status 1 and the message
-.BR "paste: standard output: Invalid argument" .
 .SH EXAMPLES
 Put two files side by side:
 .PP

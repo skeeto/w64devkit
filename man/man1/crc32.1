@@ -1,4 +1,4 @@
-.TH CRC32 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH CRC32 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 crc32 \- compute CRC-32 checksums
 .SH SYNOPSIS
@@ -87,10 +87,7 @@ An option was invalid, a file could not be opened or read, or standard
 output could not be written.
 .TP
 .B 141
-Standard output is a pipe whose reader has exited, and a write failed
-before the end of the output.
-Output is buffered, and when only the final write at exit fails, as
-with short output, the status is 1.
+Standard output is a pipe whose reader has exited.
 .SH EXAMPLES
 Print the CRC-32 of a file:
 .PP

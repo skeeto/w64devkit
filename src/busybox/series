@@ -28,3 +28,8 @@ bbunpack-stdin-operand.patch
 substitute-empty-string.patch
 xargs-replace-no-split.patch
 xargs-parallel-spawn-error.patch
+bc-continue-outside-loop.patch
+bc-env-args-argv0.patch
+bc-env-args-options.patch
+bc-ibase-message.patch
+fflush-sigpipe.patch

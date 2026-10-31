@@ -1,0 +1,32 @@
+Reject continue outside a loop, as break already is. Only break
+checked that it was inside a while or for, so a continue outside any
+loop took the top of an empty stack of loop labels and compiled a jump
+to whatever word lay before the stack's buffer. At top level, running
+the jump crashed bc; in the body of a function that was never called,
+the garbage was silently accepted. Check for an enclosing loop for
+both keywords, so that continue there is a parse error ("bad token").
+
+---
+ miscutils/bc.c |    9 ++++-----
+ 1 file changed, 4 insertions(+), 5 deletions(-)
+
+--- a/miscutils/bc.c
++++ b/miscutils/bc.c
+@@ -4423,13 +4423,12 @@
+ 	BcParse *p = &G.prs;
+ 	size_t i;
+ 
+-	if (type == BC_LEX_KEY_BREAK) {
+-		if (p->exits.len == 0) // none of the enclosing blocks is a loop
+-			RETURN_STATUS(bc_error_bad_token());
++	if (p->exits.len == 0) // none of the enclosing blocks is a loop
++		RETURN_STATUS(bc_error_bad_token());
++	if (type == BC_LEX_KEY_BREAK)
+ 		i = *(size_t*)bc_vec_top(&p->exits);
+-	} else {
++	else
+ 		i = *(size_t*)bc_vec_top(&p->conds);
+-	}
+ 	bc_parse_pushJUMP(i);
+ 
+ 	RETURN_STATUS(zxc_lex_next());

@@ -373,18 +373,12 @@ unmatched
 .BR \e( .
 .TP
 .BI "standard output: " reason
-Standard output could not be written, such as when it is closed or is
-a pipe whose reader has exited.
+Standard output could not be written, such as when it is closed.
 .RE
 .TP
 .B 141
-The value is a string of 4096 bytes or more, and standard output is a
-pipe whose reader has exited.
-Such a string is written at once instead of being buffered, and the
-failed write ends
-.B expr
-without a message.
-Shorter output fails when it is flushed, with status 2.
+Standard output is a pipe whose reader has exited.
+No message is printed.
 .SH EXAMPLES
 Add two numbers:
 .PP

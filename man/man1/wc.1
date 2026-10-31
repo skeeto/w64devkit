@@ -1,4 +1,4 @@
-.TH WC 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.TH WC 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 wc \- count lines, words, characters, and bytes
 .SH SYNOPSIS
@@ -203,9 +203,7 @@ An invalid option, a
 could not be opened or read, or standard output could not be written.
 .TP
 .B 141
-Standard output is a pipe whose reader has exited, found before the
-last write; see
-.BR NOTES .
+Standard output is a pipe whose reader has exited.
 .SH EXAMPLES
 Count the lines, words, and bytes of a stream:
 .PP
@@ -294,13 +292,9 @@ reads until the next Ctrl-Z.
 .PP
 When standard output is a pipe whose reader has exited, such as
 .B head
-after the lines it wanted, a write that fails before the end gives
-status 141 and no message.
-Output still buffered when
+after the lines it wanted,
 .B wc
-finishes, which is usually all of it, fails instead with
-.B "wc: standard output: Invalid argument"
-and status 1.
+exits with status 141 and no message.
 .PP
 A
 .I file

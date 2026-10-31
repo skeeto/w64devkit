@@ -122,10 +122,6 @@ flushed it at exit.
 Standard output is a pipe that was closed before
 .B rev
 finished writing to it.
-Output to a pipe is buffered, so when the closed pipe is first noticed
-by the final flush, as when all the output fits in the buffer,
-.B rev
-reports an error and exits with status 1 instead.
 .SH EXAMPLES
 Reverse a line:
 .PP

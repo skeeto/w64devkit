@@ -1157,7 +1157,9 @@ refuses to remove a bare drive.
 .IP \(bu 2
 Bugs are fixed in
 .BR awk ,
+.BR bc ,
 .BR bzip2 ,
+.BR dc ,
 .BR du ,
 .BR flock ,
 .BR join ,
@@ -1176,6 +1178,11 @@ Bugs are fixed in
 and the shell's
 .B wait
 command.
+.IP \(bu 2
+A pipe whose reader has exited ends an applet with status 141, as on
+Linux, even when it is found by flushing buffered output, which in
+busybox-w32 is a write error such as
+.BR "standard output: Invalid argument" .
 .IP \(bu 2
 The 64-bit
 .B busybox
