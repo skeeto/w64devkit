@@ -25,3 +25,6 @@ ls-time-range.patch
 unxz-non-xz-input.patch
 unxz-stream-padding.patch
 bbunpack-stdin-operand.patch
+substitute-empty-string.patch
+xargs-replace-no-split.patch
+xargs-parallel-spawn-error.patch

@@ -1,0 +1,31 @@
+Make xmalloc_substitute_string handle an empty search string.
+count_strstr already counts an empty string as matching before every
+character and at the end, but xmalloc_substitute_string kept finding
+the empty string at the same place, appending the replacement forever
+and writing past the buffer sized by that count. "xargs -I ''" passes
+the user's string straight through and crashed on the first input
+line.
+
+Copy one character past each empty match, and stop after the match at
+the end of the string, so the result agrees with count_strstr.
+
+---
+ libbb/replace.c |    7 +++++++
+ 1 file changed, 7 insertions(+)
+
+--- a/libbb/replace.c
++++ b/libbb/replace.c
+@@ -42,6 +42,13 @@
+ 		dst = mempcpy(dst, repl, repl_len);
+ 		/*src = end + 1; - GNU findutils 4.5.10 doesn't do this... */
+ 		src = end + sub_len; /* but this. Try "xargs -Iaa echo aaa" */
++		if (sub_len == 0) {
++			/* Empty sub matches before every char and at the end,
++			 * as count_strstr() counts it */
++			if (*src == '\0')
++				break;
++			*dst++ = *src++;
++		}
+ 	}
+ 	strcpy(dst, src);
+ 	//dbg_msg("subst9:'%s'", buf);

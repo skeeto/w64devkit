@@ -1,0 +1,38 @@
+Don't split a command built with -I that is too long for Windows.
+When quoting pushes a command line past the Windows limit, xargs runs
+the arguments that fit and keeps the rest for the next command. With
+-I every argument comes from one input line, and the strings are
+allocated per line, so the kept tail made no sense as a command and
+was freed when the next line was read: "xargs -I{} sh -c ... {} {}"
+with a 20000 byte line ran sh with the first copy only, then ran a
+freed string as the program.
+
+With -I, report the line as too long instead, as xargs already does
+when an input line does not fit in its buffer.
+
+---
+ findutils/xargs.c |    6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+--- a/findutils/xargs.c
++++ b/findutils/xargs.c
+@@ -946,7 +946,9 @@
+ 
+ #if ENABLE_PLATFORM_MINGW32
+ 		/* Check if quoting expands the command line.  If it does we
+-		 * truncate args[] and preserve the tail for processing later. */
++		 * truncate args[] and preserve the tail for processing later.
++		 * With -I the args come from a single input line and form one
++		 * command, which can't be split. */
+ 		args = G.args;
+ 		if (quote) {
+  skip_read:
+@@ -954,6 +956,8 @@
+ 			for (i = initial_idx; args[i]; i++) {
+ 				n_chars += quote_len(args[i]) + 1;
+ 				if (n_chars > WIN32_MAX_CHARS) {
++					if (opt & (OPT_REPLSTR | OPT_REPLSTR1))
++						bb_simple_error_msg_and_die("argument line too long");
+ 					tail = args + i;
+ 					saved_arg = *tail;
+ 					*tail = NULL;

@@ -284,8 +284,10 @@ with no
 changes nothing.
 An empty
 .I str
-crashes
-.BR xargs .
+matches before every character and at the end, so the line is inserted
+at both ends of
+.I command
+and of each argument, and between every two of their characters.
 .IP
 A line ends at a newline, or at a NUL with
 .BR \-0 ,
@@ -301,9 +303,9 @@ For a command started as a new process, the 32750-byte limit of
 counts the command and its arguments too.
 When the command line after replacement passes it,
 .B xargs
-runs the command with the arguments that fit, then tries to run the rest
-as a command line of their own, the first of them, possibly garbled, as
-the command, which usually fails.
+reports
+.B argument line too long
+and exits with status 1 without running it.
 .B \-n
 and
 .B \-E
@@ -342,7 +344,9 @@ It is from 0 to 2147483647.
 The default is 1, which waits for each command before starting the
 next, and 0, or a number above 64, means 64.
 .B xargs
-waits for the running commands before it exits.
+waits for the running commands before it exits, except after an error
+of its own with status 1, such as an unmatched quote, when it exits at
+once and leaves them running.
 See
 .B NOTES
 for what this changes.
@@ -689,9 +693,6 @@ code from 256 to 0x17F counts as a failure, with status 123, a code of
 0x180 or more is reported as a signal, with status 125, and a code of
 0x80000000 or more as a command that could not be run, with status 126
 or 127.
-It also does not detect a command that cannot be started, such as one
-that does not exist: it reports no error and waits forever.
-Check that the command exists first.
 .PP
 The standard input of
 .I command

@@ -1,0 +1,34 @@
+Detect a command that fails to start under xargs -P on Windows.
+The handle returned by mingw_spawn_proc was tested with "p < 0", which
+is never true for a pointer, so a failure was stored as a process
+handle. -1 is the current process pseudo-handle, and the final wait
+for the remaining commands waited for xargs itself, forever:
+"xargs -P2 no_such_command" hung instead of failing with status 127.
+
+Compare the result with -1 before converting it, report the error, and
+give the reserved slot back so it isn't waited on.
+
+---
+ findutils/xargs.c |   10 ++++++----
+ 1 file changed, 6 insertions(+), 4 deletions(-)
+
+--- a/findutils/xargs.c
++++ b/findutils/xargs.c
+@@ -342,11 +342,13 @@
+ 		int idx;
+ 		status = !G.running_procs && !G.max_procs ? 0 : wait_for_slot(&idx);
+ 		if (G.max_procs) {
+-			HANDLE p = (HANDLE)mingw_spawn_proc((const char **)G.args);
+-			if (p < 0)
++			intptr_t p = mingw_spawn_proc((const char **)G.args);
++			if (p == -1) {
++				/* Give back the slot */
++				G.running_procs--;
+ 				status = -1;
+-			else
+-				G.procs[idx] = p;
++			} else
++				G.procs[idx] = (HANDLE)p;
+ 		} else {
+ 			while (G.running_procs) {
+ 				int status2 = wait_for_slot(&idx);
