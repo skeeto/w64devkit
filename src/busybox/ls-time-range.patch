@@ -1,0 +1,42 @@
+Don't crash in ls -l on a time that ctime() or localtime() rejects.
+The long listing used the result of ctime() without checking it. The
+Windows C runtime returns NULL for any time before 1970 or after the
+year 3000, and glibc does so when the year overflows an int, so a file
+with such a modification time, or such an access or change time with
+-u or -c, made ls -l crash. With --full-time, a NULL from localtime()
+went straight to strftime().
+
+When the time can't be converted, print it as seconds since the epoch,
+right-aligned in the width of the usual format, as coreutils ls does.
+
+---
+ coreutils/ls.c |   12 +++++++++---
+ 1 file changed, 9 insertions(+), 3 deletions(-)
+
+--- a/coreutils/ls.c
++++ b/coreutils/ls.c
+@@ -656,15 +656,21 @@
+ 			 * we don't show fractional seconds.
+ 			 */
+ 			char buf[sizeof("YYYY-mm-dd HH:MM:SS TIMEZONE")];
+-			strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S %z",
+-					localtime(&dn->dn_time));
++			struct tm *tm = localtime(&dn->dn_time);
++			if (tm)
++				strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S %z", tm);
++			else /* out of range: show seconds since the epoch */
++				sprintf(buf, "%25"LL_FMT"d", (long long) dn->dn_time);
+ 			column += printf("%s ", buf);
+ 		} else { /* ordinary time format */
+ 			/* G.current_time_t is ~== time(NULL) */
+ 			char *filetime = ctime(&dn->dn_time);
+ 			/* filetime's format: "Wed Jun 30 21:49:08 1993\n" */
+ 			time_t age = G.current_time_t - dn->dn_time;
+-			if (age < 3600L * 24 * 365 / 2 && age > -15 * 60) {
++			if (!filetime) {
++				/* out of range: show seconds since the epoch */
++				printf("%12"LL_FMT"d ", (long long) dn->dn_time);
++			} else if (age < 3600L * 24 * 365 / 2 && age > -15 * 60) {
+ 				/* less than 6 months old */
+ 				/* "mmm dd hh:mm " */
+ 				printf("%.12s ", filetime + 4);
