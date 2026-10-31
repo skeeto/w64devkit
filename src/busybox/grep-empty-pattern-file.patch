@@ -1,0 +1,52 @@
+Select no line for an empty -f file whatever the other options. Such a
+file holds no pattern, so nothing matches. grep stood in an empty
+pattern, or ".*" with -x, and inverted the result, which works only if
+the stand-in matches every line. With -w the empty pattern does not, so
+-w -f EMPTY selected every line beginning with a letter, digit or
+underscore, and with -F, ".*" is a fixed string, so -F -x -f EMPTY
+selected every line except ".*". Use the empty pattern without -w and
+-x instead, which matches every line in all modes.
+
+---
+ findutils/grep.c     |    8 +++++---
+ testsuite/grep.tests |   12 ++++++++++++
+ 2 files changed, 17 insertions(+), 3 deletions(-)
+
+--- a/findutils/grep.c
++++ b/findutils/grep.c
+@@ -848,9 +848,11 @@
+ 	if (option_mask32 & OPT_f) {
+ 		load_regexes_from_file(fopt);
+ 		if (!pattern_head) { /* -f EMPTY_FILE? */
+-			/* GNU grep treats it as "nothing matches" except when -x */
+-			const char *data = (option_mask32 & OPT_x) ? ".*" : "";
+-			llist_add_to(&pattern_head, new_grep_list_data((char*)data, 0));
++			/* GNU grep treats it as "nothing matches":
++			 * invert an empty pattern, which matches every
++			 * line as long as there is no -w or -x */
++			llist_add_to(&pattern_head, new_grep_list_data((char*)"", 0));
++			option_mask32 &= ~(OPT_w | OPT_x);
+ 			invert_search ^= 1;
+ 		}
+ 	}
+--- a/testsuite/grep.tests
++++ b/testsuite/grep.tests
+@@ -143,6 +143,18 @@
+ 	"" \
+ 	"test\n"
+ 
++testing "grep -wf EMPTY_FILE" \
++	"grep -wf input" \
++	"" \
++	"" \
++	"test\n"
++
++testing "grep -Fxf EMPTY_FILE" \
++	"grep -Fxf input" \
++	"" \
++	"" \
++	"test\n"
++
+ testing "grep -Fw matches only words" \
+ 	"grep -Fw foo input" \
+ 	"" \

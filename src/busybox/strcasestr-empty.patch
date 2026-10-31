@@ -1,0 +1,43 @@
+Let the strcasestr replacement match an empty pattern at the end of the
+string, as strstr and the C library strcasestr do. It stopped scanning
+on reaching the terminator before testing that position, so an empty
+pattern found nothing in an empty string. On systems that use it, grep
+-F -i '' skipped empty lines, grep -F -i -x '' selected nothing, and
+grep -F -i -w '' missed lines that end in a non-word character.
+
+---
+ libbb/platform.c     |    5 ++---
+ testsuite/grep.tests |    6 ++++++
+ 2 files changed, 8 insertions(+), 3 deletions(-)
+
+--- a/libbb/platform.c
++++ b/libbb/platform.c
+@@ -119,11 +119,10 @@
+ {
+ 	int length = strlen(pattern);
+ 
+-	while (*s) {
++	do {
+ 		if (strncasecmp(s, pattern, length) == 0)
+ 			return (char *)s;
+-		s++;
+-	}
++	} while (*s++);
+ 	return 0;
+ }
+ #endif
+--- a/testsuite/grep.tests
++++ b/testsuite/grep.tests
+@@ -197,6 +197,12 @@
+ 	"abc\n""\n""a  b\n""x_\n" \
+ 	""
+ 
++testing "grep -F -i '' matches empty lines" \
++	"grep -F -i -c '' input" \
++	"2\n" \
++	"A\n""\n" \
++	""
++
+ testing "grep -w -o prints only whole words" \
+ 	"grep -w -o foo input" \
+ 	"foo\n""foo\n" \

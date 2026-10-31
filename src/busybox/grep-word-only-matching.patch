@@ -1,0 +1,89 @@
+Print only whole-word matches with -w -o, and no matches with -o -v.
+Matching with -w retries the regex after the end of each candidate that
+is not a whole word, starting at that offset in the line, so the match
+it accepts has offsets relative to that later position. The -o loop
+read them as offsets from the start of the line and printed the wrong
+text: "foobar foo" printed "ar " instead of "foo". Its later searches
+then printed every match, so "foo foobar" printed "foo" twice.
+
+A line selected by -v has no match, but the -o loop still ran on the
+offsets of the last candidate that -w or -x rejected, and printed a
+file name or line number prefix for it and for each match after it:
+"foobar" printed "1:" with grep -n -v -x -o foo.
+
+Make the accepted offsets relative to the line, apply the whole-word
+test to each later match in the -o loop, and skip the loop when the
+line has no match, as -F -o -v already does.
+
+---
+ findutils/grep.c     |   18 ++++++++++++++++--
+ testsuite/grep.tests |   12 ++++++++++++
+ 2 files changed, 28 insertions(+), 2 deletions(-)
+
+--- a/findutils/grep.c
++++ b/findutils/grep.c
+@@ -472,6 +472,11 @@
+ 							c = match_at[gl->matched_range.rm_eo];
+ 						}
+ 						if (!isalnum(c) && c != '_') {
++#if !ENABLE_EXTRA_COMPAT
++							/* -o wants offsets from line start */
++							gl->matched_range.rm_so += match_at - line;
++							gl->matched_range.rm_eo += match_at - line;
++#endif
+ 							found = 1;
+ 						} else {
+ 			/*
+@@ -580,11 +585,20 @@
+ 						 * (unless -v: -Fov doesn't print anything at all) */
+ 						if (found)
+ 							print_line(gl->pattern, strlen(gl->pattern), linenum, ':');
+-					} else while (1) {
++					} else while (found) { /* -ov: no matches to print */
+ 						unsigned start = gl->matched_range.rm_so;
+ 						unsigned end = gl->matched_range.rm_eo;
+ 						unsigned len = end - start;
+ 						char old = line[end];
++						if (option_mask32 & OPT_w) {
++							/* skip a match which is not a whole word */
++							char c = start ? line[start - 1] : ' ';
++							if (isalnum(c) || c == '_'
++							 || isalnum(old) || old == '_'
++							) {
++								len = 0;
++							}
++						}
+ 						line[end] = '\0';
+ 						/* Empty match is not printed: try "echo test | grep -o ''" */
+ 						if (len != 0)
+@@ -592,7 +606,7 @@
+ 						if (old == '\0')
+ 							break;
+ 						line[end] = old;
+-						if (len == 0)
++						if (start == end)
+ 							end++;
+ #if !ENABLE_EXTRA_COMPAT
+ 						if (regexec(&gl->compiled_regex, line + end,
+--- a/testsuite/grep.tests
++++ b/testsuite/grep.tests
+@@ -197,7 +197,19 @@
+ 	"abc\n""\n""a  b\n""x_\n" \
+ 	""
+ 
++testing "grep -w -o prints only whole words" \
++	"grep -w -o foo input" \
++	"foo\n""foo\n" \
++	"foobar foo\n""foo foobar\n" \
++	""
+ 
++testing "grep -w -o -v prints no matches" \
++	"grep -n -w -o -v foo input" \
++	"" \
++	"foobar foo2\n" \
++	""
++
++
+ testing "grep -x -v -e EXP1 -e EXP2 finds nothing if either EXP matches" \
+ 	"grep -x -v -e '.*aa.*' -e 'bb.*'; echo \$?" \
+ 	"1\n" \

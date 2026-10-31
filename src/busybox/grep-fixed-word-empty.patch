@@ -1,0 +1,40 @@
+Stop the -F -w search for an empty pattern at the end of the line. An
+empty pattern matches at every position, and when the match there was
+not a whole word the search resumed one byte further on. At the end of
+the line that is past the terminator, so grep -Fw '' scanned whatever
+memory followed the line and could select a line such as "abc", which
+has no position between two non-word characters.
+
+---
+ findutils/grep.c     |    3 +++
+ testsuite/grep.tests |    6 ++++++
+ 2 files changed, 9 insertions(+)
+
+--- a/findutils/grep.c
++++ b/findutils/grep.c
+@@ -409,6 +409,9 @@
+ 							if (!c || (!isalnum(c) && c != '_'))
+ 								goto opt_f_found;
+ 						}
++						/* empty pattern at end of line? */
++						if (*match == '\0')
++							goto opt_f_not_found;
+ 						str = match + 1;
+ 						goto opt_f_again;
+ 					}
+--- a/testsuite/grep.tests
++++ b/testsuite/grep.tests
+@@ -191,7 +191,13 @@
+ 	"bword,word\n""wordb,word\n""bwordb,word\n" \
+ 	""
+ 
++testing "grep -F -w '' matches only between non-word chars" \
++	"grep -F -w '' input" \
++	"\n""a  b\n" \
++	"abc\n""\n""a  b\n""x_\n" \
++	""
+ 
++
+ testing "grep -x -v -e EXP1 -e EXP2 finds nothing if either EXP matches" \
+ 	"grep -x -v -e '.*aa.*' -e 'bb.*'; echo \$?" \
+ 	"1\n" \

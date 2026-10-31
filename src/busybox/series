@@ -54,3 +54,7 @@ httpd-head-no-body.patch
 httpd-206-304-content-type.patch
 inotifyd-name-length.patch
 unc-root-no-share.patch
+grep-fixed-word-empty.patch
+grep-word-only-matching.patch
+strcasestr-empty.patch
+grep-empty-pattern-file.patch

@@ -487,12 +487,6 @@ prints the matches of only one of them on each line; join them with
 or
 .B |
 instead.
-With
-.BR \-w ,
-.B \-o
-prints every match on a selected line, whole word or not, but when the
-first match on the line is not a whole word, it prints text from the
-wrong place, followed by only the matches after that text.
 Each later match on a line is found as if the line began where the
 previous match ended, which changes the result of
 .BR \eb ,
@@ -504,48 +498,42 @@ Context lines are printed whole.
 With
 .BR \-v ,
 .B \-o
-prints no line text: a selected line prints nothing, or with
-.B \-w
-or
-.B \-x
-but not
-.BR \-F ,
-a prefix in place of each match, or piece of wrong text, that it would
-otherwise print, and a context line prints only its prefix.
-These prefixes are the file name and line number, when shown, without a
-newline.
+prints no line text: a selected line prints nothing, and a context line
+prints only its prefix, the file name and line number when shown,
+without a newline.
 .IP \(bu 2
 A regular expression is compiled when first needed, so an invalid one is
 not reported if no input is read.
 .IP \(bu 2
 Read errors end a file silently.
 .IP \(bu 2
-An empty
-.B \-f
-file, with no other patterns, selects no line, except that with
-.B \-F
-and
-.B \-x
-it selects every line except one reading
-.BR .* ,
-and with
+With
 .B \-w
 but neither
 .B \-F
 nor
 .BR \-x ,
-every line that begins with an ASCII letter, digit, or underscore.
-.IP \(bu 2
-With
-.B \-w
-but not
-.BR \-x ,
-an empty pattern, such as a blank line in a
+when a match is not a whole word, the search resumes where it ends,
+without trying a shorter match at the same place or one that starts
+inside it.
+So
+.B grep \-w \(aqa[^c]*\(aq
+does not select a line reading
+.IR "a bc" ,
+nor
+.B grep \-w \(aqa.a\(aq
+one reading
+.IR "ba a a" .
+With these options, an empty pattern, such as a blank line in a
 .B \-f
-file, matches every line if
-.B \-F
-is given, and otherwise only lines that are empty or begin with a
-character other than an ASCII letter, digit, or underscore.
+file, matches only lines that are empty or begin with a character other
+than an ASCII letter, digit, or underscore.
+GNU
+.BR grep ,
+and this one with
+.BR \-F ,
+also match a line that ends with such a character or has two of them in
+a row.
 .IP \(bu 2
 GNU options not listed above, such as
 .BR \-P ,
