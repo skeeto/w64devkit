@@ -1,0 +1,36 @@
+Print the tabs for a tab in a run of blanks as soon as it is read.
+unexpand added up the columns of a run of blanks and printed its tabs
+only when it reached the text after the run. When the run ended in a
+tab at the end of the string, the loop ended with the tabs still
+pending, so they were dropped. A line ending in a newline was fine,
+since the newline counts as text, but an unterminated last line such
+as "x\t" or "  \t", or a line cut short by a NUL, lost its trailing
+blanks. The sum could also wrap with a large tab size, so tabs were
+lost even in a line ending in a newline: "\t\tx" lost both tabs with
+-t 2147483648, and "\t\t\tx" all three with -t 2147483647.
+
+A tab always reaches the next tab stop, so print the tabs owed so far
+when the tab is read, and count again from that stop. Nothing is then
+pending at the end of the string, and the count stays below the tab
+size plus the spaces since the last tab.
+
+---
+ coreutils/expand.c |    7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+--- a/coreutils/expand.c
++++ b/coreutils/expand.c
+@@ -148,7 +148,12 @@
+ 			}
+ 			column += len;
+ 			if (*ptr == '\t') {
+-				column += tab_size - (column % tab_size);
++				/* Reaches the next tab stop: print the tabs
++				 * now, since adding up columns could overflow */
++				n = column / tab_size + 1;
++				column = 0;
++				while (n--)
++					putchar('\t');
+ 				ptr++;
+ 				continue;
+ 			}

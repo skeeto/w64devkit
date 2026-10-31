@@ -1,0 +1,24 @@
+Pad tabs with a loop rather than a printf field width. expand accepts
+tab sizes up to UINT_MAX, but passed the padding to "%*s", whose width
+is an int. A padding above INT_MAX became a negative width, so a tab
+at the start of a line with -t 2147483649 gave 2147483647 spaces, and
+with -t 2147483648 gave none at all.
+
+---
+ coreutils/expand.c |    5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+--- a/coreutils/expand.c
++++ b/coreutils/expand.c
+@@ -117,7 +117,10 @@
+ # endif
+ 				len = tab_size - (len % tab_size);
+ 				/*while (ptr[1] == '\t') { ptr++; len += tab_size; } - can handle many tabs at once */
+-				printf("%s%*s", ptr_strbeg, len, "");
++				/* not printf("%*s"): len may exceed INT_MAX */
++				fputs_stdout(ptr_strbeg);
++				while (len--)
++					putchar(' ');
+ //				len = 0;
+ 				ptr_strbeg = ptr + 1;
+ 			}

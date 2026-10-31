@@ -65,3 +65,6 @@ base64-decode-skipped.patch
 base64-decode-after-padding.patch
 tr-escaped-dash.patch
 iconv-file-operands.patch
+unexpand-trailing-tab.patch
+expand-large-tab-size.patch
+rev-unterminated-full-line.patch

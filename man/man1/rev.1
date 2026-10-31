@@ -175,12 +175,6 @@ This holds in and out of UTF-8 mode.
 .PP
 A read error ends a file as if it had reached its end, with no message.
 .PP
-A last line with no LF is lost, with no message, when its length in
-bytes is 255, 351, 459, 580, 716, or a later length at which
-.B rev
-enlarges its line buffer, unless an earlier line, in this or a previous
-file, was at least as long, not counting its LF.
-.PP
 Each line is held in memory whole, and in UTF-8 mode also as a decoded
 copy of four bytes per byte.
 The length of a line is kept in an

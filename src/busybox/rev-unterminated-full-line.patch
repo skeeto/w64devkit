@@ -1,0 +1,31 @@
+Print an unterminated last line that exactly filled the line buffer.
+When fgets filled the buffer without reading a newline and without yet
+seeing EOF, rev grew the buffer and read again to finish the line. If
+the file ended right there, that second fgets returned NULL and rev
+stopped, discarding the part already read. So a last line with no
+newline and a length of exactly one less than the buffer size (255,
+351, 459, ...) was lost entirely. When fgets fails partway through a
+line, process what was read before stopping.
+
+---
+ util-linux/rev.c |    9 ++++++---
+ 1 file changed, 6 insertions(+), 3 deletions(-)
+
+--- a/util-linux/rev.c
++++ b/util-linux/rev.c
+@@ -83,9 +83,12 @@
+ 		while (1) {
+ 			/* Read one line */
+ 			buf[bufsize - 1] = 1; /* not 0 */
+-			if (!fgets(buf + pos, bufsize - pos, fp))
+-				break; /* EOF/error */
+-			if (buf[bufsize - 1] == '\0' /* fgets filled entire buffer */
++			if (!fgets(buf + pos, bufsize - pos, fp)) {
++				if (pos == 0)
++					break; /* EOF/error */
++				/* EOF after a last line which filled the buffer */
++				buf[pos] = '\0';
++			} else if (buf[bufsize - 1] == '\0' /* fgets filled entire buffer */
+ 			 && buf[bufsize - 2] != '\n' /* and did not read '\n' */
+ 			 && !feof(fp)
+ 			) {
