@@ -38,6 +38,9 @@ standalone x86 toolchain with a build argument:
 
 `multibuild.sh -a` builds both variants.
 
+On Windows, `wslc` from WSL containers works as a drop-in replacement for
+`docker` in these commands. For `multibuild.sh`, set `DOCKER=wslc`.
+
 This takes about 15 minutes on modern systems. You will need an internet
 connection during the first few minutes of the build. **Note:** Do not use
 PowerShell because it lacks file redirection.

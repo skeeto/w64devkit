@@ -10,6 +10,7 @@
 set -e
 variants=
 dryrun=
+docker="${DOCKER:-docker}"
 suffix="$(git describe --exact-match 2>/dev/null | tr v - || true)"
 
 usage() {
@@ -21,6 +22,9 @@ usage: multibuild.sh [-48ahn] [-s SUFFIX]
   -h         Print this help message
   -n         Dry run, print commands but do nothing
   -s SUFFIX  Append a version suffix (default: auto from git tag)
+
+Environment:
+  DOCKER     Container tool to use (default: docker)
 EOF
 }
 
@@ -46,16 +50,16 @@ fi
 : ${variants:=x64}
 target="tmp-w64-$$"
 cleanup() {
-    $dryrun docker rmi --no-prune $target 2>/dev/null || true
+    $dryrun $docker rmi --no-prune $target 2>/dev/null || true
 }
 trap cleanup EXIT
 
 for variant in $variants; do
-    $dryrun docker build --build-arg VARIANT=$variant -t $target .
+    $dryrun $docker build --build-arg VARIANT=$variant -t $target .
     out="w64devkit-$variant$suffix.7z.exe"
     if [ -n "$dryrun" ]; then
-        $dryrun docker run --rm $target ">$out"
+        $dryrun $docker run --rm $target ">$out"
     else
-        docker run --rm $target >"$out"
+        $docker run --rm $target >"$out"
     fi
 done
