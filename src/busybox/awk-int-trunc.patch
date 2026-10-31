@@ -1,0 +1,25 @@
+Truncate in awk's int() with trunc() rather than by conversion to long
+long, which is undefined for values out of its range, infinity and NaN.
+On x86 such a conversion gives LLONG_MIN, so "int(1e19)", "int(2^63)",
+"int(log(0))" and "int(log(-1))" all gave -9223372036854775808. Now
+int() leaves an integral value as it is, infinity included, and gives
+NaN for NaN, as gawk does. A zero result is kept positive, as the
+conversion made it, so "int(-0.5)" still prints and indexes as "0".
+
+---
+ editors/awk.c |    4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+--- a/editors/awk.c
++++ b/editors/awk.c
+@@ -3685,7 +3685,9 @@
+ 
+ 			switch (opn) {
+ 			case F_in:
+-				R_d = (long long)L_d;
++				R_d = trunc(L_d);
++				if (R_d == 0)
++					R_d = 0; /* no "-0" */
+ 				break;
+ 
+ 			case F_rn: /*rand*/

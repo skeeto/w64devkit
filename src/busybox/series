@@ -74,3 +74,7 @@ sed-line-number-newline.patch
 sed-in-place-range.patch
 sed-subst-flags-newline.patch
 lineedit-crlf-terminate.patch
+awk-length-array-arg.patch
+awk-getline-next-file.patch
+awk-fmod.patch
+awk-int-trunc.patch

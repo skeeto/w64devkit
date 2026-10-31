@@ -1,0 +1,22 @@
+Compute awk's remainder operator with fmod(), which is exact. The old
+formula, x - (long long)(x / y) * y, rounds both the quotient and the
+product to doubles, so once x exceeds 2^53 in magnitude the remainder
+is wrong: "1e17 % 7" gave 0 instead of 5. Beyond the range of long long
+the conversion is undefined, and an infinite y gave NaN for any finite
+x rather than x.
+
+---
+ editors/awk.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/editors/awk.c
++++ b/editors/awk.c
+@@ -3946,7 +3946,7 @@
+ 			case '%':
+ 				if (R_d == 0)
+ 					syntax_error(EMSG_DIV_BY_ZERO);
+-				L_d -= (long long)(L_d / R_d) * R_d;
++				L_d = fmod(L_d, R_d);
+ 				break;
+ 			}
+ 			debug_printf_eval("BINARY/REPLACE result:%f\n", L_d);

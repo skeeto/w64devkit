@@ -1,0 +1,38 @@
+Make length() count the elements of an array passed to a function.
+A function argument is a copy of the caller's variable that refers back
+to it as its parent, and the array, with its VF_ARRAY flag, stays with
+the parent, so length() saw no array and returned the length of the
+empty string: "function f(a) { return length(a) }" returned 0 for any
+array. Follow the argument to its parent, as iamarray() does, except
+when the argument is the variable of a "for (arg in A)" loop, whose
+walker reuses the parent pointer.
+
+---
+ editors/awk.c |   16 ++++++++++++----
+ 1 file changed, 12 insertions(+), 4 deletions(-)
+
+--- a/editors/awk.c
++++ b/editors/awk.c
+@@ -3758,10 +3758,18 @@
+ 					L.s = getvar_s(intvar[F0]);
+ 					debug_printf_eval("length: L.s='%s'\n", L.s);
+ 				}
+-				else if (L.v->type & VF_ARRAY) {
+-					R_d = L.v->x.array->nel;
+-					debug_printf_eval("length: array_len:%d\n", L.v->x.array->nel);
+-					break;
++				else {
++					var *a = L.v;
++					/* An array passed to a function is the parent
++					 * of the argument (but a "for (arg in A)" walker
++					 * reuses x.parent) */
++					while ((a->type & (VF_CHILD | VF_WALK)) == VF_CHILD)
++						a = a->x.parent;
++					if (a->type & VF_ARRAY) {
++						R_d = a->x.array->nel;
++						debug_printf_eval("length: array_len:%d\n", a->x.array->nel);
++						break;
++					}
+ 				}
+ 				R_d = strlen(L.s);
+ 				break;

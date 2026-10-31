@@ -230,10 +230,7 @@ Logical not, unary plus, and negation.
 .TP
 .BR * " " / " " %
 Multiplication, division, and remainder.
-The remainder has the sign of the dividend, and may be wrong when the
-dividend exceeds 2^53 in magnitude, as in
-.BR "1e17 % 7" ,
-which gives 0 instead of 5.
+The remainder has the sign of the dividend.
 Division or remainder by zero is a fatal error.
 .TP
 .BR + " " \-
@@ -680,8 +677,6 @@ The exponential and natural logarithm.
 .BI int( x )
 .I x
 truncated toward zero.
-A value outside the range of a 64-bit integer, infinity, or NaN gives
-\-9223372036854775808.
 .TP
 .B rand()
 A random number from 0 up to, but not including, 1.
@@ -778,8 +773,7 @@ The length of
 or of
 .B $0
 without an argument.
-For an array, the number of elements, except that an array passed as a
-function argument gives 0.
+For an array, the number of elements.
 .TP
 .BI match( s ", " r )
 The position of the leftmost longest match of
@@ -1453,12 +1447,6 @@ An assignment in either branch of
 .B ?:
 is a syntax error unless it is in parentheses, as in
 .BR "c ? (a = 1) : (b = 2)" .
-.IP \(bu 2
-.B getline
-from the main input returns 0 at the end of each input file instead of
-going on to the next one, and returns \-1 in an
-.B END
-rule.
 .IP \(bu 2
 .IB command " | getline"
 does not change

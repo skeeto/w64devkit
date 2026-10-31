@@ -1,0 +1,76 @@
+Let a plain getline read on through all the input files, as POSIX
+specifies, rather than stopping at the end of the current one.
+"getline" and "getline var" returned 0 at the end of each input file,
+and a loop such as "while ((getline) > 0)" saw only the rest of that
+file. Once the input was used up, as in an END rule, they found no file
+to open and returned -1. Now getline goes on to the next file at the
+end of each one, and returns 0 when there is no more input. The main
+loop checks for input used up by getline in an action, and FNR is reset
+as each file is opened rather than at the top of the main loop, so a
+record read by getline in BEGIN or across a file boundary counts toward
+FNR of the file it came from. Since getline in BEGIN or in an action
+can now finish reading standard input, moving past it no longer closes
+stdin, which stays open as "/dev/stdin": a later getline from
+"/dev/stdin" read a closed stream rather than returning 0.
+
+---
+ editors/awk.c |   18 +++++++++++++-----
+ 1 file changed, 13 insertions(+), 5 deletions(-)
+
+--- a/editors/awk.c
++++ b/editors/awk.c
+@@ -3201,7 +3201,8 @@
+ 	const char *fname;
+ 
+ 	if (iF.F) {
+-		fclose(iF.F);
++		if (iF.F != stdin) /* still open as "/dev/stdin" */
++			fclose(iF.F);
+ 		iF.F = NULL;
+ 		iF.pos = iF.adv = 0;
+ 	}
+@@ -3241,6 +3242,7 @@
+ #endif
+ 
+ 	setvar_s(intvar[FILENAME], fname);
++	setvar_i(intvar[FNR], 0);
+ 	input_file_seen = TRUE;
+ 	return TRUE;
+ #undef argind
+@@ -3643,9 +3645,12 @@
+ #endif
+ 				}
+ 			} else {
+-				if (!iF.F)
+-					next_input_file();
+ 				rsm = &iF;
++				if (!rsm->F && !next_input_file()) {
++					/* main input is used up, as in END */
++					setvar_i(res, 0);
++					break;
++				}
+ 			}
+ 
+ 			if (!rsm->F) {
+@@ -3658,6 +3663,9 @@
+ 				R.v = intvar[F0];
+ 
+ 			i = awk_getline(rsm, R.v);
++			/* main input goes on with the next input file */
++			while (i == 0 && !op1 && next_input_file())
++				i = awk_getline(rsm, R.v);
+ 			if (i > 0 && !op1) {
+ 				incvar(intvar[FNR]);
+ 				incvar(intvar[NR]);
+@@ -4171,9 +4179,9 @@
+ 	/* Iterate over input files */
+ 	for (;;) {
+ 		nextfile = FALSE;
+-		setvar_i(intvar[FNR], 0);
+ 
+-		while ((i = awk_getline(&iF, intvar[F0])) > 0) {
++		/* getline may have used up the input */
++		while (iF.F && (i = awk_getline(&iF, intvar[F0])) > 0) {
+ 			nextrec = FALSE;
+ 			incvar(intvar[NR]);
+ 			incvar(intvar[FNR]);
