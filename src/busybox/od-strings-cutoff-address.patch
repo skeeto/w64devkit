@@ -1,0 +1,41 @@
+Print the right address for a string cut off by od -S with -N. The
+address printed for each string assumed a terminating NUL had been read
+after it, which is not the case when the -N limit ends the string, so
+such a string was shown one byte too low. A string starting at offset
+zero was shown at -1, which wrapped to the largest unsigned offset. The
+patch records where each candidate string starts and prints that.
+
+---
+ coreutils/od_bloaty.c |    7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+--- a/coreutils/od_bloaty.c
++++ b/coreutils/od_bloaty.c
+@@ -1098,12 +1098,14 @@
+ 	while (1) {
+ 		size_t i;
+ 		int c;
++		off_t start;
+ 
+ 		/* See if the next 'G.string_min' chars are all printing chars.  */
+  tryline:
+ 		if ((option_mask32 & OPT_N) && (end_offset - G.string_min <= address))
+ 			break;
+ 		i = 0;
++		start = address;
+ 		while (!(option_mask32 & OPT_N) || address < end_offset) {
+ 			if (i == bufsize) {
+ 				bufsize += bufsize/8;
+@@ -1131,9 +1133,10 @@
+ 		if (i < G.string_min)		/* Too short! */
+ 			goto tryline;
+ 
+-		/* If we get here, the string is all printable and NUL-terminated */
++		/* If we get here, the string is all printable and NUL-terminated
++		 * (or cut off by -N) */
+ 		buf[i] = 0;
+-		G.format_address(address - i - 1, ' ');
++		G.format_address(start, ' ');
+ 
+ 		for (i = 0; (c = buf[i]); i++) {
+ 			switch (c) {

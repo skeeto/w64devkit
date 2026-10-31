@@ -68,3 +68,5 @@ iconv-file-operands.patch
 unexpand-trailing-tab.patch
 expand-large-tab-size.patch
 rev-unterminated-full-line.patch
+od-strings-cutoff-address.patch
+dump-skip-whole-file.patch

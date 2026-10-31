@@ -331,10 +331,10 @@ bytes of input, from 0 to 2147483647.
 Skip
 .I offset
 bytes from the start of the input.
-A file that ends before the skip does is not read.
+A file that ends before or where the skip does is not read.
 The offsets written include the skipped bytes.
-When the skip goes past the end of the input, the built-in formats write
-only the final offset.
+When the skip reaches or passes the end of the input, the built-in
+formats write only the final offset.
 See
 .B NOTES
 for limits.
@@ -451,8 +451,6 @@ or lands at the wrong position, though the offsets written assume the
 right one.
 On a pipe, the seek does nothing, so the dump starts at the beginning of
 the input while its offsets include the skip.
-When the bytes left to skip equal the size of a file exactly, that file
-is dumped from its start instead of skipped, with wrong offsets.
 .PP
 Floating-point conversions use the Microsoft C runtime: exponents have
 three digits, as in

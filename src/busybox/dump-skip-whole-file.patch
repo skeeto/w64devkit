@@ -1,0 +1,27 @@
+Skip a file whose size exactly equals the remaining hexdump/od skip.
+When the skip covered a whole regular file, the file was passed over by
+reducing the skip without seeking, then reading went on to the next
+file. A skip exactly equal to the file's size also took this path, but
+left a skip of zero, which next() treats as positioned and ready, so
+the file was dumped from its start instead of being skipped. Only take
+the shortcut when the skip exceeds the size; an equal skip now seeks to
+the end of the file as any smaller skip seeks within it.
+
+---
+ libbb/dump.c |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+--- a/libbb/dump.c
++++ b/libbb/dump.c
+@@ -347,9 +347,9 @@
+ 	xfstat(STDIN_FILENO, &sbuf, fname);
+ #endif
+ 	if (S_ISREG(sbuf.st_mode)
+-	 && dumper->pub.dump_skip >= sbuf.st_size
++	 && dumper->pub.dump_skip > sbuf.st_size
+ 	) {
+-		/* If st_size is valid and pub.dump_skip >= st_size */
++		/* If st_size is valid and pub.dump_skip > st_size */
+ 		dumper->pub.dump_skip -= sbuf.st_size;
+ 		dumper->pub.address += sbuf.st_size;
+ 		return;

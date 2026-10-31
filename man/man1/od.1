@@ -1,4 +1,4 @@
-.TH OD 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH OD 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 od \- dump files in octal and other formats
 .SH SYNOPSIS
@@ -410,6 +410,10 @@ Each string is written on a line of its own, after its address and a
 space, and no final address is written.
 Any other byte, such as a tab, ends a run without a string, and so does
 the end of the input.
+A run cut off by the limit of
+.B \-N
+is written as a string if it is longer than
+.IR length .
 Formats are checked but not otherwise used.
 The argument of
 .B \-S
@@ -606,12 +610,6 @@ With
 and more than one format, the lines after the first for each block are
 indented by an arbitrary number of columns, because the width of the
 missing address is read from past the end of a table.
-.PP
-With
-.BR \-S ,
-a string cut off by the limit of
-.B \-N
-is written, but with an address one less than its own.
 .PP
 With
 .B \-N
