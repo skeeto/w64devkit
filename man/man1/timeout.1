@@ -1,4 +1,4 @@
-.TH TIMEOUT 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH TIMEOUT 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 timeout \- run a program with a time limit
 .SH SYNOPSIS
@@ -176,8 +176,9 @@ to end.
 If it is still running, send
 .B KILL
 and exit with status 137.
-If it ends in time, exit with its own exit status, not 124 or 137; see
-.BR NOTES .
+If it ends in time, exit with status 124, or 137 when the first signal
+was
+.BR KILL .
 .I killsecs
 is a duration, like
 .IR secs .
@@ -234,12 +235,27 @@ for console output, are described in
 .TP
 .I n
 .I prog
-ended by itself within
+ended within
 .I secs
-seconds, or within
-.I killsecs
-seconds after being sent a signal.
-The status is the low 8 bits of its Windows exit code.
+seconds.
+The status is its Windows exit code, translated as
+.BR sh (1)
+does: 128 plus the signal number for a
+.I prog
+ended by a signal, 139 for the access violation
+.B 0xC0000005
+and 130 for Ctrl\-C, 255 for a code above 255 whose low 8 bits are 0,
+and the low 8 bits of any other code.
+For a code above 255 that does not stand for a signal, the access
+violation, or Ctrl\-C,
+.B timeout
+also prints a message on standard error that ends with
+.B Error 0x
+and the code in hexadecimal, such as
+.BR "timeout: Error 0x12c" ,
+with the system's description of the code before
+.B Error
+when there is one.
 Since
 .I prog
 may exit with any value, the ones below do not prove that
@@ -249,13 +265,18 @@ produced them.
 .B 124
 .I secs
 seconds passed and the signal was sent.
+Without
+.BR \-k ,
 .B timeout
 does not wait for
 .I prog
 to end, and does not know whether the signal worked.
-This status is never used with a
+With
+.BR \-k ,
+.I prog
+ended within
 .I killsecs
-above 0.
+seconds after the signal.
 .TP
 .B 125
 .B timeout
@@ -282,9 +303,7 @@ A directory, or a file that is not executable, is not found.
 was sent last: either
 .I secs
 seconds passed with
-.B \-s KILL
-and without
-.BR \-k ,
+.BR "\-s KILL" ,
 or
 .I prog
 was still running
@@ -385,33 +404,6 @@ Without
 exits as soon as it has sent the signal, and
 .I prog
 may still be running for a moment, or indefinitely.
-.IP \(bu 2
-With
-.BR \-k ,
-a
-.I prog
-that ends after the signal gives its own exit status, which is 0 when
-the signal ended it, since its Windows exit code is the signal number
-shifted left 24 bits, such as
-.B 0x0F000000
-for
-.BR TERM .
-GNU
-.B timeout
-reports 124.
-.PP
-The exit status holds 8 bits, so the exit code of
-.I prog
-is reduced modulo 256: 300 becomes 44, and 256 becomes 0, which looks
-like success.
-Nor does
-.B timeout
-translate a crash or a signal as
-.BR sh (1)
-does: a
-.I prog
-that crashes with the access violation 0xC0000005 gives 5, not 139, and
-one ended by a signal gives 0, not 128 plus the signal number.
 .PP
 .B timeout
 does not report a failure to send a signal.

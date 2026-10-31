@@ -1,0 +1,27 @@
+Stop yes when any write fails, not only the newline's.
+yes checked only the result of the putchar that ends each line. A
+buffered stream reports a failed write only to the call that flushes
+the buffer, and some C libraries (msvcrt) then empty the buffer and
+accept further output. Unless that call was the newline, which for
+many line lengths it never is, the failure went to the fputs or putchar
+that writes the text, whose result was ignored, so yes never noticed a
+write error, such as standard output open read-only or a full disk,
+and ran forever. Test the stream's error indicator after each line
+instead.
+
+---
+ coreutils/yes.c |    3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+--- a/coreutils/yes.c
++++ b/coreutils/yes.c
+@@ -48,7 +48,8 @@
+ 				break;
+ 			putchar(' ');
+ 		}
+-	} while (putchar('\n') != EOF);
++		putchar('\n');
++	} while (!ferror(stdout));
+ 
+ 	bb_perror_nomsg_and_die();
+ }

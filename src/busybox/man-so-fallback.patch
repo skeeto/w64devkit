@@ -1,0 +1,47 @@
+Show the link page itself when its .so target is missing.
+To follow a ".so" link page, man cut the page's own name down to its
+directory in place and then replaced it with the target's name. When
+the target did not exist the code meant to fall back to formatting the
+link page ("it's better than nothing"), but by then the name was the
+missing target, so nothing was opened: the formatter got a closed
+standard input, printed nothing useful, and man reported success.
+Build the target name in a copy and go back to the link's own name for
+the fallback. The link page's ".so" request then lets the formatter
+report the missing file.
+
+---
+ miscutils/man.c |    6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+--- a/miscutils/man.c
++++ b/miscutils/man.c
+@@ -113,6 +113,7 @@
+ 		struct stat sb;
+ 		char *line;
+ 		char *linkname, *p;
++		char *link_filename = man_filename;
+ 
+ 		/* On my system:
+ 		 * man1/genhostid.1.gz: 203 bytes - smallest real manpage
+@@ -136,6 +137,8 @@
+ //testcase:
+ // cd /usr/share/man/man2
+ // man ./path_resolution.2.gz
++		/* Work on a copy: the link is shown if the target is missing */
++		man_filename = xstrdup(man_filename);
+ 		while (man_filename[0] == '.' && man_filename[1] == '/')
+ 			man_filename += 2;
+ 		p = strrchr(man_filename, '/');
+@@ -164,10 +167,11 @@
+  append_link:
+ 		man_filename = xasprintf("%s/%s", man_filename, linkname);
+ 		free(line);
+-		/* Note: we leak "new" man_filename string as well... */
++		/* Note: we leak the copy and "new" man_filename string... */
+ 		if (show_manpage(man_filename, man, level + 1))
+ 			return 1;
+ 		/* else: show the link, it's better than nothing */
++		man_filename = link_filename;
+ 	}
+ 
+  ordinary_manpage:

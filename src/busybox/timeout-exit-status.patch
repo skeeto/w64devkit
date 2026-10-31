@@ -1,0 +1,49 @@
+Convert the child's Windows exit code to a POSIX exit status.
+timeout returned the child's 32-bit exit code as its own status, which
+was then cut to its low byte. A child terminated as if by a signal has
+the signal in the top byte and zero elsewhere, so it gave status 0:
+"timeout 5 sh -c 'kill -9 $$'" succeeded. Pass the code through
+exit_code_to_posix(), as other spawning applets do, so such a child
+gives 128+SIG, a crash such as 0xC0000005 gives 139, and any other code
+above 255 is reported on stderr as the shell reports it.
+
+With -k, a child that exited during the grace period also replaced the
+status 124 (137 with -s KILL) with its own, typically the signal in
+the top byte, so a timed out command reported success. Keep 124 or
+137 in that case, as GNU timeout does.
+
+---
+ coreutils/timeout.c |    7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+--- a/coreutils/timeout.c
++++ b/coreutils/timeout.c
+@@ -103,6 +103,7 @@
+ #else
+ 	intptr_t ret;
+ 	DWORD status = EXIT_SUCCESS;
++	DWORD code;
+ #endif
+ 	duration_t timeout;
+ 	duration_t kill_timeout;
+@@ -208,8 +209,10 @@
+ 
+ 	child = (HANDLE)ret;
+ 	atexit(kill_child);
+-	if (timeout_wait(timeout, child, &status))
++	if (timeout_wait(timeout, child, &code)) {
++		status = exit_code_to_posix(code);
+ 		goto finish;
++	}
+ 	status = signo == SIGKILL ? 137 : 124;
+ 
+ 	pid = (pid_t)GetProcessId(child);
+@@ -217,7 +220,7 @@
+ 		kill(pid, signo);
+ 
+ 		if (kill_timeout > 0) {
+-			if (timeout_wait(kill_timeout, child, &status))
++			if (timeout_wait(kill_timeout, child, &code))
+ 				goto finish;
+ 			kill(pid, SIGKILL);
+ 			status = 137;

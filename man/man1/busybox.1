@@ -638,6 +638,9 @@ Delete every hard link to
 including
 .I file
 itself.
+The links are looked for on the volume that holds
+.IR file ,
+whatever the current drive.
 Given
 .IR busybox.exe ,
 or any link that
@@ -1183,6 +1186,7 @@ Bugs are fixed in
 .BR ls ,
 .BR lzma ,
 .BR lzop ,
+.BR man ,
 .BR mktemp ,
 .BR nc ,
 .BR od ,
@@ -1201,6 +1205,7 @@ Bugs are fixed in
 .BR stat ,
 .BR stty ,
 .BR tail ,
+.BR timeout ,
 .BR touch ,
 .BR tr ,
 .BR uncompress ,
@@ -1210,7 +1215,9 @@ Bugs are fixed in
 .BR wget ,
 .BR xargs ,
 .BR xz ,
-and the shell.
+.BR yes ,
+the shell, and
+.BR "busybox \-\-uninstall" .
 .IP \(bu 2
 A pipe whose reader has exited ends an applet with status 141, as on
 Linux, even when it is found by flushing buffered output, which in

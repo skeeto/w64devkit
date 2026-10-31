@@ -1,4 +1,4 @@
-.TH YES 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH YES 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 yes \- write a line repeatedly until stopped
 .SH SYNOPSIS
@@ -30,8 +30,7 @@ gives empty lines.
 .B yes
 does not end on its own.
 It runs until it is interrupted or killed, such as by Ctrl+C, until its
-output is a pipe that is closed, or until it notices that a write
-failed; see
+output is a pipe that is closed, or until a write fails; see
 .BR "EXIT STATUS" .
 .SH OPTIONS
 .B yes
@@ -121,8 +120,6 @@ yes: : \fIreason\fR
 such as
 .BR "yes: : Bad file descriptor" ;
 the doubled colon is part of the message.
-A failed write is not always noticed; see
-.BR NOTES .
 .SH EXAMPLES
 Write a line three times, then stop by ending the pipe:
 .PP
@@ -183,32 +180,6 @@ There is no
 .PP
 Standard output is binary, so every line ends with a bare LF, not
 CR LF.
-.PP
-A write error is noticed only when it happens while the newline is
-written.
-The C library writes out its 4096-byte output buffer when the buffer
-overflows, and reports a failure only to the call that overflowed it,
-which may be the call that writes the text of the line or a space.
-The error is then lost and
-.B yes
-runs on with its output discarded.
-For a line shorter than 4096 bytes, counting the newline, the newline
-sooner or later overflows the buffer if the length is odd, and never if
-it is even.
-For example, with standard output closed, as with
-.BR >&\- ,
-or a file opened only for reading,
-.B "yes ab"
-and
-.B "yes abcd"
-fail with status 1, but
-.BR yes ,
-.BR "yes x" ,
-and
-.B "yes abc"
-never stop.
-A closed pipe is noticed whichever call hits it, because the Windows
-output code of busybox then exits the process with status 141 at once.
 .PP
 Arguments may contain any Unicode character on Windows 10 version 1903
 and later, and are limited to the system code page on earlier versions.

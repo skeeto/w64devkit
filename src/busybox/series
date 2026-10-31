@@ -90,3 +90,7 @@ install-strip-writable.patch
 install-strip-status.patch
 mkstemp-excl.patch
 chattr-exit-status.patch
+yes-write-error.patch
+timeout-exit-status.patch
+man-so-fallback.patch
+uninstall-link-volume.patch

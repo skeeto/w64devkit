@@ -132,11 +132,20 @@ formats the next link file as a page, and
 follows its
 .B .so
 request.
-When the target cannot be found, the operand counts as found, and
-neither the target nor the link file is shown:
+When the target cannot be found,
+.B man
+formats the link file itself as a page, and the operand counts as found.
 .B nroff
-runs with no input and reports
-.BR "nroff: cannot open: \-" .
+then cannot open the file named by the
+.B .so
+request, and the page is empty.
+With
+.B \-w
+in
+.BR MANROFFOPT ,
+.B nroff
+reports the missing file, as in
+.BR "nroff: <stdin>:1: cannot open: man1/grep.1" .
 .PP
 A
 .B .so

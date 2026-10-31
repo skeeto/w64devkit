@@ -1,0 +1,62 @@
+Prefix the volume to hard link names in --uninstall.
+FindFirstFileNameW and FindNextFileNameW return link names relative to
+the root of the volume, without a drive. They were passed to
+realpath(), which resolved them against the current drive, so when
+busybox --uninstall was run from another drive it listed, or deleted,
+files of the same names on that drive, or used a stale buffer when
+there was no such file. Get the path of the file's volume with
+GetVolumePathNameW, which also covers a volume mounted on a directory,
+and prefix it to each name. Look the volume up from the file's real
+path, since the root of a SUBST drive is not the root of its volume.
+
+---
+ win32/mingw.c |   21 +++++++++++++++++++--
+ 1 file changed, 19 insertions(+), 2 deletions(-)
+
+--- a/win32/mingw.c
++++ b/win32/mingw.c
+@@ -2456,9 +2456,11 @@
+ int FAST_FUNC enumerate_links(const char *file, char *name)
+ {
+ 	static HANDLE h = INVALID_HANDLE_VALUE;
++	static char vol[PATH_MAX];
+ 	char aname[PATH_MAX];
+ 	wchar_t wname[PATH_MAX];
+ 	DWORD length = PATH_MAX;
++	int len;
+ 	DECLARE_PROC_ADDR(HANDLE, FindFirstFileNameW, LPCWSTR, DWORD, LPDWORD,
+ 						PWSTR);
+ 	DECLARE_PROC_ADDR(BOOL, FindNextFileNameW, HANDLE, LPDWORD, PWSTR);
+@@ -2469,7 +2471,19 @@
+ 
+ 	if (file != NULL) {
+ 		wchar_t wfile[PATH_MAX];
+-		MultiByteToWideChar(CP_ACP, 0, file, -1, wfile, PATH_MAX);
++		/* Link names are relative to the root of the file's volume,
++		 * which may be mounted on a directory.  Get its path from the
++		 * file's real path, which doesn't use a SUBST drive. */
++		if (!realpath(file, aname))
++			return 0;
++		slash_to_bs(aname);
++		MultiByteToWideChar(CP_ACP, 0, aname, -1, wfile, PATH_MAX);
++		if (!GetVolumePathNameW(wfile, wname, PATH_MAX))
++			return 0;
++		WideCharToMultiByte(CP_ACP, 0, wname, -1, vol, PATH_MAX, NULL, NULL);
++		len = strlen(vol);
++		if (len && vol[len - 1] == '\\')
++			vol[len - 1] = '\0';
+ 		h = FindFirstFileNameW(wfile, 0, &length, wname);
+ 		if (h == INVALID_HANDLE_VALUE)
+ 			return 0;
+@@ -2479,7 +2493,10 @@
+ 		h = INVALID_HANDLE_VALUE;
+ 		return 0;
+ 	}
+-	WideCharToMultiByte(CP_ACP, 0, wname, -1, aname, PATH_MAX, NULL, NULL);
++	len = strlen(vol);
++	memcpy(aname, vol, len);
++	WideCharToMultiByte(CP_ACP, 0, wname, -1, aname + len, PATH_MAX - len,
++						NULL, NULL);
+ 	realpath(aname, name);
+ 	return 1;
+ }
