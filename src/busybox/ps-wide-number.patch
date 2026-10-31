@@ -1,0 +1,39 @@
+Fix a buffer overflow in ps when a number is wider than its column.
+The line buffer is sized from the column widths, but pid, ppid and the
+other numeric columns are printed with "%*u", which writes the whole
+number however narrow the column. A column narrowed by a short header,
+as in "ps -o pid=X", wrote past the end of the buffer, and with several
+such columns the output came out garbled. PIDs above 99999 overflow
+the default five-column width too. The padding after such a value also
+went negative, which printf takes as left alignment, so it wrote
+extra spaces past the value as well.
+
+Reserve room for a full number in every column, and pad a value that
+overflows its column with a single space.
+
+---
+ procps/ps.c |    6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+--- a/procps/ps.c
++++ b/procps/ps.c
+@@ -504,7 +504,9 @@
+ 	if (!is_selinux_enabled())
+ 		need_flags &= ~PSSCAN_CONTEXT;
+ #endif
+-	buffer = xmalloc(width + 1); /* for trailing \0 */
++	/* Numbers are not cut to the field width, so each field
++	 * may take up to sizeof(int)*3 chars more */
++	buffer = xmalloc(width + out_cnt * sizeof(int)*3 + 1); /* for trailing \0 */
+ }
+ 
+ static void format_header(void)
+@@ -546,6 +548,8 @@
+ 		len = strlen(p);
+ 		p += len;
+ 		len = out[i].width - len + 1;
++		if (len < 1) /* value was wider than the field */
++			len = 1;
+ 		if (++i == out_cnt) /* do not pad last field */
+ 			break;
+ 		p += sprintf(p, "%*s", len, " "); /* " ", not "", to ensure separation of fields */

@@ -1,0 +1,31 @@
+Skip the idle process in pgrep and pkill on Windows.
+On Windows PID 0 is a real process, the idle process "[System
+Process]", and it comes first in the process list. A pkill pattern
+that matched it, even one as short as "ss" or "o", or -v with most
+patterns, called kill(0), which signals the caller and its
+descendants: pkill signalled itself in place of the idle process, and
+unless the signal was 0 it ended there without reaching the processes
+after it. pgrep listed PID 0, but exited 1 when that was its only
+match, as a matched PID of 0 reads as no match.
+
+Leave PID 0 out, as the process cannot be signalled anyway.
+
+---
+ procps/pgrep.c |    6 ++++++
+ 1 file changed, 6 insertions(+)
+
+--- a/procps/pgrep.c
++++ b/procps/pgrep.c
+@@ -221,6 +221,12 @@
+ 
+ 		if (proc->pid == pid)
+ 			continue;
++#if ENABLE_PLATFORM_MINGW32
++		/* Skip the idle process: kill(0) would signal pkill itself,
++		 * and a PID of 0 reads as no match */
++		if (proc->pid == 0)
++			continue;
++#endif
+ 
+ 		if (!OPT_INVERT) {
+ 			/* Quickly reject -sN -PN mismatches... unless -v */

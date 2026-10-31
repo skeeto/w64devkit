@@ -41,7 +41,8 @@ A value wider than its column is cut to the width, except for
 .B pid
 and
 .BR ppid ,
-which are written in full and push the rest of the line to the right.
+which are written in full, and move the rest of the line right by as
+many columns as they overflow.
 An empty value is written as
 .BR \- .
 .PP
@@ -214,13 +215,6 @@ and
 For example,
 .B \-o comm=NAME
 shows names of at most four characters.
-Giving
-.B pid
-or
-.B ppid
-a header narrower than its values makes
-.B ps
-overrun its line buffer, which can corrupt the output.
 An empty header, as in
 .BR \-o\ pid= ,
 keeps the default width and shows no header text.

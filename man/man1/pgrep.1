@@ -220,9 +220,6 @@ exits 0 even when a signal could not be delivered.
 No process was selected, or an error such as an invalid option,
 .IR ppid ,
 or regular expression.
-Selecting only process 0,
-.BR "[System\ Process]" ,
-also exits 1.
 .TP
 .B 141
 Standard output is a pipe that was closed before all the output was
@@ -231,11 +228,6 @@ A closed pipe found only when
 .B pgrep
 flushes its output at exit, as for a short list such as a single
 process ID, is not detected, and the status is 0.
-.PP
-A
-.B pkill
-that selects process 0 signals itself; see
-.BR NOTES .
 .SH EXAMPLES
 List Vim processes with their names:
 .PP
@@ -305,9 +297,11 @@ matches either case.
 .IP \(bu 2
 Errors exit with status 1, the same as no match, not 2 or 3.
 .PP
-Every process on the system is listed, including those of other users
-and system processes such as
-.BR System .
+Every process on the system can be selected, including those of other
+users and system processes such as
+.BR System ,
+but not the idle process, with process ID 0 and the name
+.BR "[System\ Process]" .
 A process whose parent has exited has parent ID 1, even when Windows has
 since reused the parent's ID, because a process that started later is
 not taken for its parent.
@@ -343,27 +337,6 @@ Injecting a thread works only when the process and busybox are both
 .B KILL
 takes effect.
 Only the selected process is signaled, not its children.
-.PP
-Process 0,
-.BR "[System\ Process]" ,
-is listed first, and a
-.B pkill
-that selects it signals itself and its descendants in its place, as
-.BR kill (1)
-does for PID 0.
-Unless the signal is 0 or a number without a name,
-.B pkill
-then ends as if by that signal, and may not signal the processes after
-it.
-A pattern such as
-.B ss
-or
-.B o
-matches
-.BR "[System\ Process]" ,
-and
-.B \-v
-with most other patterns selects it.
 .PP
 Each command excludes only its own process.
 When started through the kit's

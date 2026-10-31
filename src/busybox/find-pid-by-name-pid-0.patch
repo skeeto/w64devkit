@@ -1,0 +1,31 @@
+Skip the idle process in find_pid_by_name on Windows.
+The list from find_pid_by_name ends at a 0 entry, but on Windows PID 0
+is a real process, the idle process "[System Process]". As it comes
+first in the process list, an operand that matched it ended the list
+before any other match: pidof printed nothing and failed, and killall
+reported "no process killed", even while another process of that name
+was running, such as "[System Process].exe", which matches in its first
+15 bytes. Had PID 0 been passed on, killall would have called kill(0),
+which signals the caller and its descendants.
+
+Leave PID 0 out of the list. It cannot be signalled anyway.
+
+---
+ libbb/find_pid_by_name.c |    6 ++++++
+ 1 file changed, 6 insertions(+)
+
+--- a/libbb/find_pid_by_name.c
++++ b/libbb/find_pid_by_name.c
+@@ -90,6 +90,12 @@
+ 
+ 	pidList = xzalloc(sizeof(*pidList));
+ 	while ((p = procps_scan(p, PSSCAN_PID|PSSCAN_COMM|PSSCAN_ARGVN|PSSCAN_EXE))) {
++#if ENABLE_PLATFORM_MINGW32
++		/* Skip the idle process: its PID of 0 would end the list,
++		 * and kill(0) would signal the caller instead */
++		if (p->pid == 0)
++			continue;
++#endif
+ 		if (comm_match(p, procName)
+ #if !ENABLE_PLATFORM_MINGW32
+ 		/* or we require argv0 to match (essential for matching reexeced /proc/self/exe)*/

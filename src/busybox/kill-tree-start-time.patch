@@ -1,0 +1,131 @@
+Check creation times when kill walks a process tree on Windows.
+kill with a negative PID, or 0, signals the descendants of a process,
+found by matching parent process IDs. Windows reuses process IDs but
+keeps the parent ID of a process whose parent has exited, so a later
+process given that ID was taken for the parent, and kill signalled
+unrelated processes and their descendants. When reuse made a process
+appear to be its own ancestor, the walk never ended: a process already
+in the list was added again whenever its recorded parent sat later in
+the list, so every pass added more, and kill looped forever while its
+list grew.
+
+Accept a process as a child only if it was created no earlier than its
+parent, and look for the process in the whole list before looking for
+its parent, so that none is added twice. Compare the creation times
+from GetProcessTimes directly: the start times of get_process_times are
+cut to milliseconds against a boot time worked out afresh on each call,
+so a child created in the same clock tick as its parent could seem the
+older, and they wrap after 49 days in an unsigned long.
+
+---
+ win32/process.c |   60 ++++++++++++++++++++++++++++++++++++++++++--------------
+ 1 file changed, 46 insertions(+), 14 deletions(-)
+
+--- a/win32/process.c
++++ b/win32/process.c
+@@ -957,6 +957,23 @@
+ 	return ret;
+ }
+ 
++/* Return the creation time of a process as a FILETIME, 0 if unknown */
++static ULONGLONG get_creation_time(DWORD pid)
++{
++	HANDLE proc;
++	FILETIME crTime = {0, 0}, exTime, keTime, usTime;
++
++	proc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
++	if (!proc)	/* Windows XP lacks PROCESS_QUERY_LIMITED_INFORMATION */
++		proc = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, pid);
++	if (proc) {
++		if (!GetProcessTimes(proc, &crTime, &exTime, &keTime, &usTime))
++			crTime.dwHighDateTime = crTime.dwLowDateTime = 0;
++		CloseHandle(proc);
++	}
++	return ((ULONGLONG)crTime.dwHighDateTime << 32) + crTime.dwLowDateTime;
++}
++
+ /**
+  * If the process ID is positive signal that process only.  If negative
+  * or zero signal all descendants of the indicated process.  Zero
+@@ -965,7 +982,10 @@
+  */
+ int FAST_FUNC kill(pid_t pid, int sig)
+ {
+-	DWORD *pids;
++	struct {
++		DWORD pid;
++		ULONGLONG created;
++	} *pids;
+ 	int max_len, i, len, ret = 0;
+ 
+ 	if (!is_valid_signal(sig)) {
+@@ -977,11 +997,11 @@
+ 	pids = xmalloc(sizeof(*pids) * max_len);
+ 
+ 	if(pid > 0)
+-		pids[0] = (DWORD)pid;
++		pids[0].pid = (DWORD)pid;
+ 	else if (pid == 0)
+-		pids[0] = (DWORD)getpid();
++		pids[0].pid = (DWORD)getpid();
+ 	else
+-		pids[0] = (DWORD)-pid;
++		pids[0].pid = (DWORD)-pid;
+ 	len = 1;
+ 
+ 	/*
+@@ -1004,6 +1024,7 @@
+ 			return -1;
+ 		}
+ 
++		pids[0].created = get_creation_time(pids[0].pid);
+ 		entry.dwSize = sizeof(entry);
+ 		pid_added = TRUE;
+ 		while (pid_added && Process32First(snapshot, &entry)) {
+@@ -1011,17 +1032,28 @@
+ 
+ 			do {
+ 				for (i = len - 1; i >= 0; i--) {
+-					if (pids[i] == entry.th32ProcessID)
++					if (pids[i].pid == entry.th32ProcessID)
+ 						break;
+-					if (pids[i] == entry.th32ParentProcessID) {
+-						if (len == max_len) {
+-							max_len += NPIDS;
+-							pids = xrealloc(pids, sizeof(*pids) * max_len);
+-						}
+-						pids[len++] = entry.th32ProcessID;
+-						pid_added = TRUE;
+-					}
+ 				}
++				if (i >= 0)
++					continue; /* already listed */
++				for (i = len - 1; i >= 0; i--) {
++					if (pids[i].pid == entry.th32ParentProcessID)
++						break;
++				}
++				if (i < 0)
++					continue;
++				if (len == max_len) {
++					max_len += NPIDS;
++					pids = xrealloc(pids, sizeof(*pids) * max_len);
++				}
++				pids[len].pid = entry.th32ProcessID;
++				pids[len].created = get_creation_time(pids[len].pid);
++				/* If the parent started later, its ID was reused */
++				if (pids[i].created <= pids[len].created) {
++					len++;
++					pid_added = TRUE;
++				}
+ 			} while (Process32Next(snapshot, &entry));
+ 		}
+ 
+@@ -1030,7 +1062,7 @@
+ 
+ 	for (i = len - 1; i >= 0; i--) {
+ 		SetLastError(0);
+-		if (kill_signal(pids[i], sig)) {
++		if (kill_signal(pids[i].pid, sig)) {
+ 			errno = err_win_to_posix();
+ 			ret = -1;
+ 		}

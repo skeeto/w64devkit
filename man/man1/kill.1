@@ -313,13 +313,15 @@ number with no name, and
 for a process that cannot be opened with the access needed, such as a
 system process, or that has the other bitness.
 .PP
-Windows reuses process IDs, so a process whose parent has exited is
-taken for a child of any later process that gets the parent's ID.
-If reused IDs make a process its own ancestor, a negative
-.I pid
-or 0 whose descendants include it makes
-.B kill
-run without end.
+Windows reuses process IDs, so the parent ID of a process whose parent
+has exited can name a later, unrelated process.
+A process is not taken for a child of a process that started after it,
+so the descendants of that later process do not include it.
+Only when the start time of the process now holding the parent's ID
+cannot be read is the older process taken for its child.
+A process whose own start time cannot be read is not taken for a child
+of one whose start time can, so neither it nor its descendants are
+signaled.
 .PP
 Differences from the usual Unix command:
 .IP \(bu 2

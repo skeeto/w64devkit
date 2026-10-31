@@ -120,8 +120,9 @@ A shorter process name must match the whole operand.
 .PP
 The idle process, with process ID 0 and the name
 .BR "[System\ Process]" ,
-is never selected, and an operand that matches it is reported as
-matching no process.
+is never selected, though other processes that match the same operand
+are, and an operand that matches only it is reported as matching no
+process.
 .SH OPTIONS
 Options are recognized only at the start of the command line.
 First comes
