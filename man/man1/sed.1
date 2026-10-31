@@ -101,10 +101,7 @@ end the line with the terminator it was read with, or with an LF after
 or
 .BR x .
 A last line that had no terminator is written without one, and an LF is
-added before any later output, except the number that
-.B =
-writes: that follows the line directly, and the LF is added after it,
-which leaves an empty line.
+added before any later output.
 Text written by
 .BR a ,
 .BR i ,
@@ -543,12 +540,6 @@ The flags can be combined.
 Blanks between them are skipped, and they end at a semicolon,
 .BR } ,
 comment, or the end of the line.
-A line that ends in a backslash continues the flags on the next line, so
-in
-.B "sed \-e \(aqs/a/b/\e\(aq \-e p"
-the
-.B p
-is a flag.
 .RS
 .TP
 .B g
@@ -1031,9 +1022,8 @@ not inherit the old file's attributes, such as read-only, and is
 created read-only when the mask in
 .B BB_UMASK
 has the owner write bit.
-The hold space is kept from one file to the next.
-So is a range that has not ended: it continues into the next file, and
-the files after it, until the end of the range is found.
+The hold space is kept from one file to the next, but a range that has
+not ended by the end of a file ends there.
 A
 .B q
 ends only the current file, and the next file is still processed.

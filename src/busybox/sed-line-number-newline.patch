@@ -1,0 +1,25 @@
+Write the newline that an unterminated line still owes before '='.
+When a file other than the last ends without a newline, sed holds back
+the newline after its last line and writes it before the next output.
+The '=' command printed with fprintf, bypassing that, so the number was
+glued to the end of the line and the newline came after the number
+instead: "sed = f1 f2", with f1 holding "a" and no newline, printed
+"1\na2\n\nb\n" rather than "1\na\n2\nb\n". Print the number through
+puts_maybe_newline like every other output command, which also checks
+for a write error.
+
+---
+ editors/sed.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/editors/sed.c
++++ b/editors/sed.c
+@@ -1270,7 +1270,7 @@
+ 
+ 		/* Print line number */
+ 		case '=':
+-			fprintf(G.nonstdout, "%d\n", linenum);
++			sed_puts(itoa(linenum), '\n');
+ 			break;
+ 
+ 		/* Write the current pattern space up to the first newline */

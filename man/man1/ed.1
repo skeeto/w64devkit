@@ -618,13 +618,9 @@ and
 patterns can match.
 .PP
 When standard input is not a console, a carriage return before a newline
-is dropped from each line read.
-A lone period ended by CR LF is still not recognized as the end of text
-input, so the rest of the input becomes text.
-Scripts for
+is dropped from each line read, so scripts for
 .B ed
-need LF line endings, as made by
-.BR dos2unix (1).
+may have CR LF line endings.
 .PP
 In a console, lines are edited with the line editor of
 .BR sh (1),

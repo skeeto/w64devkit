@@ -1,0 +1,42 @@
+End an s command's flags at a newline.
+A newline ends a sed command, but the s flag parser skipped it with the
+other blanks and went on reading flags from the next line. A newline
+follows the flags when the script line ends in a backslash, as in
+"sed -n -e 's/a/b/\' -e p": the p was taken as a flag, so only changed
+lines were printed, and "-e g" in its place made the substitution global
+instead of running the g command. The same happened to the line after a
+w flag's file name. A # comment after the flags swallowed all following
+lines, though a comment elsewhere ends at the newline. Stop the flags,
+and such a comment, at a newline, so the next line is parsed as a
+command.
+
+---
+ editors/sed.c |    8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+--- a/editors/sed.c
++++ b/editors/sed.c
+@@ -481,8 +481,8 @@
+ 			}
+ 			continue;
+ 		}
+-		/* Skip spaces */
+-		if (isspace(substr[idx]))
++		/* Skip spaces, but not a newline, which ends the command */
++		if (substr[idx] != '\n' && isspace(substr[idx]))
+ 			continue;
+ 
+ 		switch (substr[idx]) {
+@@ -511,10 +511,10 @@
+ 			break;
+ 		/* Comment */
+ 		case '#':
+-			// while (substr[++idx]) continue;
+-			idx += strlen(substr + idx); // same
++			idx += strcspn(substr + idx, "\n");
+ 			/* Fall through */
+ 		/* End of command */
++		case '\n':
+ 		case ';':
+ 		case '}':
+ 			goto out;

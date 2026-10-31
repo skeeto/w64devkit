@@ -1,0 +1,25 @@
+Terminate a line read without editing after removing its CR.
+When standard input is not a console, read_line_input reads a line with
+fgets and removes the CR of a CR LF ending. remove_cr moves the text in
+place and returns the shorter length but leaves the old end alone, so
+the string kept a stray copy of its last character: ".\r\n" became
+".\n\n". The returned length was right, but code that looks at the
+string itself saw the extra newline. In ed, a lone period ended by CR LF
+was not taken as the end of text input, so the commands after it, such
+as w and q, were added to the buffer as text and the file was never
+written. Write a new terminator at the shortened length.
+
+---
+ libbb/lineedit.c |    1 +
+ 1 file changed, 1 insertion(+)
+
+--- a/libbb/lineedit.c
++++ b/libbb/lineedit.c
+@@ -2725,6 +2725,7 @@
+ 			len = strlen(command);
+ #if ENABLE_PLATFORM_MINGW32
+ 			len = remove_cr(command, len);
++			command[len] = '\0';
+ #endif
+ 		}
+ 		DEINIT_S();

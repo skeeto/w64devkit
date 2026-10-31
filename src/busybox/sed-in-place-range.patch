@@ -1,0 +1,30 @@
+End open address ranges between files edited with -i.
+With -i each file is edited on its own: line numbers and '$' restart in
+every file, and the loop between files restores line addresses that a
+match had disabled. But a range still open at the end of a file stayed
+open, so it went on through the next file, and the ones after it, until
+its end address matched. "sed -i '/START/,/END/d' a b", with a START
+but no END in a, deleted b from its first line up to END, and
+"sed -i 2,5d a b", with three lines in each, emptied b. Close every
+range between files too, as GNU sed does with -i and -s.
+
+---
+ editors/sed.c |    4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+--- a/editors/sed.c
++++ b/editors/sed.c
+@@ -1691,10 +1691,12 @@
+ 			free(G.outname);
+ 			G.outname = NULL;
+ 
+-			/* Fix disabled range matches and mangled ",+N" ranges */
++			/* Fix disabled range matches and mangled ",+N" ranges,
++			 * and end ranges left open: each file is separate */
+ 			for (sed_cmd = G.sed_cmd_head; sed_cmd; sed_cmd = sed_cmd->next) {
+ 				sed_cmd->beg_line = sed_cmd->beg_line_orig;
+ 				sed_cmd->end_line = sed_cmd->end_line_orig;
++				sed_cmd->in_match = 0;
+ 			}
+ 		}
+ 		/* Here, to handle "sed 'cmds' nonexistent_file" case we did:
