@@ -81,6 +81,11 @@ newline (0x0A), carriage return (0x0D), tab (0x09), and vertical tab
 .B \e\e
 A backslash.
 .TP
+.B \e\-
+A dash as an ordinary byte, so
+.B a\e\-z
+is the three bytes a, dash, and z.
+.TP
 .BI \e ooo
 The byte with octal value
 .IR ooo ,
@@ -96,8 +101,6 @@ Any other backslash, including one at the end of a string, is an
 ordinary byte, and the byte after it is read as usual, so
 .B \e8
 is a backslash and an 8.
-A backslash before a dash is the exception; see
-.BR NOTES .
 .TP
 .BI [: class :]
 Every byte of the class, in ascending order.
@@ -353,28 +356,6 @@ unknown class name, which is ordinary text.
 Options are not recognized after the first operand, where GNU
 .B tr
 still accepts them.
-.PP
-A backslash before a dash does not work as in GNU
-.BR tr .
-.B tr
-adds a dash for the
-.BR \e\- ,
-and then reads the dash again as an ordinary byte.
-So
-.B \e\-
-is two dashes, not one, which moves the later bytes out of line with the
-other string.
-Instead, write a dash as
-.B \e055
-or
-.BR [=\-=] ,
-or last in the string.
-An escape for a backslash, such as
-.B \e\e
-or
-.BR \e134 ,
-before a dash is not affected: it starts a range, or is a backslash and
-a dash at the end of a string.
 .PP
 Strings reach
 .B tr

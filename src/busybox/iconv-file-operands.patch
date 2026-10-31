@@ -1,0 +1,28 @@
+Open each iconv file operand, not the first one every time.
+The loop over the operands tested argv[i] for "-" but opened
+argv[optind], so every file after the first converted the first file
+again: iconv a b printed a twice. When the first operand was "-", each
+later operand instead opened a file named "-", so iconv - a read stdin
+and then failed with "can't open '-'". Open the operand the loop is on.
+
+The loop also closed stdin after a "-" operand, so a second "-" read
+from a closed stream. Leave stdin open, as cut, fold and grep do.
+
+---
+ miscutils/iconv.c |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+--- a/miscutils/iconv.c
++++ b/miscutils/iconv.c
+@@ -1755,9 +1755,9 @@
+ 		if (argv[i][0] == '-' && argv[i][1] == '\0')
+ 			in = stdin;
+ 		else
+-			in = xfopen(argv[optind], "rb");
++			in = xfopen(argv[i], "rb");
+ 		process_file(cd, in, out);
+-		fclose(in);
++		fclose_if_not_stdin(in);
+ 	}
+ 
+ 	if (tmpname) {

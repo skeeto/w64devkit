@@ -63,3 +63,5 @@ shuf-uniform.patch
 uuencode-umask.patch
 base64-decode-skipped.patch
 base64-decode-after-padding.patch
+tr-escaped-dash.patch
+iconv-file-operands.patch

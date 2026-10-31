@@ -35,12 +35,10 @@ It writes standard output, or with
 a file.
 Operands are converted in order, each on its own, so the byte order mark
 and any other conversion state start afresh with each.
-But every operand other than
-.B \-
-opens the first operand and not itself, so give a single
-.IR file ;
-see
-.BR NOTES .
+A
+.I file
+that cannot be opened ends the command, after the output of the
+operands before it.
 .PP
 The input encoding
 .I fromcode
@@ -436,24 +434,6 @@ are the ANSI code page, not the locale's.
 is Windows' best-fit mapping, not libiconv's transliteration.
 .IP \(bu 2
 Conversion errors give no position.
-.PP
-Only the first operand can be a file.
-An operand other than
-.B \-
-is never opened by its own name: the first operand is opened instead.
-So
-.B iconv a b
-converts
-.I a
-twice and never opens
-.IR b ,
-and
-.B iconv \- a
-looks for a file named
-.BR \- .
-Run
-.B iconv
-once for each file.
 .PP
 Input is converted in blocks of 512 bytes.
 Normally a character that straddles a block boundary is carried over to

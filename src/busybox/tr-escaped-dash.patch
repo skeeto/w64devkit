@@ -1,0 +1,69 @@
+Treat an escaped dash in a tr set as one literal dash.
+After storing the dash for "\-", expand() left its pointer on the dash,
+so the next pass stored it again as an ordinary character. The extra
+dash shifted every later character of the set by one, misaligning
+STRING1 with STRING2: echo a-b | tr 'a\-b' xyz printed xzz instead of
+xyz. Instead, treat "\-" like any other escape: it yields a dash, which
+can begin a range as in "\--/", but is never the range "\" to "X".
+
+The end of a range had the same problem in another form: for "\-",
+bb_process_escape_sequence() returns a backslash and leaves the dash,
+so '!-\-' meant '!' through '\' and then a dash, rather than '!'
+through '-'. End the range at the dash.
+
+---
+ coreutils/tr.c     |   14 ++++++++------
+ testsuite/tr.tests |   12 ++++++++++++
+ 2 files changed, 20 insertions(+), 6 deletions(-)
+
+--- a/coreutils/tr.c
++++ b/coreutils/tr.c
+@@ -118,11 +118,10 @@
+ 		if (*arg == '\\') {
+ 			char *z = ++arg;
+ 			if (*z == '-') {
+-				/* "\-X" isn't a range, but a literal dash and X */
+-				buffer[pos++] = '-';
+-				continue;
+-			}
+-			ac = bb_process_escape_sequence((void*)&z);
++				/* "\-X" isn't the range "\" to "X", but a literal dash */
++				ac = *z++;
++			} else
++				ac = bb_process_escape_sequence((void*)&z);
+ 			// if unknown seq "\k": ac='\', z->k: store '\' before 'k'
+ 			// if known seq "\n": ac='\n', z->past n: store '\n' into 'n'
+ 			// if known seq "\041": ac='!', z->past 1: store '!' into '1'
+@@ -143,7 +142,10 @@
+ 			arg += 3; /* skip 0-9 or 0-\ */
+ 			if (ac == '\\') {
+ 				char *z = arg;
+-				ac = bb_process_escape_sequence((void*)&z);
++				if (*z == '-') /* "0-\-" ends at a literal dash */
++					ac = *z++;
++				else
++					ac = bb_process_escape_sequence((void*)&z);
+ 				arg = z;
+ 			}
+ 			while (i <= ac) /* ok: i is unsigned _int_ */
+--- a/testsuite/tr.tests
++++ b/testsuite/tr.tests
+@@ -19,6 +19,18 @@
+ 	"tr '[p\\-r]' '+'" \
+ 	"o+q+s+\n" "" "opqrs-\n"
+ 
++testing "tr stores an escaped dash once" \
++	"tr 'a\\-b' 'xyz'" \
++	"xyz\n" "" "a-b\n"
++
++testing "tr starts a range at an escaped dash" \
++	"tr '\\--/' 'abc'" \
++	"abc\n" "" "-./\n"
++
++testing "tr ends a range at an escaped dash" \
++	"tr -d '!-\\-'" \
++	".\n" "" "!,-.\n"
++
+ optional FEATURE_TR_CLASSES
+ testing "tr understands [:xdigit:]" \
+ 	"tr -cd '[:xdigit:]'" \
