@@ -1,0 +1,97 @@
+Make chattr exit with status 1 when a file could not be changed.
+chattr reported each file it could not stat, open or change, and went
+on with the rest, but always exited with status 0, so a caller could
+not tell that anything had failed. On Windows, for instance, "chattr +t
+DIR" reports "Invalid argument", since a directory cannot have the
+temporary attribute, yet succeeded. Record such errors and exit with
+status 1, as e2fsprogs chattr does.
+
+---
+ e2fsprogs/chattr.c |   21 +++++++++++++++++----
+ 1 file changed, 17 insertions(+), 4 deletions(-)
+
+--- a/e2fsprogs/chattr.c
++++ b/e2fsprogs/chattr.c
+@@ -94,6 +94,7 @@
+ 	uint32_t projid;
+ #endif
+ 	smallint recursive;
++	smallint exitcode;
+ };
+ 
+ static unsigned long get_flag(char c)
+@@ -197,6 +198,7 @@
+ 
+ 	if (lstat(name, &st) != 0) {
+ 		bb_perror_msg("can't stat '%s'", name);
++		gp->exitcode = EXIT_FAILURE;
+ 		return;
+ 	}
+ 
+@@ -219,8 +221,10 @@
+ 
+ 		if (gp->flags & OPT_SET_VER) {
+ 			r = ioctl(fd, EXT2_IOC_SETVERSION, &gp->version);
+-			if (r != 0)
++			if (r != 0) {
+ 				bb_perror_msg("setting %s on %s", "version", name);
++				gp->exitcode = EXIT_FAILURE;
++			}
+ 		}
+ 
+ 		if (gp->flags & OPT_SET_PROJ) {
+@@ -229,11 +233,14 @@
+ 			/* note: ^^^ may fail in 32-bit userspace on 64-bit kernel (seen on 4.12.0) */
+ 			if (r != 0) {
+ 				bb_perror_msg("getting %s on %s", "project ID", name);
++				gp->exitcode = EXIT_FAILURE;
+ 			} else {
+ 				fsxattr.fsx_projid = gp->projid;
+ 				r = ioctl(fd, EXT2_IOC_FSSETXATTR, &fsxattr);
+-				if (r != 0)
++				if (r != 0) {
+ 					bb_perror_msg("setting %s on %s", "project ID", name);
++					gp->exitcode = EXIT_FAILURE;
++				}
+ 			}
+ 		}
+ 
+@@ -243,6 +250,7 @@
+ 			r = ioctl(fd, EXT2_IOC_GETFLAGS, &fsflags);
+ 			if (r != 0) {
+ 				bb_perror_msg("getting %s on %s", "flags", name);
++				gp->exitcode = EXIT_FAILURE;
+ 				goto skip_setflags;
+ 			}
+ 			/*if (gp->flags & OPT_REM) - not needed, rf is zero otherwise */
+@@ -254,10 +262,14 @@
+ 				fsflags &= ~EXT2_DIRSYNC_FL;
+ 		}
+ 		r = ioctl(fd, EXT2_IOC_SETFLAGS, &fsflags);
+-		if (r != 0)
++		if (r != 0) {
+ 			bb_perror_msg("setting %s on %s", "flags", name);
++			gp->exitcode = EXIT_FAILURE;
++		}
+  skip_setflags:
+ 		close(fd);
++	} else {
++		gp->exitcode = EXIT_FAILURE;
+ 	}
+ #else /* ENABLE_PLATFORM_MINGW32 */
+ 	/*if (gp->flags & OPT_REM) - not needed, rf is zero otherwise */
+@@ -267,6 +279,7 @@
+ 	if (!SetFileAttributes(name, st.st_attr & CHATTR_MASK)) {
+ 		errno = err_win_to_posix();
+ 		bb_perror_msg("setting flags on %s", name);
++		gp->exitcode = EXIT_FAILURE;
+ 	}
+ #endif
+ 
+@@ -314,5 +327,5 @@
+ 	/* now run chattr on all the files passed to us */
+ 	do change_attributes(*argv, &g); while (*++argv);
+ 
+-	return EXIT_SUCCESS;
++	return g.exitcode;
+ }

@@ -1,4 +1,4 @@
-.TH CHATTR 1 2026-10-27 "w64devkit" "w64devkit Manual"
+.TH CHATTR 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 chattr \- change Windows file attributes
 .SH SYNOPSIS
@@ -74,7 +74,7 @@ chattr: setting flags on \fIfile\fR: \fIreason\fR
 .EE
 .RE
 .PP
-and the remaining files are still processed.
+and the remaining files are still processed, but the exit status is 1.
 .SH OPTIONS
 .B R
 is recognized in any
@@ -117,7 +117,7 @@ Symbolic links and junctions are changed but not descended into.
 A volume mount point is a directory, so the files of the volume mounted
 there are changed too.
 The entries of a directory that cannot be read are skipped without a
-message.
+message, and do not affect the exit status.
 .TP
 .B \-\-help
 As the first argument, print a usage message on standard output and
@@ -141,7 +141,6 @@ control console output, are described in
 .TP
 .B 0
 Success.
-Files that could not be found or changed do not affect the status.
 .TP
 .B 1
 An invalid command line: no
@@ -152,6 +151,10 @@ or removes an attribute, an unknown attribute letter, or the same
 attribute both added and removed.
 A usage or error message is printed on standard error, and no file is
 changed.
+The status is also 1 when some
+.I file
+could not be found or changed, which is reported as described above;
+the remaining files are still processed.
 .SH EXAMPLES
 Make a file read-only, and show the result:
 .PP
@@ -204,8 +207,6 @@ There is no
 or
 .BR \-v ;
 each is an unknown attribute letter.
-.IP \(bu 2
-Errors on individual files do not change the exit status.
 .PP
 .B chattr
 passes
@@ -228,9 +229,9 @@ shows, such as compressed, encrypted, and sparse, cannot be changed.
 The temporary attribute cannot be set on a directory.
 The attempt fails with
 .BR "Invalid argument" ,
-and none of that directory's attributes change, though with
+none of that directory's attributes change, though with
 .B \-R
-its entries still do.
+its entries still do, and the exit status is 1.
 .PP
 A symbolic link or junction is changed itself, not its target.
 Devices such as

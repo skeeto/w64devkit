@@ -1,0 +1,22 @@
+Create the file exclusively in the Windows mkstemp().
+mkstemp() chose a name with mktemp() and then opened it with O_CREAT
+but without O_EXCL. A file that another process created under that
+name in between was opened and shared instead of causing a failure, so
+the caller lost the guarantee that the file is new and its own. Add
+O_EXCL, so that mkstemp() fails with EEXIST instead.
+
+---
+ win32/mingw.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/win32/mingw.c
++++ b/win32/mingw.c
+@@ -1138,7 +1138,7 @@
+ 	char *filename = mktemp(template);
+ 	if (filename == NULL)
+ 		return -1;
+-	return open(filename, O_RDWR | O_CREAT, 0600);
++	return open(filename, O_RDWR | O_CREAT | O_EXCL, 0600);
+ }
+ 
+ int gettimeofday(struct timeval *tv, void *tz UNUSED_PARAM)

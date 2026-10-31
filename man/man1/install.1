@@ -190,10 +190,8 @@ on it.
 is found by searching
 .BR PATH ,
 and is not an applet.
-It fails when the source is read-only, or when
-.B BB_UMASK
-has the owner write bit set, because the copy is then read-only until
-its mode is set.
+The copy is made writable for it first, even when the source is
+read-only, and gets its mode afterwards.
 If it cannot be run,
 .B install
 reports
@@ -202,8 +200,8 @@ on standard error, followed by a reason, and the exit status is 1.
 If it exits with a nonzero status, after writing its own messages,
 .B install
 reports
-.B install: strip
-with no reason, and the exit status is 1.
+.BI "install: strip: exit status " n ,
+and the exit status is 1.
 The copy is kept unstripped, and the mode is still set.
 Incompatible with
 .BR \-d .
@@ -315,14 +313,7 @@ shell's expansion only.
 An octal file mode creation mask, applied before
 .B install
 runs.
-With the owner write bit,
-.BR 0200 ,
-set, each copy is created read-only until its mode is set, so
-.B strip
-cannot rewrite it and
-.B \-s
-fails.
-The mask also limits a symbolic
+It limits a symbolic
 .B \-m
 mode with no
 .BR u ,

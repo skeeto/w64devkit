@@ -1,4 +1,4 @@
-.TH RM 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.TH RM 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 rm \- remove files and directories
 .SH SYNOPSIS
@@ -68,11 +68,10 @@ each before the directory itself.
 If any entry could not be removed, the directory is left alone with no
 further message, though
 .B \-i
-still asks about it and
-.B \-v
-still reports it removed.
-A directory that cannot be opened for reading is left alone with status
-1 and no message.
+still asks about it.
+A directory that cannot be opened for reading is reported with
+.B "can\(aqt open"
+and left alone with its contents.
 .SS Prompting
 With
 .BR \-i ,
@@ -127,6 +126,12 @@ was not given, or Windows would not remove it.
 .BI "can\(aqt stat \(aq" path "\(aq: " reason
 The path could not be examined, for a reason other than that it does not
 exist.
+.TP
+.BI "can\(aqt open \(aq" dir "\(aq: " reason
+With
+.BR \-r ,
+the directory could not be listed, so it is left in place with its
+contents.
 .TP
 .BI \(aq dir "\(aq is a directory"
 A directory operand without
@@ -186,9 +191,8 @@ Write
 on standard output after each file or link is removed, and
 .BI removed\ directory:\ \(aq dir \(aq
 after each directory, which comes after its contents.
-Nothing is written for an item that is skipped or fails, but a
-directory left in place because an entry in it could not be removed is
-still reported as removed.
+Nothing is written for an item that is skipped or fails, or for a
+directory left in place because an entry in it could not be removed.
 The usage message omits this option.
 .TP
 .B \-\-help
@@ -347,7 +351,9 @@ With
 it skips it silently, and the directory that holds it then fails with
 .BR "Directory not empty" .
 A directory whose full path has 258 or more characters cannot be listed,
-and is left alone with status 1 and no message.
+and is reported with
+.B "can\(aqt open"
+and left alone.
 Either way the directories above it are left too, and
 .B rm
 goes on.

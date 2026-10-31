@@ -1,4 +1,4 @@
-.TH MKTEMP 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.TH MKTEMP 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 mktemp \- create a temporary file or directory
 .SH SYNOPSIS
@@ -203,7 +203,8 @@ when the template does not end in six
 .B X
 characters, and
 .B File exists
-when the C library runs out of file names; see
+when the C library runs out of file names, or another process takes
+the chosen name first; see
 .BR NOTES .
 .SH EXAMPLES
 Create a temporary file, and keep its name in a variable:
@@ -292,13 +293,18 @@ For a directory, each trailing
 .B X
 becomes a random letter or digit.
 .PP
-A file is created after its name is chosen, with no exclusive-create
-check, so another process can create the same name in between, and
+A file is created only if its name is still unused, so when another
+process creates the same name after
 .B mktemp
-then shares the file instead of failing.
-Do not rely on
+chooses it,
 .B mktemp
-in a directory that untrusted users can write.
+fails with
+.B "File exists"
+rather than share that file.
+As the names are predictable, anyone who can write the directory can
+make
+.B mktemp
+fail this way.
 Neither files nor directories are private: access follows the
 permissions of the containing directory.
 .PP

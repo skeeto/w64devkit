@@ -84,3 +84,9 @@ ash-unix-path-search.patch
 ash-builtin-ferror-status.patch
 date-seconds-range.patch
 filetime-before-epoch.patch
+rm-verbose-kept-dir.patch
+rm-opendir-error.patch
+install-strip-writable.patch
+install-strip-status.patch
+mkstemp-excl.patch
+chattr-exit-status.patch

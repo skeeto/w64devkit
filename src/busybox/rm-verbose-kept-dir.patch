@@ -1,0 +1,22 @@
+Don't report a directory as removed by rm -v when it was left in place.
+When an entry in a directory could not be removed, remove_file()
+rightly skipped the rmdir(), but with -v it still printed "removed
+directory: 'DIR'", for that directory and for each one above it, though
+all of them remained. Print the message only when the directory has
+actually been removed.
+
+---
+ libbb/remove_file.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/libbb/remove_file.c
++++ b/libbb/remove_file.c
+@@ -74,7 +74,7 @@
+ 			return -1;
+ 		}
+ 
+-		if (flags & FILEUTILS_VERBOSE) {
++		if (status == 0 && (flags & FILEUTILS_VERBOSE)) {
+ 			printf("removed directory: '%s'\n", path);
+ 		}
+ 

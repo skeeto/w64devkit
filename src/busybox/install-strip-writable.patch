@@ -1,0 +1,27 @@
+Make the copy writable before install -s runs strip on it.
+copy_file() creates the copy with the source's mode, limited by the
+umask, and install sets the requested mode only after strip has run.
+So with a read-only source, or a umask that clears the owner write bit,
+strip was handed a read-only file. Where strip cannot rewrite or
+replace a read-only file, as on Windows, it failed with "Permission
+denied", and so did install -s. GNU install creates the copy with mode
+0600 for this reason. Set mode 0600 before running strip; the final
+mode is still set afterwards.
+
+---
+ coreutils/install.c |    4 ++++
+ 1 file changed, 4 insertions(+)
+
+--- a/coreutils/install.c
++++ b/coreutils/install.c
+@@ -237,6 +237,10 @@
+ 				args[1] = (char*)"-p"; /* -p --preserve-dates */
+ 				args[2] = dest;
+ 				args[3] = NULL;
++				/* The copy has the source's mode, which may be
++				 * read-only, but strip must rewrite it. The mode
++				 * is set properly below. */
++				chmod(dest, 0600);
+ 				if (spawn_and_wait(args)) {
+ 					bb_simple_perror_msg("strip");
+ 					ret = EXIT_FAILURE;
