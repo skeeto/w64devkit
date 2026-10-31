@@ -1,0 +1,41 @@
+httpd means to pass methods other than GET, HEAD and POST, such as PUT,
+DELETE and OPTIONS, to CGI programs, and to answer them with 501 Not
+Implemented for plain files. But it computed the length of the copied
+method name as the difference between the return value of safe_strncpy
+and the destination, and safe_strncpy returns the destination, so the
+length was always 0 and every such request was answered with 400 Bad
+Request, CGI or not.
+
+Take the length with strlen instead. Also read Content-Length for every
+method but GET and HEAD rather than for POST alone, so that the body of
+a PUT reaches the CGI program on its standard input, with CONTENT_LENGTH
+set, as a POST body does.
+
+---
+ networking/httpd.c |    8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+--- a/networking/httpd.c
++++ b/networking/httpd.c
+@@ -2686,7 +2686,7 @@
+ 		goto found;
+ 	/* For CGI, allow DELETE, PUT, OPTIONS, etc too */
+ 	prequest = alloca(16);
+-	un = safe_strncpy((char*)prequest, iobuf, 16) - prequest;
++	un = strlen(safe_strncpy((char*)prequest, iobuf, 16));
+ 	if (un < 1 || un >= 15)
+ 		send_headers_and_exit(HTTP_BAD_REQUEST);
+ #endif
+@@ -2848,8 +2848,10 @@
+ #endif
+ 		dbg("header:'%s'\n", iobuf);
+ #if ENABLE_FEATURE_HTTPD_CGI
+-		/* Only POST needs to know POST_length */
+-		if (prequest == request_POST && STRNCASECMP(iobuf, "Content-Length:") == 0) {
++		/* Only POST, PUT etc. need to know POST_length */
++		if (prequest != request_GET && prequest != request_HEAD
++		 && STRNCASECMP(iobuf, "Content-Length:") == 0
++		) {
+ 			tptr = skip_whitespace(iobuf + sizeof("Content-Length:") - 1);
+ 			if (!tptr[0])
+ 				send_headers_and_exit(HTTP_BAD_REQUEST);

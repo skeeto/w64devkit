@@ -65,15 +65,18 @@ The rest of the version is not checked, and replies are always
 .PP
 Methods are case-sensitive.
 .B GET
-and
+serves files, and
 .B HEAD
-serve files, and both send the body.
-.B POST
-is accepted only for CGI programs, and a
-.B POST
-for a file is answered with
-.BR 501 .
-Any other method is answered with
+sends the same headers without the body.
+Any other method, such as
+.BR POST ,
+.BR PUT ,
+or
+.BR DELETE ,
+is accepted only for CGI programs, and is answered with
+.B 501
+for a file.
+A method of 15 characters or more is answered with
 .BR 400 .
 .PP
 The path is the text before the first
@@ -179,13 +182,6 @@ a
 header, and the bytes asked for, with
 .I last
 cut back to the end of the file.
-A
-.I last
-of 0 after a
-.I first
-of 0 also means the end of the file, so
-.B bytes=0\-0
-asks for the whole file.
 A range whose
 .I first
 is the size of the file or more, or whose
@@ -297,8 +293,15 @@ That includes the index file of a directory, and then
 holds the path of the directory, as requested.
 .PP
 The program starts with its own directory as the current directory.
-Its standard input receives the body of a
-.BR POST ,
+Its standard input receives the body of a request with a method other
+than
+.B GET
+or
+.BR HEAD ,
+such as a
+.B POST
+or
+.BR PUT ,
 and its standard output is the reply.
 Its standard error is that of the server, never the client.
 It inherits the environment of
@@ -691,9 +694,11 @@ when
 is set.
 .TP
 .B CONTENT_LENGTH
-The length of a
-.BR POST 's
-body, when the request gave a positive
+The length of the body, when the method is not
+.B GET
+or
+.B HEAD
+and the request gave a positive
 .BR Content\-Length .
 .TP
 .B CONTENT_TYPE
@@ -714,9 +719,12 @@ header, and
 .BR Range ,
 .BR Accept\-Encoding ,
 .BR If\-None\-Match ,
-and a
-.BR POST 's
-.BR Content\-Length ,
+and the
+.B Content\-Length
+of a method other than
+.B GET
+or
+.BR HEAD ,
 are not passed.
 .TP
 .B PATH_INFO
@@ -735,8 +743,8 @@ listens on both families.
 The user name, when the request matched a password line.
 .TP
 .B REQUEST_METHOD
-.BR GET ,
-.BR HEAD ,
+The method, such as
+.B GET
 or
 .BR POST .
 .TP
@@ -873,9 +881,8 @@ or
 .BR \-m :
 no inetd mode, connection limit, CGI time limit, change of user, or MD5
 passwords.
-A CGI program, and a client sending one a
-.B POST
-body, are never timed out.
+A CGI program, and a client sending one a request body, are never timed
+out.
 .IP \(bu 2
 Passwords are compared as plain text, so a
 .B *
@@ -908,22 +915,6 @@ Use
 to see them.
 The listening socket allows address reuse, which on Windows lets a second
 server bind a port that is in use.
-.PP
-A reply of
-.B 206
-or
-.B 304
-has the
-.B Content\-type
-.BR text/html ,
-whatever the file is.
-The code means to pass other methods, such as
-.BR PUT ,
-to CGI programs, but this version answers them with
-.BR 400 .
-The built-in
-.B 408
-page says 60 seconds, but the limit is 30.
 .PP
 .B httpd
 is not meant to face untrusted clients.

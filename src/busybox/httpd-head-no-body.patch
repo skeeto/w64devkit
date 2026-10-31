@@ -1,0 +1,31 @@
+A HEAD request for a file is passed to send_file_and_exit with only
+SEND_HEADERS, but nothing there checked SEND_BODY, so the file's
+contents followed the headers anyway, as for GET. A HEAD with a Range
+header also got the body, since the range code replaced "what" with
+SEND_BODY after sending the 206 headers.
+
+Stop after the headers when SEND_BODY is not set, and have the range
+code only clear SEND_HEADERS.
+
+---
+ networking/httpd.c |    4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+--- a/networking/httpd.c
++++ b/networking/httpd.c
+@@ -2148,12 +2148,14 @@
+ 		} else {
+ 			range_len = range_end - range_start + 1;
+ 			send_headers(HTTP_PARTIAL_CONTENT);
+-			what = SEND_BODY;
++			what &= ~SEND_HEADERS;
+ 		}
+ 	}
+ #endif
+ 	if (what & SEND_HEADERS)
+ 		send_headers(HTTP_OK);
++	if (!(what & SEND_BODY))
++		send_EOF_and_exit();
+ 
+ 	/* Sending BODY */
+ #if ENABLE_FEATURE_USE_SENDFILE

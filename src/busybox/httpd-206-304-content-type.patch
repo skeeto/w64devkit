@@ -1,0 +1,40 @@
+send_headers took every status but 200 for an error page and labelled
+it text/html, including 206 Partial Content, so a range of an image or
+a video was sent as text/html, and a range of a file with no known
+suffix got a Content-type that the whole file does not. The same went
+for 304 Not Modified, which has no body, and whose headers a cache
+merges into the response it has stored, so a cached image could be
+relabelled text/html.
+
+Give 206 the file's own type, as 200 has, send no Content-type with
+304, and keep text/html for the other statuses.
+
+---
+ networking/httpd.c |   16 ++++++++++------
+ 1 file changed, 10 insertions(+), 6 deletions(-)
+
+--- a/networking/httpd.c
++++ b/networking/httpd.c
+@@ -1250,12 +1250,16 @@
+ 		);
+ 	}
+ 
+-	if (responseNum != HTTP_OK || found_mime_type) {
+-		len += sprintf(iobuf + len,
+-				"Content-type: %s\r\n",
+-				/* if it's error message, then it's HTML */
+-				(responseNum != HTTP_OK ? "text/html" : found_mime_type)
+-		);
++	{
++		/* if it's error message, then it's HTML */
++		const char *mime_type = "text/html";
++		if (responseNum == HTTP_OK || responseNum == HTTP_PARTIAL_CONTENT)
++			mime_type = found_mime_type;
++		/* 304 has no body, and its headers update the cached ones */
++		if (responseNum == HTTP_NOT_MODIFIED)
++			mime_type = NULL;
++		if (mime_type)
++			len += sprintf(iobuf + len, "Content-type: %s\r\n", mime_type);
+ 	}
+ 
+ #if ENABLE_FEATURE_HTTPD_BASIC_AUTH

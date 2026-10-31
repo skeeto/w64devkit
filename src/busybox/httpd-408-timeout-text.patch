@@ -1,0 +1,21 @@
+The page sent with 408 Request Timeout said "No request appeared within
+60 seconds", but the request headers are timed out after
+HEADER_READ_TIMEOUT, which is 30 seconds. Build the text from
+HEADER_READ_TIMEOUT so that it states the actual limit and stays in step
+with it.
+
+---
+ networking/httpd.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/networking/httpd.c
++++ b/networking/httpd.c
+@@ -480,7 +480,7 @@
+ #if ENABLE_FEATURE_HTTPD_ETAG
+ 	{ "Not Modified" },
+ #endif
+-	{ "Request Timeout", "No request appeared within 60 seconds" },
++	{ "Request Timeout", "No request appeared within "STR(HEADER_READ_TIMEOUT)" seconds" },
+ 	{ "Not Implemented", "The requested method is not recognized" },
+ #if ENABLE_FEATURE_HTTPD_BASIC_AUTH
+ 	{ "Unauthorized", "" },

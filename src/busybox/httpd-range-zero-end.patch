@@ -1,0 +1,34 @@
+httpd used a range_end of 0 to mean that the Range header gave no last
+byte, as in "bytes=500-", since that is its value when the globals are
+zeroed. But 0 is also a valid last byte, so "bytes=0-0", a request for
+the first byte, was answered with the whole file, and a Content-Range
+claiming that whole file.
+
+Start range_end at the same "no limit" value used when range support is
+compiled out, so that an open range is cut back to the end of the file
+by the existing check against the file size, and an explicit last byte
+of 0 is honored.
+
+---
+ networking/httpd.c |    3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+--- a/networking/httpd.c
++++ b/networking/httpd.c
+@@ -639,6 +639,7 @@
+ 	SET_OFFSET_PTR_TO_GLOBALS(xzalloc(sizeof(G))); \
+ 	IF_FEATURE_HTTPD_BASIC_AUTH(g_realm = "Web Server Authentication";) \
+ 	IF_FEATURE_HTTPD_RANGES(range_start = -1;) \
++	IF_FEATURE_HTTPD_RANGES(range_end = MAXINT(off_t) - 1;) \
+ 	bind_addr_or_port = STR(CONFIG_FEATURE_HTTPD_PORT_DEFAULT); \
+ 	index_page = index_html; \
+ 	file_size = -1; \
+@@ -2136,7 +2137,7 @@
+ 	}
+ 	range_len = MAXINT(off_t);
+ 	if (range_start >= 0) {
+-		if (!range_end || range_end > file_size - 1) {
++		if (range_end > file_size - 1) {
+ 			range_end = file_size - 1;
+ 		}
+ 		if (range_end < range_start
