@@ -1,0 +1,39 @@
+Set errno when connect or bind fails.
+The connect and bind wrappers returned the Winsock failure without
+copying WSAGetLastError() into errno, as the sendto and recv wrappers
+do. Callers report errno, so the message showed whatever an earlier
+call had left there: "nc HOST http" to a closed port said "can't connect
+to remote host (HOST): Invalid argument", left over from parsing the
+service name as a number, a numeric port gave no reason at all, and
+"nc -l -p PORT" on a port in use said just "bind". Set errno from the
+Winsock error so the real cause is reported.
+
+---
+ win32/net.c |   10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+--- a/win32/net.c
++++ b/win32/net.c
+@@ -132,14 +132,20 @@
+ int FAST_FUNC mingw_connect(int sockfd, const struct sockaddr *sa, size_t sz)
+ {
+ 	SOCKET s = (SOCKET)_get_osfhandle(sockfd);
+-	return connect(s, sa, sz);
++	int res = connect(s, sa, sz);
++	if (res < 0)
++		errno = WSAGetLastError();
++	return res;
+ }
+ 
+ #undef bind
+ int FAST_FUNC mingw_bind(int sockfd, struct sockaddr *sa, size_t sz)
+ {
+ 	SOCKET s = (SOCKET)_get_osfhandle(sockfd);
+-	return bind(s, sa, sz);
++	int res = bind(s, sa, sz);
++	if (res < 0)
++		errno = WSAGetLastError();
++	return res;
+ }
+ 
+ #undef sendto

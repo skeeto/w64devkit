@@ -14,7 +14,7 @@ in turn and saves the document in a file.
 This is the busybox applet: a small non-interactive downloader with a
 fraction of the options of GNU Wget; see
 .BR NOTES .
-It speaks HTTP, HTTPS, and FTP, and in the x86 kit also FTPS.
+It speaks HTTP, HTTPS, FTP, and FTPS.
 Messages and a progress meter go to standard error, and nothing goes to
 standard output unless
 .B "\-O \-"
@@ -228,16 +228,6 @@ data connection is encrypted too when the server accepts
 .BR "PROT P" .
 .B \-\-no\-check\-certificate
 does not apply to it.
-An ftps URL works only in the x86 kit.
-In the x64 kit,
-.B wget
-waits for the server's greeting until the server gives up and closes
-the connection, then fails with
-.B "ssl_client: schannel: attempted to write to a closed connection"
-and
-.BR "wget: error getting response" ;
-see
-.BR ssl_client (1).
 .SS HTTPS and FTPS
 .B wget
 runs
@@ -510,12 +500,8 @@ message, and goes on to the next URL.
 That is not a failure, so the exit status can still be 0.
 .TP
 .BI "\-T " sec
-Not supported.
-This build has no timeout feature, and
-.B \-T
-makes
-.B wget
-crash; see
+Accepted and ignored, whatever its argument.
+This build has no timeout feature; see
 .BR NOTES .
 .TP
 \fB\-O\fR \fIfile\fR, \fB\-\-output\-document\fR=\fIfile\fR
@@ -778,8 +764,7 @@ The timeout feature of busybox is not built:
 .B \-\-timeout
 is an unknown option, and
 .B \-T
-with a number passes the option parser and then crashes with an access
-violation.
+is accepted and ignored.
 Use
 .BR timeout (1),
 but for https it stops only
@@ -817,13 +802,7 @@ An https URL sent through
 is not tunneled: the proxy receives the request in clear text, as
 .BR "GET https://host/path" .
 .PP
-In the x64 kit, because of how
-.BR ssl_client (1)
-copies data, a large request body over https, such as a
-.B \-\-post\-file
-of 40000 octets, can stall before it is all sent, or reach the server
-with earlier parts of the request repeated in place of later ones.
-In that kit too, over https, a response without
+In the x64 kit, over https, a response without
 .B Content\-Length
 makes
 .B wget

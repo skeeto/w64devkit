@@ -46,28 +46,12 @@ under
 waits until standard input or the connection has data.
 It reads standard input in pieces of up to 64 KiB, and encrypts and
 sends each piece at once, in TLS records of up to 16 KiB.
-A piece longer than 16 KiB is corrupted: each record after the first
-repeats the start of the piece instead of continuing it, so the server
-receives the right number of bytes but the wrong ones.
-Input from a file larger than 16 KiB is always affected, and input from
-a pipe whenever more than 16 KiB is waiting in it.
 .PP
-It reads the connection differently.
-It keeps reading and decrypting until it holds 64 KiB of plain text, the
-server ends the TLS session, or the connection closes, and only then
-writes to standard output.
-A short reply therefore appears only when the server ends the session.
-That suits HTTP with
-.BR "Connection: close" ,
-as
-.B wget
-sends it, but not a protocol in which the client waits for each reply
-before it sends more.
-FTP is such a protocol, so
-.B wget
-fails on an ftps URL: the server's greeting reaches it only when the
-server gives up and closes the connection.
-While it waits for the connection,
+From the connection it reads what has arrived, decrypts every complete
+TLS record in it, and writes the plain text to standard output at once,
+so a protocol in which the client waits for each reply before it sends
+more, such as FTP, works.
+While it waits for the rest of a record,
 .B ssl_client
 does not look at standard input.
 .SS Ending
@@ -80,9 +64,8 @@ The data received so far is written first.
 A connection closed without ending the TLS session is not reported, so a
 truncated reply goes unnoticed.
 .IP
-A read of the connection collects data up to the server's close alert,
-so the alert usually comes with data.
-Then
+When the server's close alert arrives together with data, as it often
+does,
 .B ssl_client
 writes the data, but answers the alert, and exits, only when the
 connection is next readable or standard input ends.
@@ -281,12 +264,8 @@ The name from
 .B \-n
 is sent as the server name indication even when it is an IP address.
 .IP \(bu 2
-Input is not corrupted: each read of up to 16 KiB is sent as one TLS
+Standard input is read in pieces of up to 16 KiB, each sent as one TLS
 record.
-Each record from the server is written to standard output as soon as it
-is decrypted, so
-.B wget
-works with ftps URLs.
 .IP \(bu 2
 At the end of standard input no
 .B close_notify

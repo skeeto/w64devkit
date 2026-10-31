@@ -1,0 +1,30 @@
+Return decrypted Schannel data without waiting to fill the buffer.
+tls_read kept reading from the socket until the caller's buffer was
+full or the peer closed the connection. The TLS copy loop passes a
+64 KiB buffer, so a short reply stayed unread until 64 KiB had arrived
+or the server hung up. Request-response protocols stalled: wget over
+ftps never got past the server's greeting, and an https download only
+finished when the server closed the connection. Once some data has been
+decrypted, return it instead of blocking for the next record.
+
+---
+ networking/tls.c |    8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+--- a/networking/tls.c
++++ b/networking/tls.c
+@@ -3330,7 +3330,13 @@
+ 					goto Success;
+ 				}
+ 				case SEC_E_INCOMPLETE_MESSAGE: {
+-					int result = safe_read(state->ifd,
++					int result;
++
++					/* Return what we have rather than block for more */
++					if (amount_read > 0)
++						goto Success;
++
++					result = safe_read(state->ifd,
+ 						state->in_buffer + state->in_buffer_offset,
+ 						sizeof(state->in_buffer) - state->in_buffer_offset);
+ 					if (result == 0) {

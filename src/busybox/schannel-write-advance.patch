@@ -1,0 +1,21 @@
+Advance through the input when Schannel splits a write into records.
+tls_write encrypts at most one maximum-size record (16 KiB) at a time,
+but never moved buf past the part it had sent, so every record after the
+first repeated the first 16 KiB. Any single read over 16 KiB that the
+TLS copy loop passed on was corrupted, e.g. a large "wget --post-file"
+over https sent the wrong body. Step buf along with len.
+
+---
+ networking/tls.c |    1 +
+ 1 file changed, 1 insertion(+)
+
+--- a/networking/tls.c
++++ b/networking/tls.c
+@@ -3451,6 +3451,7 @@
+ 			   buffers[0].cbBuffer + buffers[1].cbBuffer +
+ 			   buffers[2].cbBuffer);
+ 
++		buf += copy_amount;
+ 		len -= copy_amount;
+ 	}
+ }

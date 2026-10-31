@@ -43,3 +43,7 @@ ps-wide-number.patch
 find-pid-by-name-pid-0.patch
 kill-tree-start-time.patch
 pgrep-skip-pid-0.patch
+getopt32-null-arg.patch
+schannel-write-advance.patch
+schannel-read-partial.patch
+connect-errno.patch

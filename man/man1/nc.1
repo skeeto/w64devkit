@@ -250,7 +250,7 @@ In listen mode the operand is a local address, not a port.
 takes
 .B 8000
 as an address and fails with
-.BR "nc: bind" .
+.BR "nc: bind: 10049: WSA error" .
 Give the port with
 .BR \-p .
 .IP \(bu 2
@@ -263,10 +263,13 @@ which busybox takes to be
 in the root of the current drive.
 Windows does not normally have such a file, so use port numbers.
 .PP
-Socket failures are reported without the Windows reason, as in
-.B nc: bind
-and
-.BR "nc: can't connect to remote host (127.0.0.1)" .
+A failure to bind or connect is reported with the Windows Sockets error
+number instead of a description, as in
+.B "nc: can't connect to remote host (127.0.0.1): 10061: WSA error"
+for a refused connection.
+Microsoft's list of Windows Sockets error codes explains the numbers:
+10049 is an address that is not available here, 10060 a connection that
+timed out, and 10061 a connection refused.
 The address is shown only for IPv4.
 A failed write to the connection, as when the peer has gone, prints
 .BR "nc: write error: Invalid argument" ,

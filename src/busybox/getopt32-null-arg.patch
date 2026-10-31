@@ -1,0 +1,31 @@
+Accept a NULL destination for numeric and list option arguments.
+Callers pass NULL for an option whose argument they accept but ignore,
+such as wget's -T SEC when FEATURE_WGET_TIMEOUT is off, or httpd's -K
+when FEATURE_HTTPD_CGI is off. getopt32 skipped the store for a plain
+string argument in that case, but stored a "+" (integer) or "*" (list)
+argument through the pointer regardless, so "wget -T 5 URL" crashed
+writing through NULL. Skip every kind of store when there is nowhere to
+put the result.
+
+---
+ libbb/getopt32.c |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+--- a/libbb/getopt32.c
++++ b/libbb/getopt32.c
+@@ -565,13 +565,13 @@
+ 		flags ^= trigger;
+ 		if (on_off->counter)
+ 			(*(on_off->counter))++;
+-		if (optarg) {
++		if (optarg && on_off->optarg) {
+ 			if (on_off->param_type == PARAM_LIST) {
+ 				llist_add_to_end((llist_t **)(on_off->optarg), optarg);
+ 			} else if (on_off->param_type == PARAM_INT) {
+ //TODO: xatoi_positive indirectly pulls in printf machinery
+ 				*(unsigned*)(on_off->optarg) = xatoi_positive(optarg);
+-			} else if (on_off->optarg) {
++			} else {
+ 				*(char **)(on_off->optarg) = optarg;
+ 			}
+ 		}
