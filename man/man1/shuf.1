@@ -304,14 +304,9 @@ The shuffle is a Fisher-Yates shuffle driven by the C library's
 seeded from the time since the system started, in microseconds.
 It is not suitable for security use, and it cannot be seeded or
 repeated.
-Each swap partner is chosen as a random value modulo the number of lines
-left.
-The value has 15 bits while at most 32767 lines are left, and 30 bits
-otherwise, so the choice is not uniform.
-For example, from 20000 lines,
-.B shuf \-n 1
-picks each of the first 12768 twice as often as each of the others, and
-from more than 1073741824 lines it never picks a line past that number.
+Each swap partner is equally likely to be any of the lines left.
+The seed has 32 bits, so there are at most 4294967296 different
+shuffles of any one input, fewer than the orders of 13 lines.
 .PP
 All the lines are held in memory, each with a pointer, so an input that
 never ends never produces output, and a very large one fails with an

@@ -213,11 +213,12 @@ Only the first such line is reported.
 Lines are numbered from 1 across all the files.
 Lines with equal keys must be in the order described under
 .BR "Equal lines" ,
-even with
-.BR \-u .
+which with
+.B \-s
+allows any order.
 With
 .BR \-u ,
-identical adjacent lines are also out of order.
+adjacent lines with equal keys are out of order.
 .TP
 .B \-b
 Ignore white space at the start and at the end of each key.
@@ -562,15 +563,6 @@ that is out of order.
 .IP \(bu 2
 The sort is done in memory with no temporary files, so the input must
 fit in memory.
-.PP
-Do not combine
-.B \-c
-with
-.BR \-s .
-When two lines have equal keys,
-.B \-c
-then reads position data that is stored only when sorting, and can
-report sorted input as unsorted.
 .PP
 Output lines end with LF, not CRLF.
 A UTF-8 byte order mark is not removed, and is part of the first line of

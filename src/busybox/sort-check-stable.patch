@@ -1,0 +1,37 @@
+Fix sort -c combined with -s or -u. For a stable sort, each line's
+input position is stored past its terminator just before sorting, and
+the comparison falls back to those positions when the keys are equal.
+The -c check runs before the positions are stored, so with -s it read
+whatever bytes followed each line's buffer and compared those instead.
+Sorted input with equal keys was reported as unsorted, depending on
+memory contents ("sort -cs -k2,2" on lines with no second field), and
+with -u, adjacent lines with equal keys could pass the check.
+
+Without -s, -c -u fell back to comparing whole lines when the keys were
+equal, so "a 1" followed by "b 1" passed "sort -cu -k2,2" although
+"sort -u -k2,2" would drop the second line. POSIX requires -c -u to
+reject lines with duplicate keys.
+
+With -s or -u, -c now drops the last-resort comparison, the same way -u
+does after sorting: lines with equal keys are in order with -s alone,
+and out of order with -u, as in GNU sort.
+
+---
+ coreutils/sort.c |    6 ++++++
+ 1 file changed, 6 insertions(+)
+
+--- a/coreutils/sort.c
++++ b/coreutils/sort.c
+@@ -631,6 +631,12 @@
+ 	/* Handle -c */
+ 	if (option_mask32 & FLAG_c) {
+ 		int j = (option_mask32 & FLAG_u) ? -1 : 0;
++		/* No last-resort compare: lines with equal keys are
++		 * in order with -s (whose line positions are not stored
++		 * yet), and out of order with -u, as -u does below
++		 */
++		if (option_mask32 & (FLAG_s|FLAG_u))
++			option_mask32 = (option_mask32 | FLAG_no_tie_break) & (~FLAG_s);
+ 		for (i = 1; i < linecount; i++) {
+ 			if (compare_keys(&lines[i-1], &lines[i]) > j) {
+ 				fprintf(stderr, "Check line %u\n", i);

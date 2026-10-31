@@ -1,0 +1,63 @@
+Make shuf choose each swap partner uniformly. It took rand() modulo the
+number of lines left, XORing in a second rand() shifted by 15 bits only
+when that number exceeded RAND_MAX. Where RAND_MAX is 32767, as on
+Windows, the value had 15 bits for up to 32767 lines, so the remainder
+was strongly biased: from 20000 lines, "shuf -n 1" picked each of the
+first 12768 twice as often as each of the others. With more lines it
+had 30 bits and could never pick a line past 2^30. Where RAND_MAX is
+2^31-1, the remainder was likewise biased once the number of lines was
+a large fraction of 2^31, and beyond that the shift overflowed int.
+
+Build 32 random bits from three rand() calls, 15 bits each, and reject
+values below 2^32 % n so that every remainder in [0, n) is equally
+likely.
+
+---
+ coreutils/shuf.c |   29 +++++++++++++++++++----------
+ 1 file changed, 19 insertions(+), 10 deletions(-)
+
+--- a/coreutils/shuf.c
++++ b/coreutils/shuf.c
+@@ -37,6 +37,24 @@
+ #define OPT_z		(1 << 4)
+ #define OPT_STR		"ei:n:o:z"
+ 
++/* Return a uniformly distributed random number in [0, n) */
++static uint32_t random_below(uint32_t n)
++{
++	uint32_t r;
++	uint32_t min = -n % n; /* 2^32 % n */
++
++	/* RAND_MAX can be as small as 32767: make 32 random bits from
++	 * three calls, and reject the values below 2^32 % n so that
++	 * every remainder is equally likely.
++	 */
++	do {
++		r = rand() & 0x7fff;
++		r = (r << 15) | (rand() & 0x7fff);
++		r = (r << 15) | (rand() & 0x7fff);
++	} while (r < min);
++	return r % n;
++}
++
+ /*
+  * Use the Fisher-Yates shuffle algorithm on an array of lines.
+  * If the required number of output lines is less than the total
+@@ -48,16 +66,7 @@
+ 
+ 	while (outlines != 0) {
+ 		char *tmp;
+-		unsigned r = rand();
+-		/* RAND_MAX can be as small as 32767 */
+-		if (numlines > RAND_MAX)
+-			r ^= rand() << 15;
+-		r %= numlines;
+-//TODO: the above method is seriously non-uniform when numlines is very large.
+-//For example, with numlines of   0xf0000000,
+-//values of (r % numlines) in [0, 0x0fffffff] range
+-//are more likely: e.g. r=1 and r=0xf0000001 both map to 1,
+-//whereas only one value, r=0xefffffff, maps to 0xefffffff.
++		unsigned r = random_below(numlines);
+ 		numlines--;
+ 		tmp = lines[numlines];
+ 		lines[numlines] = lines[r];

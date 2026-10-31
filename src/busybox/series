@@ -58,3 +58,5 @@ grep-fixed-word-empty.patch
 grep-word-only-matching.patch
 strcasestr-empty.patch
 grep-empty-pattern-file.patch
+sort-check-stable.patch
+shuf-uniform.patch
