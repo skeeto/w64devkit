@@ -52,3 +52,5 @@ httpd-range-zero-end.patch
 httpd-408-timeout-text.patch
 httpd-head-no-body.patch
 httpd-206-304-content-type.patch
+inotifyd-name-length.patch
+unc-root-no-share.patch

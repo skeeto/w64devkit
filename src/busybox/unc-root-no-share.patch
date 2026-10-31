@@ -1,0 +1,26 @@
+Don't read past the end of a UNC path with a host but no share.
+unc_root_len() skipped the separator after the host name without
+checking that there was one. For a path such as "//host", which has no
+share, it stepped over the terminator and scanned whatever followed in
+memory, so the result depended on its contents: basename //host could
+print "host" as an applet but "//host" when run in the shell, and cd
+//tmp could fail although cd //tmp/ succeeded.
+
+Return 0 when nothing follows the host, as already happens for
+"//host/".
+
+---
+ win32/mingw.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/win32/mingw.c
++++ b/win32/mingw.c
+@@ -2480,7 +2480,7 @@
+ 	if (!is_unc_path(dir))
+ 		return 0;
+ 	len = strcspn(s, "/\\");
+-	if (len == 0)
++	if (len == 0 || s[len] == '\0')
+ 		return 0;
+ 	s += len + 1;
+ 	len = strcspn(s, "/\\");

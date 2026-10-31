@@ -1,4 +1,4 @@
-.TH INOTIFYD 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH INOTIFYD 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 inotifyd \- run a program when the contents of a directory change
 .SH SYNOPSIS
@@ -376,8 +376,6 @@ At most 64 directories can be watched at once.
 Entry names are converted to bytes with the ANSI code page, which is
 UTF-8 on Windows 10 version 1903 and later because busybox declares it
 in its manifest.
-A name that takes more than 260 bytes in that encoding is reported as if
-it had no name, and one of exactly 260 bytes is followed by stray bytes.
 .PP
 A
 .I dir

@@ -75,9 +75,12 @@ Device paths are UNC paths too:
 .B \e\e?\eC:\e
 gives
 .BR \e\e?\eC: .
-The result for two separators and a host without a share, such as
-.BR //usr ,
-is unspecified.
+Two separators and a host without a share are not a root, so
+.B //usr
+and
+.B //usr/
+both give
+.BR usr .
 .PP
 If
 .I suffix

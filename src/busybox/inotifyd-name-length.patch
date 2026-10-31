@@ -1,0 +1,45 @@
+Report entry names of any length in inotifyd on Windows.
+The name of the changed entry was converted into a buffer of MAX_PATH
+bytes. A name that converted to exactly MAX_PATH bytes filled it with
+no room for a terminator, so it was printed or passed to the agent with
+stray bytes from the stack after it. A longer name, possible since one
+UTF-16 unit can take up to three bytes in a multibyte code page such as
+UTF-8, made the conversion fail and was reported with no name at all.
+
+Ask WideCharToMultiByte for the converted length first and allocate a
+buffer one byte larger.
+
+---
+ miscutils/inotifyd.c |   10 ++++++----
+ 1 file changed, 6 insertions(+), 4 deletions(-)
+
+--- a/miscutils/inotifyd.c
++++ b/miscutils/inotifyd.c
+@@ -271,14 +271,15 @@
+ 						struct watch *w)
+ {
+ 	int len;
+-	char filename[MAX_PATH];
++	char *filename;
+ 	char event[2];
+ 	const char *args[5];
+ 
+-	memset(filename, 0, sizeof(filename));
+ 	len = WideCharToMultiByte(CP_ACP, 0, info->FileName,
+-				info->FileNameLength/2, filename, sizeof(filename),
+-				NULL, NULL);
++				info->FileNameLength/2, NULL, 0, NULL, NULL);
++	filename = xzalloc(len + 1);
++	WideCharToMultiByte(CP_ACP, 0, info->FileName,
++				info->FileNameLength/2, filename, len, NULL, NULL);
+ 
+ 	if (info->Action >= 0 && info->Action < 6 &&
+ 				((1 << info->Action) & w->bits)) {
+@@ -300,6 +301,7 @@
+ 			spawn_and_wait((char **)args);
+ 		}
+ 	}
++	free(filename);
+ }
+ 
+ static BOOL start_watch(struct watch *w)
