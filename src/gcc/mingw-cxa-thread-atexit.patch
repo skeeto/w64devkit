@@ -1,0 +1,62 @@
+libstdc++: use the mingw-w64 CRT's __cxa_thread_atexit
+
+The CRT has provided __cxa_thread_atexit in libmingw32.a since
+mingw-w64 v8, but the configure link check for it runs only for native
+builds, and the mingw32 case in crossconfig.m4 did not check. So cross
+builds compiled libstdc++'s own fallback, which registers its cleanup
+with atexit() on the first thread_local construction. Statics
+constructed later are destroyed before the main thread's thread_local
+objects, which violates [basic.start.term]. Check for the CRT function
+in cross builds too, as other targets in crossconfig.m4 already do.
+
+On msvcrt this needs mingw-w64 a394c23a51 (src/mingw
+tls-atexit-order.patch), without which the CRT version runs those
+destructors after every static destructor. MSYS2 fixes this with an
+unconditional define instead (msys2/MSYS2-packages#6872). The configure
+hunk is what autoconf generates for this check elsewhere.
+
+Known limitation: on Windows XP, a thread_local destructor in a DLL
+loaded with LoadLibrary never runs. XP does not run TLS callbacks for
+dynamically loaded DLLs, so the CRT's tls_atexit.c never initializes
+and __cxa_thread_atexit fails. The libstdc++ fallback instead pinned
+the DLL and ran the destructor at process exit. DLLs linked at load
+time are unaffected, and on later Windows versions the destructor now
+runs at FreeLibrary rather than at exit.
+
+---
+ libstdc++-v3/configure      |   11 +++++++++++
+ libstdc++-v3/crossconfig.m4 |    1 +
+ 2 files changed, 12 insertions(+)
+
+--- a/libstdc++-v3/crossconfig.m4
++++ b/libstdc++-v3/crossconfig.m4
+@@ -196,6 +196,7 @@
+     GLIBCXX_CHECK_STDLIB_SUPPORT
+     AC_CHECK_FUNCS(aligned_alloc posix_memalign memalign _aligned_malloc)
+     AC_CHECK_FUNCS(_wfopen)
++    AC_CHECK_FUNCS(__cxa_thread_atexit)
+     GCC_CHECK_TLS
+     ;;
+   *-netbsd* | *-openbsd*)
+--- a/libstdc++-v3/configure
++++ b/libstdc++-v3/configure
+@@ -45891,8 +45891,19 @@
+ fi
+ done
+ 
++    for ac_func in __cxa_thread_atexit
++do :
++  ac_fn_c_check_func "$LINENO" "__cxa_thread_atexit" "ac_cv_func___cxa_thread_atexit"
++if test "x$ac_cv_func___cxa_thread_atexit" = xyes; then :
++  cat >>confdefs.h <<_ACEOF
++#define HAVE___CXA_THREAD_ATEXIT 1
++_ACEOF
+ 
++fi
++done
+ 
++
++
+    # Check whether --enable-tls was given.
+ if test "${enable_tls+set}" = set; then :
+   enableval=$enable_tls;

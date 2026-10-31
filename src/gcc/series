@@ -4,3 +4,4 @@ libgfortran-mapview.patch
 trap-terminate.patch
 system-clock-y2038.patch
 align-double-locals.patch
+mingw-cxa-thread-atexit.patch
