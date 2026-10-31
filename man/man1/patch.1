@@ -57,14 +57,11 @@ or
 .B \e
 comes first, the hunk fails, and if the diff ends first, the hunk is
 ignored.
-If such a line is the first line of a hunk, the hunk and the rest of
-the file's hunks are ignored, with no message, and the exit status is
-not affected.
-A hunk whose first line starts with
+A line that starts with
 .B \e
-makes
-.B patch
-crash, leaving the file unchanged and its temporary file beside it.
+marks the line before it, as described in
+.BR NOTES ,
+and is ignored when it is the first line of a hunk.
 .SS "File names"
 The file to change is named on the
 .B +++
@@ -182,7 +179,8 @@ of the file could not be applied.
 and
 .I new
 are the start lines in its header.
-The lines of the hunk follow, as they are in the diff.
+The lines of the hunk follow, as they are in the diff, ending before any
+invalid line.
 Only the first failed hunk of a file is reported.
 .TP
 .BI "patch: " message
@@ -233,11 +231,7 @@ looked for in the current directory.
 .B \-p0
 keeps the names as they are.
 .I N
-is a decimal number, and a negative
-.I N
-makes
-.B patch
-hang.
+is a decimal number, and must not be negative.
 .TP
 \fB\-i\fR \fIpatchfile\fR, \fB\-\-input=\fIpatchfile\fR
 Read the diff from
@@ -362,9 +356,9 @@ A hunk that the end of the diff cuts short is ignored.
 A hunk failed, or an error ended the program: an invalid command line,
 with a usage message on standard error, an argument of
 .B \-p
-that is not a number, a hunk header whose old and new ranges are both
-empty, a file that cannot be opened, or one that cannot be created
-because it exists.
+that is not a number or is negative, a hunk header whose old and new
+ranges are both empty, a file that cannot be opened, or one that cannot
+be created because it exists.
 .SH EXAMPLES
 Apply a diff made from a source tree, from the top of the tree:
 .PP

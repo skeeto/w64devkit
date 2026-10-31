@@ -1,0 +1,26 @@
+patch: don't crash on a hunk starting with "\ No newline".
+A "\ No newline at end of file" line marks the hunk line before it. The
+check for that line tested TT.current_hunk->prev, but the hunk is a
+circular list, so prev is never NULL when the hunk has a line, and when
+it has none TT.current_hunk itself is NULL. A hunk whose first body
+line was a "\" line dereferenced the NULL pointer: patch crashed and
+left its temporary copy of the file behind.
+
+Test TT.current_hunk instead, so that the line is ignored when there
+is no previous line to mark, as the comment intends.
+
+---
+ editors/patch.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/editors/patch.c
++++ b/editors/patch.c
+@@ -439,7 +439,7 @@
+ 			case '\\':
+ 				// '\ No newline at end of file' detected, mark
+ 				// previous line, if it exists.
+-				if (TT.current_hunk->prev)
++				if (TT.current_hunk)
+ 					TT.current_hunk->prev->no_newline = TRUE;
+ 				free(patchline);
+ 				continue;

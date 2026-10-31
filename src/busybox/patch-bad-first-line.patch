@@ -1,0 +1,45 @@
+patch: fail a hunk whose first line is invalid.
+When a line inside a hunk does not start with ' ', '+', '-' or '\',
+patch calls fail_hunk() and goes on to look for the next file. But
+fail_hunk() returned at once if the hunk had no lines yet, so a hunk
+whose very first line was invalid failed silently: no "Hunk FAILED"
+message, exit status 0, and since patch was no longer in a hunk, the
+remaining hunks for that file were skipped while the hunks before it
+were still written out. The file was left half patched with no sign
+of trouble.
+
+Let fail_hunk() handle an empty hunk, so that it reports the failure,
+sets the exit status and discards the changes to the file, as it does
+for any other failed hunk.
+
+---
+ editors/patch.c |   11 ++++++-----
+ 1 file changed, 6 insertions(+), 5 deletions(-)
+
+--- a/editors/patch.c
++++ b/editors/patch.c
+@@ -177,8 +177,6 @@
+ 
+ static void fail_hunk(void)
+ {
+-	if (!TT.current_hunk) return;
+-
+ 	fdprintf(2, "Hunk %d FAILED %ld/%ld.\n", TT.hunknum, TT.oldline, TT.newline);
+ 	TT.exitval = 1;
+ 
+@@ -186,9 +184,12 @@
+ 	// this file and advance to next file.
+ 
+ 	TT.state = 2;
+-	TT.current_hunk->prev->next = NULL;
+-	dlist_free(TT.current_hunk, do_line);
+-	TT.current_hunk = NULL;
++	// (The hunk is empty if its first line was invalid.)
++	if (TT.current_hunk) {
++		TT.current_hunk->prev->next = NULL;
++		dlist_free(TT.current_hunk, do_line);
++		TT.current_hunk = NULL;
++	}
+ 
+ 	// Abort the copy and delete the temporary file.
+ 	close(TT.filein);

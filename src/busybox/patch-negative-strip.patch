@@ -1,0 +1,26 @@
+patch: reject a negative -p count.
+patch accepted a negative -p count, such as -p-1, though it has no
+meaning: the name is never shortened to that many components, so the
+file to patch is never opened. patch then went on to apply each hunk
+to descriptor -1. The read fails at once, so the hunk fails, and
+fail_hunk() dereferenced the NULL name of the temporary file it never
+created: "patch -p-1" crashed.
+
+Parse the count with xatoi_positive() so that a negative count is
+rejected up front with "invalid number", as GNU patch rejects it too.
+
+---
+ editors/patch.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/editors/patch.c
++++ b/editors/patch.c
+@@ -409,7 +409,7 @@
+ 
+ 	argv += optind;
+ 	reverse = opts & FLAG_REVERSE;
+-	TT.prefix = (opts & FLAG_PATHLEN) ? xatoi(opt_p) : 0; // can be negative!
++	TT.prefix = (opts & FLAG_PATHLEN) ? xatoi_positive(opt_p) : 0;
+ 	TT.filein = TT.fileout = -1;
+ 	if (opts & FLAG_INPUT) {
+ 		xmove_fd(xopen_stdin(opt_i), STDIN_FILENO);

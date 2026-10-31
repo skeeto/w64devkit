@@ -1,0 +1,31 @@
+Make read(2) on a negative file descriptor fail with EBADF.
+mingw_read() emulates /dev/zero and /dev/urandom by comparing the
+descriptor with zero_fd and rand_fd, which hold -1 while those devices
+are not open. So read(-1) matched zero_fd and returned a buffer of NUL
+bytes, with success, every time, instead of failing. A caller that
+reads until EOF or error never stops: "patch -p-1", which reads its
+input file from descriptor -1, hung while it collected NUL bytes into
+one ever-growing line. With /dev/zero open but not /dev/urandom,
+read(-1) returned random bytes instead.
+
+Reject a negative descriptor with EBADF before the comparisons. This
+also keeps it away from the C runtime, where UCRT treats it as an
+invalid parameter rather than failing quietly.
+
+---
+ win32/mingw.c |    4 ++++
+ 1 file changed, 4 insertions(+)
+
+--- a/win32/mingw.c
++++ b/win32/mingw.c
+@@ -346,6 +346,10 @@
+ #undef read
+ ssize_t FAST_FUNC mingw_read(int fd, void *buf, size_t count)
+ {
++	if (fd < 0) {
++		errno = EBADF;
++		return -1;
++	}
+ 	if (fd == zero_fd) {
+ 		memset(buf, 0, count);
+ 		return count;

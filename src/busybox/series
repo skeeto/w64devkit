@@ -33,3 +33,7 @@ bc-env-args-argv0.patch
 bc-env-args-options.patch
 bc-ibase-message.patch
 fflush-sigpipe.patch
+mingw-read-bad-fd.patch
+patch-negative-strip.patch
+patch-no-newline-first-line.patch
+patch-bad-first-line.patch
