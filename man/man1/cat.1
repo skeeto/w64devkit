@@ -271,9 +271,7 @@ When standard output is a console, text is converted for display from
 the ANSI code page, which is UTF-8 on Windows 10 version 1903 and later.
 Escape sequences, such as those for color, take effect, and busybox
 emulates them on consoles without virtual terminal support.
-Without options, output is written in blocks as it is read, and a block
-that contains a NUL byte is written as is, with no conversion or
-emulation.
+Without options, output is written in blocks as it is read.
 .SH SEE ALSO
 .BR busybox (1),
 .BR dos2unix (1),

@@ -25,7 +25,7 @@ reads standard input.
 It reads all of its input into memory before it writes anything.
 If a
 .I file
-cannot be opened,
+cannot be opened or read,
 .B sort
 stops at that file, and writes nothing.
 .PP
@@ -52,8 +52,9 @@ At most one of
 and
 .B \-V
 may be given, to compare numbers, month names, or versions instead.
-Two of them make the first comparison fail with the message
-.BR "unknown sort type" .
+Two of them are an error,
+.BR "unknown sort type" ,
+before any input is read.
 The options
 .BR \-b ,
 .BR \-d ,
@@ -445,8 +446,8 @@ a bad
 .B \-t
 or
 .BR \-k ;
-more than one sort type; an input file that could not be opened or is a
-directory; an output file that could not be opened; a failure writing
+more than one sort type; an input file that could not be opened or read,
+or is a directory; an output file that could not be opened; a failure writing
 standard output; or memory that ran out.
 .TP
 .B 141

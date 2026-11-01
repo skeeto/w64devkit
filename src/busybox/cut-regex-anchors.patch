@@ -1,0 +1,49 @@
+Let ^ and $ match at the ends of the line in a -F delimiter.
+Every search for the next -F delimiter passed REG_NOTBOL and REG_NOTEOL,
+so ^ never matched, even at the start of the line, and $ never matched,
+although each search runs to the real end of the line. A delimiter such
+as '^x' or ' +$' was then never found. Pass REG_NOTBOL only when the
+search starts after the beginning of the line, and never REG_NOTEOL.
+Anchors let an expression such as '^ *' or ' *$' match the empty string
+at the ends of a line, and an empty match was taken as a delimiter that
+also swallowed the byte after it, as already happened at every empty
+match of 'x*': "echo ab | cut -d '^ *' -F2" would print "b". Treat an
+empty match as no delimiter and search on past it, so 'x*' splits at
+runs of x, and that example prints the whole line, which has no
+delimiter.
+
+---
+ coreutils/cut.c |   17 ++++++++++++-----
+ 1 file changed, 12 insertions(+), 5 deletions(-)
+
+--- a/coreutils/cut.c
++++ b/coreutils/cut.c
+@@ -232,16 +232,23 @@
+ 					if (opt_REGEX) {
+ 						regmatch_t rr;
+ 						regex_t *reg = (void*) delim;
++						unsigned off = next;
++						int r;
+ 
+-						if (regexec(reg, line + next, 1, &rr, REG_NOTBOL|REG_NOTEOL) != 0) {
++						while ((r = regexec(reg, line + off, 1, &rr, off ? REG_NOTBOL : 0)) == 0
++						 && rr.rm_so == rr.rm_eo /* empty match is no delimiter, */
++						 && off + rr.rm_so < linelen /* look past it */
++						) {
++							off += rr.rm_so + 1;
++						}
++						/* testcase: echo "no at sign" | cut -d'@*' -F 1- */
++						if (r != 0 || rr.rm_so == rr.rm_eo) {
+ 							/* not found, go to "end of line" logic */
+ 							next = linelen;
+ 							continue;
+ 						}
+-						end = next + rr.rm_so;
+-						next += (rr.rm_eo ? rr.rm_eo : 1);
+-						/* ^^^ advancing by at least 1 prevents infinite loops */
+-						/* testcase: echo "no at sign" | cut -d'@*' -F 1- */
++						end = off + rr.rm_so;
++						next = off + rr.rm_eo;
+ 					} else
+ #endif
+ 					{

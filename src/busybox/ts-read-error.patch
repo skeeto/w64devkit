@@ -1,0 +1,19 @@
+Report read errors in ts.
+A read error ends the line reader's input just as end of file does, and
+ts never checked the error flag of standard input, so it stopped quietly
+with status 0. Die with an error message when the input loop ended
+because of a read error.
+
+---
+ miscutils/ts.c |    1 +
+ 1 file changed, 1 insertion(+)
+
+--- a/miscutils/ts.c
++++ b/miscutils/ts.c
+@@ -93,5 +93,6 @@
+ 		free(line);
+ 	}
+ 
++	die_if_ferror(stdin, bb_msg_standard_input);
+ 	return EXIT_SUCCESS;
+ }

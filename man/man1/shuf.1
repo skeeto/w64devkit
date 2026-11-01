@@ -55,6 +55,9 @@ lines, chosen at random, with no input line chosen twice.
 All the input is read before any output is written.
 A line ends at an LF or at a NUL byte, and the terminator is removed
 from the line, as is a CR before an LF.
+With
+.BR \-z ,
+a line ends only at a NUL byte, and LF and CR are ordinary characters.
 The last line needs no terminator, and an empty line is a line.
 Empty input has no lines and produces no output.
 .PP
@@ -99,12 +102,8 @@ A name of
 creates a file of that name, and does not mean standard output.
 .TP
 .B \-z
-Terminate each output line with a NUL byte instead of an LF.
-The input is read as described in
-.BR DESCRIPTION ,
-whether or not
-.B \-z
-is given.
+Lines end with a NUL byte instead of an LF, in the input and in the
+output.
 .TP
 .B \-e
 Take the lines from the
@@ -212,7 +211,7 @@ Any other error, such as an invalid
 .I count
 or range, an
 .I infile
-or
+that cannot be opened or read, an
 .I outfile
 that cannot be opened, or a failure writing output, is reported on
 standard error in one line that begins with
@@ -282,14 +281,12 @@ and no
 or
 .BR \-\-random\-source .
 .IP \(bu 2
-Input lines end at an LF or a NUL, with or without
+Without
 .BR \-z ,
-which changes only the output.
+input lines end at an LF or a NUL.
 GNU
 .B shuf
-ends input lines only at an LF, or with
-.B \-z
-only at a NUL.
+ends them only at an LF.
 .IP \(bu 2
 The numbers for
 .B \-n
@@ -312,7 +309,9 @@ All the lines are held in memory, each with a pointer, so an input that
 never ends never produces output, and a very large one fails with an
 out-of-memory error.
 .PP
-The output has LF line endings, and a CR before an LF is removed from
+Without
+.BR \-z ,
+the output has LF line endings, and a CR before an LF is removed from
 each line, so
 .B shuf
 converts text with Windows line endings to Unix line endings.

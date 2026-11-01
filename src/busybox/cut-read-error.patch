@@ -1,0 +1,25 @@
+Report read errors in cut.
+A read error ends the line reader's input just as end of file does, and
+cut never checked the stream's error flag, so it stopped quietly with
+status 0 and output that was cut short. Check the result of
+fclose_if_not_stdin(), which reports the error flag, print the file
+name with the error, and exit with status 1.
+
+---
+ coreutils/cut.c |    5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+--- a/coreutils/cut.c
++++ b/coreutils/cut.c
+@@ -439,7 +439,10 @@
+ 				continue;
+ 			}
+ 			cut_file(file, delim, odelim, cut_list);
+-			fclose_if_not_stdin(file);
++			if (fclose_if_not_stdin(file)) {
++				bb_simple_perror_msg(*argv);
++				retval = EXIT_FAILURE;
++			}
+ 		} while (*++argv);
+ 
+ 		if (ENABLE_FEATURE_CLEAN_UP)

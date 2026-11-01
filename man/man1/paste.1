@@ -182,8 +182,8 @@ standard error; an empty
 .B \-d
 list; a
 .I file
-that could not be opened; a failure writing standard output; or memory
-exhausted.
+that could not be opened or read; a failure writing standard output; or
+memory exhausted.
 Each is reported on standard error.
 .TP
 .B 141
@@ -277,7 +277,9 @@ All operands are opened before any input is read.
 If one cannot be opened,
 .B paste
 reports the first such file, writes nothing, and exits with status 1.
-A read error is not reported; it ends that file as end of file would.
+A read error is reported, and
+.B paste
+stops there with status 1.
 .PP
 From
 .BR cmd.exe ,

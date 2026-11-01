@@ -1,0 +1,23 @@
+Report read errors in comm.
+A read error ends the line reader's input just as end of file does, and
+comm never checked the streams' error flags, so it compared what had
+been read and exited 0, listing the rest of the other file as unique to
+it. After the last line is written, die with the file name if either
+input had a read error.
+
+---
+ coreutils/comm.c |    3 +++
+ 1 file changed, 3 insertions(+)
+
+--- a/coreutils/comm.c
++++ b/coreutils/comm.c
+@@ -108,6 +108,9 @@
+ 		}
+ 	}
+ 
++	die_if_ferror(stream[0], argv[0]);
++	die_if_ferror(stream[1], argv[1]);
++
+ 	if (ENABLE_FEATURE_CLEAN_UP) {
+ 		fclose(stream[0]);
+ 		fclose(stream[1]);

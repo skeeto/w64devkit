@@ -1,0 +1,22 @@
+Report read errors in join.
+A read error ends the line reader's input just as end of file does, and
+join never checked the streams' error flags, so it joined what had been
+read and exited 0. After the last line is written, die with the file
+name if either input had a read error.
+
+---
+ coreutils/join.c |    3 +++
+ 1 file changed, 3 insertions(+)
+
+--- a/coreutils/join.c
++++ b/coreutils/join.c
+@@ -527,6 +527,9 @@
+ 		}
+ 	}
+ 
++	die_if_ferror(f1.fp, argv[0]);
++	die_if_ferror(f2.fp, argv[1]);
++
+ #if ENABLE_FEATURE_CLEAN_UP
+ 	if (f1.linecap) {
+ 		freelines(&f1);

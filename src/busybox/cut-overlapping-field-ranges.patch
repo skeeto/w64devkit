@@ -1,0 +1,26 @@
+Skip field ranges that earlier, overlapping ranges already printed.
+cut sorts the -f and -F ranges by their start, and when one range ended
+it moved to the next without checking whether that range lay wholly
+within the fields already printed. That range then wrote an extra
+empty field when the next field was empty or the line had ended, so
+"printf 'a\tb\tc\n' | cut -f1-3,2" wrote "a\tb\tc\t" and
+"printf 'a\t\tb\n' | cut -f1,1" wrote "a\t". Without -D, pass over
+every such range, and every remaining range once the end of the line
+has been printed.
+
+---
+ coreutils/cut.c |    3 +++
+ 1 file changed, 3 insertions(+)
+
+--- a/coreutils/cut.c
++++ b/coreutils/cut.c
+@@ -199,6 +199,9 @@
+ 						break;
+ 					if (option_mask32 & OPT_NOSORT)
+ 						start = dcount = next = 0;
++					else if (end == linelen || dcount > cut_list[cl_pos].endpos)
++						/* sorted ranges: this one is already printed */
++						goto end_of_range;
+ 					end = 0; /* (why?) */
+ 					//bb_error_msg("End of current range");
+ 				}

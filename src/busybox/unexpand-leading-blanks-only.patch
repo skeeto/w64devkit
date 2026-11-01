@@ -1,0 +1,47 @@
+Convert only leading blanks by default, not the run after a first word.
+Without -a, unexpand stopped converting after the first run of blanks
+only if that run started the line. A line that started with a word got
+its word copied and the next run of blanks converted, so
+"printf 'ab      c\n' | unexpand" printed "ab\tc", where GNU unexpand
+and the usage text convert only leading blanks. Copy the rest of the
+line as soon as the leading blanks are done. In the testsuite, case 7
+now expects GNU's result, a new -a case keeps the old one, and the
+Unicode case, which relied on the old behaviour, now passes -a.
+
+---
+ coreutils/expand.c       |    2 +-
+ testsuite/unexpand.tests |    5 ++++-
+ 2 files changed, 5 insertions(+), 2 deletions(-)
+
+--- a/coreutils/expand.c
++++ b/coreutils/expand.c
+@@ -168,7 +168,7 @@
+ 					putchar('\t');
+ 			}
+ 
+-			if (!(opt & OPT_ALL) && ptr != line) {
++			if (!(opt & OPT_ALL)) {
+ 				printf("%*s%s", len, "", ptr);
+ 				break;
+ 			}
+--- a/testsuite/unexpand.tests
++++ b/testsuite/unexpand.tests
+@@ -26,6 +26,9 @@
+ 	"\t12345678\n" "" "     \t12345678\n" \
+ 
+ testing "unexpand case 7" "unexpand" \
++	"123 \t 45678\n" "" "123 \t 45678\n" \
++
++testing "unexpand -a case 7" "unexpand -a" \
+ 	"123\t 45678\n" "" "123 \t 45678\n" \
+ 
+ testing "unexpand case 8" "unexpand" \
+@@ -66,7 +69,7 @@
+ 
+ test x"$CONFIG_UNICODE_SUPPORT" = x"y" \
+ && test x"$CONFIG_UNICODE_USING_LOCALE" != x"y" \
+-&& testing "unexpand with unicode characher 0x394" "unexpand" \
++&& testing "unexpand with unicode characher 0x394" "unexpand -a" \
+ 	"1ΔΔΔ5\t99999\n" "" "1ΔΔΔ5   99999\n"
+ 
+ exit $FAILCOUNT

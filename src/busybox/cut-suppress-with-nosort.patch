@@ -1,0 +1,30 @@
+Make -s drop lines without a delimiter when -D is given.
+The check for a line with no delimiter was skipped entirely under -D,
+because -D treats such a line as one field instead of printing it
+whole. That also lost -s, so "cut -D -s -d: -f1" printed lines that
+have no colon. Apply -s whether or not -D is given, and keep only the
+whole-line printing for the case without -D.
+
+---
+ coreutils/cut.c |    8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+--- a/coreutils/cut.c
++++ b/coreutils/cut.c
+@@ -208,11 +208,13 @@
+ 				/* End of current line? */
+ 				if (next == linelen) {
+ 					end = linelen; /* print up to end */
+-					/* If we've seen no delimiters, and no -D, check -s */
+-					if (!(option_mask32 & OPT_NOSORT) && cl_pos == 0 && dcount == 0) {
++					/* If we've seen no delimiters, check -s */
++					if (cl_pos == 0 && dcount == 0
++					 && ((option_mask32 & OPT_SUPPRESS) || !(option_mask32 & OPT_NOSORT))
++					) {
+ 						if (option_mask32 & OPT_SUPPRESS)
+ 							goto next_line;
+-						/* else: will print entire line */
++						/* else: no -D, will print entire line */
+ 					} else if (dcount < cut_list[cl_pos].startpos) {
+ 						/* echo 1.2 | cut -d. -f1,3: prints "1", not "1." */
+ 						//break;

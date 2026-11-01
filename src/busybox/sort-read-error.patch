@@ -1,0 +1,23 @@
+Report read errors in sort.
+A read error ends the line reader's input just as end of file does, and
+sort never checked the stream's error flag, so it sorted and wrote
+whatever had been read and exited 0. Check the result of
+fclose_if_not_stdin(), which reports the error flag, and die with the
+file name, as sort already does when a file cannot be opened.
+
+---
+ coreutils/sort.c |    3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+--- a/coreutils/sort.c
++++ b/coreutils/sort.c
+@@ -632,7 +632,8 @@
+ 			lines = xrealloc_vector(lines, 6, linecount);
+ 			lines[linecount++] = line;
+ 		}
+-		fclose_if_not_stdin(fp);
++		if (fclose_if_not_stdin(fp))
++			bb_simple_perror_msg_and_die(*argv);
+ 	} while (*++argv);
+ 
+ #if ENABLE_FEATURE_SORT_BIG

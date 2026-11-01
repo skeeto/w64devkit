@@ -20,6 +20,7 @@ A
 .I file
 that cannot be opened is reported on standard error and skipped, and the
 remaining files are still read.
+A read error ends a file and is reported the same way.
 .PP
 A line ends at an LF, and a lone CR is an ordinary character.
 The line ending is not reversed: the LF stays at the end of its line,
@@ -112,7 +113,7 @@ Success.
 .B 1
 An unknown option, a
 .I file
-could not be opened (a directory is reported as
+could not be opened or read (a directory is reported as
 .BR "Is a directory" ),
 memory ran out, or standard output could not be written when
 .B rev
@@ -172,8 +173,6 @@ including its line ending, are discarded.
 The text before the NUL is reversed and written with no line ending, so
 it runs into the next line.
 This holds in and out of UTF-8 mode.
-.PP
-A read error ends a file as if it had reached its end, with no message.
 .PP
 Each line is held in memory whole, and in UTF-8 mode also as a decoded
 copy of four bytes per byte.

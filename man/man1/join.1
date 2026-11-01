@@ -259,7 +259,7 @@ argument, both
 .B \-a
 and
 .BR \-v ,
-or other than two operands; a file could not be opened, or is a
+or other than two operands; a file could not be opened or read, or is a
 directory; writing the output still buffered at exit failed; or out of
 memory.
 A message or the usage is written to standard error.
@@ -371,7 +371,7 @@ Any other CR, such as one ending an unterminated last line, is an
 ordinary character.
 A NUL byte ends a line, as LF does, and is not written.
 The last line of a file need not end in a newline.
-A read error ends a file silently.
+A read error ends that file, and is reported once the output is written.
 .PP
 .I file1
 and

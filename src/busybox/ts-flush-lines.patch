@@ -1,0 +1,21 @@
+Flush each stamped line in ts.
+When standard output was a pipe or a file, ts left its lines in the
+stdio buffer until it filled or input ended, so in a live pipeline such
+as "cmd | ts | tee log" lines showed up late and in bursts, long after
+the times stamped on them. Flush after every line, as moreutils ts does.
+
+---
+ miscutils/ts.c |    2 ++
+ 1 file changed, 2 insertions(+)
+
+--- a/miscutils/ts.c
++++ b/miscutils/ts.c
+@@ -88,6 +88,8 @@
+ 		} else {
+ 			printf("%s.%06u %s", date_buf, (unsigned)ts.tv_usec, line);
+ 		}
++		/* write each line out when it is stamped */
++		fflush_all();
+ 		free(line);
+ 	}
+ 

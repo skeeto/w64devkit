@@ -389,15 +389,14 @@ Success: the input was read to its end, even if it was empty.
 .B 1
 An invalid option or more than one operand, with a usage message on
 standard error.
-Also out of memory, or an error writing standard output other than a
-closed pipe, which is reported on standard error when the input ends.
+Also a read error, out of memory, or an error writing standard output
+other than a closed pipe, which is reported on standard error when the
+input ends.
 .TP
 .B 141
 Standard output is a pipe that was closed while
 .B ts
 was writing to it.
-.PP
-A read error is treated as the end of the input.
 .SH EXAMPLES
 Stamp the output of a build with the time of day:
 .PP
@@ -483,11 +482,8 @@ The timestamp and the line are separated by one space, which cannot be
 changed.
 .PP
 .B ts
-never flushes standard output.
-When it is a pipe or a file, lines are held until the buffer fills or
-.B ts
-exits, so a program reading the output sees them late.
-The timestamps are not affected.
+writes each line out as soon as it is stamped, even when standard output
+is a pipe or a file, so a program reading the output sees it at once.
 .PP
 The times come from the Windows system clock, not a monotonic clock, so
 changing the clock while

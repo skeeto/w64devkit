@@ -1,0 +1,33 @@
+Read NUL-terminated lines with -z, as GNU shuf does.
+-z changed only the output terminator, while input lines still ended at
+a newline (or at a NUL byte as a side effect of the line reader). Names
+that contain newlines were then split, so "find -print0 | shuf -z" could
+output names that do not exist. With -z, read lines that end at NUL
+only, the way sort -z does.
+
+---
+ coreutils/shuf.c |    6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+--- a/coreutils/shuf.c
++++ b/coreutils/shuf.c
+@@ -22,7 +22,7 @@
+ //usage:       "Randomly permute lines\n"
+ //usage:     "\n	-n NUM	Output at most NUM lines"
+ //usage:     "\n	-o FILE	Write to FILE, not standard output"
+-//usage:     "\n	-z	NUL terminated output"
++//usage:     "\n	-z	NUL terminated input and output"
+ //usage:     "\n	-e	Treat ARGs as lines"
+ //usage:     "\n	-i L-H	Treat numbers L-H as lines"
+ 
+@@ -189,7 +189,9 @@
+ 		lines = NULL;
+ 		numlines = 0;
+ 		for (;;) {
+-			char *line = xmalloc_fgetline(fp);
++			char *line = (opts & OPT_z)
++				? bb_get_chunk_from_file(fp, NULL)
++				: xmalloc_fgetline(fp);
+ 			if (!line)
+ 				break;
+ 			lines = xrealloc_vector(lines, 6, numlines);

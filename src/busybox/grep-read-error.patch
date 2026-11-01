@@ -1,0 +1,52 @@
+Report read errors in grep.
+A read error ends the line reader's input just as end of file does, and
+grep never checked the stream's error flag, so it searched what had
+been read and exited 0 or 1 as if it had seen the whole file, and a -f
+pattern file could lose patterns unnoticed. Treat a read error in an
+input file like a file that cannot be opened: report it unless -s is
+given, and exit 2. Die when the -f file has one, as when it cannot be
+opened. On Linux this also reports a directory operand given without
+-r, which fopen() opens but which fails to read, much as GNU grep does.
+
+---
+ findutils/grep.c |   15 ++++++++++++---
+ 1 file changed, 12 insertions(+), 3 deletions(-)
+
+--- a/findutils/grep.c
++++ b/findutils/grep.c
+@@ -760,7 +760,8 @@
+ 			llist_add_to(&pattern_head,
+ 				new_grep_list_data(line, ALLOCATED));
+ 		}
+-		fclose_if_not_stdin(fp);
++		if (fclose_if_not_stdin(fp))
++			bb_simple_perror_msg_and_die(ffile);
+ 	}
+ }
+ 
+@@ -801,7 +802,11 @@
+ 	}
+ 	cur_file = filename;
+ 	*(int*)state->userData |= grep_file(file);
+-	fclose(file);
++	if (fclose_if_not_stdin(file)) {
++		if (!SUPPRESS_ERR_MSGS)
++			bb_simple_perror_msg(filename);
++		open_errors = 1;
++	}
+ 	return 1;
+ }
+ 
+@@ -1010,7 +1015,11 @@
+ 			}
+ 		}
+ 		matched |= grep_file(file);
+-		fclose_if_not_stdin(file);
++		if (fclose_if_not_stdin(file)) {
++			if (!SUPPRESS_ERR_MSGS)
++				bb_simple_perror_msg(cur_file);
++			open_errors = 1;
++		}
+  grep_done: ;
+ 	} while (*argv && *++argv);
+ 

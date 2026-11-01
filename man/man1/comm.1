@@ -101,7 +101,7 @@ Success, whether or not the files have lines in common.
 .B 1
 Invalid command line, such as an unknown option or other than two
 operands, with a usage message on standard error; a file could not be
-opened; or memory ran out.
+opened or read; or memory ran out.
 Also an error writing standard output other than a closed pipe, which is
 reported on standard error.
 .TP
@@ -182,7 +182,7 @@ Because lines are compared as bytes, both files must use the same
 encoding, and a byte order mark at the start of a file is part of its
 first line.
 Lines may be of any length.
-A read error ends a file silently.
+A read error ends that file, and is reported once the output is written.
 .PP
 Both operands may be
 .BR \- ,

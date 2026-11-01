@@ -29,10 +29,10 @@ If
 .I string2
 is shorter, its last byte stands for the rest.
 If it is longer, the extra bytes are ignored.
-If it expands to nothing, as a backwards range does, the bytes of
-.I string1
-become the digit
-.BR 0 .
+If it expands to nothing, as a backwards range does, that is an error,
+as an empty
+.I string2
+is.
 If a byte occurs more than once in
 .IR string1 ,
 its last occurrence counts.
@@ -251,9 +251,10 @@ for console output, are described in
 Success.
 .TP
 .B 1
-An invalid option, the wrong number of operands, an empty
-.IR string2 ,
-a malformed equivalence class, a read or write error, or out of memory.
+An invalid option, the wrong number of operands, a
+.I string2
+that is empty or expands to nothing, a malformed equivalence class, a
+read or write error, or out of memory.
 .TP
 .B 141
 Standard output is a pipe that was closed before all output was written.
@@ -390,8 +391,6 @@ When standard output is a console, text is converted for display from
 the ANSI code page, which is UTF-8 on Windows 10 version 1903 and later.
 Escape sequences, such as those for color, take effect, and busybox
 emulates them on consoles without virtual terminal support.
-A block of output that contains a NUL byte is written as is, with no
-conversion or emulation.
 .SH SEE ALSO
 .BR busybox (1),
 .BR dos2unix (1),

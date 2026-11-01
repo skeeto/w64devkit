@@ -1,0 +1,23 @@
+Report read errors in shuf.
+A read error ends the line reader's input just as end of file does, and
+shuf never checked the stream's error flag, so it shuffled whatever had
+been read and exited 0. Check the result of fclose_if_not_stdin(),
+which reports the error flag, and die with the file name, as shuf
+already does when the file cannot be opened.
+
+---
+ coreutils/shuf.c |    3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+--- a/coreutils/shuf.c
++++ b/coreutils/shuf.c
+@@ -197,7 +197,8 @@
+ 			lines = xrealloc_vector(lines, 6, numlines);
+ 			lines[numlines++] = line;
+ 		}
+-		fclose_if_not_stdin(fp);
++		if (fclose_if_not_stdin(fp))
++			bb_simple_perror_msg_and_die(fname);
+ 	}
+ 
+ 	outlines = numlines;

@@ -1,0 +1,26 @@
+Reject a STRING2 that expands to nothing, not only a literal "".
+tr checked that STRING2 was not the empty string before expanding it,
+but a backwards range such as "z-a" also expands to nothing. map() then
+translated every byte of STRING1 to its initial fallback, the digit 0,
+so "echo abc | tr abc z-a" printed "000" with status 0. Check the
+length after expansion instead, which covers both cases.
+
+---
+ coreutils/tr.c |    5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+--- a/coreutils/tr.c
++++ b/coreutils/tr.c
+@@ -328,9 +328,10 @@
+ 	if (opts & TR_OPT_complement)
+ 		str1_length = complement(str1, str1_length);
+ 	if (*argv) {
+-		if (argv[0][0] == '\0')
+-			bb_simple_error_msg_and_die("STRING2 cannot be empty");
+ 		str2_length = expand(*argv, &str2);
++		/* "" or a backwards range such as "z-a" */
++		if (str2_length == 0)
++			bb_simple_error_msg_and_die("STRING2 cannot be empty");
+ 		map(vector, str1, str1_length,
+ 				str2, str2_length);
+ 	}

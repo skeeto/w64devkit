@@ -1,0 +1,33 @@
+Report read errors in paste.
+A read error ends the line reader's input just as end of file does, and
+paste ignored the result of fclose_if_not_stdin(), which reports the
+error flag, so it went on as if the file had ended and exited 0. Die
+with an error message instead, as paste already does when a file cannot
+be opened.
+
+---
+ coreutils/paste.c |    6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+--- a/coreutils/paste.c
++++ b/coreutils/paste.c
+@@ -47,7 +47,8 @@
+ 			if (files[i]) {
+ 				line[i] = xmalloc_fgetline(files[i]);
+ 				if (!line[i]) {
+-					fclose_if_not_stdin(files[i]);
++					if (fclose_if_not_stdin(files[i]))
++						bb_simple_perror_msg_and_die(bb_msg_read_error);
+ 					files[i] = NULL;
+ 					--active_files;
+ 				} else {
+@@ -108,7 +109,8 @@
+ 			printf("%s\n", line);
+ 			free(line);
+ 		}
+-		fclose_if_not_stdin(files[i]);
++		if (fclose_if_not_stdin(files[i]))
++			bb_simple_perror_msg_and_die(bb_msg_read_error);
+ 	}
+ }
+ 

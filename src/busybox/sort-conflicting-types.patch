@@ -1,0 +1,46 @@
+Reject two sort types before reading the input.
+Options such as -n -g, or a key such as -k1nM, name two sort types, and
+sort rejected them with "unknown sort type" only in compare_keys(). With
+fewer than two lines nothing is compared, so "sort -n -g" and
+"sort -c -nh" on such input exited 0 as if the options were valid.
+Check the global options and each key's options right after parsing
+them.
+
+---
+ coreutils/sort.c |   11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+--- a/coreutils/sort.c
++++ b/coreutils/sort.c
+@@ -440,6 +440,15 @@
+ 	return retval;
+ }
+ 
++/* compare_keys() rejects two sort types only when it first runs,
++ * which may be never: check them up front */
++static void check_sort_type(unsigned flags)
++{
++	flags &= (FLAG_n | FLAG_g | FLAG_h | FLAG_M | FLAG_V);
++	if (flags & (flags - 1))
++		bb_simple_error_msg_and_die("unknown sort type");
++}
++
+ #if ENABLE_FEATURE_SORT_BIG
+ static unsigned str2u(char **str)
+ {
+@@ -479,6 +488,7 @@
+ 			sort_opt_str,
+ 			&str_ignored, &str_ignored, &str_o, &lst_k, &str_t
+ 	);
++	check_sort_type(opts);
+ #if ENABLE_FEATURE_SORT_OPTIMIZE_MEMORY
+ 	/* Can drop dups only if -u but no "complicating" options,
+ 	 * IOW: if we do a full line compares. Safe options:
+@@ -563,6 +573,7 @@
+ 				str_k++;
+ 			}
+ 		}
++		check_sort_type(key->flags);
+ 	}
+ #endif
+ 

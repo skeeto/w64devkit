@@ -222,7 +222,8 @@ and
 .BR \-L .
 .TP
 .B \-s
-Do not report files or directories that cannot be opened.
+Do not report files or directories that cannot be opened, or files that
+cannot be read.
 The exit status still reports the error.
 .TP
 .B \-r
@@ -376,8 +377,9 @@ No line was selected.
 .TP
 .B 2
 An error: an invalid option or argument, an invalid regular expression,
-a pattern file that cannot be read, or a file or directory that cannot
-be opened, even if lines were selected in others.
+a pattern file that cannot be read, a file or directory that cannot be
+opened, or a file that cannot be read, even if lines were selected in
+others.
 With
 .BR \-q ,
 a selected line ends the search with status 0 regardless of earlier
@@ -466,8 +468,6 @@ have no effect.
 With
 .BR \-o ,
 context lines are printed whole.
-.IP \(bu 2
-Read errors end a file silently.
 .IP \(bu 2
 GNU options not listed above, such as
 .BR \-P ,

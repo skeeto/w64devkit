@@ -36,9 +36,7 @@ next tab stop, so a run may mix them.
 A run that reaches no tab stop is copied as spaces, and a single space
 is converted when it ends on a tab stop.
 .PP
-By default, only the first run of blanks in each line is converted: the
-leading blanks of a line that starts with a blank, or else the blanks
-that follow the first word of the line.
+By default, only the blanks at the start of each line are converted.
 The rest of the line is copied unchanged, including any tabs.
 With
 .B \-a
@@ -84,7 +82,7 @@ is set.
 ends the options.
 .TP
 .BR \-a ", " \-\-all
-Convert every run of blanks in each line, not only the first.
+Convert every run of blanks in each line, not only the leading blanks.
 Implied by
 .BR \-t ,
 unless
@@ -92,8 +90,7 @@ unless
 is given.
 .TP
 .BR \-f ", " \-\-first\-only
-Convert only the first run of blanks in each line, as described under
-.BR DESCRIPTION .
+Convert only the blanks at the start of each line.
 This is the default.
 It overrides
 .BR \-a ,
@@ -206,7 +203,7 @@ a^Ib^Ic$
 .EE
 .RE
 .PP
-Convert only the first run in each line, or every run:
+Convert only the leading blanks of each line, or every run:
 .PP
 .RS 4
 .EX
@@ -217,9 +214,7 @@ $ printf \(aq        a        b\en\(aq | unexpand \-a | cat \-A
 .EE
 .RE
 .PP
-Convert indentation to tabs at 4-column stops, writing a new file.
-In a line that does not start with a blank, the blanks after the first
-word are converted instead:
+Convert indentation to tabs at 4-column stops, writing a new file:
 .PP
 .RS 4
 .EX
@@ -247,11 +242,6 @@ form of
 .BR \-t ,
 and there is no
 .BR \-\-version .
-.IP \(bu 2
-By default, the first run of blanks after the first word of a line that
-does not start with a blank is converted too.
-GNU unexpand converts only leading blanks, which is also what the usage
-message of this one claims.
 .IP \(bu 2
 A single space that ends on a tab stop becomes a tab.
 GNU unexpand keeps it when a non-blank follows.
