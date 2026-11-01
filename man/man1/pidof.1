@@ -84,16 +84,9 @@ A busybox process of a different build, or one that
 cannot open, is named after its executable file instead, such as
 .BR busybox.exe .
 .PP
-Only the first 15 bytes of a long name are compared.
-A process name of 15 or more bytes matches any operand that agrees with
-it in its first 15 bytes, however the two differ after that.
-So
-.B pidof x86_64\-w64\-mingw32\-gcc.exe
-also finds
-.BR x86_64\-w64\-mingw32\-g++.exe ,
-and the extension may be left off a name with 15 or more bytes before
-it.
-A shorter process name must match the whole operand.
+The whole name is compared, even one longer than the 31 bytes that
+.BR ps (1)
+shows.
 .PP
 The idle process, with process ID 0 and the name
 .BR "[System\ Process]" ,
@@ -140,13 +133,7 @@ A value that is neither, including a number with a sign or a
 .B 0x
 prefix, fails with
 .B invalid number
-and exit status 1.
-This happens only when
-.B pidof
-compares the value to an ID it found, so a bad value goes unnoticed if
-nothing is found, or if earlier
-.B \-o
-values omit every ID found.
+and exit status 1, before any name is looked up.
 .TP
 .B \-\-help
 Print a usage message on standard output and exit with status 0.

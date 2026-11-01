@@ -1,0 +1,137 @@
+Keep process times in 64 bits on Windows.
+procps_scan reports the start time and the CPU times of a process in
+milliseconds, but stored them in an unsigned long, which is 32 bits on
+Windows, so they wrapped after 49.7 days. The TIME column of ps went
+back to zero for a process that had used 49.7 days of CPU time, which
+the idle process reaches in days on a machine with many cores, and
+ELAPSED was wrong for every process started more than 49.7 days after
+boot. The start times also decide whether the parent ID of a process
+was reused. A parent started before the wrap and a child after it
+looked the wrong way round, so ps and pgrep -P showed a parent ID of 1,
+and a process that took the ID of an exited parent after the wrap
+looked older than that parent's children from before the wrap, so it
+was shown as their parent.
+
+Use unsigned long long for these times on Windows.
+
+---
+ include/libbb.h |   18 ++++++++++++------
+ win32/mingw.c   |    2 +-
+ win32/process.c |   24 ++++++++++++------------
+ 3 files changed, 25 insertions(+), 19 deletions(-)
+
+--- a/include/libbb.h
++++ b/include/libbb.h
+@@ -2348,9 +2348,9 @@
+ #if ENABLE_PLATFORM_MINGW32
+ typedef struct pid_data_t {
+ 	DWORD pid;
+-	unsigned long start_time;
+-	unsigned long stime;
+-	unsigned long utime;
++	unsigned long long start_time;
++	unsigned long long stime;
++	unsigned long long utime;
+ } pid_data_t;
+ #endif
+ 
+@@ -2374,8 +2374,14 @@
+ 	/* Everything below must contain no ptrs to malloc'ed data:
+ 	 * it is memset(0) for each process in procps_scan() */
+ 	unsigned long vsz, rss; /* we round it to kbytes */
++#if !ENABLE_PLATFORM_MINGW32
+ 	unsigned long stime, utime;
+ 	unsigned long start_time;
++#else
++	/* milliseconds: a 32-bit unsigned long wraps after 49 days */
++	unsigned long long stime, utime;
++	unsigned long long start_time;
++#endif
+ 	unsigned pid;
+ 	unsigned ppid;
+ 	unsigned pgid;
+@@ -2454,9 +2460,9 @@
+ unsigned long long FAST_FUNC fast_strtoull_16(char **endptr);
+ char* FAST_FUNC skip_fields(char *str, int count);
+ #if ENABLE_PLATFORM_MINGW32
+-void get_process_times(DWORD pid, unsigned long* start_time,
+-		unsigned long *stime,
+-		unsigned long *utime);
++void get_process_times(DWORD pid, unsigned long long *start_time,
++		unsigned long long *stime,
++		unsigned long long *utime);
+ #endif
+ 
+ 
+--- a/win32/mingw.c
++++ b/win32/mingw.c
+@@ -1481,7 +1481,7 @@
+ 
+ clock_t FAST_FUNC times(struct tms *buf)
+ {
+-	unsigned long start_time, stime, utime;
++	unsigned long long start_time, stime, utime;
+ 
+ 	memset(buf, 0, sizeof(*buf));
+ 	get_process_times(getpid(), &start_time, &stime, &utime);
+--- a/win32/process.c
++++ b/win32/process.c
+@@ -701,9 +701,9 @@
+ 
+ #define NPIDS 128
+ 
+-void get_process_times(DWORD pid, unsigned long* start_time,
+-		unsigned long *stime,
+-		unsigned long *utime)
++void get_process_times(DWORD pid, unsigned long long *start_time,
++		unsigned long long *stime,
++		unsigned long long *utime)
+ {
+ 	DWORD flag;
+ 	HANDLE proc;
+@@ -727,9 +727,9 @@
+ 			boot_time = filetime_to_ticks(&now) - ticks_since_boot;
+ 			create_time = filetime_to_ticks(&crTime);
+ 
+-			*start_time = (unsigned long)(create_time - boot_time);
+-			*stime = (unsigned long)filetime_to_ticks(&keTime);
+-			*utime = (unsigned long)filetime_to_ticks(&usTime);
++			*start_time = create_time - boot_time;
++			*stime = filetime_to_ticks(&keTime);
++			*utime = filetime_to_ticks(&usTime);
+ 		}
+ 		CloseHandle(proc);
+ 	} else if (flag == PROCESS_QUERY_LIMITED_INFORMATION) {
+@@ -753,8 +753,8 @@
+ 	BOOL ret;
+ 	int curr_pid_hit;
+ 	int parent_pid_hit;
+-	unsigned long curr_start_time;
+-	unsigned long parent_start_time;
++	unsigned long long curr_start_time;
++	unsigned long long parent_start_time;
+ 
+ 	pe.dwSize = sizeof(pe);
+ 	if (!sp) {
+@@ -812,8 +812,8 @@
+ 	sp->ppid = pe.th32ProcessID != 0;
+ 	curr_pid_hit = 0;
+ 	parent_pid_hit = 0;
+-	curr_start_time = ULONG_MAX;
+-	parent_start_time = ULONG_MAX;
++	curr_start_time = ULLONG_MAX;
++	parent_start_time = ULLONG_MAX;
+ 	for (int i = 0; i < sp->npids; ++i) {
+ 		if (sp->pids[i].pid == pe.th32ProcessID) {
+ 			++curr_pid_hit;
+@@ -835,8 +835,8 @@
+ 			break;
+ 		}
+ 	}
+-	if (parent_start_time == ULONG_MAX ||
+-			curr_start_time == ULONG_MAX ||
++	if (parent_start_time == ULLONG_MAX ||
++			curr_start_time == ULLONG_MAX ||
+ 			parent_start_time > curr_start_time) {
+ 		sp->ppid = pe.th32ProcessID != 0;
+ 	}

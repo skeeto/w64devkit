@@ -255,6 +255,12 @@ was given.
 An invalid option, a missing argument to
 .BR \-o ,
 or an unknown column name.
+Also a failure to list the processes: if Windows refuses to supply the
+list,
+.B ps
+prints the header and then the message
+.B "ps: can't list processes"
+on standard error.
 .TP
 .B 141
 Standard output is a pipe that was closed before all the output was
@@ -262,9 +268,6 @@ written.
 A closed pipe found only when
 .B ps
 flushes its output at exit is not detected, and the status is 0.
-.PP
-Failure to list the processes is not detected: if Windows refuses to
-supply the list, only the header is printed and the status is 0.
 .SH EXAMPLES
 List the processes with the default columns:
 .PP
@@ -387,13 +390,6 @@ is
 and
 .B etime
 is the time the system has been up.
-The times are kept as 32-bit counts of milliseconds, so
-.B time
-wraps after about 49 days of CPU time, and
-.B etime
-is wrong for a process that started more than about 49 days after the
-system booted, as is the comparison of start times for
-.BR ppid .
 .PP
 The name and command line of a process other than
 .B ps

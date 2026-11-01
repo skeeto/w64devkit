@@ -112,11 +112,9 @@ started, so
 .B killall sleep
 signals the busybox process and leaves the launcher to exit with it.
 .PP
-Only the first 15 bytes of a long name are compared.
-A process name of 15 or more bytes matches any operand that agrees with
-it in its first 15 bytes, however the two differ after that, so the
-extension may be left off a name with 15 or more bytes before it.
-A shorter process name must match the whole operand.
+The whole name is compared, even one longer than the 31 bytes that
+.BR ps (1)
+shows.
 .PP
 The idle process, with process ID 0 and the name
 .BR "[System\ Process]" ,

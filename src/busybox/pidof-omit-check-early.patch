@@ -1,0 +1,35 @@
+Check every pidof -o value before searching.
+pidof converted each -o value with xatoul only when comparing it with a
+PID it had found. A bad value, such as "-o abc", was therefore reported
+only if some process matched and no earlier -o value had omitted it.
+Otherwise pidof printed its result, or nothing, and exited with status
+0 or 1 as if the value were valid.
+
+Check each value with xatoul while filling the omit list, so that a
+bad one is always an error.
+
+---
+ procps/pidof.c |   11 ++++++-----
+ 1 file changed, 6 insertions(+), 5 deletions(-)
+
+--- a/procps/pidof.c
++++ b/procps/pidof.c
+@@ -92,12 +92,13 @@
+ 	/* fill omit list.  */
+ 	{
+ 		llist_t *omits_p = omits;
+-		while (1) {
+-			omits_p = llist_find_str(omits_p, "%PPID");
+-			if (!omits_p)
+-				break;
++		while (omits_p) {
+ 			/* are we asked to exclude the parent's process ID?  */
+-			omits_p->data = utoa((unsigned)getppid());
++			if (strcmp(omits_p->data, "%PPID") == 0)
++				omits_p->data = utoa((unsigned)getppid());
++			else /* reject a bad pid even if nothing is found */
++				xatoul(omits_p->data);
++			omits_p = omits_p->link;
+ 		}
+ 	}
+ #endif

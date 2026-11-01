@@ -1,0 +1,29 @@
+Stop reading past the module list when naming a Windows process.
+To find the applet name and command line of another busybox process,
+get_bb_string fetches the process's modules into a 32-entry array and
+looks for the one named after its executable. EnumProcessModules
+reports the size needed for all modules, not the size it filled, and
+the search ran to that size. For a process with more than 32 modules,
+as most Windows programs have, a search that found no module by that
+name read past the end of the array on the stack and passed whatever it
+found there to GetModuleFileNameExA as module handles. This could
+happen in ps, pgrep, pidof and killall.
+
+Limit the search to the entries that were filled.
+
+---
+ win32/process.c |    3 +++
+ 1 file changed, 3 insertions(+)
+
+--- a/win32/process.c
++++ b/win32/process.c
+@@ -643,6 +643,9 @@
+ 	if (!EnumProcessModules(proc, mlist, sizeof(mlist), &needed)) {
+ 		goto finish;
+ 	}
++	/* needed may exceed the size of mlist: only that much was filled */
++	if (needed > sizeof(mlist))
++		needed = sizeof(mlist);
+ 
+ 	for (i=0; exe != NULL && i<needed/sizeof(HMODULE); ++i) {
+ 		char modname[MAX_PATH];

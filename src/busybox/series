@@ -145,3 +145,9 @@ wget-post-file-nul.patch
 wget-proxy-post.patch
 wget-redirect-post-to-get.patch
 wget-retries-exhausted.patch
+ps-module-list-bound.patch
+ps-snapshot-failure.patch
+ps-times-64bit.patch
+ps-start-time-boot-once.patch
+find-pid-by-name-long-names.patch
+pidof-omit-check-early.patch

@@ -1,0 +1,60 @@
+Match long process names in full in find_pid_by_name on Windows.
+comm_match compares the first 15 bytes of comm, as Linux cuts comm to
+15 bytes, and when comm is that long it checks argv[1] to tell names
+apart. On Windows comm holds up to 31 bytes and the argv[1] check is
+left out, so a process whose name had 15 bytes or more matched every
+operand that began with the same 15 bytes. pidof
+x86_64-w64-mingw32-gcc.exe also found x86_64-w64-mingw32-g++.exe, and
+killall signalled such unrelated processes too.
+
+On Windows, compare comm in full. A comm of 31 bytes may have been cut
+from the name of the executable, so have procps_scan supply that name
+in full for PSSCAN_EXE, and compare it instead.
+
+---
+ include/libbb.h          |    1 +
+ libbb/find_pid_by_name.c |    7 +++++++
+ win32/process.c          |    6 ++++++
+ 3 files changed, 14 insertions(+)
+
+--- a/include/libbb.h
++++ b/include/libbb.h
+@@ -2361,6 +2361,7 @@
+ 	HANDLE snapshot;
+ 	pid_data_t *pids;
+ 	int npids;
++	char exe_name[MAX_PATH]; /* PSSCAN_EXE points exe here */
+ #endif
+ 	IF_FEATURE_SHOW_THREADS(DIR *task_dir;)
+ 	uint8_t shift_pages_to_bytes;
+--- a/libbb/find_pid_by_name.c
++++ b/libbb/find_pid_by_name.c
+@@ -68,6 +68,13 @@
+ 
+ 	if (strcmp(bb_basename(argv1), procName) != 0)
+ 		return 0;
++#else
++	/* On Windows comm is cut to COMM_LEN-1 chars, not 15, and only
++	 * the name of the executable is that long: compare in full */
++	if (strlen(p->comm) < COMM_LEN - 1)
++		return strcmp(p->comm, procName) == 0;
++	if (!p->exe || strcmp(p->exe, procName) != 0)
++		return 0;
+ #endif
+ 
+ 	return 1;
+--- a/win32/process.c
++++ b/win32/process.c
+@@ -861,6 +861,12 @@
+ 		safe_strncpy(sp->comm, comm, COMM_LEN);
+ 	}
+ 
++	if (flags & PSSCAN_EXE) {
++		/* the name of the executable in full, unlike comm */
++		strcpy(sp->exe_name, pe.szExeFile);
++		sp->exe = sp->exe_name;
++	}
++
+ 	return sp;
+ }
+ 

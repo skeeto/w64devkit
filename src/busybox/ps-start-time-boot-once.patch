@@ -1,0 +1,53 @@
+Measure all process start times from the same boot time on Windows.
+get_process_times turns a creation time into a start time by
+subtracting the boot time, which it worked out afresh on each call
+from the current time and the time since boot, each rounded down to a
+millisecond. The rounding varied from call to call, so start times
+carried a few milliseconds of noise, and procps_scan, which takes a
+parent that started later than its child for a reused process ID,
+could see a child created within that time of its parent as the older
+of the two. ps and pgrep -P then gave a parent ID of 1.
+
+Work out the boot time once and keep it.
+
+---
+ win32/process.c |   14 ++++++++++----
+ 1 file changed, 10 insertions(+), 4 deletions(-)
+
+--- a/win32/process.c
++++ b/win32/process.c
+@@ -705,6 +705,7 @@
+ 		unsigned long long *stime,
+ 		unsigned long long *utime)
+ {
++	static long long boot_time;
+ 	DWORD flag;
+ 	HANDLE proc;
+ 	FILETIME crTime = {0, 0}, exTime, keTime, usTime;
+@@ -714,7 +715,7 @@
+  retry:
+ 	if ((proc=OpenProcess(flag, FALSE, pid))) {
+ 		if (GetProcessTimes(proc, &crTime, &exTime, &keTime, &usTime)) {
+-			long long ticks_since_boot, boot_time, create_time;
++			long long ticks_since_boot, create_time;
+ 			FILETIME now;
+ 
+ 			// On Windows XP GetProcessTimes() appears to succeed
+@@ -722,9 +723,14 @@
+ 			if (crTime.dwHighDateTime == 0 && crTime.dwLowDateTime == 0)
+ 				return;
+ 
+-			ticks_since_boot = monotonic_ms()/MS_PER_TICK;
+-			GetSystemTimePreciseAsFileTime(&now);
+-			boot_time = filetime_to_ticks(&now) - ticks_since_boot;
++			// Work out the boot time once: if it varies from call to
++			// call so do start times, and a child created in the same
++			// clock tick as its parent may seem to predate it.
++			if (boot_time == 0) {
++				ticks_since_boot = monotonic_ms()/MS_PER_TICK;
++				GetSystemTimePreciseAsFileTime(&now);
++				boot_time = filetime_to_ticks(&now) - ticks_since_boot;
++			}
+ 			create_time = filetime_to_ticks(&crTime);
+ 
+ 			*start_time = create_time - boot_time;

@@ -1,0 +1,38 @@
+Report a failure to list the processes in ps on Windows.
+procps_scan returns NULL both at the end of the list and when Windows
+refuses to supply one, as when CreateToolhelp32Snapshot or
+Process32First fails. ps took a failure for an empty list, so it
+printed only the header and exited with status 0, which looks like
+success. On Linux, failing to open /proc is fatal instead.
+
+As the list always includes ps itself, treat a list with no process
+as a failure: print an error and exit with status 1.
+
+---
+ procps/ps.c |    7 +++++++
+ 1 file changed, 7 insertions(+)
+
+--- a/procps/ps.c
++++ b/procps/ps.c
+@@ -575,6 +575,7 @@
+ #if ENABLE_SELINUX || ENABLE_FEATURE_SHOW_THREADS
+ 	int opt;
+ #endif
++	IF_PLATFORM_MINGW32(int listed = 0;)
+ 	enum {
+ 		OPT_Z = (1 << 0),
+ 		OPT_o = (1 << 1),
+@@ -653,7 +654,13 @@
+ 	p = NULL;
+ 	while ((p = procps_scan(p, need_flags)) != NULL) {
+ 		format_process(p);
++		IF_PLATFORM_MINGW32(listed = 1;)
+ 	}
++#if ENABLE_PLATFORM_MINGW32
++	/* ps itself is always listed: no process means no list */
++	if (!listed)
++		bb_simple_error_msg_and_die("can't list processes");
++#endif
+ 
+ 	return EXIT_SUCCESS;
+ }
