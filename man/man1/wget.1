@@ -45,10 +45,16 @@ The host ends at the first
 .BR ? ,
 or
 .BR # .
-The rest is the path, which
+The rest is the path and any query, which
 .B wget
-sends to the server as given: it applies no percent-encoding, and a
-query or fragment is part of the path.
+sends to the server as given: it applies no percent-encoding.
+A query directly after the host, as in
+.BR http://host?q=1 ,
+is sent as
+.BR /?q=1 .
+A fragment, from
+.B #
+on, is not sent.
 .PP
 .I user
 and
@@ -68,7 +74,10 @@ last
 .B /
 or
 .BR \e ,
-query included and not percent-decoded.
+query included and not percent-decoded: for
+.B http://host?q=1
+it is
+.BR ?q=1 .
 When that is empty, the name is
 .IR index.html .
 The file goes in the directory named by
@@ -156,12 +165,28 @@ If there is a
 header, the request is repeated at that URL, at most 15 times: the 16th
 redirection fails with
 .BR "too many redirections" .
-The method, body, and headers stay the same.
+After 307 and 308, the method and body stay the same; after the others,
+a POST becomes a GET without a body.
+The location may be a full URL, a path that begins with
+.BR / ,
+or a path relative to the directory of the current one, as in
+.BR next.html ;
+a dot segment such as
+.B ..
+is left for the server to resolve.
 A location that begins with
-.B /
-is on the same server.
-Any other location is parsed as a URL, so a relative one without the
-leading slash is taken as a host name.
+.B //
+names a host for the same scheme.
+A fragment in the location is dropped.
+When the location has another scheme or host (which includes another
+port), the user and password from the URL, and any
+.B Authorization
+or
+.B Cookie
+header from
+.BR \-\-header ,
+are not sent to it, nor after any later redirection of that URL.
+A user and password in the location itself are sent.
 Without a
 .B Location
 header, the response is treated like a 200 and its body is saved.
@@ -261,7 +286,8 @@ saving to \(aq\fIfile\fR\(aq
 is written as in the URL, with any port, or is the proxy's, and
 .I address
 includes the port.
-Without a proxy, a redirection to a full URL prints another
+Without a proxy, a redirection to a location that is not a path prints
+another
 .B Connecting to
 line.
 With
@@ -351,7 +377,12 @@ compared without regard to case and followed by a colon, replaces the
 header
 .B wget
 would otherwise send.
-All headers are sent again after a redirection, even to another host.
+The headers are sent again after a redirection, except that
+.B Authorization
+and
+.B Cookie
+are not sent to another scheme or host; see
+.BR HTTP .
 .TP
 \fB\-U\fR \fIstring\fR, \fB\-\-user\-agent\fR=\fIstring\fR
 Send
@@ -384,11 +415,9 @@ A
 .I file
 of
 .B \-
-is standard input, and then a redirection or a second URL makes
-.B wget
-hang.
-The file is read again for each request.
-The body ends before the first NUL octet in the file.
+is standard input.
+The file is read once, before the first connection, and the whole of
+it, NUL octets included, is the body of each POST request.
 .IP
 Give
 .B \-\-post\-file
@@ -494,10 +523,8 @@ Standard output that is a pipe cannot be rewound, so there that ends
 the command with an error.
 When the tries run out,
 .B wget
-keeps what it received, without the
-.B saved
-message, and goes on to the next URL.
-That is not a failure, so the exit status can still be 0.
+keeps what it received and fails with
+.BR "wget: giving up" .
 .TP
 .BI "\-T " sec
 Accepted and ignored, whatever its argument.
@@ -614,11 +641,6 @@ is not
 .B wget
 connects to the proxy and requests the full URL, as in
 .BR "GET http://host/path" .
-The method is always GET, even with
-.B \-\-post\-data
-or
-.BR \-\-post\-file ,
-whose body is still sent.
 .I user
 and
 .I password
@@ -663,7 +685,9 @@ or the usage was requested with
 .B 1
 An invalid command line, or any failure while handling a URL: a bad
 address, a refused connection, an unusable URL, a refused file, an error
-status from the server, or an error reading or writing.
+status from the server, a body still cut short when the tries of
+.B \-t
+run out, or an error reading or writing.
 The message is on standard error, prefixed with
 .BR wget: .
 .TP
@@ -672,9 +696,6 @@ Standard output is a pipe that was closed before all output was written.
 .PP
 The first failure ends the command: the remaining URLs are not
 retrieved, and the files already saved stay.
-A body still cut short after the retries of
-.B \-t
-is not a failure.
 .SH EXAMPLES
 Download a file into the current directory:
 .PP
@@ -752,8 +773,7 @@ timestamping, no way to give a user and password except in the URL or an
 .B Authorization
 header, no cookies, and no rate limit.
 .IP \(bu 2
-Only a body cut short is retried, at once and without a wait, and
-running out of tries is not an error.
+Only a body cut short is retried, at once and without a wait.
 .IP \(bu 2
 An existing file is an error: it is not kept by saving the new one as
 .IR name.1 .
@@ -802,16 +822,12 @@ An https URL sent through
 is not tunneled: the proxy receives the request in clear text, as
 .BR "GET https://host/path" .
 .PP
-In the x64 kit, over https, a response without
+Over https, as over http, a response without
 .B Content\-Length
-makes
+ends only when the server closes the connection; a server that instead
+waits for the client to end the TLS session makes
 .B wget
-hang when the server waits for the client to end the TLS session before
-it closes the connection.
-.PP
-Credentials in the URL, and headers from
-.BR \-\-header ,
-are sent to the target of a redirection even when it is on another host.
+wait too.
 .PP
 A name derived from the URL must be a valid Windows file name.
 A URL such as
@@ -843,14 +859,6 @@ saves to
 in the current directory of the drive.
 Documents, posted files, and standard output are binary: octets pass
 unchanged.
-.PP
-A URL with a query directly after the host, as in
-.BR http://host?q=1 ,
-loses the question mark and requests
-.BR /q=1 .
-Write
-.B http://host/?q=1
-instead.
 .SH SEE ALSO
 .BR busybox (1),
 .BR httpd (1),

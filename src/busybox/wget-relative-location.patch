@@ -1,0 +1,60 @@
+Resolve a relative Location against the URL that was redirected.
+A Location that did not begin with a slash was parsed as a full URL, so
+a relative path such as "Location: next.html" was taken as a host name
+and failed with "bad address", and a network-path reference such as
+"//host/path" was requested as a path on the same server. RFC 7231
+allows relative references. Resolve a relative path against the
+directory of the current path, and a reference that is only a query
+against the current path, keep "//host/path" on the current protocol,
+and parse as a URL only a Location that begins with a scheme, or that
+has the "host:port" form that was accepted before. Dot segments are left
+for the server to resolve.
+
+---
+ networking/wget.c |   22 +++++++++++++++++++++-
+ 1 file changed, 21 insertions(+), 1 deletion(-)
+
+--- a/networking/wget.c
++++ b/networking/wget.c
+@@ -1539,20 +1539,40 @@
+ 				G.chunked = 1;
+ 			}
+ 			if (key == KEY_location && status >= 300) {
++				char *p;
++
+ 				if (--redir_limit == 0)
+ 					bb_simple_error_msg_and_die("too many redirections");
+ 				fclose(sfp);
+-				if (str[0] == '/') {
++				/* Skip what may be a "scheme:" */
++				for (p = str; isalnum(*p) || *p == '+' || *p == '-' || *p == '.'; p++)
++					continue;
++				if (str[0] == '/' && str[1] != '/') {
+ 					free(redirected_path);
+ 					target.path = redirected_path = xstrdup(str + 1);
+ 					/* lsa stays the same: it's on the same server */
++				} else if (str[0] != '/' && (*p != ':' || p == str)) {
++					/* Relative path: resolve it against the current one */
++					int len = strcspn(target.path, str[0] == '#' ? "#" : "?#");
++					if (str[0] != '#' && str[0] != '?') {
++						while (len != 0 && target.path[len - 1] != '/')
++							len--;
++					}
++					p = xasprintf("%.*s%s", len, target.path, str);
++					free(redirected_path);
++					target.path = redirected_path = p;
++					/* lsa stays the same: it's on the same server */
+ 				} else {
+ 					const char *old_protocol = target.protocol;
+ 					char *old_host = xstrdup(target.host);
+ 					char *old_user = target.user;
++					char *new_url = NULL;
+ 
++					if (str[0] == '/') /* "//host/path" */
++						str = new_url = xasprintf("%s:%s", target.protocol, str);
+ 					target.user = NULL;
+ 					parse_url(str, &target);
++					free(new_url);
+ 					/* Send credentials only to the same server */
+ 					if (target.protocol == old_protocol
+ 					 && strcasecmp(target.host, old_host) == 0

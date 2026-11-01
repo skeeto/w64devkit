@@ -1,0 +1,57 @@
+Follow a 301, 302 or 303 redirect of a POST with a GET.
+Every redirect repeated the POST and its body at the new location. A 303
+See Other asks the client to fetch the result with GET, and browsers,
+GNU Wget and curl also turn a POST into a GET for 301 and 302, so a form
+submission that answered with a redirect was submitted again, possibly
+to a URL that does not accept POST. Keep the method only for 307 and
+308, which require it. The next URL on the command line is a POST again.
+
+---
+ networking/wget.c |   11 ++++++++---
+ 1 file changed, 8 insertions(+), 3 deletions(-)
+
+--- a/networking/wget.c
++++ b/networking/wget.c
+@@ -1187,6 +1187,7 @@
+ static void download_one_url(const char *url)
+ {
+ 	bool use_proxy;                 /* Use proxies if env vars are set  */
++	bool post = (option_mask32 & WGET_OPT_POST) != 0;
+ 	int redir_limit;
+ 	int retry_cnt = G.tries;
+ 	len_and_sockaddr *lsa;
+@@ -1321,12 +1322,12 @@
+ 		/* Send HTTP request */
+ 		if (use_proxy) {
+ 			SENDFMT(sfp, "%s %s://%s/%s HTTP/1.1\r\n",
+-				(option_mask32 & WGET_OPT_POST) ? "POST" : "GET",
++				post ? "POST" : "GET",
+ 				target.protocol, target.host,
+ 				target.path);
+ 		} else {
+ 			SENDFMT(sfp, "%s /%s HTTP/1.1\r\n",
+-				(option_mask32 & WGET_OPT_POST) ? "POST" : "GET",
++				post ? "POST" : "GET",
+ 				target.path);
+ 		}
+ 		if (!USR_HEADER_HOST)
+@@ -1375,7 +1376,7 @@
+ 			}
+ 		}
+ 
+-		if (G.post_data) {
++		if (post && G.post_data) {
+ 			/* If user did not override it... */
+ 			if (!USR_HEADER_CONTENT_TYPE) {
+ 				SENDFMT(sfp,
+@@ -1543,6 +1544,10 @@
+ 				if (--redir_limit == 0)
+ 					bb_simple_error_msg_and_die("too many redirections");
+ 				fclose(sfp);
++				/* Like browsers, change POST to GET unless 307 or 308.
++				 * RFC 7231 allows it for 301 and 302 and asks it for 303 */
++				if (status != 307 && status != 308)
++					post = 0;
+ 				/* The fragment is not sent */
+ 				*strchrnul(str, '#') = '\0';
+ 				/* Skip what may be a "scheme:" */

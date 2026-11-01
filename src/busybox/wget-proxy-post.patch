@@ -1,0 +1,22 @@
+Use the POST method for --post-data and --post-file through a proxy.
+The request line sent to a proxy was always "GET http://host/path", but
+the Content-Type, Content-Length and body of a POST followed it, so the
+server saw a GET with an unexpected body. Choose the method the same way
+as without a proxy.
+
+---
+ networking/wget.c |    3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+--- a/networking/wget.c
++++ b/networking/wget.c
+@@ -1320,7 +1320,8 @@
+ #endif
+ 		/* Send HTTP request */
+ 		if (use_proxy) {
+-			SENDFMT(sfp, "GET %s://%s/%s HTTP/1.1\r\n",
++			SENDFMT(sfp, "%s %s://%s/%s HTTP/1.1\r\n",
++				(option_mask32 & WGET_OPT_POST) ? "POST" : "GET",
+ 				target.protocol, target.host,
+ 				target.path);
+ 		} else {

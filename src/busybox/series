@@ -137,3 +137,11 @@ dump-partial-block-no-star.patch
 dump-trailing-percent.patch
 dump-percent-literal.patch
 dump-read-error-status.patch
+wget-redirect-credentials.patch
+wget-relative-location.patch
+wget-url-query-fragment.patch
+wget-post-file-once.patch
+wget-post-file-nul.patch
+wget-proxy-post.patch
+wget-redirect-post-to-get.patch
+wget-retries-exhausted.patch

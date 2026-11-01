@@ -1,0 +1,25 @@
+Fail when the -t tries run out on a body cut short.
+When the connection kept closing before the end of the body and the
+tries ran out, wget kept the partial file, went on to the next URL and
+exited with status 0, so a script could not tell an incomplete download
+from a complete one. Resolve the FIXME there by failing with "giving
+up", like every other error that ends a download. The partial file is
+kept, as before, so -c can continue it.
+
+---
+ networking/wget.c |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+--- a/networking/wget.c
++++ b/networking/wget.c
+@@ -1634,8 +1634,8 @@
+ 				G.beg_range += G.transferred;
+ 				goto restart;
+ 			}
+-			/* else: -t TRIES exceeded */
+-//FIXME: should we abort instead of continuing with next URL?
++			/* -t TRIES exceeded */
++			bb_simple_error_msg_and_die("giving up");
+ 		}
+ 		if (!(option_mask32 & WGET_OPT_OUTNAME)) {
+ 			xclose(G.output_fd);

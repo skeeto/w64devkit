@@ -1,0 +1,83 @@
+Keep the '?' of a query after the host, and do not send fragments.
+parse_url() ended the host at the first '/', '?' or '#' by overwriting
+it with a NUL, so "http://host?q=1" requested "/q=1" instead of
+"/?q=1", and "http://host#frag" requested "/frag". A fragment after a
+path, as in "http://host/page#frag", was sent to the server as part of
+the path, and so was one in a Location header. Cut the URL at '#' first,
+since a fragment is never sent, and move a query that follows the host
+up by one byte so that the host can end without losing the '?'. Also
+drop the fragment from a Location before resolving it. The default file
+name for "http://host?q=1" becomes "?q=1", as for "http://host/?q=1".
+
+---
+ networking/wget.c |   22 +++++++++++++++-------
+ 1 file changed, 15 insertions(+), 7 deletions(-)
+
+--- a/networking/wget.c
++++ b/networking/wget.c
+@@ -570,7 +570,9 @@
+ 	char *url, *p, *sp;
+ 
+ 	free(h->allocated);
+-	h->allocated = url = xstrdup(src_url);
++	/* One spare byte to end the hostname before a '?', see below */
++	h->allocated = url = xmalloc(strlen(src_url) + 2);
++	strcpy(url, src_url);
+ 
+ 	h->protocol = P_HTTP;
+ 	p = strstr(url, "://");
+@@ -614,26 +616,30 @@
+ 	//   and saves 'index.html?var=a%2Fb' (we save 'b')
+ 	// wget 'http://busybox.net?login=john@doe':
+ 	//   request: 'GET /?login=john@doe HTTP/1.0'
+-	//   saves: 'index.html?login=john@doe' (we save 'login=john@doe')
++	//   saves: 'index.html?login=john@doe' (we save '?login=john@doe')
+ 	// wget 'http://busybox.net#test/test':
+ 	//   request: 'GET / HTTP/1.0'
+-	//   saves: 'index.html' (we save 'test')
++	//   saves: 'index.html'
+ 	//
+ 	// We also don't add unique .N suffix if file exists...
++	sp = strchr(h->host, '#');
++	if (sp)
++		*sp = '\0'; /* the fragment is not sent */
+ 	sp = strchr(h->host, '/');
+ 	p = strchr(h->host, '?'); if (!sp || (p && sp > p)) sp = p;
+-	p = strchr(h->host, '#'); if (!sp || (p && sp > p)) sp = p;
+ 	if (!sp) {
+ 		h->path = "";
+ 	} else if (*sp == '/') {
+ 		*sp = '\0';
+ 		h->path = sp + 1;
+ 	} else {
+-		// sp points to '#' or '?'
++		// sp points to '?'
+ 		// Note:
+ 		// http://busybox.net?login=john@doe is a valid URL
+ 		// (without '/' between ".net" and "?"),
+ 		// can't store NUL at sp[-1] - this destroys hostname.
++		// Move the query up into the spare byte instead.
++		memmove(sp + 1, sp, strlen(sp) + 1);
+ 		*sp++ = '\0';
+ 		h->path = sp;
+ 	}
+@@ -1544,6 +1550,8 @@
+ 				if (--redir_limit == 0)
+ 					bb_simple_error_msg_and_die("too many redirections");
+ 				fclose(sfp);
++				/* The fragment is not sent */
++				*strchrnul(str, '#') = '\0';
+ 				/* Skip what may be a "scheme:" */
+ 				for (p = str; isalnum(*p) || *p == '+' || *p == '-' || *p == '.'; p++)
+ 					continue;
+@@ -1553,8 +1561,8 @@
+ 					/* lsa stays the same: it's on the same server */
+ 				} else if (str[0] != '/' && (*p != ':' || p == str)) {
+ 					/* Relative path: resolve it against the current one */
+-					int len = strcspn(target.path, str[0] == '#' ? "#" : "?#");
+-					if (str[0] != '#' && str[0] != '?') {
++					int len = strcspn(target.path, str[0] ? "?" : "");
++					if (str[0] != '\0' && str[0] != '?') {
+ 						while (len != 0 && target.path[len - 1] != '/')
+ 							len--;
+ 					}

@@ -1,0 +1,62 @@
+Send all of a --post-file file, NUL bytes included.
+The request body was written with "%s" and its Content-Length computed
+with strlen(), so a file containing a NUL byte was sent only up to that
+byte, and a binary file was silently truncated. Keep the length that
+xmalloc_read() returns, or strlen() of --post-data, and write the body
+with fwrite().
+
+---
+ networking/wget.c |   21 +++++++++++----------
+ 1 file changed, 11 insertions(+), 10 deletions(-)
+
+--- a/networking/wget.c
++++ b/networking/wget.c
+@@ -279,6 +279,7 @@
+ #if ENABLE_FEATURE_WGET_LONG_OPTIONS
+ 	char *post_data;
+ 	char *post_file;
++	size_t post_len;
+ 	char *extra_headers;
+ 	unsigned char user_headers; /* Headers mentioned by the user */
+ #endif
+@@ -1383,21 +1384,18 @@
+ # if ENABLE_PLATFORM_MINGW32
+ 			if (!USR_HEADER_CONTENT_LENGTH)
+ 				SENDFMT(sfp, "Content-Length: %u\r\n",
+-					(int)strlen(G.post_data)
++					(unsigned)G.post_len
+ 				);
+-			SENDFMT(sfp,
+-				"\r\n"
+-				"%s",
+-				G.post_data
+-			);
++			SENDFMT(sfp, "\r\n");
++			fwrite(G.post_data, 1, G.post_len, sfp);
+ 		} else
+ # else
+ 			SENDFMT(sfp,
+ 				"Content-Length: %u\r\n"
+-				"\r\n"
+-				"%s",
+-				(int) strlen(G.post_data), G.post_data
++				"\r\n",
++				(unsigned) G.post_len
+ 			);
++			fwrite(G.post_data, 1, G.post_len, sfp);
+ 		} else
+ # endif
+ #endif
+@@ -1815,8 +1813,11 @@
+ 	/* Read it once: it may be stdin, and redirects and URLs reuse it */
+ 	if (option_mask32 & WGET_OPT_POST_FILE) {
+ 		int fd = xopen_stdin(G.post_file);
+-		G.post_data = xmalloc_read(fd, NULL);
++		G.post_len = INT_MAX;
++		G.post_data = xmalloc_read(fd, &G.post_len);
+ 		close(fd);
++	} else if (G.post_data) {
++		G.post_len = strlen(G.post_data);
+ 	}
+ #endif
+ 

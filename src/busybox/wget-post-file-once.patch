@@ -1,0 +1,46 @@
+Read the --post-file file once, before the first request.
+The file was opened, read and closed again for every request. With
+--post-file - that closed standard input after the first request, so a
+redirect or a second URL read the next request's body from whatever
+file descriptor 0 had become: wget hung on a redirect, and failed with
+"write error: Bad file descriptor" after sending an empty POST for a
+second URL. Each request also leaked the previous copy of the file. Read
+the file into post_data once, after the options are processed and the -o
+log file is opened, so that a missing file is also reported before any
+connection is made.
+
+---
+ networking/wget.c |   15 +++++++++------
+ 1 file changed, 9 insertions(+), 6 deletions(-)
+
+--- a/networking/wget.c
++++ b/networking/wget.c
+@@ -1373,12 +1373,6 @@
+ 			}
+ 		}
+ 
+-		if (option_mask32 & WGET_OPT_POST_FILE) {
+-			int fd = xopen_stdin(G.post_file);
+-			G.post_data = xmalloc_read(fd, NULL);
+-			close(fd);
+-		}
+-
+ 		if (G.post_data) {
+ 			/* If user did not override it... */
+ 			if (!USR_HEADER_CONTENT_TYPE) {
+@@ -1817,6 +1811,15 @@
+ 		}
+ 	}
+ 
++#if ENABLE_FEATURE_WGET_LONG_OPTIONS
++	/* Read it once: it may be stdin, and redirects and URLs reuse it */
++	if (option_mask32 & WGET_OPT_POST_FILE) {
++		int fd = xopen_stdin(G.post_file);
++		G.post_data = xmalloc_read(fd, NULL);
++		close(fd);
++	}
++#endif
++
+ 	while (*argv)
+ 		download_one_url(*argv++);
+ 
