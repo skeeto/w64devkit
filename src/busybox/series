@@ -110,3 +110,9 @@ ed-write-device.patch
 ed-file-name-tab.patch
 ed-relative-address.patch
 ed-print-write-error.patch
+iconv-full-buffer-loop.patch
+iconv-gb18030-invalid.patch
+iconv-alias-before-number.patch
+iconv-ignore-incomplete.patch
+iconv-temp-file-cleanup.patch
+iconv-write-error.patch

@@ -57,20 +57,6 @@ the ANSI code page.
 .BR wchar_t :
 UTF\-16 little endian, with no byte order mark.
 .IP \(bu 2
-A decimal Windows code page number, optionally preceded by
-.B CP
-or
-.B XX
-in any case, as in
-.BR CP1252 ,
-.BR 437 ,
-or
-.BR cp65001 .
-Any text after the digits is ignored, so
-.B CP850x
-means 850.
-The code page must be one that Windows reports as valid.
-.IP \(bu 2
 An alias from the list that
 .B \-l
 prints, such as
@@ -86,26 +72,27 @@ prints, such as
 or
 .BR KOI8\-R .
 Case does not matter.
+.IP \(bu 2
+A decimal Windows code page number, optionally preceded by
+.B CP
+or
+.B XX
+in any case, as in
+.BR CP1252 ,
+.BR 437 ,
+or
+.BR cp65001 .
+Nothing may follow the digits.
+The code page must be one that Windows reports as valid.
 .PP
 The names
 .B char
 and
 .B wchar_t
 must be lowercase.
-Since the number test comes before the list, aliases in the list that
-begin with
-.B CP
-are read as numbers, and five of them fail:
-.BR CP367 ,
-.BR CP819 ,
-and
-.B cp1025
-mean code pages 367, 819, and 1025 instead of 20127, 1252, and 21025,
-and
-.B CP\-IS
-and
-.B CP\-GR
-mean code page 0.
+Since the list comes before the number test, an alias such as
+.B CP367
+means its own code page, 20127, and not code page 367.
 A name that does not resolve, or whose code page Windows lacks, makes
 .B iconv
 print
@@ -214,11 +201,13 @@ is
 .B Illegal byte sequence
 for the cases above, and
 .B Invalid argument
-when the input ends inside a character or is invalid GB18030.
+when the input ends inside a character, or is in a code page that
+converts nothing (see
+.BR NOTES ).
 .B \-c
 and
 .B //IGNORE
-turn these failures into discards.
+turn the other failures into discards.
 .SH OPTIONS
 Options may be grouped, as in
 .BR \-cfUTF\-8 ,
@@ -253,9 +242,8 @@ The list has neither
 .B char
 nor
 .BR wchar_t ,
-and it includes names that do not work: the five
-.B CP
-names described above, the code pages that convert nothing (see
+and it includes names that do not work: the code pages that convert
+nothing (see
 .BR NOTES ),
 and code pages that not every system has, such as
 .B CP154
@@ -269,6 +257,7 @@ cannot represent, and bytes that are invalid in
 .IR fromcode ,
 without a message.
 An invalid sequence is discarded one byte at a time.
+Input that ends inside a character still fails.
 This is the same as adding
 .B //IGNORE
 to
@@ -344,7 +333,9 @@ or
 .TP
 .B 1
 An invalid option or a missing option argument, an unknown encoding, a
-file that could not be opened or replaced, or a conversion error.
+file that could not be opened or replaced, a conversion error, or an
+output error, reported as
+.BR "write error" .
 .SH EXAMPLES
 Convert a Windows\-1252 file to UTF\-8:
 .PP
@@ -411,13 +402,13 @@ Other code pages whose characters can exceed two bytes, apart from
 UTF\-8 and GB18030, are accepted but convert nothing: ISO\-2022\-KR
 (50225), HZ\-GB\-2312 (52936), UTF\-7 (65000, which has no alias), the
 ISCII pages (57002 to 57011), and others.
-Without
-.BR \-c ,
-output in them fails at the first character, and input fails or hangs
-as described below.
-With
-.BR \-c ,
-everything is discarded.
+Output in them fails at the first character, or with
+.B \-c
+is all discarded.
+Input in them fails with
+.BR "Invalid argument" ,
+with or without
+.BR \-c .
 .IP \(bu 2
 There are no long options, no
 .BR \-s ,
@@ -435,32 +426,10 @@ is Windows' best-fit mapping, not libiconv's transliteration.
 .IP \(bu 2
 Conversion errors give no position.
 .PP
-Input is converted in blocks of 512 bytes.
-Normally a character that straddles a block boundary is carried over to
-the next block, but with
-.B \-c
-or
-.B //IGNORE
-it is not: the part at the end of the block is discarded as invalid, and
-so is the rest of the character at the start of the next block.
-So
-.B \-c
-corrupts any multibyte character that falls across a boundary.
-.PP
-Without
-.BR \-c ,
-some input makes
-.B iconv
-loop forever instead of failing with
-.BR "Invalid argument" :
-input of 512 bytes or more in a code page that converts nothing, and
-GB18030 input with an invalid byte sequence followed by 511 or more
-bytes.
-.PP
 With
 .BR \-o ,
-the temporary file stays behind after any failure, including a bad
-encoding name or an input that cannot be opened, and
+the temporary file is removed after any failure, including a write
+error, and
 .I outfile
 is left as it was.
 If

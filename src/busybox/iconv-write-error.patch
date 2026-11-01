@@ -1,0 +1,68 @@
+Check for iconv output errors before replacing the -o output file.
+iconv never checked whether its output had been written: process_file()
+ignored the result of fwrite(), and iconv_main() closed the -o
+temporary file without looking at the result of fclose() and renamed it
+over the output file. When a write failed, for example on a full disk,
+a truncated temporary file replaced the output and iconv exited with
+status 0, losing the original file when it was converted in place.
+Output to standard output was unchecked in the same way. A failed
+fwrite() could also overwrite the errno that process_file() then
+examined, so a write error during a large conversion was reported as
+"conversion error: No space left on device". Check each fwrite(),
+flush the output after the last operand, and check fclose() on the
+temporary file, failing with "write error" before the rename, which
+then leaves the output file as it was and, through the die_func hook,
+deletes the temporary file.
+
+---
+ miscutils/iconv.c |   16 +++++++++++++---
+ 1 file changed, 13 insertions(+), 3 deletions(-)
+
+--- a/miscutils/iconv.c
++++ b/miscutils/iconv.c
+@@ -1671,6 +1671,12 @@
+ 	return 0;
+ }
+ 
++static void write_output(const char *buf, size_t len, FILE *out)
++{
++	if (fwrite(buf, 1, len, out) != len)
++		bb_simple_error_msg_and_die(bb_msg_write_error);
++}
++
+ static void process_file(iconv_t cd, FILE *in, FILE *out)
+ {
+ 	char inbuf[BUFSIZ];
+@@ -1689,7 +1695,7 @@
+ 		pout = outbuf;
+ 		outbytesleft = sizeof(outbuf);
+ 		r = iconv(cd, &pin, &inbytesleft, &pout, &outbytesleft);
+-		fwrite(outbuf, 1, sizeof(outbuf) - outbytesleft, out);
++		write_output(outbuf, sizeof(outbuf) - outbytesleft, out);
+ 		if (r == (size_t)(-1) && errno != E2BIG &&
+ 				(errno != EINVAL || feof(in) ||
+ 				inbytesleft == sizeof(inbuf)))
+@@ -1702,7 +1708,7 @@
+ 	pout = outbuf;
+ 	outbytesleft = sizeof(outbuf);
+ 	r = iconv(cd, NULL, NULL, &pout, &outbytesleft);
+-	fwrite(outbuf, 1, sizeof(outbuf) - outbytesleft, out);
++	write_output(outbuf, sizeof(outbuf) - outbytesleft, out);
+ 	if (r == (size_t)(-1))
+ 		bb_perror_msg_and_die("conversion error");
+ }
+@@ -1774,9 +1780,13 @@
+ 		fclose_if_not_stdin(in);
+ 	}
+ 
++	if (fflush(out) != 0)
++		bb_simple_error_msg_and_die(bb_msg_write_error);
++
+ 	if (tmpname) {
+ 		tmpout = NULL;
+-		fclose(out);
++		if (fclose(out) != 0)
++			bb_simple_error_msg_and_die(bb_msg_write_error);
+ 		xrename(tmpname, outfile);
+ 	}
+ 

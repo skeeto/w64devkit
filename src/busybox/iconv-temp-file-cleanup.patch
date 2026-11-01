@@ -1,0 +1,77 @@
+Remove the iconv -o temporary file when iconv fails.
+iconv -o wrote to a temporary file next to the output file and renamed
+it over the output at the end, but any failure on the way, such as an
+input that could not be opened, a conversion error or a failed rename,
+ended the program with the temporary file left behind. The file was
+also created before the encoding names were checked, so a misspelt
+name left one too, and it was named with mktemp() and then opened with
+fopen("wb"), which truncates a file created under that name in between.
+Check the encodings first, create the file with xmkstemp(), and delete
+it from a die_func hook on failure, as sed -i does.
+
+---
+ miscutils/iconv.c |   28 +++++++++++++++++++++-------
+ 1 file changed, 21 insertions(+), 7 deletions(-)
+
+--- a/miscutils/iconv.c
++++ b/miscutils/iconv.c
+@@ -1715,11 +1715,21 @@
+ 	OPT_o = (1 << 4),
+ };
+ 
++static char *tmpname;
++static FILE *tmpout;
++
++/* If something bad happens during -o operation, delete temp file */
++static void cleanup_tmpname(void)
++{
++	if (tmpout)
++		fclose(tmpout);
++	unlink(tmpname);
++}
++
+ int iconv_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
+ int iconv_main(int argc, char **argv)
+ {
+ 	const char *fromcode = "", *tocode = "", *outfile;
+-	char *tmpname = NULL;
+ 	int i, opt;
+ 	iconv_t cd;
+ 	FILE *in;
+@@ -1736,12 +1746,6 @@
+ 		return 0;
+ 	}
+ 
+-	if (opt & OPT_o) {
+-		tmpname = xasprintf("%sXXXXXX", outfile);
+-		mktemp(tmpname);
+-		out = xfopen(tmpname, "wb");
+-	}
+-
+ 	if (opt & OPT_c)
+ 		tocode = xasprintf("%s//IGNORE", tocode);
+ 
+@@ -1749,6 +1753,15 @@
+ 	if (cd == (iconv_t)(-1))
+ 		bb_perror_msg_and_die("iconv_open error");
+ 
++	if (opt & OPT_o) {
++		int fd;
++
++		tmpname = xasprintf("%sXXXXXX", outfile);
++		fd = xmkstemp(tmpname);
++		die_func = cleanup_tmpname;
++		out = tmpout = xfdopen_for_write(fd);
++	}
++
+ 	if (optind == argc)
+ 		argv[argc++] = (char *)"-";
+ 
+@@ -1762,6 +1775,7 @@
+ 	}
+ 
+ 	if (tmpname) {
++		tmpout = NULL;
+ 		fclose(out);
+ 		xrename(tmpname, outfile);
+ 	}

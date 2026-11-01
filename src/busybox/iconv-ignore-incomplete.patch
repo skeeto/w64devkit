@@ -1,0 +1,31 @@
+Keep a character split across iconv input blocks when ignoring errors.
+With //IGNORE, as iconv -c adds, iconv() treated every failure from the
+input decoder as an invalid byte to skip, including EINVAL, which means
+only that the buffer ends inside a character. process_file() reads the
+input in blocks of BUFSIZ bytes, so a multibyte character that fell
+across a block boundary lost its first part as "invalid", and its
+remaining bytes were then discarded too at the start of the next block:
+iconv -c -f UTF-8 silently dropped such characters, and with UTF-16 a
+surrogate pair across a boundary shifted the rest of the input by a
+byte, garbling it. Return EINVAL to the caller even with //IGNORE, as
+glibc does, so that process_file() carries the partial character over
+to the next block. Input that really ends inside a character now fails
+with "Invalid argument" under -c too, as with GNU iconv, and so does
+input in a code page that mbcs_mblen() cannot measure, such as UTF-7,
+instead of being discarded entirely with status 0.
+
+---
+ miscutils/iconv.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/miscutils/iconv.c
++++ b/miscutils/iconv.c
+@@ -724,7 +724,7 @@
+ 		insize = cd->from.mbtowc(&cd->from, (const uchar *)*inbuf, *inbytesleft, wbuf, &wsize);
+ 		if (insize == -1)
+ 		{
+-			if (cd->to.flags & FLAG_IGNORE)
++			if ((cd->to.flags & FLAG_IGNORE) && errno != EINVAL)
+ 			{
+ 				cd->from.mode = frommode;
+ 				insize = 1;

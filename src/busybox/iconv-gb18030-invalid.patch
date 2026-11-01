@@ -1,0 +1,45 @@
+Report invalid GB18030 input as EILSEQ, not EINVAL, in iconv.
+mbcs_mblen() returned EINVAL for every GB18030 byte sequence it did not
+accept, whether the buffer was merely too short to hold the rest of a
+character or the bytes could never begin one. EINVAL means an
+incomplete character, so process_file() kept the bytes and read more:
+an invalid sequence failed with "conversion error: Invalid argument"
+only at end of file, and when 511 or more bytes followed it the full
+buffer was retried forever. Return EILSEQ for a lead byte outside 81-FE
+and for a second byte that starts neither a two-byte nor a four-byte
+character, and EINVAL only when the buffer ends before the character
+does. Invalid input now fails at once with "Illegal byte sequence", and
+-c discards it a byte at a time as for other encodings.
+
+---
+ miscutils/iconv.c |   16 +++++++++-------
+ 1 file changed, 9 insertions(+), 7 deletions(-)
+
+--- a/miscutils/iconv.c
++++ b/miscutils/iconv.c
+@@ -1034,16 +1034,18 @@
+ 	if (cv->codepage == 54936) {
+ 		if (buf[0] <= 0x7F)
+ 			len = 1;
+-		else if (buf[0] >= 0x81 && buf[0] <= 0xFE &&
+-				bufsize >= 2 &&
+-				((buf[1] >= 0x40 && buf[1] <= 0x7E) ||
+-				(buf[1] >= 0x80 && buf[1] <= 0xFE)))
++		else if (buf[0] < 0x81 || buf[0] > 0xFE)
++			return seterror(EILSEQ);
++		else if (bufsize < 2)
++			return seterror(EINVAL);
++		else if ((buf[1] >= 0x40 && buf[1] <= 0x7E) ||
++				(buf[1] >= 0x80 && buf[1] <= 0xFE))
+ 			len = 2;
+-		else if (buf[0] >= 0x81 && buf[0] <= 0xFE &&
+-				bufsize >= 4 &&
+-				buf[1] >= 0x30 && buf[1] <= 0x39)
++		else if (buf[1] >= 0x30 && buf[1] <= 0x39)
+ 			len = 4;
+ 		else
++			return seterror(EILSEQ);
++		if (bufsize < len)
+ 			return seterror(EINVAL);
+ 		return len;
+ 	}

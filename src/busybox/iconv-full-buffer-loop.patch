@@ -1,0 +1,29 @@
+Stop iconv looping when no character fits in a full input buffer.
+process_file() treats EINVAL from iconv() as an incomplete character at
+the end of the buffer: it keeps the unconverted bytes, reads more and
+tries again, failing only at end of file. When the unconverted bytes
+fill the whole buffer, fread() is asked for zero bytes, so end of file
+is never reached and the same buffer is retried forever. This happens
+with a multibyte code page whose length function always reports EINVAL,
+as do the code pages with characters longer than two bytes that have no
+converter of their own, such as UTF-7 (65000): iconv -f 65000 hung on
+input of 512 bytes or more, while shorter input failed with "Invalid
+argument". Fail as at end of file when EINVAL comes with a full buffer,
+since no character can be that long.
+
+---
+ miscutils/iconv.c |    3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+--- a/miscutils/iconv.c
++++ b/miscutils/iconv.c
+@@ -1691,7 +1691,8 @@
+ 		r = iconv(cd, &pin, &inbytesleft, &pout, &outbytesleft);
+ 		fwrite(outbuf, 1, sizeof(outbuf) - outbytesleft, out);
+ 		if (r == (size_t)(-1) && errno != E2BIG &&
+-				(errno != EINVAL || feof(in)))
++				(errno != EINVAL || feof(in) ||
++				inbytesleft == sizeof(inbuf)))
+ 			bb_perror_msg_and_die("conversion error");
+ 		memmove(inbuf, pin, inbytesleft);
+ 		rest = inbytesleft;
