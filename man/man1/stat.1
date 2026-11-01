@@ -678,9 +678,9 @@ The target has forward slashes, and for an app execution alias it is the
 path of the executable.
 .PP
 The change time is the time the file was created.
-A time before 1970 or after the year 3000 prints in text as the Unix
-epoch, though with its own fraction of a second, and its seconds since
-1970 are still correct.
+A time before 1970 or after the year 3000 prints in text as its seconds
+since 1970, negative before it, a dot, and 9 digits of nanoseconds, with
+no offset from UTC.
 .PP
 Allocated sizes are space on disk.
 .B stat

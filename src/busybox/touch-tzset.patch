@@ -1,0 +1,27 @@
+Make touch -d and -t follow a change to TZ made in the shell.
+The Microsoft C runtime reads TZ at the first time conversion in a
+process and never again. touch is a NOFORK applet, so in the shell it
+runs in a process that may already have converted a time: after one
+touch -d, a later TZ=JST-9 touch -d, or an export of a new TZ, still
+read the time in the old zone.
+
+Call tzset() before converting the time, so the runtime reads TZ anew.
+
+---
+ coreutils/touch.c |    5 +++++
+ 1 file changed, 5 insertions(+)
+
+--- a/coreutils/touch.c
++++ b/coreutils/touch.c
+@@ -142,6 +142,11 @@
+ 		time_t t;
+ 		int check_dst;
+ 
++#if ENABLE_PLATFORM_MINGW32
++		/* The C runtime reads TZ only once, but touch is NOFORK:
++		 * the shell may have changed TZ since then. */
++		tzset();
++#endif
+ 		//memset(&tm_time, 0, sizeof(tm_time));
+ 		/* Better than memset: makes "HH:MM" dates meaningful */
+ 		time(&t);

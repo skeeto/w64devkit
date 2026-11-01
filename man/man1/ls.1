@@ -144,9 +144,8 @@ instead, with the zone as a signed offset from UTC such as
 and no fraction of a second.
 A time before 1970 or after the year 3000 is written as a number of
 seconds since the Unix epoch, negative before it, in place of the date,
-except with
-.BR \-\-full\-time ,
-which writes it as the Unix epoch.
+with or without
+.BR \-\-full\-time .
 .PP
 A symbolic link's name is followed by
 .B \->
@@ -161,8 +160,7 @@ starts with a line
 .IR n ,
 the allocated sizes of its entries added up and rounded up to a unit of
 1024 bytes.
-A directory that cannot be opened still gets the line, as
-.BR "total 0" .
+A directory that cannot be opened gets no such line.
 No such line comes before files named as operands.
 .SS Sorting
 Entries are sorted by name, comparing bytes, so that
@@ -188,7 +186,9 @@ cancel each other, so the last of those two given applies.
 .B \-r
 reverses the result.
 .B \-\-group\-directories\-first
-takes effect before any key.
+takes effect before any key, and
+.B \-r
+does not reverse it.
 .SH OPTIONS
 Options may be grouped, as in
 .BR \-lah ,
@@ -367,16 +367,14 @@ The number on a
 line has no decimal digit.
 .TP
 .B \-\-group\-directories\-first
-List directories before other entries.
-With
-.BR \-r ,
-they come last.
+List directories before other entries, even with
+.BR \-r .
 .TP
 .B \-S
 Sort by size, largest first.
 .TP
 .B \-X
-Sort by extension, which is the text of the name from its first dot
+Sort by extension, which is the text of the name from its last dot
 onward.
 Names with no dot come first.
 .TP

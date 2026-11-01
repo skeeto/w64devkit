@@ -1,0 +1,25 @@
+Use the runtime's daylight saving bias for the %z offset in strftime().
+The %z emulation took daylight saving time to be one hour ahead of
+standard time, but the C runtime's localtime() uses the bias in
+_dstbias, which comes from the Windows time zone. In a zone whose bias
+is not an hour, such as Lord Howe Island's 30 minutes, %z gave an offset
+that didn't match the local time printed beside it, as in date -R,
+date -Iseconds, and ls --full-time.
+
+Add _dstbias, which is negative, instead of subtracting 3600 seconds.
+
+---
+ win32/mingw.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/win32/mingw.c
++++ b/win32/mingw.c
+@@ -2228,7 +2228,7 @@
+ 			else if ( t[1] == 'z' ) {
+ 				_tzset();
+ 				if ( tm->tm_isdst >= 0 ) {
+-					int offset = (int)_timezone - (tm->tm_isdst > 0 ? 3600 : 0);
++					int offset = (int)_timezone + (tm->tm_isdst > 0 ? (int)_dstbias : 0);
+ 					int hr, min;
+ 
+ 					if ( offset > 0 ) {

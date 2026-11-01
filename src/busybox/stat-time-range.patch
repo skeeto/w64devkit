@@ -1,0 +1,45 @@
+Show a time that localtime() can't convert as seconds in stat.
+human_time() passed the result of localtime() straight to strftime().
+On Windows localtime() is a wrapper that substitutes the epoch for a
+time the C runtime can't convert, one before 1970 or after the year
+3000, so stat printed such a time as 1970-01-01 00:00:00 with the file's
+own fraction of a second. Elsewhere a NULL from localtime(), for a year
+that overflows an int, reached strftime().
+
+Use localtime_or_null() on Windows, and when there is no broken-down
+time print the seconds since the epoch and the nanoseconds, as coreutils
+stat does.
+
+---
+ coreutils/stat.c |   14 +++++++++++++-
+ 1 file changed, 13 insertions(+), 1 deletion(-)
+
+--- a/coreutils/stat.c
++++ b/coreutils/stat.c
+@@ -152,13 +152,25 @@
+ static const char *human_time(struct timespec *ts)
+ {
+ 	char fmt[sizeof("%Y-%m-%d %H:%M:%S.123456789 %z") + /*paranoia*/ 8];
++	struct tm *tm;
+ 
+ 	/* coreutils 6.3 compat */
+ #define buf bb_common_bufsiz1
+ 	setup_common_bufsiz();
+ 
++#if ENABLE_PLATFORM_MINGW32
++	/* localtime() would give the epoch for an invalid time */
++	tm = localtime_or_null(&ts->tv_sec);
++#else
++	tm = localtime(&ts->tv_sec);
++#endif
++	if (!tm) {
++		/* out of range: show seconds since the epoch, as coreutils does */
++		sprintf(buf, "%"LL_FMT"d.%09u", (long long)ts->tv_sec, (unsigned)ts->tv_nsec);
++		return buf;
++	}
+ 	sprintf(stpcpy(fmt, "%Y-%m-%d %H:%M:%S"), ".%09u %%z", (unsigned)ts->tv_nsec);
+-	strftime(buf, COMMON_BUFSIZE, fmt, localtime(&ts->tv_sec));
++	strftime(buf, COMMON_BUFSIZE, fmt, tm);
+ 	return buf;
+ #undef buf
+ }

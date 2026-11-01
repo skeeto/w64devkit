@@ -1,0 +1,63 @@
+Reject a date whose day the month lacks, or whose day or month is 0.
+validate_tm_time() let mktime() normalise the broken-down time, which
+silently moves such a date: date -d 2026-02-30 printed March 2, and in
+the digits-only form, whose fields parse_datestr() checks against their
+maximums only, touch -t 202603001200 set February 28 and month 00 meant
+December of the year before. The form with a UTC offset, which
+parse_datestr() converts with timegm(), moved 2026-02-30 10:00 +0000 to
+March 2 in the same way.
+
+In both places, before converting the time, normalise a copy of it at
+noon and report an invalid date if that changes the month. Noon keeps a
+seconds field of 60 and a daylight saving time change from moving the
+date, so 23:59:60 on the last day of a month is still accepted as
+before.
+
+---
+ libbb/time.c |   21 ++++++++++++++++++++-
+ 1 file changed, 20 insertions(+), 1 deletion(-)
+
+--- a/libbb/time.c
++++ b/libbb/time.c
+@@ -8,6 +8,21 @@
+  */
+ #include "libbb.h"
+ 
++static void check_month_day(const char *date_str, const struct tm *ptm)
++{
++	struct tm noon = *ptm;
++
++	/* mktime() or timegm() would carry a day the month lacks (Feb 30,
++	 * day 0) or month 0 into another month: reject those. Check at noon,
++	 * so that a leap second or a DST change can't move the date. */
++	noon.tm_hour = 12;
++	noon.tm_min = noon.tm_sec = 0;
++	noon.tm_isdst = -1;
++	if (mktime(&noon) != (time_t) -1L && noon.tm_mon != ptm->tm_mon) {
++		bb_error_msg_and_die(bb_msg_invalid_date, date_str);
++	}
++}
++
+ /* Returns 0 if the time structure contains an absolute UTC time which
+  * should not be subject to DST adjustment by the caller. */
+ int FAST_FUNC parse_datestr(const char *date_str, struct tm *ptm)
+@@ -54,6 +69,7 @@
+ # if ENABLE_FEATURE_TIMEZONE
+ 			if (strchr(fmt, 'z')) {
+ 				/* we have timezone offset: obtain Unix time_t */
++				check_month_day(date_str, ptm);
+ #if ENABLE_PLATFORM_MINGW32
+ 				ptm->tm_sec -= gmtoff;
+ #else
+@@ -281,7 +297,10 @@
+ 
+ time_t FAST_FUNC validate_tm_time(const char *date_str, struct tm *ptm)
+ {
+-	time_t t = mktime(ptm);
++	time_t t;
++
++	check_month_day(date_str, ptm);
++	t = mktime(ptm);
+ 	if (t == (time_t) -1L) {
+ 		bb_error_msg_and_die(bb_msg_invalid_date, date_str);
+ 	}

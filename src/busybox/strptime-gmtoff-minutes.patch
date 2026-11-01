@@ -1,0 +1,37 @@
+Parse the minutes of a %z time zone offset exactly in strptime().
+The code came from an old glibc that kept the offset in hundredths of an
+hour: it converted the minutes with mm*50/30, so an offset was truncated
+to a multiple of 36 seconds, and it refused offsets above 12 hours. So
+date -d '2026-10-19 12:00 +0001' was 36 seconds off, and +1300 and
++1400, which are in use, were invalid dates.
+
+Compute the offset in seconds directly, and drop the 12 hour limit, as
+current glibc does.
+
+---
+ win32/strptime.c |   12 +++---------
+ 1 file changed, 3 insertions(+), 9 deletions(-)
+
+--- a/win32/strptime.c
++++ b/win32/strptime.c
+@@ -463,17 +463,11 @@
+             else if (n != 4)
+               /* Only two or four digits recognized.  */
+               return NULL;
+-            else
+-              {
+-                /* We have to convert the minutes into decimal.  */
+-                if (val % 100 >= 60)
+-                  return NULL;
+-                val = (val / 100) * 100 + ((val % 100) * 50) / 30;
+-              }
+-            if (val > 1200)
++            else if (val % 100 >= 60)
++              /* Minutes valid range is 0 through 59.  */
+               return NULL;
+             if (gmtoff) {
+-              *gmtoff = (val * 3600) / 100;
++              *gmtoff = (val / 100) * 3600 + (val % 100) * 60;
+               if (neg)
+                 *gmtoff = -*gmtoff;
+             }

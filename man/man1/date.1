@@ -117,15 +117,13 @@ is
 .BI + hhmm
 or
 .BI \- hhmm
-for a UTC offset of up to 12 hours,
+for a UTC offset in hours and minutes,
 .BI + hh
 or
 .BI \- hh
 for whole hours, or
 .B Z
 for UTC.
-An offset is accurate to only 36 seconds, so minutes that are not a
-multiple of 3 are inexact.
 .TP
 \fB@\fIseconds\fR
 Seconds since 1970\-01\-01 00:00:00 UTC, as decimal digits with an
@@ -144,13 +142,12 @@ followed by an optional
 .BI . ss\fR.
 .I YY
 is the year within 50 years of the current year.
-Each field is checked against its maximum, so month 13 is an error, but
-month or day 00 is carried back into the previous year or month.
+Each field is checked against its range, so month 00 or 13 and day 00
+are errors.
 .PP
 A seconds field of 60 is carried into the next minute, and so is 61
 except in the digits-only form.
-A day that the month lacks, such as February 30, is carried into the
-next month.
+A day that the month lacks, such as February 30, is an error.
 An hour of 24 is an error.
 .PP
 .B \-D
@@ -337,9 +334,9 @@ truncated, for
 from 1 to 9.
 A larger
 .I n
-pads
+adds zeros after the 9 digits of
 .B %N
-on the left with zeros to
+to make
 .I n
 digits, and 0 means 9.
 .IP
@@ -457,9 +454,11 @@ is the same as
 No other conversion, flag, or field width is supported.
 If
 .I outfmt
-has one, or the result is longer than 1023 bytes,
+has one, or the result is longer than 1022 bytes,
 .B date
-prints an empty line and exits with status 0.
+reports
+.B "date: invalid format, or output too long"
+and exits with status 1.
 An empty
 .I outfmt
 also prints an empty line.
@@ -522,11 +521,10 @@ is an error, since it is read as
 with month 19.
 .B \-s 2010191234
 sets the same time.
-Such an operand is checked and reordered this way even with
+With
 .BR \-D ,
-before
 .I infmt
-reads it.
+reads such an operand instead.
 .SH OPTIONS
 Options may be grouped, as in
 .BR \-uR ,
@@ -704,7 +702,9 @@ Also a
 that matches no form, or is outside the supported range, reported as
 an invalid date; a
 .B \-r
-file that cannot be examined; and a clock that cannot be set.
+file that cannot be examined, or whose time is out of range; an
+.I outfmt
+that cannot be formatted; and a clock that cannot be set.
 .SH EXAMPLES
 Print the current time in UTC in ISO 8601 form:
 .PP
@@ -810,7 +810,7 @@ is a busybox extension.
 The output conversions are only those above.
 Others that GNU
 .B date
-has print an empty line, such as
+has are errors, such as
 .BR %C ,
 .BR %D ,
 .BR %F ,
@@ -827,7 +827,7 @@ has print an empty line, such as
 .BR %u ,
 and
 .BR %V ,
-as do the
+as are the
 .BR _ ,
 .BR 0 ,
 and
@@ -851,8 +851,8 @@ In the form with a
 the latest time is 3000\-12\-31 23:59:59 UTC.
 A file time outside the range, read with
 .BR \-r ,
-is taken to be the epoch, 1970\-01\-01 00:00:00 UTC, though with its own
-nanoseconds.
+is reported as
+\fBdate: time \(aq\fIseconds\fB\(aq is out of range\fR.
 .PP
 The names of the days and months are English whatever the system
 language, and

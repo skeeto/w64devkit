@@ -1,0 +1,28 @@
+Show an out-of-range time as seconds in ls --full-time too.
+ls --full-time falls back to seconds since the epoch when localtime()
+returns NULL, but on Windows localtime() is a wrapper that substitutes
+the epoch for a time the C runtime can't convert, one before 1970 or
+after the year 3000. So such a file was listed with the time 1970-01-01
+00:00:00 instead of its seconds, unlike the same file with plain -l.
+
+Use localtime_or_null(), which returns NULL for such a time.
+
+---
+ coreutils/ls.c |    5 +++++
+ 1 file changed, 5 insertions(+)
+
+--- a/coreutils/ls.c
++++ b/coreutils/ls.c
+@@ -656,7 +656,12 @@
+ 			 * we don't show fractional seconds.
+ 			 */
+ 			char buf[sizeof("YYYY-mm-dd HH:MM:SS TIMEZONE")];
++#if ENABLE_PLATFORM_MINGW32
++			/* localtime() would give the epoch for an invalid time */
++			struct tm *tm = localtime_or_null(&dn->dn_time);
++#else
+ 			struct tm *tm = localtime(&dn->dn_time);
++#endif
+ 			if (tm)
+ 				strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S %z", tm);
+ 			else /* out of range: show seconds since the epoch */

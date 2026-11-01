@@ -1,0 +1,32 @@
+Report a date output format that strftime() can't handle.
+date ignored the result of strftime(), so when it failed, date printed
+an empty line and exited with status 0. strftime() fails when the output
+doesn't fit in date's 1 KiB buffer, and the Microsoft C runtime also
+fails on any conversion it doesn't support, such as %F or %Q.
+
+Append a space to the format, so that a successful result is never
+empty, check for a zero length, and remove the space again. On failure
+report an error and exit with status 1.
+
+---
+ coreutils/date.c |    9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
+
+--- a/coreutils/date.c
++++ b/coreutils/date.c
+@@ -378,8 +378,13 @@
+ 		/* With no format string, just print a blank line */
+ 		date_buf[0] = '\0';
+ 	} else {
+-		/* Generate output string */
+-		strftime(date_buf, COMMON_BUFSIZE, fmt_dt2str, &tm_time);
++		/* Generate output string. The added space, removed below,
++		 * makes it nonempty, so a zero length means failure */
++		size_t len = strftime(date_buf, COMMON_BUFSIZE,
++				xasprintf("%s ", fmt_dt2str), &tm_time);
++		if (len == 0)
++			bb_simple_error_msg_and_die("invalid format, or output too long");
++		date_buf[len - 1] = '\0';
+ 	}
+ 	puts(date_buf);
+ 

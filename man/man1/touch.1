@@ -137,15 +137,13 @@ is
 .BI + hhmm
 or
 .BI \- hhmm
-for an offset from UTC of up to 12 hours,
+for an offset from UTC in hours and minutes,
 .BI + hh
 or
 .BI \- hh
 for whole hours, or
 .B Z
 for UTC.
-The offset is truncated to a multiple of 36 seconds, so minutes that are
-not a multiple of 3 are inexact.
 .TP
 \fB@\fIseconds\fR
 Seconds since 1970\-01\-01 00:00:00 UTC, as decimal digits with an
@@ -166,12 +164,10 @@ followed by an optional
 is the year within 50 years of the current year.
 .PP
 A month of 0 or 13, a day of 0 or 32, an hour of 24, and a minute of 60
-are errors, except that in the digits-only form a month or day of 00 is
-carried back into the previous year or month.
+are errors.
 A seconds field of 60 is carried into the next minute, and so is 61 in
 the forms with separators, but 61 is an error in the digits-only form.
-A day that the month lacks, such as February 30, is carried into the next
-month.
+A day that the month lacks, such as February 30, is an error.
 .PP
 A time without a zone is read in the local time zone, which is that of
 .BR TZ ,
@@ -302,8 +298,6 @@ When it is unset or empty, or contains a slash, such as
 .BR Europe/Paris ,
 or begins with a colon, the Windows time zone setting applies.
 Any other value is read in that format, however wrong.
-In the kit's shell a change may have no effect; see
-.BR NOTES .
 .PP
 Messages written to a console also depend on
 .BR BB_SKIP_ANSI_EMULATION ,
@@ -484,16 +478,6 @@ uses the shell's file mode creation mask, which the shell's
 command sets, and ignores
 .B BB_UMASK
 given on its command line.
-The C runtime reads
-.B TZ
-once per process, at the first time conversion, so once the shell has
-converted a time, as for an earlier
-.BR "touch \-d" ,
-a change to
-.BR TZ ,
-even on the command line, does not affect later
-.B touch
-commands in that shell.
 .SH SEE ALSO
 .BR busybox (1),
 .BR date (1),

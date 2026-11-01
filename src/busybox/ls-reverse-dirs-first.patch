@@ -1,0 +1,30 @@
+Keep directories first with ls -r --group-directories-first.
+sortcmp() applied -r to the directory-first comparison as well as to
+the sort key, so with -r the directories came last. GNU ls keeps them
+first and reverses only the order within each group.
+
+Return the directory-first result without inverting it.
+
+---
+ coreutils/ls.c |    3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+--- a/coreutils/ls.c
++++ b/coreutils/ls.c
+@@ -982,7 +982,7 @@
+ 	if (opt & OPT_dirs_first) {
+ 		dif = S_ISDIR(d2->dn_mode) - S_ISDIR(d1->dn_mode);
+ 		if (dif != 0)
+-			goto maybe_invert_and_ret;
++			return dif; /* -r doesn't put them last */
+ 	}
+ 
+ 	if (opt & OPT_S) { /* sort by size */
+@@ -1016,7 +1016,6 @@
+ 			dif = 1 | (int)((uoff_t)dif >> BITS_TO_SHIFT);
+ 		}
+ 	}
+- maybe_invert_and_ret:
+ 	return (opt & OPT_r) ? -(int)dif : (int)dif;
+ }
+ 

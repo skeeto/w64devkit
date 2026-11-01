@@ -1,0 +1,69 @@
+Don't print a "total" line for a directory ls can't open.
+scan_one_dir() returned NULL both for a directory it couldn't open and
+for an empty one, so with -l or -s ls followed the error message for an
+unreadable directory with "total 0", as if it had listed it.
+
+Return an empty vector for an empty directory, so that NULL means an
+error, and print the total only when there is a vector. Free the vector
+whether or not it has entries.
+
+---
+ coreutils/ls.c |   19 ++++++++-----------
+ 1 file changed, 8 insertions(+), 11 deletions(-)
+
+--- a/coreutils/ls.c
++++ b/coreutils/ls.c
+@@ -1042,7 +1042,7 @@
+ }
+ #endif
+ 
+-/* Returns NULL-terminated malloced vector of pointers (or NULL) */
++/* Returns NULL-terminated malloced vector of pointers (or NULL on error) */
+ static struct dnode **scan_one_dir(const char *path, unsigned *nfiles_p)
+ {
+ 	struct dnode *dn, *cur, **dnp;
+@@ -1107,19 +1107,15 @@
+ 	}
+ 	closedir(dir);
+ 
+-	if (dn == NULL)
+-		return NULL;
+-
+ 	/* now that we know how many files there are
+ 	 * allocate memory for an array to hold dnode pointers
++	 * (not NULL even for an empty dir: NULL means an error)
+ 	 */
+ 	*nfiles_p = nfiles;
+-	dnp = dnalloc(nfiles);
+-	for (i = 0; /* i < nfiles - detected via !dn below */; i++) {
++	dnp = xzalloc((nfiles + 1) * sizeof(dnp[0]));
++	for (i = 0; dn; i++) {
+ 		dnp[i] = dn;	/* save pointer to node in array */
+ 		dn = dn->dn_next;
+-		if (!dn)
+-			break;
+ 	}
+ 
+ 	return dnp;
+@@ -1168,7 +1164,8 @@
+ 		}
+ 		subdnp = scan_one_dir((*dn)->fullname, &nfiles);
+ #if ENABLE_DESKTOP
+-		if (option_mask32 & (OPT_s|OPT_l)) {
++		/* no total for a dir that could not be opened */
++		if (subdnp && (option_mask32 & (OPT_s|OPT_l))) {
+ 			if (option_mask32 & OPT_h) {
+ 				printf("total %-"HUMAN_READABLE_MAX_WIDTH_STR"s\n",
+ 					/* print size, no fractions, use suffixes */
+@@ -1199,9 +1196,9 @@
+ 					free(dnd);
+ 				}
+ 			}
+-			/* free the dnodes and the fullname mem */
+-			dfree(subdnp);
+ 		}
++		/* free the dnodes and the fullname mem */
++		dfree(subdnp);
+ 	}
+ }
+ 

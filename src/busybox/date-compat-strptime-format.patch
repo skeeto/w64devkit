@@ -1,0 +1,26 @@
+Don't reorder an all-digits date operand that -D FMT is to read.
+date reads an operand of digits only as MMDDhhmm[[CC]YY][.ss] and moves
+the year to the front for parse_datestr(). It did so even with -D, whose
+format reads the operand instead, so the operand reached strptime()
+scrambled: date -D %Y%m%d%H%M 202610191234 complained about the invalid
+date '123420261019', and digit counts other than 8, 10, and 12 were
+rejected before the format saw them.
+
+Skip the MMDDhhmm handling when -D is given.
+
+---
+ coreutils/date.c |    3 +++
+ 1 file changed, 3 insertions(+)
+
+--- a/coreutils/date.c
++++ b/coreutils/date.c
+@@ -210,6 +210,9 @@
+ 		if (date_str) {
+ #if ENABLE_FEATURE_DATE_COMPAT
+ 			int len = strspn(date_str, "0123456789");
++			if (opt & OPT_STR2DT) {
++				/* -D FMT says how to read it */
++			} else
+ 			if (date_str[len] == '\0'
+ 			 || (date_str[len] == '.'
+ 			    && isdigit(date_str[len+1])

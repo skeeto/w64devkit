@@ -1,0 +1,28 @@
+Sort ls -X by the text after the last dot, not the first.
+ls -X took a name's extension to start at its first dot, so f.a.c sorted
+by .a.c, before e.c, and c.tar.bz2 by .tar.bz2, after e.c. GNU ls, which
+-X imitates, takes the extension from the last dot, as the usual meaning
+of the word has it.
+
+Use strrchr() instead of strchrnul(), with no dot meaning an empty
+extension as before.
+
+---
+ coreutils/ls.c |    6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+--- a/coreutils/ls.c
++++ b/coreutils/ls.c
+@@ -996,8 +996,10 @@
+ 		dif = strverscmp(d1->name, d2->name);
+ 	} else
+ #endif
+-	if (opt & OPT_X) { /* sort by extension */
+-		dif = strcmp(strchrnul(d1->name, '.'), strchrnul(d2->name, '.'));
++	if (opt & OPT_X) { /* sort by extension, from the last dot */
++		const char *ext1 = strrchr(d1->name, '.');
++		const char *ext2 = strrchr(d2->name, '.');
++		dif = strcmp(ext1 ? ext1 : "", ext2 ? ext2 : "");
+ 	}
+ 	if (dif == 0) {
+ 		/* sort by name, use as tie breaker for other sorts */

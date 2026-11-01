@@ -1,0 +1,29 @@
+Report a date -r file time that localtime() can't convert.
+The Microsoft C runtime's localtime() returns NULL for a time before
+1970 or after the year 3000, and the localtime_r() wrapper substitutes
+the epoch for such a time. So date -r on a file with a modification time
+out of that range printed 1970-01-01 00:00:00 UTC, with the file's own
+nanoseconds, and exited with status 0.
+
+Check the time with localtime_or_null() and report it as out of range,
+with status 1, as GNU date does.
+
+---
+ coreutils/date.c |    6 ++++++
+ 1 file changed, 6 insertions(+)
+
+--- a/coreutils/date.c
++++ b/coreutils/date.c
+@@ -248,6 +248,12 @@
+ 		struct stat statbuf;
+ 		xstat(filename, &statbuf);
+ 		ts.tv_sec = statbuf.st_mtime;
++#if ENABLE_PLATFORM_MINGW32
++		/* localtime_r() would give the epoch for an invalid time */
++		if (localtime_or_null(&ts.tv_sec) == NULL)
++			bb_error_msg_and_die("time '%"LL_FMT"d' is out of range",
++					(long long)ts.tv_sec);
++#endif
+ #if ENABLE_FEATURE_DATE_NANO
+ 		ts.tv_nsec = statbuf.st_mtim.tv_nsec;
+ 		/* Some toolchains use .st_mtimensec instead of st_mtim.tv_nsec.

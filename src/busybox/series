@@ -236,3 +236,16 @@ mingw-getgrnam.patch
 chmod-check-mode-first.patch
 chmod-report-stored-mode.patch
 chmod-verbose-retained.patch
+strptime-gmtoff-minutes.patch
+date-reject-invalid-day.patch
+touch-tzset.patch
+date-format-error.patch
+date-compat-strptime-format.patch
+date-nanoseconds-width.patch
+strftime-dst-bias.patch
+date-reference-range.patch
+ls-full-time-range.patch
+ls-no-total-on-open-error.patch
+ls-sort-extension-last-dot.patch
+ls-reverse-dirs-first.patch
+stat-time-range.patch

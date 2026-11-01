@@ -1,0 +1,26 @@
+Pad %nN on the right, not the left, when n is more than 9.
+date printed %nN with n > 9 as the nanoseconds zero-padded on the left
+to n digits, so %12N gave 000123456789, which reads as a different
+fraction of a second. GNU date pads on the right, giving 123456789000.
+
+Print the 9 digits followed by zeros.
+
+---
+ coreutils/date.c |    5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+--- a/coreutils/date.c
++++ b/coreutils/date.c
+@@ -369,8 +369,11 @@
+ 
+ 			m = p - fmt_dt2str;
+ 			p += n + 1;
+-			fmt_dt2str = xasprintf("%s%0*u%s", fmt_dt2str, pres, (unsigned)ts.tv_nsec / scale, p);
++			/* More than 9 digits: pad on the right with zeros */
++			n = pres < 9 ? pres : 9;
++			fmt_dt2str = xasprintf("%s%0*u%*s%s", fmt_dt2str, n, (unsigned)ts.tv_nsec / scale, (int)(pres - n), "", p);
+ 			p = fmt_dt2str + m;
++			memset(p - 1 + n, '0', pres - n);
+ 		}
+ 	}
+ #endif
