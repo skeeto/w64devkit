@@ -175,3 +175,8 @@ applet-exit-flush-check.patch
 fflush-all-exit-status.patch
 diff-write-error-status.patch
 basename-write-error.patch
+fcntl-bad-fd.patch
+printf-write-error.patch
+printf-star-c.patch
+printf-star-invalid-status.patch
+echo-upper-e-option.patch

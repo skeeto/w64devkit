@@ -1,0 +1,25 @@
+Make echo -E turn off escape interpretation.
+echo accepted -E but did nothing with it, so it did not cancel an
+earlier -e: "echo -e -E 'a\tb'" and "echo -eE 'a\tb'" wrote a tab,
+where bash and coreutils write the backslash and the t. The last of -e
+and -E should win.
+
+Clear the escape flag on -E.
+
+---
+ coreutils/echo.c |    4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+--- a/coreutils/echo.c
++++ b/coreutils/echo.c
+@@ -117,7 +117,9 @@
+ 				n = 0;
+ 			else if (*arg == 'e')
+ 				e = '\\';
+-			else if (*arg != 'E') {
++			else if (*arg == 'E')
++				e = 0;
++			else {
+ 				/* "-ccc" arg with one of c's invalid, echo it */
+ 				/* arg consisting from just "-" also handled here */
+ 				goto just_echo;

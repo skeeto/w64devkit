@@ -1,4 +1,4 @@
-.TH ECHO 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH ECHO 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 echo \- write arguments to standard output
 .SH SYNOPSIS
@@ -132,13 +132,15 @@ Interpret backslash escape sequences, as described under
 .B \-E
 Do not interpret backslash escape sequences.
 This is the default.
-It does not cancel an earlier
-.BR \-e :
-both
-.B "echo \-e \-E"
+The last of
+.B \-e
 and
+.B \-E
+wins:
+.B "echo \-e \-E"
+writes backslashes as they are, and
 .B "echo \-E \-e"
-interpret escapes.
+interprets them.
 .SH ENVIRONMENT
 .TP
 .B BB_GLOBBING
@@ -253,11 +255,6 @@ $ printf \(aq%s\en\(aq \-n
 Differences from GNU
 .B echo
 and bash:
-.IP \(bu 2
-A later
-.B \-E
-does not turn off an earlier
-.BR \-e .
 .IP \(bu 2
 An octal value above 255 ends the escape sequence early instead of
 wrapping modulo 256.

@@ -1,4 +1,4 @@
-.TH PRINTF 1 2026-10-27 "w64devkit" "w64devkit Manual"
+.TH PRINTF 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 printf \- format and write data
 .SH SYNOPSIS
@@ -241,10 +241,6 @@ flag is given.
 .B c
 Write the first byte of the argument.
 An empty or missing argument writes a NUL octet.
-A
-.B *
-width or precision does not work here: the byte's value becomes the width
-or precision, and an unpredictable byte is written in its place.
 .TP
 .B s
 Write the argument.
@@ -381,8 +377,7 @@ optionally preceded by a minus sign.
 White space, a plus sign, a
 .B 0x
 prefix, or a quote makes it invalid.
-An invalid one is reported the same way and is 0, but does not change the
-exit status.
+An invalid one is reported the same way and is 0.
 A missing one is 0 without a message.
 A negative precision counts as none.
 .SH OPTIONS
@@ -452,8 +447,8 @@ Success, including output stopped by
 .BR \ec .
 .TP
 .B 1
-An argument was not a valid number, or a conversion specification was
-not valid.
+An argument was not a valid number, a conversion specification was
+not valid, or the output could not be written.
 This is the status even if
 .B \ec
 stopped the output later.
@@ -635,7 +630,13 @@ for CR LF.
 Output is written in blocks: one at the end of each pass through the
 format, or sooner when a newline arrives with more than 40 bytes
 pending.
-A write error is not detected, except that a closed pipe ends
+A write error, such as a full disk, is reported once, as
+.B "printf: write error:"
+and the reason, and makes the exit status 1.
+When standard output is closed,
+.B printf
+writes nothing and exits with status 1.
+A closed pipe ends
 .B printf
 with status 141.
 Error messages are not buffered, so when standard output and standard
@@ -678,13 +679,6 @@ from the ANSI code page, which is UTF-8 on Windows 10 version 1903 and
 later.
 Escape sequences, such as those for color, take effect, and busybox
 emulates them on consoles without virtual terminal support.
-A block of output that contains a NUL octet, from
-.BR \e0 ,
-.BR \ex00 ,
-or
-.BR %c ,
-is written to a console unconverted and without escape sequence
-emulation.
 .SH SEE ALSO
 .BR busybox (1),
 .BR echo (1),

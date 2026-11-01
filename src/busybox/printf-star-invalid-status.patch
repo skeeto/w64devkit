@@ -1,0 +1,47 @@
+Exit with status 1 on an invalid * width or precision in printf.
+get_width_prec() reported an invalid width or precision argument but
+left the error in errno, and print_direc() clears errno before the
+conversion, so the error never reached the exit status: "printf '%*d'
+x 5" said "invalid number 'x'" and exited with status 0. Invalid
+numbers in other arguments exit with status 1, as in bash and
+coreutils.
+
+Record the error in conv_err directly.
+
+---
+ coreutils/printf.c |    7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+--- a/coreutils/printf.c
++++ b/coreutils/printf.c
+@@ -355,10 +355,11 @@
+ }
+ 
+ /* Handle params for "%*.*f". Negative numbers are ok (compat). */
+-static int get_width_prec(const char *str)
++static int get_width_prec(const char *str, int *conv_err)
+ {
+ 	int v = bb_strtoi(str, NULL, 10);
+ 	if (errno) {
++		*conv_err |= errno;
+ 		bb_error_msg("invalid number '%s'", str);
+ 		v = 0;
+ 	}
+@@ -401,7 +402,7 @@
+ 				++f;
+ 				++direc_length;
+ 				if (*argv)
+-					field_width = get_width_prec(*argv++);
++					field_width = get_width_prec(*argv++, conv_err);
+ 			} else {
+ 				while (isdigit(*f)) {
+ 					++f;
+@@ -415,7 +416,7 @@
+ 					++f;
+ 					++direc_length;
+ 					if (*argv)
+-						precision = get_width_prec(*argv++);
++						precision = get_width_prec(*argv++, conv_err);
+ 				} else {
+ 					while (isdigit(*f)) {
+ 						++f;

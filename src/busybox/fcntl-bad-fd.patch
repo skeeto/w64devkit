@@ -1,0 +1,29 @@
+Make fcntl(2) fail with EBADF on a descriptor that is not open.
+The emulated F_GETFD, F_SETFD, F_GETFL and F_SETFL commands returned 0
+for any descriptor, open or not. printf checks fcntl(1, F_GETFL) to
+refuse to run with standard output closed, so "printf hi >&-" in the
+shell went on to write into the closed descriptor and exited with
+status 0.
+
+Check the descriptor with _get_osfhandle() and fail with EBADF when it
+has no handle, as fcntl does on POSIX systems. The other callers either
+pass descriptors they have just opened or ignore the result.
+
+---
+ win32/mingw.c |    5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+--- a/win32/mingw.c
++++ b/win32/mingw.c
+@@ -2008,7 +2008,10 @@
+ 		 *    fcntl(fd, F_SETFL, ret|something);
+ 		 * because F_SETFL isn't supported either.
+ 		 */
+-		result = 0;
++		if ((HANDLE)_get_osfhandle(fd) == INVALID_HANDLE_VALUE)
++			errno = EBADF;
++		else
++			result = 0;
+ 		break;
+ 	case F_DUPFD:
+ 		target = va_arg(arg, int);

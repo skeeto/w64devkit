@@ -1,0 +1,52 @@
+Report write errors in printf.
+printf collects its output in a buffer and writes it with full_write(),
+but ignored the result, so a failed write went unnoticed: printf wrote
+nothing and exited with status 0 when standard output was a full disk
+or a descriptor that could not be written.
+
+Print a write error message on the first failed write and exit with
+status 1, as echo does.
+
+---
+ coreutils/printf.c |   15 ++++++++++++---
+ 1 file changed, 12 insertions(+), 3 deletions(-)
+
+--- a/coreutils/printf.c
++++ b/coreutils/printf.c
+@@ -156,11 +156,16 @@
+ static int buflen = 0;
+ static int bufmax = 0;
+ static char *buffer = NULL;
++static int write_err = 0;
+ 
+ static void my_flush(void)
+ {
+-	if (buffer)
+-		full_write(STDOUT_FILENO, buffer, buflen);
++	if (buffer && full_write(STDOUT_FILENO, buffer, buflen) != buflen
++	 && !write_err
++	) {
++		bb_simple_perror_msg(bb_msg_write_error);
++		write_err = 1;
++	}
+ 	free(buffer);
+ 	buffer = NULL;
+ 	buflen = bufmax = 0;
+@@ -506,6 +511,9 @@
+ 	argv2 = argv + 1;
+ 
+ 	conv_err = 0;
++#if ENABLE_PLATFORM_MINGW32
++	write_err = 0;
++#endif
+ 	do {
+ 		argv = argv2;
+ 		argv2 = print_formatted(format, argv, &conv_err);
+@@ -520,5 +528,6 @@
+ 	*/
+ 
+ 	return (argv2 < argv) /* if true, print_formatted errored out */
+-		|| conv_err; /* print_formatted saw invalid number */
++		|| conv_err /* print_formatted saw invalid number */
++		IF_PLATFORM_MINGW32(|| write_err);
+ }

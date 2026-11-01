@@ -1,0 +1,34 @@
+Pass the * width and precision to the format for %c in printf.
+print_direc() passed only the character for %c, ignoring a width or
+precision taken from the arguments by *. The format then consumed the
+character as the width and read a missing argument as the character,
+which is undefined behaviour: "printf '[%*c]' 5 a" padded to 97
+columns and wrote an unpredictable byte instead of "    a".
+
+Pass the width and precision the way the other conversions do.
+
+---
+ coreutils/printf.c |   12 +++++++++++-
+ 1 file changed, 11 insertions(+), 1 deletion(-)
+
+--- a/coreutils/printf.c
++++ b/coreutils/printf.c
+@@ -275,7 +275,17 @@
+ 
+ 	switch (format[fmt_length - 1]) {
+ 	case 'c':
+-		printf(format, *argument);
++		if (!have_width) {
++			if (!have_prec)
++				printf(format, *argument);
++			else
++				printf(format, precision, *argument);
++		} else {
++			if (!have_prec)
++				printf(format, field_width, *argument);
++			else
++				printf(format, field_width, precision, *argument);
++		}
+ 		break;
+ 	case 'd':
+ 	case 'i':
