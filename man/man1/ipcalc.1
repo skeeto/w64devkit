@@ -1,4 +1,4 @@
-.TH IPCALC 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH IPCALC 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 ipcalc \- calculate IPv4 network settings from an address
 .SH SYNOPSIS
@@ -307,8 +307,9 @@ because the Winsock error code is passed to the C library's message
 table, which does not know it.
 .PP
 Output lines end with LF, not CRLF.
-A write error on standard output is not detected, so the exit status is
-still 0.
+An error writing standard output gives status 141 if it is a pipe whose
+reader has exited, and otherwise a message on standard error and status
+1.
 .SH SEE ALSO
 .BR busybox (1),
 .BR sh (1)

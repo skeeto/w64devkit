@@ -1,4 +1,4 @@
-.TH FACTOR 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH FACTOR 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 factor \- print the prime factors of integers
 .SH SYNOPSIS
@@ -101,6 +101,8 @@ Success, including an empty input, or a first argument of
 .TP
 .B 1
 An invalid number, with a usage message on standard error.
+Also an error writing standard output other than a closed pipe, which is
+reported on standard error.
 .TP
 .B 141
 Standard output is a pipe whose reader has exited, found when a write
@@ -165,10 +167,6 @@ different primes near 2^32, take seconds.
 Output lines end with LF, not CRLF.
 On standard input, a CR before the LF is removed, and a CR elsewhere is
 white space.
-.PP
-Write errors other than a closed pipe are ignored, and so is any error
-when the output buffer is flushed at exit: a short result written to a
-pipe whose reader has exited is lost, with status 0.
 .SH SEE ALSO
 .BR awk (1),
 .BR busybox (1),

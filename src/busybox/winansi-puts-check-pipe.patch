@@ -1,0 +1,25 @@
+Check the newline written by puts() for a broken pipe.
+winansi_puts() wrote the string with winansi_fputs(), which exits with
+status 141 when the output is a pipe whose reader has gone, but wrote
+the newline with the C runtime's own putchar(), whose failure was not
+checked. When writing the newline was what flushed the buffer and
+failed, the broken pipe only set the stream's error flag, and whoami,
+comm, grep and other applets that print with puts() carried on as if
+the write had succeeded. Write the newline with winansi_putchar().
+
+---
+ win32/winansi.c |    3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+--- a/win32/winansi.c
++++ b/win32/winansi.c
+@@ -852,7 +852,8 @@
+ 
+ int FAST_FUNC winansi_puts(const char *s)
+ {
+-	return (winansi_fputs(s, stdout) == EOF || putchar('\n') == EOF) ? EOF : 0;
++	return (winansi_fputs(s, stdout) == EOF ||
++				winansi_putchar('\n') == EOF) ? EOF : 0;
+ }
+ 
+ static sighandler_t sigpipe_handler = SIG_DFL;

@@ -189,17 +189,14 @@ or there was no
 .IR name .
 Also an invalid option, a
 .B \-o
-with no argument, or an invalid
+with no argument, an invalid
 .B \-o
-value.
+value, or an error writing standard output other than a closed pipe,
+which is reported on standard error.
 .TP
 .B 141
 Standard output is a pipe that was closed before all the output was
 written.
-A closed pipe found only when
-.B pidof
-flushes its output at exit, as for a short list such as a single
-process ID, is not detected, and the status is 0.
 .PP
 An invalid option or a missing argument is reported on standard error,
 followed by the usage message.

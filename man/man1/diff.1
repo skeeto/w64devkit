@@ -393,15 +393,11 @@ directory, or standard input compared with a directory.
 An operand does not exist, and
 .B \-N
 was not given.
+Also an error writing standard output other than a closed pipe, which is
+reported on standard error.
 .TP
 .B 141
 Standard output is a pipe whose reader has exited.
-Output is buffered, and a closed pipe found only by the final flush at
-exit, as with a short diff or the output of
-.B \-q
-or
-.BR \-s ,
-is ignored: the status is then the same as if the output had been written.
 .PP
 Messages about common subdirectories, files of different kinds, and
 skipped files do not change the status.

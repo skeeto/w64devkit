@@ -1,0 +1,22 @@
+Give status 2 when diff cannot write its output.
+diff sets its error status to 1 once its operands have been checked,
+and its buffered output was written at exit without a check, so a
+failed write gave status 1, which means the files differ, or was
+ignored. Flush stdout at the end with an error status of 2, as GNU diff
+uses for trouble.
+
+---
+ editors/diff.c |    4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+--- a/editors/diff.c
++++ b/editors/diff.c
+@@ -1108,5 +1108,7 @@
+ 			free(file[dir]);
+ 	}
+ 
+-	return exit_status;
++	/* A write error is trouble, not a difference */
++	xfunc_error_retval = 2;
++	fflush_stdout_and_exit(exit_status);
+ }

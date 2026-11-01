@@ -285,11 +285,13 @@ A message beginning with
 the usage message, or both are written to standard error.
 .TP
 .B 141
-With
+Standard output is a pipe whose reader has exited.
+.B watch
+notices when it next writes the clear-screen sequence, or, with
 .BR \-x ,
-a
+when a
 .B NOFORK
-applet wrote to standard output, a pipe whose reader had exited.
+applet writes to the pipe.
 .PP
 Otherwise
 .B watch
@@ -371,17 +373,8 @@ Windows
 function, so a period shorter than a millisecond does not wait.
 .PP
 .B watch
-does not check for errors writing its own output, so when standard
-output is a pipe whose reader has exited, it keeps running.
-The exception is a
-.B NOFORK
-applet run with
-.BR \-x ,
-which runs inside
-.BR watch :
-when it writes to such a pipe,
-.B watch
-exits with status 141.
+ignores errors writing its own output other than a pipe whose reader
+has exited, so it keeps running when standard output is closed.
 Ctrl+C is sent to every process attached to the console, so it also
 reaches a command that is running at that moment.
 .PP

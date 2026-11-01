@@ -1,0 +1,36 @@
+Check stdout for errors when an applet returns.
+When an applet's main function returned, run_applet_no_and_exit()
+exited and left the C runtime to flush stdout, which ignores errors.
+Output still buffered at that point, which is all of it unless it fills
+the buffer, could fail to be written without any sign. To a pipe whose
+reader had exited the status was the applet's own, usually 0, rather
+than 141, because the runtime's write bypasses the check in winansi.c;
+other errors, such as a closed descriptor or a full disk, were ignored.
+factor, ps, df, sum, comm, which, uptime, pgrep and many other applets
+were affected. Flush stdout with fflush_stdout_and_exit() instead, so a
+broken pipe gives status 141 and any other error a message and the
+applet's error status.
+
+---
+ libbb/appletlib.c |    6 ++++++
+ 1 file changed, 6 insertions(+)
+
+--- a/libbb/appletlib.c
++++ b/libbb/appletlib.c
+@@ -1236,10 +1236,16 @@
+ #  else
+ 	argc = string_array_len(argv);
+ #  endif
++#  if ENABLE_PLATFORM_MINGW32
++	/* The C runtime flushes stdout at exit without checking for errors,
++	 * and a broken pipe found then isn't seen by winansi.c: check here. */
++	fflush_stdout_and_exit(applet_main[applet_no](argc, argv));
++#  else
+ 	xfunc_error_retval = applet_main[applet_no](argc, argv);
+ 
+ 	/* Note: applet_main() may also not return (die on a xfunc or such) */
+ 	xfunc_die();
++#  endif
+ }
+ # endif /* NUM_APPLETS > 0 */
+ 

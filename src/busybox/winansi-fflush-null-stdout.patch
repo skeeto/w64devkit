@@ -1,0 +1,41 @@
+Flush stdout on its own first when flushing all streams.
+winansi_fflush(NULL) flushed every stream at once and, only if that
+reported a failure, used the last Windows error to decide whether
+stdout was a broken pipe. Not every C runtime reports one: Wine's
+fflush(NULL) returns 0 even when writing stdout failed, and when a
+failure is reported the last error may belong to another stream. The
+broken pipe was then missed. Under Wine, watch, which flushes with
+fflush_all() on each cycle, kept running forever with its output going
+nowhere, and a shell builtin or NOFORK applet writing to such a pipe
+got status 1 instead of 141. Flush stdout first, with its own check,
+then the other streams, and return failure if either failed.
+
+---
+ win32/winansi.c |   14 ++++++++++----
+ 1 file changed, 10 insertions(+), 4 deletions(-)
+
+--- a/win32/winansi.c
++++ b/win32/winansi.c
+@@ -952,12 +952,18 @@
+ 
+ int FAST_FUNC winansi_fflush(FILE *stream)
+ {
+-	int ret;
++	int ret = 0;
+ 
+-	/* fflush(NULL) doesn't say which stream failed: assume stdout */
++	/* fflush(NULL) doesn't say which stream failed, and may not report
++	 * a failure at all: flush stdout on its own first */
++	if (!stream)
++		ret = winansi_fflush(stdout);
+ 	SetLastError(0);
+-	if ((ret=fflush(stream)) == EOF)
+-		check_pipe(stream ? stream : stdout);
++	if (fflush(stream) == EOF) {
++		if (stream)
++			check_pipe(stream);
++		ret = EOF;
++	}
+ 	return ret;
+ }
+ 

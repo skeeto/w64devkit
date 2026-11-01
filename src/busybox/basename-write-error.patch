@@ -1,0 +1,20 @@
+Report a write error on standard output in basename.
+basename returned status 1 without a message when its output could not
+be written, while dirname and the other applets report "standard
+output" and the reason. Do the same.
+
+---
+ coreutils/basename.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/coreutils/basename.c
++++ b/coreutils/basename.c
+@@ -85,7 +85,7 @@
+ 		s[m++] = '\n';
+ 		/* NB: != is correct here: */
+ 		if (full_write(STDOUT_FILENO, s, m) != (ssize_t)m)
+-			return EXIT_FAILURE;
++			bb_simple_perror_msg_and_die(bb_msg_standard_output);
+ 	} while (opts && *argv);
+ 
+ 	return EXIT_SUCCESS;

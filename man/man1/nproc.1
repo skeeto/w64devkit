@@ -85,6 +85,12 @@ A message is written to standard error, followed by a usage message
 unless the cause is an invalid
 .B \-\-ignore
 number.
+Also an error writing standard output other than a closed pipe, which is
+reported on standard error.
+.TP
+.B 141
+Standard output is a pipe whose reader has exited.
+No message is printed.
 .SH EXAMPLES
 Run
 .B make

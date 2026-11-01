@@ -1,4 +1,4 @@
-.TH WHOIS 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH WHOIS 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 whois \- ask a whois server about a domain name
 .SH SYNOPSIS
@@ -216,12 +216,11 @@ The message is on standard error, prefixed with
 .BR whois: .
 Output already written stays, and the names after the failing query are
 not asked about.
+Also an error writing standard output other than a closed pipe, which is
+reported on standard error.
 .TP
 .B 141
 Writing to standard output failed because it is a pipe that was closed.
-Output to a pipe is buffered in 4 KiB blocks, and a failed write of the
-last block, at exit, is ignored, so a closed pipe gives status 0 when the
-output fits in one block.
 .SH EXAMPLES
 Look up a domain, and show how the query reached the registry:
 .PP

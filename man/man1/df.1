@@ -331,13 +331,12 @@ The first two end
 before it prints anything.
 After the others the remaining operands, drives, and folders are still
 reported.
+Also an error writing standard output other than a closed pipe, which is
+reported on standard error.
 .TP
 .B 141
-Standard output is a pipe whose reader has exited, and the output is
-longer than 4096 bytes.
+Standard output is a pipe whose reader has exited.
 No message is printed.
-Any other write error, including one on shorter output, is ignored and
-does not change the status.
 .PP
 An operand that does not exist or is on no volume in the list is
 reported on standard error as the first line below, and a drive or

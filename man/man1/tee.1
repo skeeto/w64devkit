@@ -1,4 +1,4 @@
-.TH TEE 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH TEE 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 tee \- copy standard input to standard output and to files
 .SH SYNOPSIS
@@ -136,7 +136,7 @@ An invalid option, a
 .I file
 could not be opened, standard input could not be read, or a write to a
 .I file
-failed.
+or to standard output failed.
 .TP
 .B 141
 Standard output, or a
@@ -173,11 +173,17 @@ tee: \fIfile\fR: I/O error
 for the first failing
 .I file
 only.
-A failed write to standard output, other than to a closed pipe, is not
-reported and does not affect the exit status, unless a
+A failed write to standard output, other than to a closed pipe, is
+treated the same way, and reported, if no write to a
 .I file
-operand is
-.BR \- .
+failed, as
+.PP
+.RS 4
+.EX
+tee: standard output: I/O error
+.EE
+.RE
+.PP
 A read error on standard input ends the input without a message.
 .SH EXAMPLES
 Save the output of a build and watch it at the same time:

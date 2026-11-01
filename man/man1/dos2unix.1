@@ -1,4 +1,4 @@
-.TH DOS2UNIX 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH DOS2UNIX 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 dos2unix, unix2dos \- convert text between DOS and Unix line endings
 .SH SYNOPSIS
@@ -119,9 +119,10 @@ for console output, are described in
 Success.
 .TP
 .B 1
-Invalid usage, or a
+Invalid usage, a
 .I file
-could not be opened, written, or replaced.
+could not be opened, written, or replaced, or standard output could not
+be written for a reason other than a closed pipe.
 .TP
 .B 141
 Standard output is a pipe that was closed before all output was written.
@@ -175,10 +176,6 @@ There is no option to write a new file or to keep the date.
 .PP
 Standard input and output are in binary mode, so line endings are
 exactly as described above.
-Without
-.I file
-operands, an error writing standard output is not reported, and the
-exit status is 0 unless the output was a closed pipe.
 .PP
 A converted
 .I file

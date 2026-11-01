@@ -1,0 +1,58 @@
+Report a write error when flushing a NOFORK applet's output.
+run_nofork_applet(), which runs NOFORK applets inside the shell, xargs
+and others, flushes the applet's output afterwards but ignored the
+result, and left stdout's error flag set. An applet that simply returns
+0 after printing, such as nproc, then exited with status 0 when its
+output could not be written, as with "nproc >&-" or a full disk. Report
+the error and give status 1 when the applet had otherwise succeeded,
+and clear the error flag so that the next applet run in the same
+process is not blamed for it. Flush the caller's own output before
+running the applet, so that a failure to write it, such as find's
+-print output before "-exec true", is left for the caller to report
+rather than blamed on the applet and then cleared.
+
+---
+ libbb/vfork_daemon_rexec.c |   18 ++++++++++++++++--
+ 1 file changed, 16 insertions(+), 2 deletions(-)
+
+--- a/libbb/vfork_daemon_rexec.c
++++ b/libbb/vfork_daemon_rexec.c
+@@ -101,11 +101,17 @@
+ 
+ int FAST_FUNC run_nofork_applet(int applet_no, char **argv)
+ {
+-	int rc, argc;
++	int rc, argc, caller_err;
+ 	struct nofork_save_area old;
+ 
+ 	save_nofork_data(&old);
+ 
++	/* Write out the caller's buffered output first: failing to write
++	 * it is the caller's error, not the applet's, and the caller must
++	 * still see it */
++	fflush_all();
++	caller_err = ferror(stdout);
++
+ 	logmode = LOGMODE_STDIO;
+ 	xfunc_error_retval = EXIT_FAILURE;
+ 	/* In case getopt() was already called:
+@@ -133,10 +139,18 @@
+ 		rc = applet_main[applet_no](argc, tmp_argv);
+ 
+ 		/* Important for shells: `which CMD` was failing */
+-		fflush_all();
++		if ((fflush_all() != 0 || (ferror(stdout) && !caller_err))
++		 && rc == 0
++		) {
++			bb_error_msg("%s: I/O error", bb_msg_standard_output);
++			rc = EXIT_FAILURE;
++		}
+ 	} else {
+ 		/* xfunc died in NOFORK applet */
+ 	}
++	/* Don't blame the next applet for this one's write error */
++	if (!caller_err)
++		clearerr(stdout);
+ 
+ 	/* Restoring some globals */
+ 	restore_nofork_data(&old);

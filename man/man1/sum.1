@@ -1,4 +1,4 @@
-.TH SUM 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH SUM 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 sum \- print a 16-bit checksum and block count of files
 .SH SYNOPSIS
@@ -125,13 +125,12 @@ was given.
 .B 1
 A file could not be opened or read, or the command line was invalid.
 An invalid option also prints a usage message on standard error.
+Also an error writing standard output other than a closed pipe, which is
+reported on standard error.
 .TP
 .B 141
 Standard output is a pipe whose reader exited before all output was
 written.
-If the pipe breaks only when the output still buffered at exit is
-written, or standard output fails in any other way, the status is not
-affected.
 .PP
 A file that cannot be opened is reported on standard error as
 .PP

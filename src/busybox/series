@@ -167,3 +167,11 @@ timeout-zero-no-limit.patch
 sleep-inf-exact.patch
 usleep-not-nofork-win32.patch
 ping-long-wait-timeout.patch
+winansi-puts-check-pipe.patch
+winansi-fflush-null-stdout.patch
+nofork-flush-status.patch
+fflush-stdout-and-exit-ferror.patch
+applet-exit-flush-check.patch
+fflush-all-exit-status.patch
+diff-write-error-status.patch
+basename-write-error.patch

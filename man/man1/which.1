@@ -1,4 +1,4 @@
-.TH WHICH 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.TH WHICH 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 which \- locate commands in PATH
 .SH SYNOPSIS
@@ -249,12 +249,11 @@ A command was not found, no command was given, or an option was
 unknown.
 For the last two, a usage message is printed on standard error.
 A command that is not found gets no message.
+Also an error writing standard output other than a closed pipe, which is
+reported on standard error.
 .TP
 .B 141
-Standard output is a pipe whose reader has exited, detected only when
-the output fills a buffer before
-.B which
-finishes.
+Standard output is a pipe whose reader has exited.
 No message is printed.
 .SH EXAMPLES
 Find a program:
@@ -356,8 +355,6 @@ Lines end with LF, not CRLF.
 When standard output is a console, the result is converted for display
 from the ANSI code page, which is UTF-8 on Windows 10 version 1903 and
 later.
-An error writing standard output gives no message and, except as
-described for status 141, does not change the exit status.
 .SH SEE ALSO
 .BR busybox (1),
 .BR sh (1)

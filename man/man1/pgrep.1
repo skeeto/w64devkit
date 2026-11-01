@@ -225,14 +225,12 @@ No process was selected,
 signaled none of them, or an error such as an invalid option,
 .IR ppid ,
 or regular expression.
+Also an error writing standard output other than a closed pipe, which is
+reported on standard error.
 .TP
 .B 141
 Standard output is a pipe that was closed before all the output was
 written.
-A closed pipe found only when
-.B pgrep
-flushes its output at exit, as for a short list such as a single
-process ID, is not detected, and the status is 0.
 .SH EXAMPLES
 List Vim processes with their names:
 .PP

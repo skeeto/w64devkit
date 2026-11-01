@@ -389,19 +389,15 @@ Success: the input was read to its end, even if it was empty.
 .B 1
 An invalid option or more than one operand, with a usage message on
 standard error.
-Also out of memory.
+Also out of memory, or an error writing standard output other than a
+closed pipe, which is reported on standard error when the input ends.
 .TP
 .B 141
 Standard output is a pipe that was closed while
 .B ts
 was writing to it.
 .PP
-A pipe is noticed only when a write to it fails.
-Output is buffered, so
-.B ts
-can finish with status 0 without noticing one.
-A read error is treated as the end of the input, and a write error
-other than a closed pipe is not reported.
+A read error is treated as the end of the input.
 .SH EXAMPLES
 Stamp the output of a build with the time of day:
 .PP

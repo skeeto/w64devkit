@@ -120,8 +120,12 @@ was given.
 An unknown option.
 A message naming the option, and then a usage message, are written to
 standard error.
-.PP
-An error writing standard output is not detected, and the status is 0.
+Also an error writing standard output other than a closed pipe, which is
+reported on standard error.
+.TP
+.B 141
+Standard output is a pipe whose reader has exited.
+No message is printed.
 .SH EXAMPLES
 Show the time, the uptime, and the load:
 .PP

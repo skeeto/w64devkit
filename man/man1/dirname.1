@@ -133,14 +133,11 @@ Success.
 Invalid command line: no
 .IR path ,
 or more than one, with a usage message on standard error.
+Also an error writing standard output other than a closed pipe, such as
+a closed descriptor, which is reported on standard error.
 .TP
 .B 141
 Standard output is a pipe whose reader has exited.
-No message is printed.
-.TP
-.B 255
-Standard output could not be written, as when it is closed, and the
-result is shorter than 4096 bytes.
 No message is printed.
 .SH EXAMPLES
 Print the directory of a file:
@@ -215,10 +212,6 @@ There is no
 .BR \-z ,
 and no long option other than
 .BR \-\-help .
-.IP \(bu 2
-A write error gives no message.
-When the result is 4096 bytes or longer, a write error other than to a
-pipe whose reader has exited goes unreported, with status 0.
 .PP
 The wildcard expansion described under
 .B BB_GLOBBING

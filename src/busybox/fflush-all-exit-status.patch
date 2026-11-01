@@ -1,0 +1,83 @@
+Give status 1, not 255, when dirname, logname, pwd, seq or whoami fail.
+These applets end with "return fflush_all();", which returns EOF when
+the flush fails, so a write error gave status 255 and no message, and
+one that left nothing to flush gave status 0. Use
+fflush_stdout_and_exit_SUCCESS(), which reports the error and exits
+with status 1, and is safe in NOFORK applets. hostid has the same code.
+
+---
+ coreutils/dirname.c |    2 +-
+ coreutils/hostid.c  |    2 +-
+ coreutils/logname.c |    2 +-
+ coreutils/pwd.c     |    4 ++--
+ coreutils/seq.c     |    2 +-
+ coreutils/whoami.c  |    2 +-
+ 6 files changed, 7 insertions(+), 7 deletions(-)
+
+--- a/coreutils/dirname.c
++++ b/coreutils/dirname.c
+@@ -39,5 +39,5 @@
+ int dirname_main(int argc UNUSED_PARAM, char **argv)
+ {
+ 	puts(dirname(single_argv(argv)));
+-	return fflush_all();
++	fflush_stdout_and_exit_SUCCESS();
+ }
+--- a/coreutils/hostid.c
++++ b/coreutils/hostid.c
+@@ -38,5 +38,5 @@
+ 	/* POSIX says gethostid returns a "32-bit identifier" */
+ 	printf("%08x\n", (unsigned)(uint32_t)gethostid());
+ 
+-	return fflush_all();
++	fflush_stdout_and_exit_SUCCESS();
+ }
+--- a/coreutils/logname.c
++++ b/coreutils/logname.c
+@@ -53,7 +53,7 @@
+ 	/* Using _r function - avoid pulling in static buffer from libc */
+ 	if (getlogin_r(buf, sizeof(buf)) == 0) {
+ 		puts(buf);
+-		return fflush_all();
++		fflush_stdout_and_exit_SUCCESS();
+ 	}
+ 
+ 	bb_simple_perror_msg_and_die("getlogin");
+--- a/coreutils/pwd.c
++++ b/coreutils/pwd.c
+@@ -78,7 +78,7 @@
+ 		 */
+ 		unsigned opt = getopt32(argv, "LP");
+ 		if ((opt & 1) && logical_getcwd())
+-			return fflush_all();
++			fflush_stdout_and_exit_SUCCESS();
+ 	}
+ 
+ 	buf = xrealloc_getcwd_or_warn(NULL);
+@@ -86,7 +86,7 @@
+ 	if (buf) {
+ 		puts(buf);
+ 		free(buf);
+-		return fflush_all();
++		fflush_stdout_and_exit_SUCCESS();
+ 	}
+ 
+ 	return EXIT_FAILURE;
+--- a/coreutils/seq.c
++++ b/coreutils/seq.c
+@@ -138,5 +138,5 @@
+ 	if (n) /* if while loop executed at least once */
+ 		bb_putchar('\n');
+ 
+-	return fflush_all();
++	fflush_stdout_and_exit_SUCCESS();
+ }
+--- a/coreutils/whoami.c
++++ b/coreutils/whoami.c
+@@ -35,5 +35,5 @@
+ 	/* Will complain and die if username not found */
+ 	puts(xuid2uname(geteuid()));
+ 
+-	return fflush_all();
++	fflush_stdout_and_exit_SUCCESS();
+ }

@@ -77,9 +77,11 @@ Success.
 An argument other than a first
 .BR \-\-help ,
 or a failure to get the name.
+Also an error writing standard output other than a closed pipe, which is
+reported on standard error.
 .TP
-.B 255
-The output could not be written.
+.B 141
+Standard output is a pipe whose reader has exited.
 No message is printed.
 .PP
 A rejected argument is reported with a usage message on standard error.

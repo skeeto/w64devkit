@@ -255,19 +255,16 @@ was given.
 An invalid option, a missing argument to
 .BR \-o ,
 or an unknown column name.
-Also a failure to list the processes: if Windows refuses to supply the
-list,
+Also a failure to list the processes, or an error writing standard output
+other than a closed pipe, either reported on standard error.
+If Windows refuses to supply the list,
 .B ps
-prints the header and then the message
-.B "ps: can't list processes"
-on standard error.
+prints the header and then
+.BR "ps: can\(aqt list processes" .
 .TP
 .B 141
 Standard output is a pipe that was closed before all the output was
 written.
-A closed pipe found only when
-.B ps
-flushes its output at exit is not detected, and the status is 0.
 .SH EXAMPLES
 List the processes with the default columns:
 .PP

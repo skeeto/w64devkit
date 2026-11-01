@@ -1,0 +1,26 @@
+Make fflush_stdout_and_exit() check stdout's error flag.
+It is meant to exit with an error if stdout is in an error state, but
+it only checked the result of fflush(). When an earlier write had
+failed and left nothing in the buffer, fflush() succeeded and the
+applet exited with its normal status. That is always the case for an
+unbuffered stdout, so tee ignored every failed write to standard output
+unless "-" was also given as a file, and it happens with the Microsoft
+C runtime whenever a write goes straight to the file, as when standard
+output is a closed descriptor ("uname >&-" exited with status 0). Check
+ferror(stdout) as well.
+
+---
+ libbb/fflush_stdout_and_exit.c |    2 ++
+ 1 file changed, 2 insertions(+)
+
+--- a/libbb/fflush_stdout_and_exit.c
++++ b/libbb/fflush_stdout_and_exit.c
+@@ -15,6 +15,8 @@
+ {
+ 	if (fflush(stdout))
+ 		bb_simple_perror_msg_and_die(bb_msg_standard_output);
++	/* An earlier write may have failed with nothing left to flush */
++	die_if_ferror_stdout();
+ 	xfunc_error_retval = retval;
+ 	/* In case we are in NOFORK applet. Do not exit() directly,
+ 	 * but use xfunc_die() */
