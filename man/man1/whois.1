@@ -30,8 +30,9 @@ connects to the server over TCP, sends the
 .I name
 as given followed by CR LF, and reads the reply until the server closes
 the connection.
-A read error, such as a reset connection, ends the reply the same way,
-with no message.
+A read error, such as a reset connection, is an error, as described under
+.BR "EXIT STATUS" ,
+and the reply is not shown.
 Each
 .I name
 is a separate query.
@@ -61,14 +62,9 @@ The server is the rest of that line, without white space around it and in
 lowercase, and may carry a port as described for
 .BR \-h .
 .PP
-An empty server is followed too.
-IANA gives one for a top-level domain with no whois server.
-Windows resolves the empty name to an address of the local computer, so
-the query usually fails with
-.BR "can\(aqt connect to remote host" ,
-and without
-.B \-i
-no reply is shown.
+A line with nothing after the colon is skipped.
+IANA gives one for a top-level domain with no whois server, and then its
+reply is shown.
 .PP
 .B whois
 asks the new server about the same name on port 43, whatever
@@ -79,10 +75,10 @@ and its reply is shown.
 Other lines, such as
 .BR "Registrar WHOIS Server:" ,
 are not followed.
-There is no limit to the number of redirects, so servers that name each
-other make
+At most 10 redirects are followed, so servers that name each other do not
+make
 .B whois
-loop until it is interrupted.
+loop: the reply of the 11th server is shown as if it named no other.
 .SS Output
 For each query,
 .B whois
@@ -115,15 +111,12 @@ The text of a reply that names another server is not shown, except with
 .BR \-i .
 .PP
 Each line of the reply text ends with LF.
-A line ends at its first CR or LF, so text after a CR inside a line is
-lost.
-A line of 2046 bytes or more is broken after every 2046 bytes, each piece
-ended with LF, so a line of exactly 2046 bytes is followed by an empty one.
+A CR LF line end becomes LF, and a CR elsewhere in a line is kept.
 A last line with no line end gets one.
 .PP
 .B whois
-stops reading a reply after the line that brings it to 32768 bytes or
-more, closes the connection, and drops the rest.
+stops reading a reply once it has 32768 bytes or more, which can be in the
+middle of a long line, closes the connection, and drops the rest.
 .SH OPTIONS
 Options may be grouped, as in
 .BR \-ih ,
@@ -166,8 +159,7 @@ Connect to
 .I port
 on the first server.
 The default is 43.
-It is a number from 0 to 2147483647, and only its low 16 bits are used:
-65536 is port 0 and 70000 is port 4464.
+It is a number from 0 to 65535.
 It is not used for servers named by redirects.
 A service name is not accepted.
 .PP
@@ -211,9 +203,13 @@ was requested with
 .TP
 .B 1
 An invalid command line; a server that could not be resolved or whose
-port is invalid; or a connection that could not be made.
+port is invalid; a connection that could not be made; or a read error,
+such as a reset connection.
 The message is on standard error, prefixed with
 .BR whois: .
+A read error is reported as
+.BR "whois: read error: Invalid argument" ,
+a misleading reason.
 Output already written stays, and the names after the failing query are
 not asked about.
 Also an error writing standard output other than a closed pipe, which is

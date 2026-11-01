@@ -1,0 +1,26 @@
+Do not follow a whois referral that names no server.
+A "whois:" line with nothing after the colon set the redirect to an
+empty host name. IANA sends such a line for top-level domains without
+a whois server, so whois printed "[Redirected to ]", tried to connect
+to "", and failed with "bad address ''" (or connected to the local
+machine, depending on the resolver) without showing the reply. Skip an
+empty referral, so the reply is shown, or a later referral line is
+used.
+
+---
+ networking/whois.c |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+--- a/networking/whois.c
++++ b/networking/whois.c
+@@ -90,8 +90,8 @@
+ 				char *p = is_prefixed_with(linebuf, "whois server:");
+ 				if (!p)
+ 					p = is_prefixed_with(linebuf, "whois:");
+-				if (p)
+-					redir = xstrdup(skip_whitespace(p));
++				if (p && *(p = skip_whitespace(p)))
++					redir = xstrdup(p);
+ 			}
+ 		}
+ 	}

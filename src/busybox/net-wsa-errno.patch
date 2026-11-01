@@ -1,0 +1,73 @@
+Store the Winsock error in errno in the remaining socket wrappers.
+mingw_setsockopt, mingw_shutdown, mingw_listen and mingw_getpeername
+returned the Winsock failure without setting errno, unlike the other
+wrappers in net.c, so callers such as xlisten() reported whatever stale
+errno an earlier call had left. mingw_accept did not check accept() for
+INVALID_SOCKET at all: it passed it to _open_osfhandle, which failed,
+and printed "unable to make a socket file descriptor: Bad file
+descriptor" in place of the real reason. Set errno from
+WSAGetLastError() on failure in all five, and return -1 at once when
+accept() fails.
+
+---
+ win32/net.c |   25 +++++++++++++++++++++----
+ 1 file changed, 21 insertions(+), 4 deletions(-)
+
+--- a/win32/net.c
++++ b/win32/net.c
+@@ -211,21 +211,30 @@
+ mingw_setsockopt(int sockfd, int lvl, int optname, void *optval, int optlen)
+ {
+ 	SOCKET s = (SOCKET)_get_osfhandle(sockfd);
+-	return setsockopt(s, lvl, optname, (const char*)optval, optlen);
++	int res = setsockopt(s, lvl, optname, (const char*)optval, optlen);
++	if (res < 0)
++		errno = WSAGetLastError();
++	return res;
+ }
+ 
+ #undef shutdown
+ int FAST_FUNC mingw_shutdown(int sockfd, int how)
+ {
+ 	SOCKET s = (SOCKET)_get_osfhandle(sockfd);
+-	return shutdown(s, how);
++	int res = shutdown(s, how);
++	if (res < 0)
++		errno = WSAGetLastError();
++	return res;
+ }
+ 
+ #undef listen
+ int FAST_FUNC mingw_listen(int sockfd, int backlog)
+ {
+ 	SOCKET s = (SOCKET)_get_osfhandle(sockfd);
+-	return listen(s, backlog);
++	int res = listen(s, backlog);
++	if (res < 0)
++		errno = WSAGetLastError();
++	return res;
+ }
+ 
+ #undef accept
+@@ -236,6 +245,10 @@
+ 	SOCKET s1 = (SOCKET)_get_osfhandle(sockfd1);
+ 	SOCKET s2 = accept(s1, sa, sz);
+ 
++	if (s2 == INVALID_SOCKET) {
++		errno = WSAGetLastError();
++		return -1;
++	}
+ 	/* convert into a file descriptor */
+ 	if ((sockfd2 = _open_osfhandle((intptr_t)s2, O_RDWR|O_BINARY)) < 0) {
+ 		int err = errno;
+@@ -258,5 +271,9 @@
+ 		errno = EBADF;
+ 		return -1;
+ 	}
+-	return getpeername(sock, sa, sz);
++	if (getpeername(sock, sa, sz) != 0) {
++		errno = WSAGetLastError();
++		return -1;
++	}
++	return 0;
+ }

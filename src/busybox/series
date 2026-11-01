@@ -300,3 +300,14 @@ httpd-head-cgi-body.patch
 reuseaddr-port-hijack.patch
 gmtime-r-null.patch
 httpd-last-modified-range.patch
+net-wsa-errno.patch
+inet-aton-broadcast.patch
+hstrerror-wsa.patch
+nc-missing-port.patch
+whois-reply-lines.patch
+whois-empty-referral.patch
+whois-redirect-limit.patch
+whois-port-range.patch
+whois-read-error.patch
+socket-write-reset-errno.patch
+ping-ttl-range.patch

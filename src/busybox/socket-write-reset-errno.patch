@@ -1,0 +1,29 @@
+Report a reset connection instead of EINVAL when writing to a socket.
+Writes to a socket descriptor go through the C runtime's write(), which
+calls WriteFile on the socket handle. When the peer has reset the
+connection WriteFile fails with ERROR_NETNAME_DELETED, which the C
+runtime does not know and maps to EINVAL, so nc and other applets
+printed "write error: Invalid argument". When a write fails with that
+error on a pipe-type handle, which includes sockets, set errno to
+WSAECONNRESET, as the socket wrappers in net.c store Winsock codes, so
+the message becomes "write error: 10054: WSA error".
+
+---
+ win32/winansi.c |    6 ++++++
+ 1 file changed, 6 insertions(+)
+
+--- a/win32/winansi.c
++++ b/win32/winansi.c
+@@ -882,6 +882,12 @@
+ 			exit(128+SIGPIPE);
+ 		else /* SIG_IGN */
+ 			errno = EPIPE;
++	} else if (error == ERROR_NETNAME_DELETED &&
++			GetFileType((HANDLE)_get_osfhandle(fd)) == FILE_TYPE_PIPE) {
++		/* A socket whose connection was reset.  The C runtime maps
++		 * this error to EINVAL, so use the Winsock code, as the
++		 * socket functions do. */
++		errno = WSAECONNRESET;
+ 	}
+ }
+ 

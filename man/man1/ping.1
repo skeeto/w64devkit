@@ -213,9 +213,11 @@ interval.
 Set the time to live of IPv4 requests, from 1 to 255.
 It applies to requests sent to a multicast address too.
 The default, 0, leaves the Windows default.
-A value above 255 is ignored, and so is
+A value above 255 fails with
+\fBping: ttl \fIttl\fB out of range\fR
+and status 1.
 .B \-t
-for IPv6.
+is otherwise ignored for IPv6.
 .TP
 .BI "\-W " secs
 After the last of the
@@ -307,6 +309,11 @@ The message is on standard error, prefixed with
 .BR ping: ,
 as in
 .BR "ping: bad address \(aq\%example.invalid\(aq" .
+.TP
+.B 141
+Writing a reply line failed because standard output is a pipe that was
+closed; see
+.BR NOTES .
 .SH EXAMPLES
 Send two requests:
 .PP
@@ -414,20 +421,16 @@ To bound a run and still get statistics, use
 or
 .BR \-w .
 .PP
-A closed output pipe does not stop
-.BR ping .
-In
-.BR "ping \-c 5 host | head \-n 1" ,
-it goes on sending all five requests after
-.B head
-exits, and its exit status is the usual one, not 141.
-Without
-.B \-c
-or
-.BR \-w ,
-such a pipeline runs until
+A closed output pipe ends
 .B ping
-is interrupted.
+with status 141 the next time it writes a reply line, so in
+.B "ping \-c 5 host | head \-n 1"
+it exits at the second reply.
+Lines are written only for replies: with
+.BR \-q ,
+or while no replies arrive,
+.B ping
+goes on, and a failed write of the statistics at the end is ignored.
 .PP
 Round-trip times come from the Windows performance counter, so they
 are accurate to the microsecond.

@@ -1,0 +1,50 @@
+Give resolver errors a message instead of "Unknown error".
+hstrerror was defined as strerror, but on Windows h_errno is a Winsock
+error code such as WSAHOST_NOT_FOUND (11001), which the C runtime's
+strerror does not know, so bb_herror_msg() always ended in "Unknown
+error", as in "ipcalc: can't find hostname for 10.9.9.9: Unknown
+error". Add mingw_hstrerror, which maps the four resolver codes to the
+usual hstrerror messages.
+
+---
+ include/mingw.h |    3 ++-
+ win32/net.c     |   16 ++++++++++++++++
+ 2 files changed, 18 insertions(+), 1 deletion(-)
+
+--- a/include/mingw.h
++++ b/include/mingw.h
+@@ -282,7 +282,8 @@
+ /*
+  * sys/socket.h
+  */
+-#define hstrerror strerror
++const char *mingw_hstrerror(int err) FAST_FUNC;
++#define hstrerror mingw_hstrerror
+ 
+ #define SHUT_WR SD_SEND
+ 
+--- a/win32/net.c
++++ b/win32/net.c
+@@ -36,6 +36,22 @@
+ 	return 1;
+ }
+ 
++/* h_errno is a Winsock error code, which strerror() doesn't know */
++const char * FAST_FUNC mingw_hstrerror(int err)
++{
++	switch (err) {
++	case WSAHOST_NOT_FOUND:
++		return "Unknown host";
++	case WSATRY_AGAIN:
++		return "Host name lookup failure";
++	case WSANO_RECOVERY:
++		return "Unknown server error";
++	case WSANO_DATA:
++		return "No address associated with name";
++	}
++	return "Unknown resolver error";
++}
++
+ void init_winsock(void)
+ {
+ 	WSADATA wsa;

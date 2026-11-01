@@ -1,0 +1,22 @@
+Report a read error from the whois server.
+A read error, such as a connection reset by the server, ended the
+reply as if the server had closed the connection normally, so whois
+showed a truncated reply, or followed or skipped a redirect based on
+it, and exited with status 0. Check the stream's error indicator and
+die with "read error".
+
+---
+ networking/whois.c |    2 ++
+ 1 file changed, 2 insertions(+)
+
+--- a/networking/whois.c
++++ b/networking/whois.c
+@@ -97,6 +97,8 @@
+ 			}
+ 		}
+ 	}
++	if (ferror(fp))
++		bb_simple_perror_msg_and_die(bb_msg_read_error);
+ 	if (midline) {
+ 		/* end the last line */
+ 		buf = xrealloc(buf, bufpos + 2);

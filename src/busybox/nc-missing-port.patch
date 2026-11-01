@@ -1,0 +1,30 @@
+Fail early when nc is given no port to connect to.
+nc accepts a single HOST operand so that a port can be given as
+HOST:PORT, but when the host carried no port either, nc connected to
+port 0, which always fails, so "nc example.com" gave a confusing
+connection error such as "can't connect to remote host: Connection
+refused". Resolve the address first, and if it has no port, exit with
+"no port to connect to", as nc 1.10 does.
+
+---
+ networking/nc.c |    8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+--- a/networking/nc.c
++++ b/networking/nc.c
+@@ -221,8 +221,14 @@
+ 			if (!execparam)
+ 				close(sfd);
+ 		} else {
+-			cfd = create_and_connect_stream_or_die(argv[0],
++			len_and_sockaddr *lsa;
++
++			lsa = xhost2sockaddr(argv[0],
+ 				bb_lookup_port(argv[1], "tcp", 0));
++			/* neither a PORT operand nor HOST:PORT */
++			if (get_nport(&lsa->u.sa) == 0)
++				bb_simple_error_msg_and_die("no port to connect to");
++			cfd = xconnect_stream(lsa);
+ 		}
+ 	}
+ 

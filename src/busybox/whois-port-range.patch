@@ -1,0 +1,27 @@
+Reject a whois -p port above 65535.
+-p accepted any non-negative int and the connection used only its low
+16 bits, so "whois -p 65579" connected to port 43 while printing
+"[Querying host:65579 ...]". Parse it with xatou16.
+
+---
+ networking/whois.c |    6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+--- a/networking/whois.c
++++ b/networking/whois.c
+@@ -193,11 +193,13 @@
+ int whois_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
+ int whois_main(int argc UNUSED_PARAM, char **argv)
+ {
+-	int port = 43;
++	int port;
++	const char *str_p = "43";
+ 	const char *host = "whois.iana.org";
+ 
+-	getopt32(argv, "^" "ih:p:+" "\0" "-1", &host, &port);
++	getopt32(argv, "^" "ih:p:" "\0" "-1", &host, &str_p);
+ 	argv += optind;
++	port = xatou16(str_p);
+ 
+ 	do {
+ 		recursive_query(host, port, *argv);

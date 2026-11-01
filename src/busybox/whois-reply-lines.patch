@@ -1,0 +1,79 @@
+Keep whois reply lines whole.
+Each piece read by fgets was cut at its first CR or LF and given a new
+LF, so text after a CR in the middle of a line was dropped, and a line
+longer than the 2046-byte buffer was broken into 2046-byte lines, with
+an extra empty line when the line end came in a piece of its own (a
+line of exactly 2046 bytes, or 2046 bytes and CR LF). Keep the pieces
+of a long line together, replace only the line's own LF or CR LF with
+LF, even when the CR ends one piece and the LF starts the next, look
+for the "domain:" and "whois:" prefixes only at the start of a line,
+and end an unterminated last line once. A piece cut short by a NUL
+byte still ends the line, as before.
+
+---
+ networking/whois.c |   30 ++++++++++++++++++++++++------
+ 1 file changed, 24 insertions(+), 6 deletions(-)
+
+--- a/networking/whois.c
++++ b/networking/whois.c
+@@ -36,7 +36,7 @@
+ {
+ 	int fd;
+ 	FILE *fp;
+-	bool success;
++	bool success, midline;
+ 	char *redir = NULL;
+ 	const char *pfx = "";
+ 	/* some .io domains reported to have very long strings in whois
+@@ -53,21 +53,33 @@
+ 	fp = xfdopen_for_read(fd);
+ 
+ 	success = 0;
++	midline = 0;
+ 	while (bufpos < 32*1024 /* paranoia */
+ 	 && fgets(linebuf, sizeof(linebuf)-1, fp)
+ 	) {
+ 		unsigned len;
++		bool line_start = !midline;
+ 
+-		len = strcspn(linebuf, "\r\n");
+-		linebuf[len++] = '\n';
+-		linebuf[len] = '\0';
++		/* a line longer than linebuf comes in several pieces
++		 * (a shorter piece with no LF ends at EOF or at a NUL) */
++		len = strlen(linebuf);
++		midline = (len == sizeof(linebuf)-2 && linebuf[len-1] != '\n');
++		if (!midline && len != 0 && linebuf[len-1] == '\n')
++			len--;
+ 
+-		buf = xrealloc(buf, bufpos + len + 1);
++		buf = xrealloc(buf, bufpos + len + 2);
+ 		memcpy(buf + bufpos, linebuf, len);
+ 		bufpos += len;
++		if (!midline) {
++			/* end the line with LF in place of LF or CR LF,
++			 * even when the CR ended the previous piece */
++			if (bufpos != 0 && buf[bufpos-1] == '\r')
++				bufpos--;
++			buf[bufpos++] = '\n';
++		}
+ 		buf[bufpos] = '\0';
+ 
+-		if (!redir || !success) {
++		if (line_start && (!redir || !success)) {
+ 			trim(linebuf);
+ 			str_tolower(linebuf);
+ 			if (!success) {
+@@ -83,6 +95,12 @@
+ 			}
+ 		}
+ 	}
++	if (midline) {
++		/* end the last line */
++		buf = xrealloc(buf, bufpos + 2);
++		buf[bufpos++] = '\n';
++		buf[bufpos] = '\0';
++	}
+ 	fclose(fp); /* closes fd too */
+ 	if (!success && !pfx[0]) {
+ 		/*

@@ -1,0 +1,60 @@
+Parse inet_aton addresses without inet_addr.
+inet_aton was a wrapper around inet_addr, which returns INADDR_NONE
+both for an error and for 255.255.255.255, so that address was always
+rejected: "ipcalc -b 255.255.255.255", or 255.255.255.255 as a netmask,
+failed with "bad IP address" or "bad netmask". inet_addr also reads an
+operand of a single space as 0.0.0.0, which inet_aton accepted. Parse
+the address directly, in the traditional inet_aton format: one to four
+parts, each decimal, octal with a leading 0 or hexadecimal with 0x,
+where the last part fills the remaining bytes, optionally followed by
+white space and anything after it, as other inet_aton implementations
+allow.
+
+---
+ win32/net.c |   31 ++++++++++++++++++++++++++++---
+ 1 file changed, 28 insertions(+), 3 deletions(-)
+
+--- a/win32/net.c
++++ b/win32/net.c
+@@ -1,13 +1,38 @@
+ #include "libbb.h"
+ #include "mingw_ip.h"
+ 
++/* Not inet_addr(): it returns INADDR_NONE both for errors and for
++ * 255.255.255.255, and reads " " as 0.0.0.0. */
+ int FAST_FUNC inet_aton(const char *cp, struct in_addr *inp)
+ {
+-	unsigned long val = inet_addr(cp);
++	unsigned long long parts[4];
++	unsigned long val;
++	char *end;
++	int n = 0;
+ 
+-	if (val == INADDR_NONE)
++	for (;;) {
++		if (!isdigit(*cp))
++			return 0;
++		parts[n] = strtoull(cp, &end, 0);
++		cp = end;
++		if (*cp != '.' || n == 3)
++			break;
++		cp++;
++		n++;
++	}
++	if (*cp && !isspace(*cp))
+ 		return 0;
+-	inp->S_un.S_addr = val;
++
++	/* a.b.c.d, a.b.c (c is 16 bits), a.b (b is 24 bits) or a (32 bits) */
++	if (parts[n] > (0xffffffffUL >> (8 * n)))
++		return 0;
++	val = parts[n];
++	while (--n >= 0) {
++		if (parts[n] > 0xff)
++			return 0;
++		val |= (unsigned long)parts[n] << (8 * (3 - n));
++	}
++	inp->S_un.S_addr = htonl(val);
+ 	return 1;
+ }
+ 

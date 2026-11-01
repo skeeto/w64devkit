@@ -1,0 +1,21 @@
+Reject a ping -t TTL above 255.
+-t accepted any non-negative number, and the setsockopt(IP_TTL) and
+setsockopt(IP_MULTICAST_TTL) calls that apply it ignore failure, so a
+TTL above 255 was silently ignored and the requests went out with the
+default TTL. Exit with "ttl N out of range" instead.
+
+---
+ networking/ping.c |    2 ++
+ 1 file changed, 2 insertions(+)
+
+--- a/networking/ping.c
++++ b/networking/ping.c
+@@ -1037,6 +1037,8 @@
+ 			"\0" "=1:q--v:v--q",
+ 			&pingcount, &str_s, &opt_ttl, &G.deadline_us, &timeout, &str_I, &str_p, &str_i
+ 	);
++	if (opt_ttl > 255) // -t: setsockopt(IP_TTL) would fail
++		bb_error_msg_and_die("ttl %u out of range", opt_ttl);
+ 	if (opt & OPT_s)
+ 		datalen = xatou16(str_s); // -s
+ 	if (opt & OPT_I) { // -I

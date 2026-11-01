@@ -152,6 +152,10 @@ Success.
 .TP
 .B 1
 Wrong arguments, or a failure.
+.TP
+.B 141
+Standard output is a pipe whose reader has exited.
+No message is printed.
 .PP
 Wrong arguments are an unknown or ambiguous option, no option from
 .BR \-bnmph ,
@@ -167,7 +171,8 @@ or
 that cannot be read, a prefix that is not a number from 0 to 32, both a
 prefix and a
 .IR netmask ,
-or no host name for the address.
+no host name for the address, or an error writing standard output other
+than a closed pipe.
 It is reported on standard error as
 .PP
 .RS 4
@@ -249,9 +254,9 @@ $ ipcalc \-h 192.168.1.1
 .EE
 .RE
 .SH NOTES
-Addresses and netmasks are read by the Windows
-.B inet_addr
-function.
+Addresses and netmasks are read in the traditional
+.B inet_aton
+format.
 Besides four decimal parts, it accepts fewer parts, where the last part
 fills all the remaining bytes, so
 .B 10.1
@@ -269,17 +274,9 @@ so
 .B 010.010.010.010
 is
 .BR 8.8.8.8 .
-Everything from the first white-space character on is ignored, except
-that an operand of a single space reads as
-.BR 0.0.0.0 .
+Everything from the first white-space character on is ignored, but the
+operand must begin with a digit.
 Host names and IPv6 addresses are rejected, since only IPv4 is handled.
-.PP
-.B 255.255.255.255
-is rejected, as an address and as a netmask, because
-.B inet_addr
-returns that value to report an error.
-Write the prefix length instead, as in
-.BR 10.0.0.1/32 .
 .PP
 The prefix is decimal digits only, with no sign, space, or other
 characters, and leading zeros do not make it octal.
@@ -301,10 +298,8 @@ The host name is looked up with the Windows
 .B gethostbyaddr
 function, so it uses whatever the system resolver is configured to use,
 including the hosts file.
-Its failure message ends in
-.BR "Unknown error" ,
-because the Winsock error code is passed to the C library's message
-table, which does not know it.
+Its failure message ends with the resolver's reason, such as
+.BR "Unknown host" .
 .PP
 Output lines end with LF, not CRLF.
 An error writing standard output gives status 141 if it is a pipe whose

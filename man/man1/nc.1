@@ -47,9 +47,10 @@ This port must be a number.
 An IPv6 address with more than one colon is never split this way, so give
 it a port in brackets, as in
 .BR [::1]:80 .
-With no port at all,
+With no port at all, or port 0,
 .B nc
-tries port 0, and the connection fails.
+fails with
+.BR "nc: no port to connect to" .
 .SS Listening
 With
 .BR \-l ,
@@ -271,9 +272,9 @@ Microsoft's list of Windows Sockets error codes explains the numbers:
 10049 is an address that is not available here, 10060 a connection that
 timed out, and 10061 a connection refused.
 The address is shown only for IPv4.
-A failed write to the connection, as when the peer has gone, prints
-.BR "nc: write error: Invalid argument" ,
-a misleading reason.
+A failed write to the connection is reported the same way, as in
+.B "nc: write error: 10054: WSA error"
+when the peer has reset the connection.
 .PP
 The sending direction of the connection is shut down as soon as standard
 input ends.
@@ -302,7 +303,6 @@ from the ANSI code page, which is UTF-8 on Windows 10 version 1903 and
 later.
 Escape sequences, such as those for color, take effect, and busybox
 emulates them on consoles without virtual terminal support.
-A block of data that contains a NUL byte is written unconverted.
 .PP
 There is no connection timeout other than the one Windows applies.
 .SH SEE ALSO
