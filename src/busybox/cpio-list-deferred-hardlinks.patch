@@ -1,0 +1,25 @@
+List the empty names of a hard-linked file in cpio -t and -iv.
+An entry with a link count above 1 and no contents is put aside and
+created at the end, but its header action was never run, so cpio -t and
+cpio -iv left out every such name, which is all but one name of each
+hard-linked file that cpio -o writes. Run the header action when the
+entry is read, so it is listed in archive order.
+
+---
+ archival/libarchive/get_header_cpio.c |    4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+--- a/archival/libarchive/get_header_cpio.c
++++ b/archival/libarchive/get_header_cpio.c
+@@ -122,8 +122,10 @@
+ 		if (size == 0) {
+ 			new->next = archive_handle->cpio__hardlinks_to_create;
+ 			archive_handle->cpio__hardlinks_to_create = new;
++			/* It is created at the end, but list it now (cpio -t) */
++			if (archive_handle->filter(archive_handle) == EXIT_SUCCESS)
++				archive_handle->action_header(archive_handle);
+ 			return EXIT_SUCCESS; /* Skip this one */
+-			/* TODO: this breaks cpio -t (it does not show hardlinks) */
+ 		}
+ 		new->next = archive_handle->cpio__created_hardlinks;
+ 		archive_handle->cpio__created_hardlinks = new;

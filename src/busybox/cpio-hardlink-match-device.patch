@@ -1,0 +1,70 @@
+Match cpio hard links on extraction by device as well as inode.
+get_header_cpio() skipped the device numbers in the header and linked an
+empty hard-link entry to any earlier entry with the same inode number,
+as its TODO noted. Archives of several file systems have different files
+with the same inode, so a file got the contents of an unrelated one.
+Read the device major and minor numbers, keep them with each hard link,
+and compare them too.
+
+---
+ archival/libarchive/get_header_cpio.c |   19 ++++++++++++-------
+ 1 file changed, 12 insertions(+), 7 deletions(-)
+
+--- a/archival/libarchive/get_header_cpio.c
++++ b/archival/libarchive/get_header_cpio.c
+@@ -9,7 +9,8 @@
+ 
+ typedef struct hardlinks_t {
+ 	struct hardlinks_t *next;
+-	int inode; /* TODO: must match maj/min too! */
++	int inode;
++	int dev_major, dev_minor;
+ 	int mode ;
+ 	unsigned mtime; /* These three are useful only in corner case */
+ 	int uid  ; /* of hardlinks with zero size body */
+@@ -22,7 +23,7 @@
+ 	file_header_t *file_header = archive_handle->file_header;
+ 	char cpio_header[111];
+ 	int namesize;
+-	int major, minor, nlink, mode, inode;
++	int major, minor, nlink, mode, inode, dev_major, dev_minor;
+ 	unsigned size, uid, gid, mtime;
+ 
+ 	/* There can be padding before archive header */
+@@ -46,11 +47,11 @@
+ 	cpio_header[110] = '\0'; /* sscanf may call strlen which may break without this */
+ 	if (sscanf(cpio_header + 6,
+ 			"%8x" "%8x" "%8x" "%8x"
+-			"%8x" "%8x" "%8x" /*maj,min:*/ "%*16c"
++			"%8x" "%8x" "%8x" /*maj,min:*/ "%8x" "%8x"
+ 			/*rmaj,rmin:*/"%8x" "%8x" "%8x" /*chksum: "%*8c"*/,
+ 			&inode, &mode, &uid, &gid,
+-			&nlink, &mtime, &size,
+-			&major, &minor, &namesize) != 10)
++			&nlink, &mtime, &size, &dev_major, &dev_minor,
++			&major, &minor, &namesize) != 12)
+ 		bb_simple_error_msg_and_die("damaged cpio file");
+ 	file_header->mode = mode;
+ 	/* "cpio -R USER:GRP" support: */
+@@ -110,6 +111,8 @@
+ 	if (nlink > 1 && S_ISREG(file_header->mode)) {
+ 		hardlinks_t *new = xmalloc(sizeof(*new) + namesize);
+ 		new->inode = inode;
++		new->dev_major = dev_major;
++		new->dev_minor = dev_minor;
+ 		new->mode  = mode ;
+ 		new->mtime = mtime;
+ 		new->uid   = uid  ;
+@@ -169,8 +172,10 @@
+ 		/* Try to find a file we are hardlinked to */
+ 		cur = archive_handle->cpio__created_hardlinks;
+ 		while (cur) {
+-			/* TODO: must match maj/min too! */
+-			if (cur->inode == make_me->inode) {
++			if (cur->inode == make_me->inode
++			 && cur->dev_major == make_me->dev_major
++			 && cur->dev_minor == make_me->dev_minor
++			) {
+ 				file_header->link_target = cur->name;
+ 				 /* link_target != NULL, size = 0: "I am a hardlink" */
+ 				if (archive_handle->filter(archive_handle) == EXIT_SUCCESS)

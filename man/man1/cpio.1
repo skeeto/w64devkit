@@ -110,7 +110,9 @@ headers, which begin with
 .BR 070702 ,
 without checking the checksums.
 Other cpio formats are rejected.
-Leading slashes are removed from each name.
+Leading slashes and backslashes, and drives such as
+.BR C: ,
+are removed from each name.
 .PP
 With
 .I pattern
@@ -158,7 +160,8 @@ or later than the entry's, the file is kept, and for an entry that is not
 a directory the message
 .IB name " not created: newer or same age file exists"
 is printed.
-Otherwise the file is removed and replaced.
+Otherwise the file is removed and replaced, except that an existing
+directory is left in place.
 With
 .BR \-u ,
 it is removed regardless of its age, unless the entry is a directory,
@@ -177,8 +180,8 @@ A symbolic link is created as described in
 .IP \(bu 2
 A hard link, a regular file entry with a link count above 1 and no
 contents, is created after all other entries, as a link to the entry
-with the same inode number that has the contents, or as an empty file if
-there is none.
+with the same inode and device numbers that has the contents, or as an
+empty file if there is none.
 It fails if a
 .I pattern
 leaves out the entry with the contents.
@@ -267,7 +270,8 @@ With
 .BR \-i ,
 set the access and modification times of each extracted file and
 directory, but not symbolic link, to the archived modification time.
-A directory's times change again when files are extracted into it later.
+A directory's times are set after all other entries and links have been
+made.
 .TP
 .BR \-v ", " \-\-verbose
 With
@@ -279,7 +283,9 @@ print the name of each entry on standard output, or on standard error
 with
 .BR \-\-to\-stdout ,
 after processing it, including entries not created because a newer file
-exists, but not hard links without contents.
+exists.
+A hard link without contents is printed when it is read, though it is
+created at the end.
 Names are printed in the form of a plain
 .B \-t
 listing.
@@ -355,8 +361,9 @@ instead of lines.
 .B \-\-ignore\-devno
 With
 .BR \-o ,
-store device numbers as 0.
-Device numbers are always 0 on Windows, so this has no effect.
+store device numbers as 0, instead of the volume serial number
+described in
+.BR NOTES .
 .TP
 .B \-\-renumber\-inodes
 With
@@ -568,34 +575,13 @@ accepts only a colon between
 and
 .IR group ,
 not a period.
-.IP \(bu 2
-Neither
-.B \-t
-nor
-.B "\-i \-v"
-lists the names of a hard-linked file that have no contents.
-.PP
-Without
-.BR \-u ,
-extracting a directory entry where an older directory exists fails with
-.BR "can't remove old file" ,
-since removing a directory this way fails with
-.BR "Permission denied" .
-This includes the
-.B .\&
-entry written by
-.BR "find ." ,
-when the current directory is older.
-.B \-u
-avoids it.
 .PP
 Names are stored and extracted byte for byte: UTF-8 on Windows 10
 version 1903 and later, and the system code page on earlier versions.
 Backslashes are not converted to slashes.
-Names are not checked when extracting.
-A name with a drive letter, such as
-.IR C:/x ,
-a leading backslash, or
+Apart from removing leading slashes, backslashes, and drives, names are
+not checked when extracting.
+A name with
 .B ..\&
 components is extracted at that location, even outside the current
 directory, so list an archive from an untrusted source with
@@ -636,10 +622,10 @@ A file owned by the current user has user and group ID 4095.
 For a file of another owner the ID is 0, or the relative ID of the
 owner's account when that is from 500 to 4094.
 .IP \(bu 2
-Device numbers are 0.
+The device's major number is the volume serial number, and its minor
+number is 0.
 Inode numbers are the low 32 bits of the file index.
-Hard links are recognized by the whole file index alone, whatever the
-volume.
+Hard links are recognized by the file index and the volume.
 .IP \(bu 2
 Symbolic link targets are stored with slashes for backslashes.
 Junctions are stored as symbolic links to their absolute targets, such
@@ -663,14 +649,19 @@ It is a directory link only if its target is an existing directory when
 the link is made.
 A link whose target begins with
 .B /
+or
+.BR \e ,
+has a drive such as
+.BR C: ,
 or contains
 .BR .. ,
 or that cannot be made at once, is made after all other entries, and
 failing then ends the command with
 .BR "can't create symlink" .
 A link made after all other entries, symbolic or hard, is not made when
-a directory in its own name is missing, is a symbolic link or junction,
-or is not a directory: that fails with
+a directory in its own name, or for a hard link in its target, is
+missing, is a symbolic link or junction, or is not a directory: that
+fails with
 .BR "Not a directory" .
 .PP
 Standard input and output are in binary mode, so archives pass through

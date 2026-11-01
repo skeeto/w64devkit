@@ -1,0 +1,21 @@
+Keep the modification time of a cpio hard link as unsigned.
+The time of a hard-linked entry is kept in an int for links created at
+the end, so a time after 2038 became negative, and cpio -im set a date
+in 1901 on an empty hard-linked file. The header field is an unsigned
+32-bit number; store it as unsigned.
+
+---
+ archival/libarchive/get_header_cpio.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/archival/libarchive/get_header_cpio.c
++++ b/archival/libarchive/get_header_cpio.c
+@@ -11,7 +11,7 @@
+ 	struct hardlinks_t *next;
+ 	int inode; /* TODO: must match maj/min too! */
+ 	int mode ;
+-	int mtime; /* These three are useful only in corner case */
++	unsigned mtime; /* These three are useful only in corner case */
+ 	int uid  ; /* of hardlinks with zero size body */
+ 	int gid  ;
+ 	char name[1];

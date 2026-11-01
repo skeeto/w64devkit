@@ -1,0 +1,26 @@
+Don't try to unlink an older existing directory when extracting cpio.
+For a member whose name exists and is older, data_extract_all() calls
+unlink() and accepts EISDIR for a directory, which is what Linux
+returns. Windows returns EACCES instead, so a directory entry over an
+older existing directory, including "." from find ., ended cpio -i with
+"can't remove old file". Don't unlink an existing directory.
+
+---
+ archival/libarchive/data_extract_all.c |    6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+--- a/archival/libarchive/data_extract_all.c
++++ b/archival/libarchive/data_extract_all.c
+@@ -130,7 +130,11 @@
+ 			data_skip(archive_handle);
+ 			goto ret;
+ 		}
+-		else if ((unlink(dst_name) == -1) && (errno != EISDIR)) {
++		/* Don't try to unlink a directory: that fails with EISDIR
++		 * on Linux, but with other errors elsewhere, e.g. Windows */
++		else if (!S_ISDIR(existing_sb.st_mode)
++		 && unlink(dst_name) == -1
++		) {
+ 			bb_perror_msg_and_die("can't remove old file %s",
+ 					dst_name);
+ 		}

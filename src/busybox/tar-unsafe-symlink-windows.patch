@@ -1,0 +1,40 @@
+Defer symlinks to drive-letter and backslash targets on Windows.
+create_or_remember_link() created a symlink at once unless its target
+began with "/" or contained "..", so a link to C:/dir, C:dir or \dir was
+made immediately, and a later member such as link/file was written
+through it, outside the destination. Defer every link whose target is
+not a relative path. Likewise, all_dir_components_are_dirs() split the
+name of a deferred link on "/" only, so a deferred link named
+"link\name" was created through a deferred symlink "link" made just
+before it; split on backslashes as well.
+
+---
+ archival/libarchive/unsafe_symlink_target.c |    7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+--- a/archival/libarchive/unsafe_symlink_target.c
++++ b/archival/libarchive/unsafe_symlink_target.c
+@@ -12,7 +12,7 @@
+ {
+ #if ENABLE_PLATFORM_MINGW32
+ 	/* defer reporting error if symlink(2) fails on Windows */
+-	if (hard_link || target[0] == '/' || strstr(target, "..") ||
++	if (hard_link || !is_relative_path(target) || strstr(target, "..") ||
+ 			symlink(target, linkname) != 0) {
+ #else
+ 	if (hard_link || target[0] == '/' || strstr(target, "..")) {
+@@ -38,11 +38,12 @@
+ 	char *slash;
+ 
+ 	slash = path;
+-	while ((slash = strchr(slash, '/')) != NULL) {
++	while ((slash = strpbrk(slash, "/" IF_PLATFORM_MINGW32("\\"))) != NULL) {
++		char sep = *slash;
+ 		int ok;
+ 		*slash = '\0';
+ 		ok = (lstat(path, &sb) == 0 && S_ISDIR(sb.st_mode));
+-		*slash++ = '/';
++		*slash++ = sep;
+ 		if (!ok)
+ 			return 0;
+ 	}

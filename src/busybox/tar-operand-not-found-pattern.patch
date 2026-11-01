@@ -1,0 +1,40 @@
+Don't report a tar operand that selected members as not found.
+After reading the archive tar checked each operand by matching the names
+of the processed members as patterns against the operand, which is
+backwards: an operand with a wildcard such as 'd/*.c', or a directory
+such as 'd' with no member of its own, selected and extracted members
+and was then reported as "not found in archive", with exit status 1.
+Check instead whether the operand, as a pattern, matches any processed
+name, as the filter did.
+
+---
+ archival/tar.c |   15 +++++++++++----
+ 1 file changed, 11 insertions(+), 4 deletions(-)
+
+--- a/archival/tar.c
++++ b/archival/tar.c
+@@ -1308,13 +1308,20 @@
+ 
+ 	/* Check that every file that should have been extracted was */
+ 	while (tar_handle->accept) {
+-		if (!find_list_entry(tar_handle->reject, tar_handle->accept->data)
+-		 && !find_list_entry(tar_handle->passed, tar_handle->accept->data)
+-		) {
++		llist_t *next = tar_handle->accept->link;
++		const llist_t *p;
++
++		/* Did this pattern, by itself, select any member? */
++		tar_handle->accept->link = NULL;
++		for (p = tar_handle->passed; p; p = p->link) {
++			if (find_list_entry2(tar_handle->accept, p->data))
++				break;
++		}
++		if (!p && !find_list_entry(tar_handle->reject, tar_handle->accept->data)) {
+ 			bb_error_msg_and_die("%s: not found in archive",
+ 				tar_handle->accept->data);
+ 		}
+-		tar_handle->accept = tar_handle->accept->link;
++		tar_handle->accept = next;
+ 	}
+ 	if (ENABLE_FEATURE_CLEAN_UP /* && tar_handle->src_fd != STDIN_FILENO */)
+ 		close(tar_handle->src_fd);

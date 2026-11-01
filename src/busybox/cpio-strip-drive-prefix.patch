@@ -1,0 +1,28 @@
+Strip leading backslashes and drive prefixes from cpio names on Windows.
+get_header_cpio() removes leading slashes so that a name like /etc/x is
+extracted under the current directory, but on Windows \x, C:/x and C:x
+are just as absolute (C:x is relative to drive C's own current
+directory) and were extracted where they said. Strip any mix of leading
+separators and drive prefixes there.
+
+---
+ archival/libarchive/get_header_cpio.c |    8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+--- a/archival/libarchive/get_header_cpio.c
++++ b/archival/libarchive/get_header_cpio.c
+@@ -76,6 +76,14 @@
+ 		do p++; while (*p == '/');
+ 		overlapping_strcpy(file_header->name, p);
+ 	}
++#if ENABLE_PLATFORM_MINGW32
++	/* Likewise "\x", "C:/x", and "C:x" (relative to drive C's cwd) */
++	if (!is_relative_path(file_header->name)) {
++		char *p = file_header->name;
++		do p += has_dos_drive_prefix(p) ? 2 : 1; while (!is_relative_path(p));
++		overlapping_strcpy(file_header->name, p);
++	}
++#endif
+ 	archive_handle->offset += namesize;
+ 
+ 	/* Update offset amount and skip padding before file contents */

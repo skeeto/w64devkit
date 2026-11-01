@@ -1,0 +1,28 @@
+Refuse a deferred hard link whose target goes through a symlink.
+create_links_from_list() checks that the directories in a link's own
+name are real directories, so that an archive cannot place a link
+through a symlink it created, but not those in a hard link's target. An
+archive with a symlink "dir" to an outside directory, followed by a hard
+link to "dir/file", made the hard link to the outside file, which then
+could be read or changed in place through the extracted tree. Check the
+directories in the target of a hard link too.
+
+---
+ archival/libarchive/unsafe_symlink_target.c |    6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+--- a/archival/libarchive/unsafe_symlink_target.c
++++ b/archival/libarchive/unsafe_symlink_target.c
+@@ -72,7 +72,11 @@
+ 		// SYMLINK_OUTSIDE_EXTRACT_DIR/etc/passwd sort of thing.
+ 		// (Our delayed creation of symlinks is not defending against it,
+ 		// we could create SYMLINK_OUTSIDE_EXTRACT_DIR ourself!)
+-		if (!all_dir_components_are_dirs(linkname)) {
++		// The same goes for the target of a hardlink, which would
++		// otherwise link to a file outside, such as /etc/passwd.
++		if (!all_dir_components_are_dirs(linkname)
++		 || (list->data[0] && !all_dir_components_are_dirs(target))
++		) {
+ 			errno = ENOTDIR;
+ 			goto err;
+ 		}

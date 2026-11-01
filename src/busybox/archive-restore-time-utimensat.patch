@@ -1,0 +1,51 @@
+Restore archived modification times after 2038 on Windows.
+data_extract_all() set times with utimes(), whose struct timeval has a
+long tv_sec, which is 32 bits on Windows even with a 64-bit time_t, so
+tar -x and cpio -im set a time such as 2100-01-01 as a date in 1963.
+Use utimensat() and struct timespec, which carry a time_t, as touch
+does.
+
+---
+ archival/libarchive/data_extract_all.c      |    6 +++---
+ archival/libarchive/unsafe_symlink_target.c |    6 +++---
+ 2 files changed, 6 insertions(+), 6 deletions(-)
+
+--- a/archival/libarchive/data_extract_all.c
++++ b/archival/libarchive/data_extract_all.c
+@@ -271,7 +271,7 @@
+ 			chmod(dst_name, file_header->mode);
+ 		}
+ 		if (archive_handle->ah_flags & ARCHIVE_RESTORE_DATE) {
+-			struct timeval t[2];
++			struct timespec t[2];
+ 
+ 			if (S_ISDIR(file_header->mode)) {
+ 				/* Creating its contents would change its time,
+@@ -282,8 +282,8 @@
+ 				);
+ 			} else {
+ 				t[1].tv_sec = t[0].tv_sec = file_header->mtime;
+-				t[1].tv_usec = t[0].tv_usec = 0;
+-				utimes(dst_name, t);
++				t[1].tv_nsec = t[0].tv_nsec = 0;
++				utimensat(AT_FDCWD, dst_name, t, 0);
+ 			}
+ 		}
+ 	}
+--- a/archival/libarchive/unsafe_symlink_target.c
++++ b/archival/libarchive/unsafe_symlink_target.c
+@@ -105,11 +105,11 @@
+ 	for (list = start; list; list = list->link) {
+ 		if (list->data[0] == 2) {
+ 			char *name = list->data + 1;
+-			struct timeval t[2];
++			struct timespec t[2];
+ 
+ 			t[1].tv_sec = t[0].tv_sec = strtoll(name + strlen(name) + 1, NULL, 10);
+-			t[1].tv_usec = t[0].tv_usec = 0;
+-			utimes(name, t);
++			t[1].tv_nsec = t[0].tv_nsec = 0;
++			utimensat(AT_FDCWD, name, t, 0);
+ 		}
+ 	}
+ 	llist_rev(start);

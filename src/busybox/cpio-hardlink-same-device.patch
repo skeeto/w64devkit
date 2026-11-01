@@ -1,0 +1,54 @@
+Match hard links by device as well as inode in cpio -o.
+cpio -o collected the names of a multiply linked file by comparing inode
+numbers only, so two different files on different file systems with the
+same inode number were written as one file with several names, and on
+extraction one got the other's contents. Compare st_dev too. On Windows,
+where major() and minor() are 0, also write the volume serial number as
+the device's major number, so that the two files are not linked together
+again when the archive is extracted.
+
+---
+ archival/cpio.c |   18 +++++++++++++++---
+ 1 file changed, 15 insertions(+), 3 deletions(-)
+
+--- a/archival/cpio.c
++++ b/archival/cpio.c
+@@ -219,6 +219,16 @@
+ 	return size;
+ }
+ 
++#if ENABLE_PLATFORM_MINGW32
++/* major() and minor() are 0: store the volume serial number instead,
++ * so that files on different volumes are not taken for hard links */
++# define dev_major(dev) (dev)
++# define dev_minor(dev) 0
++#else
++# define dev_major(dev) major(dev)
++# define dev_minor(dev) minor(dev)
++#endif
++
+ /* Return value will become exit code.
+  * It's ok to exit instead of return. */
+ static NOINLINE int cpio_o(void)
+@@ -296,7 +306,9 @@
+ 						links = l;
+ 						break;
+ 					}
+-					if (l->st.st_ino == st.st_ino) {
++					if (l->st.st_ino == st.st_ino
++					 && l->st.st_dev == st.st_dev
++					) {
+ 						/* found */
+ 						break;
+ 					}
+@@ -373,8 +385,8 @@
+ 				(unsigned)(uint32_t) st.st_nlink,
+ 				(unsigned)(uint32_t) st.st_mtime,
+ 				(unsigned)(uint32_t) st.st_size,
+-				(unsigned)(uint32_t) major(st.st_dev),
+-				(unsigned)(uint32_t) minor(st.st_dev),
++				(unsigned)(uint32_t) dev_major(st.st_dev),
++				(unsigned)(uint32_t) dev_minor(st.st_dev),
+ 				(unsigned)(uint32_t) major(st.st_rdev),
+ 				(unsigned)(uint32_t) minor(st.st_rdev),
+ 				(unsigned)(strlen(name) + 1),

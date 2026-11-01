@@ -1,0 +1,59 @@
+Make tar -k skip existing files instead of aborting.
+With -k a regular file member was opened with O_EXCL, and the first one
+that existed ended the command with "can't open: File exists", so the
+remaining members, missing or not, were never extracted. Existing names
+for links failed the same way at the end. Add ARCHIVE_KEEP_OLD, set by
+-k, under which data_extract_all() reports "not created: file exists"
+for any existing name other than a directory, skips the member, and goes
+on.
+
+---
+ archival/libarchive/data_extract_all.c |   11 +++++++++++
+ archival/tar.c                         |    4 +++-
+ include/bb_archive.h                   |    1 +
+ 3 files changed, 15 insertions(+), 1 deletion(-)
+
+--- a/archival/libarchive/data_extract_all.c
++++ b/archival/libarchive/data_extract_all.c
+@@ -135,6 +135,17 @@
+ 					dst_name);
+ 		}
+ 	}
++	else if (archive_handle->ah_flags & ARCHIVE_KEEP_OLD) {
++		/* Keep an existing entry and go on with the others */
++		struct stat existing_sb;
++		if (!S_ISDIR(file_header->mode)
++		 && lstat(dst_name, &existing_sb) == 0
++		) {
++			bb_error_msg("%s not created: file exists", dst_name);
++			data_skip(archive_handle);
++			goto ret;
++		}
++	}
+ 
+ 	/* Handle hard links separately */
+ 	if (hard_link) {
+--- a/archival/tar.c
++++ b/archival/tar.c
+@@ -1115,8 +1115,10 @@
+ 		IF_FEATURE_TAR_TO_COMMAND(tar_handle->tar__to_command_shell = xstrdup(get_shell_name());)
+ 	}
+ 
+-	if (opt & OPT_KEEP_OLD)
++	if (opt & OPT_KEEP_OLD) {
+ 		tar_handle->ah_flags &= ~ARCHIVE_UNLINK_OLD;
++		tar_handle->ah_flags |= ARCHIVE_KEEP_OLD;
++	}
+ 
+ 	if (opt & OPT_NUMERIC_OWNER)
+ 		tar_handle->ah_flags |= ARCHIVE_NUMERIC_OWNER;
+--- a/include/bb_archive.h
++++ b/include/bb_archive.h
+@@ -150,6 +150,7 @@
+ #if ENABLE_RPM
+ #define ARCHIVE_REPLACE_VIA_RENAME  (1 << 9)
+ #endif
++#define ARCHIVE_KEEP_OLD            (1 << 10)
+ 
+ 
+ /* POSIX tar Header Block, from POSIX 1003.1-1990  */

@@ -1,0 +1,26 @@
+Strip an unsafe prefix again after tar --strip-components.
+Leading slashes and ".." components were removed from a member name
+before --strip-components removed its leading components, but not from
+what was left, so a member named "dir//etc/passwd" was extracted as
+"/etc/passwd", and on Windows "dir/C:/x" as "C:/x". A hard link's
+target was shortened the same way, so the link could be made to a file
+outside the current directory. Strip the name and the target again
+after removing the components.
+
+---
+ archival/libarchive/data_extract_all.c |    4 ++++
+ 1 file changed, 4 insertions(+)
+
+--- a/archival/libarchive/data_extract_all.c
++++ b/archival/libarchive/data_extract_all.c
+@@ -63,6 +63,10 @@
+ 				hard_link++;
+ 			}
+ 		} while (--n != 0);
++		/* What is left of "dir//etc/passwd" is absolute */
++		dst_name = (char *)skip_unsafe_prefix(dst_name);
++		if (hard_link)
++			hard_link = (char *)skip_unsafe_prefix(hard_link);
+ 	}
+ #endif
+ #if ENABLE_FEATURE_PATH_TRAVERSAL_PROTECTION

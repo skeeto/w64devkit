@@ -1,0 +1,92 @@
+Restore the modification times of extracted directories at the end.
+data_extract_all() set a directory's time when the directory entry was
+extracted, which comes before its contents, so creating the files and
+links in it changed the time again and tar and cpio -m never kept it.
+Like GNU tar, remember the time on the list of deferred links, and set
+it in create_links_from_list() after all links have been made. rpm -i
+never called create_links_from_list(), so it lost such times as well
+as the symbolic links that are deferred; call it there too.
+
+---
+ archival/libarchive/data_extract_all.c      |   15 ++++++++++++---
+ archival/libarchive/unsafe_symlink_target.c |   25 +++++++++++++++++++++++--
+ archival/rpm.c                              |    1 +
+ 3 files changed, 36 insertions(+), 5 deletions(-)
+
+--- a/archival/libarchive/data_extract_all.c
++++ b/archival/libarchive/data_extract_all.c
+@@ -273,9 +273,18 @@
+ 		if (archive_handle->ah_flags & ARCHIVE_RESTORE_DATE) {
+ 			struct timeval t[2];
+ 
+-			t[1].tv_sec = t[0].tv_sec = file_header->mtime;
+-			t[1].tv_usec = t[0].tv_usec = 0;
+-			utimes(dst_name, t);
++			if (S_ISDIR(file_header->mode)) {
++				/* Creating its contents would change its time,
++				 * so create_links_from_list() sets it at the end */
++				llist_add_to(&archive_handle->link_placeholders,
++					xasprintf("%c%s%c%"LL_FMT"d", 2, dst_name, '\0',
++						(long long)file_header->mtime)
++				);
++			} else {
++				t[1].tv_sec = t[0].tv_sec = file_header->mtime;
++				t[1].tv_usec = t[0].tv_usec = 0;
++				utimes(dst_name, t);
++			}
+ 		}
+ 	}
+ 
+--- a/archival/libarchive/unsafe_symlink_target.c
++++ b/archival/libarchive/unsafe_symlink_target.c
+@@ -62,10 +62,15 @@
+ 	//  mkdir new; tar cf - dir/a dir/b dir/c | tar -C new -xvf -
+ 	// On extract, 'c' will have no 'b' to be a hardlink to.
+ 
+-	while (list) {
++	llist_t *start = list;
++
++	for (; list; list = list->link) {
+ 		char *target;
+ 		char *linkname = list->data + 1;
+ 
++		if (list->data[0] == 2) /* a directory's time: see below */
++			continue;
++
+ 		target = linkname + strlen(linkname) + 1;
+ 
+ 		// Check whether the linkname has suspicious components:
+@@ -90,6 +95,22 @@
+ 			// Note: GNU tar 1.34 errors out only _after_ all links are (attempted to be) created
+ 			// We bail out at once
+ 		}
+-		list = list->link;
+ 	}
++
++	// Set the times of directories now that nothing more is created
++	// in them. data_extract_all() prepends them to the list: reverse
++	// it to set them in archive order, so that the last one wins,
++	// and then restore it.
++	start = llist_rev(start);
++	for (list = start; list; list = list->link) {
++		if (list->data[0] == 2) {
++			char *name = list->data + 1;
++			struct timeval t[2];
++
++			t[1].tv_sec = t[0].tv_sec = strtoll(name + strlen(name) + 1, NULL, 10);
++			t[1].tv_usec = t[0].tv_usec = 0;
++			utimes(name, t);
++		}
++	}
++	llist_rev(start);
+ }
+--- a/archival/rpm.c
++++ b/archival/rpm.c
+@@ -334,6 +334,7 @@
+ 	setup_unzip_on_fd(archive_handle->src_fd, /*die_if_not_compressed:*/ 1);
+ 	while (get_header_cpio(archive_handle) == EXIT_SUCCESS)
+ 		continue;
++	create_links_from_list(archive_handle->link_placeholders);
+ }
+ 
+ //usage:#define rpm_trivial_usage

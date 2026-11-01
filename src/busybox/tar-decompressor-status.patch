@@ -1,0 +1,62 @@
+Check the exit status of tar's decompressor on Windows.
+check_errors_in_children() was a no-op and fork_transformer() dropped
+the pid, so a decompressor that failed, for example on a bad CRC at the
+end of a gzip or bzip2 stream, was reported only by its own message, and
+tar exited 0. Keep the pid, and in check_errors_in_children() read what
+the decompressor still writes after the end of the archive, so that it
+can finish rather than block on a full pipe, wait for it, and fail if
+its status is not zero.
+
+---
+ archival/libarchive/open_transformer.c |   23 ++++++++++++++++++++++-
+ include/bb_archive.h                   |    4 ----
+ 2 files changed, 22 insertions(+), 5 deletions(-)
+
+--- a/archival/libarchive/open_transformer.c
++++ b/archival/libarchive/open_transformer.c
+@@ -152,9 +152,30 @@
+ 	xmove_fd(fd_pipe.rd, fd);
+ }
+ #else /* ENABLE_PLATFORM_MINGW */
++static pid_t transformer_pid;
++static int transformer_fd;
++
++void check_errors_in_children(int signo UNUSED_PARAM)
++{
++	char buf[4096];
++	int status;
++
++	if (transformer_pid <= 0)
++		return;
++	/* Read what the child has yet to write, such as padding after the
++	 * end of a tarball, so that it can finish and give its status
++	 * rather than block on a full pipe or fail on a closed one. */
++	while (safe_read(transformer_fd, buf, sizeof(buf)) > 0)
++		continue;
++	if (safe_waitpid(transformer_pid, &status, 0) == -1 || status != 0)
++		bb_got_signal = 1;
++	transformer_pid = 0;
++}
++
+ void FAST_FUNC fork_transformer(int fd, const char *transform_prog)
+ {
+-	mingw_fork_compressor(fd, transform_prog, "r");
++	transformer_pid = mingw_fork_compressor(fd, transform_prog, "r");
++	transformer_fd = fd;
+ }
+ #endif
+ 
+--- a/include/bb_archive.h
++++ b/include/bb_archive.h
+@@ -294,11 +294,7 @@
+ 	BBUNPK_SEAMLESS_MAGIC = (1 << 31) * ENABLE_ZCAT * SEAMLESS_COMPRESSION,
+ };
+ 
+-#if !ENABLE_PLATFORM_MINGW32
+ void check_errors_in_children(int signo);
+-#else
+-#define check_errors_in_children(s) ((void)0)
+-#endif
+ #if BB_MMU
+ void fork_transformer(int fd,
+ 	int signature_skipped,

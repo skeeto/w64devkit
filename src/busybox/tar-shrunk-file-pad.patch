@@ -1,0 +1,59 @@
+Pad a file that shrinks while tar archives it, as GNU tar does.
+The size is written in the header before the contents are copied, so
+when a file became shorter in between tar died with "short read",
+leaving an archive with a truncated member and no end blocks, and the
+files after it were not archived. Warn, pad the member with zeros to its
+recorded size, go on, and exit 1 at the end.
+
+---
+ archival/tar.c |   29 ++++++++++++++++++++---------
+ 1 file changed, 20 insertions(+), 9 deletions(-)
+
+--- a/archival/tar.c
++++ b/archival/tar.c
+@@ -552,18 +552,27 @@
+ 	/* If it was a regular file, write out the body */
+ 	if (inputFileFd >= 0) {
+ 		size_t readSize;
++		off_t copied, left;
+ 		/* Write the file to the archive. */
+ 		/* We record size into header first, */
+ 		/* and then write out file. If file shrinks in between, */
+-		/* tar will be corrupted. So we don't allow for that. */
+-		/* NB: GNU tar 1.16 warns and pads with zeroes */
+-		/* or even seeks back and updates header */
+-		bb_copyfd_exact_size(inputFileFd, tbInfo->tarFd, statbuf->st_size);
+-		////off_t readSize;
+-		////readSize = bb_copyfd_size(inputFileFd, tbInfo->tarFd, statbuf->st_size);
+-		////if (readSize != statbuf->st_size && readSize >= 0) {
+-		////	bb_error_msg_and_die("short read from %s, aborting", fileName);
+-		////}
++		/* tar would be corrupted. Like GNU tar 1.16, */
++		/* warn and pad with zeroes, and fail at the end. */
++		copied = bb_copyfd_size(inputFileFd, tbInfo->tarFd, statbuf->st_size);
++		if (copied < 0)
++			xfunc_die(); /* bb_copyfd_size already complained */
++		left = statbuf->st_size - copied;
++		if (left != 0) {
++			bb_error_msg("%s: file shrank by %"OFF_FMT"d bytes; padding with zeros",
++					fileName, left);
++			memset(block_buf, 0, TAR_BLOCK_SIZE);
++			do {
++				readSize = left < TAR_BLOCK_SIZE ? left : TAR_BLOCK_SIZE;
++				xwrite(tbInfo->tarFd, block_buf, readSize);
++				left -= readSize;
++			} while (left != 0);
++			copied = -1; /* failed */
++		}
+ 
+ 		/* Check that file did not grow in between? */
+ 		/* if (safe_read(inputFileFd, 1) == 1) warn but continue? */
+@@ -575,6 +584,8 @@
+ 		readSize = (-(int)statbuf->st_size) & (TAR_BLOCK_SIZE-1);
+ 		memset(block_buf, 0, readSize);
+ 		xwrite(tbInfo->tarFd, block_buf, readSize);
++		if (copied < 0)
++			return FALSE; /* make recursive_action() return FALSE */
+ 	}
+ 
+ 	return TRUE;

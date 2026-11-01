@@ -134,8 +134,11 @@ A failed compression leaves an empty or partial archive file.
 .B tar
 cannot pass options to the program.
 To choose a compression level, compress its output instead.
-When reading, the exit status of the decompressor is ignored, and a
-damaged stream shows up as an error in the archive, such as
+When reading,
+.B tar
+reads the decompressed data to its end, and a decompressor that fails,
+such as on a damaged stream, makes the status 1.
+Damage may also show up first as an error in the archive, such as
 .BR "short read" .
 .PP
 When listing or extracting without a decompression option,
@@ -194,15 +197,12 @@ and
 select the members to skip in the same way, and win over
 .IR member s.
 .PP
-Each operand must also be the name of a member.
-After the whole archive has been read, the first operand that is not
-the name of a member that was listed or extracted, and that no exclusion
-pattern matches as a whole, is reported as
+Each operand must also select a member.
+After the whole archive has been read, the first operand that selected
+no member that was listed or extracted, and that no exclusion pattern
+matches as a whole, is reported as
 .IB name ": not found in archive"
 and the status is 1.
-This includes an operand with a wildcard, and an operand that names a
-directory for which the archive has no member, even though such an
-operand selected members, and they were processed.
 .SS Creating
 .B \-c
 adds each
@@ -224,14 +224,18 @@ trailing
 removed, and with
 .B /
 appended for a directory.
-Leading slashes, and everything through the last
+Leading slashes and backslashes, a drive such as
+.B c:
+at the start, and everything through the last
 .B ../
+or
+.B ..\e
 component, are removed, with the warning
 .BI "removing leading '" prefix "' from member names"
 printed once.
 Nothing else changes: a leading
 .BR ./ ,
-a backslash, or a drive letter stays in the name.
+or any other backslash, stays in the name.
 A name that is
 .B ..\&
 or ends in
@@ -243,9 +247,10 @@ them.
 A bare drive such as
 .B c:
 names the current directory of that drive.
-It is stored as
-.BR c:/ ,
-and the files below it are named
+Without its drive it leaves nothing, so it is not stored itself, and
+the files below it are named
+.I name
+rather than
 .BR c:name .
 .PP
 A member records the file's type, permissions, owner, modification time
@@ -258,9 +263,10 @@ forward slashes, unless
 .B \-h
 is given.
 A junction's target is its absolute path.
-A file that becomes shorter while it is archived ends the command with
-.BR "short read" ,
-and leaves a damaged archive.
+A file that becomes shorter while it is archived is padded with zeros
+to the size already recorded for it, with the message
+.IB name ": file shrank by " n " bytes; padding with zeros\fR,"
+and the status is 1.
 .PP
 The archive is in GNU format.
 A name or link target of 100 bytes or more is stored in an extra GNU
@@ -325,21 +331,23 @@ directory, or the one that
 .B \-C
 names.
 Missing parent directories are created.
-Leading slashes and everything through the last
+Leading slashes and backslashes, a drive such as
+.B C:
+at the start, and everything through the last
 .B ../
+or
+.B ..\e
 component are removed from member names, and from the targets of hard
-links, with the warning given for creating.
-Backslashes and drive letters are not recognized, so a member named
+links, with the warning given for creating, so a member named
 .BR C:/dir/file ,
 .BR \edir\efile ,
 or
 .B ..\ex
-is extracted where the name says, even outside the
-.B \-C
-directory.
-List an archive from an untrusted source with
-.B \-t
-first.
+is extracted as
+.BR dir/file ,
+.BR dir\efile ,
+or
+.BR x .
 .PP
 Before a member other than a directory is created, an existing file of
 the same name is removed, even if it is read-only, unless
@@ -362,7 +370,8 @@ A directory is created, and an existing one is left alone.
 An error creating it is reported without ending the command.
 Its modification time is restored, even if it already existed, unless
 .B \-m
-is given, but creating files in it afterwards changes the time again.
+is given, after all other members and links have been made, so that
+creating them does not change it again.
 .IP \(bu 2
 A symbolic link is created as a Windows symbolic link, which requires
 Developer Mode or administrator rights, with backslashes for slashes in
@@ -371,6 +380,10 @@ It is a directory link only if its target is an existing directory when
 the link is made.
 A link whose target begins with
 .B /
+or
+.BR \e ,
+has a drive such as
+.BR C: ,
 or contains
 .BR .. ,
 or that cannot be made at once, is made after all other members, and
@@ -388,11 +401,12 @@ It is reported as
 and skipped, without changing the exit status.
 .PP
 A link made after all other members, symbolic or hard, is not made when
-a directory in its own name is missing, is a symbolic link or junction,
-or is not a directory: that fails with
+a directory in its own name, or for a hard link in its target, is
+missing, is a symbolic link or junction, or is not a directory: that
+fails with
 .BR "Not a directory" ,
-so an archive cannot place a link through a symbolic link that it
-created earlier.
+so an archive cannot place a link, or link to a file, through a
+symbolic link that it created earlier.
 .PP
 Members that carry GNU long names and links, and POSIX extended headers
 with a
@@ -526,11 +540,10 @@ Accepted.
 With
 .BR \-x ,
 do not replace existing files.
-If a regular file member names an existing file,
-.B tar
-reports
-.BI "can't open '" name "': File exists"
-and exits with status 1 at once, rather than skipping the member.
+A member other than a directory whose name exists is skipped with the
+message
+.IB name " not created: file exists\fR,"
+and the exit status is not changed.
 .TP
 .BR \-Z ", " \-\-compress
 Compress the archive with
@@ -669,6 +682,9 @@ such as the top directory when
 is 1, is skipped.
 The target of a hard link is shortened the same way, and that of a
 symbolic link is not.
+Leading slashes, backslashes, and a drive left at the start of a
+shortened name or target are removed, as described under
+.BR Extracting .
 Operands and
 .B \-v
 output use the names as stored.
@@ -768,13 +784,16 @@ as for all busybox applets.
 .TP
 .B 0
 Success, including when problems were reported and skipped: a special
-file that could not be created, or a directory that could not be made.
+file that could not be created, a directory that could not be made, or
+an existing file kept by
+.BR \-k .
 .TP
 .B 1
 An invalid command line, with a usage message on standard error, or any
 other error: a file that cannot be read, created, or removed, a damaged
 or empty archive, a compression program that cannot be started or that
-fails when creating, or an operand that is not found in the archive.
+fails, a file that became shorter while it was archived, or an operand
+that is not found in the archive.
 .TP
 .B 141
 Writing to a pipe whose reader has exited, such as in
@@ -791,7 +810,7 @@ tar: \fImessage\fR
 .RE
 .PP
 When creating, an error with one file does not stop the others, unless
-it occurs while its contents are copied, such as a short read.
+it occurs while its contents are copied, such as a read error.
 .B tar
 writes the archive anyway, reports
 .BR "error exit delayed from previous errors" ,
@@ -904,7 +923,7 @@ and
 are invalid.
 .IP \(bu 2
 .B \-k
-fails on an existing file instead of skipping it.
+reports and skips an existing file, but exits with status 0.
 .IP \(bu 2
 .B \-o
 means only
@@ -925,9 +944,6 @@ Use
 for files one level down.
 When creating, the patterns are compared with every component, and skip
 such files anywhere.
-.IP \(bu 2
-An operand with a wildcard selects members, but is then reported as not
-found, and the status is 1.
 .IP \(bu 2
 Archives are written in the GNU format, with no option for POSIX or
 other formats.
