@@ -1,0 +1,37 @@
+Keep a copy of an uninitialized awk value uninitialized.
+An uninitialized value compares equal both to 0 and to "", but
+copyvar() marked every copy as set, so the copy was the empty string
+and no longer equal to 0: after "s = z", "s == 0" was false, and a
+function called as "f(z)" saw an argument that was not equal to 0.
+Keep the destination unset when the source is. The shortcut in
+assignment that moves a temporary string skips such a value too.
+
+---
+ editors/awk.c |    8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+--- a/editors/awk.c
++++ b/editors/awk.c
+@@ -1187,6 +1187,9 @@
+ 	if (dest != src) {
+ 		clrvar(dest);
+ 		dest->type |= (src->type & ~(VF_DONTTOUCH | VF_FSTR));
++		/* a copy of an uninitialized value is uninitialized */
++		if (!(src->type & VF_DIRTY))
++			dest->type &= ~VF_DIRTY;
+ 		debug_printf_eval("copyvar: number:%f string:'%s'\n", src->number, src->string);
+ 		dest->number = src->number;
+ 		if (src->string)
+@@ -3600,9 +3603,10 @@
+ 				L.v = res;
+ 			/* if source is a temporary string, just relink it to dest */
+ 			if (R.v == TMPVAR1
+-			 && !(R.v->type & VF_NUMBER)
++			 && (R.v->type & (VF_NUMBER | VF_DIRTY)) == VF_DIRTY
+ 				/* Why check !NUMBER? if R.v is a number but has cached R.v->string,
+-				 * L.v ends up a string, which is wrong */
++				 * L.v ends up a string, which is wrong.
++				 * And an uninitialized value is not a string */
+ 			 /*&& R.v->string - always not NULL (right?) */
+ 			) {
+ 				res = setvar_p(L.v, R.v->string); /* avoids strdup */

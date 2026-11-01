@@ -1,0 +1,37 @@
+Left-justify with a negative * width in every awk printf conversion.
+As in C, a negative width taken from a * argument means the - flag and
+the absolute width, but awk_printf() dropped a negative width except
+for %c and %s, so printf "%*d", -5, 3 printed "3" rather than "3    ".
+Turn a negative * width into the - flag and its absolute value, which
+also covers %c and %s.
+
+---
+ editors/awk.c |   10 ++++++----
+ 1 file changed, 6 insertions(+), 4 deletions(-)
+
+--- a/editors/awk.c
++++ b/editors/awk.c
+@@ -2666,6 +2666,11 @@
+ 		if (c == '*') {
+ 			width = (int)getvar_i(evaluate(nextarg(&n), TMPVAR));
+ //bb_error_msg("*width=%d", width);
++			if (width < 0) {
++				/* as in C, a negative width left-justifies */
++				*baked_cur++ = '-';
++				width = -width;
++			}
+ 			c = *++fmt_cur;
+ 			//if (isdigit(c)) /* we do not support "%*2$d" format */
+ 			//	syntax_error("invalid format specifier");
+@@ -2704,10 +2709,7 @@
+ 		use_fmt = s;
+ //bb_error_msg("w:%d p:%d conv:'%c' fmt_cur:%p after_fmt:%p", width, prec, c, fmt_cur, after_fmt);
+ 		if (starred || diouxX) {
+-			if (width >= 0
+-			 || (starred && (c == 's' || c == 'c'))
+-//GNU awk 5.3.0 compat: "%*s",-10,"A" works like "%-10s","A"
+-			) {
++			if (width >= 0) {
+ 				baked_cur += sprintf(baked_cur, "%d", width);
+ 			}
+ 			if (diouxX) {

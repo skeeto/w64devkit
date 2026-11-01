@@ -1,0 +1,68 @@
+Do awk's bit functions in 64 bits on every platform, without overflow.
+and(), or(), xor(), compl(), lshift() and rshift() worked on unsigned
+long, which is 32 bits on Windows and 32-bit systems, and converting a
+double beyond its range to it is undefined, so and(2^32 + 5, 2^32 + 4)
+gave 4 instead of 4294967300 as on 64-bit Linux. A shift count of the
+width of the type or more is undefined too, and lshift(1, 40) gave 256.
+Use unsigned long long, reduce the argument modulo 2^64 before the
+conversion (NaN and infinity give 0), and make shifts by 64 or more
+give 0.
+
+---
+ editors/awk.c |   27 +++++++++++++++++----------
+ 1 file changed, 17 insertions(+), 10 deletions(-)
+
+--- a/editors/awk.c
++++ b/editors/awk.c
+@@ -1190,16 +1190,18 @@
+ }
+ 
+ /* Used for operands of bitwise ops */
+-static unsigned long getvar_i_int(var *v)
++static unsigned long long getvar_i_int(var *v)
+ {
+ 	double d = getvar_i(v);
+ 
+-	/* Casting doubles to longs is undefined for values outside
+-	 * of target type range. Try to widen it as much as possible */
++	/* Casting doubles to integers is undefined for values outside
++	 * of target type range: reduce modulo 2^64 first */
++	d = fmod(d, 18446744073709551616.0);
++	if (isnan(d)) /* also from infinity */
++		return 0;
+ 	if (d >= 0)
+-		return (unsigned long)d;
+-	/* Why? Think about d == -4294967295.0 (assuming 32bit longs) */
+-	return - (long) (unsigned long) (-d);
++		return (unsigned long long)d;
++	return - (unsigned long long) (-d);
+ }
+ 
+ static var *copyvar(var *dest, const var *src)
+@@ -3151,17 +3153,22 @@
+ 		setvar_i(res, ~getvar_i_int(av[0]));
+ 		break;
+ 
+-	case B_ls:
+-		setvar_i(res, getvar_i_int(av[0]) << getvar_i_int(av[1]));
++	case B_ls: {
++		/* a shift of the width of the type or more is undefined */
++		unsigned long long sh = getvar_i_int(av[1]);
++		setvar_i(res, sh < 64 ? getvar_i_int(av[0]) << sh : 0);
+ 		break;
++	}
+ 
+ 	case B_or:
+ 		setvar_i(res, getvar_i_int(av[0]) | getvar_i_int(av[1]));
+ 		break;
+ 
+-	case B_rs:
+-		setvar_i(res, getvar_i_int(av[0]) >> getvar_i_int(av[1]));
++	case B_rs: {
++		unsigned long long sh = getvar_i_int(av[1]);
++		setvar_i(res, sh < 64 ? getvar_i_int(av[0]) >> sh : 0);
+ 		break;
++	}
+ 
+ 	case B_xo:
+ 		setvar_i(res, getvar_i_int(av[0]) ^ getvar_i_int(av[1]));

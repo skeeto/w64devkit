@@ -1,0 +1,44 @@
+Make array use of a for-in variable an error rather than a crash.
+The variable's walker list shares a union with the parent pointer of a
+function argument and with the array pointer. So after "for (p in A)"
+on an argument p, an array use of p such as "p[1] = 1" followed the
+walker list, or NULL after the loop, as the parent variable and
+crashed. On a global k, "k[1]" in the loop body replaced the walker
+list with an array, and "for (k in A)" with k already an array treated
+the walker list as k's elements; both crashed too. Now iamarray() stops
+at a walked argument, as length() does, and both uses are errors, as in
+other awks, since a for-in variable is a scalar.
+
+---
+ editors/awk.c |   10 +++++++++-
+ 1 file changed, 9 insertions(+), 1 deletion(-)
+
+--- a/editors/awk.c
++++ b/editors/awk.c
+@@ -1042,10 +1042,14 @@
+ 
+ static xhash *iamarray(var *a)
+ {
+-	while (a->type & VF_CHILD)
++	/* A "for (arg in A)" walker reuses x.parent */
++	while ((a->type & (VF_CHILD | VF_WALK)) == VF_CHILD)
+ 		a = a->x.parent;
+ 
+ 	if (!(a->type & VF_ARRAY)) {
++		/* ...and x.array: a for-in variable is a scalar */
++		if (a->type & VF_WALK)
++			syntax_error(EMSG_NOT_ARRAY);
+ 		a->type |= VF_ARRAY;
+ 		a->x.array = hash_init();
+ 	}
+@@ -2342,6 +2346,10 @@
+ 	walker_list *w;
+ 	walker_list *prev_walker;
+ 
++	/* The walker would overwrite x.array */
++	if (v->type & VF_ARRAY)
++		syntax_error("Array used as scalar");
++
+ 	if (v->type & VF_WALK) {
+ 		prev_walker = v->x.walker;
+ 	} else {

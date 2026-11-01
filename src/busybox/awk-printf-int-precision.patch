@@ -1,0 +1,82 @@
+Honor the precision of awk's integer printf conversions, as C does.
+To print integers beyond any C type, awk_printf() wrote %d, %i and %u
+as "%.0f", dropping the precision, which for these conversions is the
+minimum number of digits, so printf "%.3d", 7 printed "7" instead of
+"007". %o, %x and %X also dropped it. And since # with %.0f adds a
+decimal point, printf "%#d", 5 printed "5.". Format a value that fits
+in long long (or unsigned long long for %u) with the C conversion and
+the precision, keep "%.0f" for larger values, and drop the # flag for
+%d, %i and %u, where it has no meaning. Use LL_FMT for the length
+modifier rather than "ll", which older msvcrt does not know.
+
+---
+ editors/awk.c |   44 ++++++++++++++++++++++++++++++--------------
+ 1 file changed, 30 insertions(+), 14 deletions(-)
+
+--- a/editors/awk.c
++++ b/editors/awk.c
+@@ -2657,7 +2657,9 @@
+ 		*baked_cur++ = '%';
+ 		c = *fmt_cur;
+ 		while (strchr("+- 0#'", c) && (baked_cur - baked_format) <= 6) {
+-			*baked_cur++ = c;
++			/* "#" is undefined for %d, %i and %u, and adds "." to %.0f */
++			if (c != '#' || !diouxX || !strchr("diu", *diouxX))
++				*baked_cur++ = c;
+ 			c = *++fmt_cur;
+ 		}
+ 
+@@ -2712,12 +2714,7 @@
+ 			if (width >= 0) {
+ 				baked_cur += sprintf(baked_cur, "%d", width);
+ 			}
+-			if (diouxX) {
+-				/* print %d, %i, positive %u as floats: */
+-				/* this avoids losing most-significant bits, try */
+-				/* awk 'BEGIN { printf "%d\n", 2**128 }' */
+-				sprintf(baked_cur, ".0f%s", fmt_cur + 1);
+-			} else {
++			if (!diouxX) {
+ 				if (prec >= 0)
+ 					baked_cur += sprintf(baked_cur, ".%u", prec);
+ 				sprintf(baked_cur, "%s", fmt_cur);
+@@ -2752,13 +2749,32 @@
+ 					sprintf(baked_cur, "g%s", fmt_cur + 1);
+ 					s = xasprintf(use_fmt, d);
+ 				} else
+-				if ((c|0x20) == 'x' || c == 'o' || (c == 'u' && d < 0)) {
+-					sprintf(baked_cur, "ll%s", fmt_cur);
+-					// -1.9 => -1 => integer (0xfff..fff)
+-					// => interpret as unsigned integer
+-					// awk 'BEGIN { printf "%u\n",-1.9; }': 18446744073709551615
+-					// awk 'BEGIN { printf "%x\n",-1.9; }': ffffffffffffffff
+-					s = xasprintf(use_fmt, (unsigned long long)d);
++				if (diouxX
++				 && ((c == 'd' || c == 'i')
++				    ? (d >= -9223372036854775808.0 && d < 9223372036854775808.0)
++				    : (c != 'u' || d < 18446744073709551616.0))
++				) {
++					/* an integer conversion, which honors the precision */
++					if (prec >= 0)
++						baked_cur += sprintf(baked_cur, ".%u", prec);
++					/* LL_FMT: older msvcrt lacks "ll" */
++					sprintf(baked_cur, LL_FMT "%s", fmt_cur);
++					if (c == 'd' || c == 'i') {
++						s = xasprintf(use_fmt, (long long)d);
++					} else {
++						// -1.9 => -1 => integer (0xfff..fff)
++						// => interpret as unsigned integer
++						// awk 'BEGIN { printf "%u\n",-1.9; }': 18446744073709551615
++						// awk 'BEGIN { printf "%x\n",-1.9; }': ffffffffffffffff
++						s = xasprintf(use_fmt, (unsigned long long)d);
++					}
++				} else
++				if (diouxX) {
++					/* print large %d, %i, %u as floats: */
++					/* this avoids losing most-significant bits, try */
++					/* awk 'BEGIN { printf "%d\n", 2**128 }' */
++					sprintf(baked_cur, ".0f%s", fmt_cur + 1);
++					s = xasprintf(use_fmt, d);
+ 				} else {
+ 					s = xasprintf(use_fmt, d);
+ 				}

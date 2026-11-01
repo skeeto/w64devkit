@@ -1,0 +1,35 @@
+Convert a number for an integer OFMT or CONVFMT without overflow.
+With an OFMT or CONVFMT such as "%d", fmt_num() passed the number to
+snprintf() as (int)n, which is undefined beyond the range of int and
+for infinity and NaN: on x86-64, OFMT = "%d"; print 3000000000.5 printed
+-2147483648, and so did print log(0). Integral numbers never get here,
+so a finite number is below 2^52 in magnitude: pass it as long long
+with LL_FMT added to the conversion. Write infinity and NaN with %g, as
+printf's integer conversions do.
+
+---
+ editors/awk.c |   13 ++++++++++++-
+ 1 file changed, 12 insertions(+), 1 deletion(-)
+
+--- a/editors/awk.c
++++ b/editors/awk.c
+@@ -1021,7 +1021,18 @@
+ 		}
+ 
+ 		if (strchr("diouxX", c)) {
+-			snprintf(g_buf, MAXVARFMT, format, (int)n);
++			/* n is not integral here, so it is either below 2^52
++			 * in magnitude, where (int)n may be undefined but
++			 * (long long)n is not, or infinity or NaN */
++			char *f;
++			if (isfinite(n)) {
++				f = xasprintf("%.*s" LL_FMT "%s", (int)(s - format), format, s);
++				snprintf(g_buf, MAXVARFMT, f, (long long)n);
++			} else {
++				f = xasprintf("%.*sg%s", (int)(s - format), format, s + 1);
++				snprintf(g_buf, MAXVARFMT, f, n);
++			}
++			free(f);
+ #if ENABLE_PLATFORM_MINGW32 && !defined(_UCRT)
+ 		} else if (c == 'F') {
+ 			/* msvcrt has no %F, which differs from %f only for inf and nan */

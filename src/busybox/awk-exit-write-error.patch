@@ -1,0 +1,22 @@
+Report a write error on standard output when awk exits.
+awk_exit() ended with exit(), which flushes standard output without
+checking, so awk's output was lost without a message or a failure
+status when it could not be written, as with "awk '{ print }' file
+>/dev/full". Exit through fflush_stdout_and_exit() instead, which keeps
+the status of an exit statement when there is no error.
+
+---
+ editors/awk.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/editors/awk.c
++++ b/editors/awk.c
+@@ -4145,7 +4145,7 @@
+ 		}
+ 	}
+ 
+-	exit(G.exitcode);
++	fflush_stdout_and_exit(G.exitcode);
+ }
+ 
+ int awk_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;

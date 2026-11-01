@@ -1,0 +1,24 @@
+Group awk's exponentiation operators from right to left, as POSIX says.
+The parser groups an operator whose precedence number is odd from left
+to right, and ^ and ** had precedence 15, so "2^3^2" was (2^3)^2 = 64
+rather than 2^(3^2) = 512. Give them precedence 14, which binds as
+tightly but groups from right to left.
+
+---
+ editors/awk.c |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+--- a/editors/awk.c
++++ b/editors/awk.c
+@@ -451,9 +451,9 @@
+ 	/* *= /= %= ^= (^ is exponentiation, NOT xor) */
+ 	OC_REPLACE|NV|P(74)|'*', OC_REPLACE|NV|P(74)|'/', OC_REPLACE|NV|P(74)|'%', OC_REPLACE|NV|P(74)|'&',
+ 	/* + - **= ** */
+-	OC_BINARY|NV|P(29)|'+',  OC_BINARY|NV|P(29)|'-',  OC_REPLACE|NV|P(74)|'&', OC_BINARY|NV|P(15)|'&',
++	OC_BINARY|NV|P(29)|'+',  OC_BINARY|NV|P(29)|'-',  OC_REPLACE|NV|P(74)|'&', OC_BINARY|NV|P(14)|'&',
+ 	/* / % ^ * */
+-	OC_BINARY|NV|P(25)|'/',  OC_BINARY|NV|P(25)|'%',  OC_BINARY|NV|P(15)|'&',  OC_BINARY|NV|P(25)|'*',
++	OC_BINARY|NV|P(25)|'/',  OC_BINARY|NV|P(25)|'%',  OC_BINARY|NV|P(14)|'&',  OC_BINARY|NV|P(25)|'*',
+ 	/* != >= <= > */
+ 	OC_COMPARE|VV|P(39)|4,   OC_COMPARE|VV|P(39)|3,   OC_COMPARE|VV|P(39)|0,   OC_COMPARE|VV|P(39)|1,
+ #define TI_LESS     (OC_COMPARE|VV|P(39)|2)

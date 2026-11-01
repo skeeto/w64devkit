@@ -1,0 +1,42 @@
+Return the command's wait status from pclose() rather than 0.
+mingw_pclose() waited for the command but returned 0 whenever the wait
+succeeded, so callers never saw a failing command: in awk, close() of a
+pipe to or from "exit 3" returned 0. Get the exit code of the process
+and return it as a wait status, as waitpid() and system() do, so that
+WEXITSTATUS() and WIFSIGNALED() work on the result.
+
+---
+ win32/popen.c |   10 +++++++---
+ 1 file changed, 7 insertions(+), 3 deletions(-)
+
+--- a/win32/popen.c
++++ b/win32/popen.c
+@@ -294,7 +294,8 @@
+ {
+ 	int fd;
+ 	pipe_data *p;
+-	DWORD ret;
++	DWORD code;
++	int status = -1;
+ 
+ 	/* find struct containing fd */
+ 	if (fp == NULL || (fd=fileno(fp)) == -1 || (p=find_pipe(fd)) == NULL)
+@@ -302,13 +303,16 @@
+ 
+ 	fclose(fp);
+ 
+-	ret = WaitForSingleObject(p->piProcInfo.hProcess, INFINITE);
++	/* return the command's status, as waitpid() reports it */
++	if (WaitForSingleObject(p->piProcInfo.hProcess, INFINITE) == WAIT_OBJECT_0
++			&& GetExitCodeProcess(p->piProcInfo.hProcess, &code))
++		status = exit_code_to_wait_status(code);
+ 
+ 	CloseHandle(p->piProcInfo.hProcess);
+ 	CloseHandle(p->piProcInfo.hThread);
+ 	close_pipe_data(p);
+ 
+-	return (ret == WAIT_OBJECT_0) ? 0 : -1;
++	return status;
+ }
+ 
+ /* Used with mode "w" and a compressor when creating a compressed tar

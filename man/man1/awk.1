@@ -223,7 +223,7 @@ Field reference.
 Increment and decrement, as a prefix or postfix.
 .TP
 .BR ^ " " **
-Exponentiation.
+Exponentiation, grouping right to left.
 .TP
 .BR ! " " + " " \-
 Logical not, unary plus, and negation.
@@ -267,7 +267,8 @@ Conditional.
 .BR = " " += " " \-= " " *= " " /= " " %= " " ^= " " **=
 Assignment, grouping right to left.
 .PP
-Binary operators other than assignment group left to right.
+Binary operators other than assignment and exponentiation group left to
+right.
 .SS Regular expressions
 Regular expressions are POSIX extended regular expressions, with the GNU
 operators
@@ -323,10 +324,6 @@ An empty string separates records at one or more blank lines, and makes
 newline a field separator in addition to a single-character or regular
 expression
 .BR FS .
-With a regular expression,
-.B NF
-is then wrong; see
-.BR NOTES .
 Leading newlines in the input are skipped.
 .IP \(bu 2
 A longer string is a regular expression.
@@ -446,10 +443,10 @@ rule, exit immediately.
 \fBreturn\fR [\fIexpr\fR]
 Return from a function with the value of
 .IR expr ,
-or with the empty string, which does not compare equal to 0.
+or with an uninitialized value, which is both 0 and the empty string.
 A function that ends without
 .B return
-also returns the empty string.
+also returns an uninitialized value.
 .TP
 \fBdelete \fIarray\fB[\fIsubscript\fB]\fR
 Remove an element.
@@ -565,7 +562,8 @@ which runs in
 into
 .BR $0 ,
 and set
-.B NF
+.BR NF ,
+.BR NR ,
 and
 .BR RT .
 .TP
@@ -575,6 +573,8 @@ Read the next record of the output of
 into
 .IR var ,
 and set
+.B NR
+and
 .BR RT .
 .PP
 .B getline
@@ -607,11 +607,9 @@ A width or precision of
 takes the next value, before the one converted, as an integer.
 A negative width from
 .B *
-left-justifies with
-.B c
-and
-.BR s ,
-and is ignored with the other conversions.
+left-justifies, as the
+.B \-
+flag does.
 A negative precision from
 .B *
 is ignored.
@@ -622,7 +620,8 @@ A number as the byte with that value, modulo 256, or the first byte of
 a string.
 .TP
 .BR d ", " i ", " u
-The value truncated toward zero, in decimal, as
+The value truncated toward zero, in decimal.
+A value too large for a 64-bit integer is written as
 .B %.0f
 writes it, so it may be larger than any C integer type.
 With
@@ -630,20 +629,18 @@ With
 a negative value is instead converted to a 64-bit unsigned integer, as
 with
 .BR x .
-A precision is ignored, and the
+A precision is the minimum number of digits, as in C, and the
 .B #
-flag adds a decimal point.
+flag is ignored.
 .TP
 .BR o ", " x ", " X
 The value truncated toward zero and converted to a 64-bit unsigned
 integer, so that a negative value gives its two's complement, in octal
 or hexadecimal.
-A precision is ignored.
+A precision is the minimum number of digits, as in C.
 .TP
 .BR e ", " E ", " f ", " F ", " g ", " G ", " a ", " A
-The value as a floating-point number, as in C, except that
-.B F
-prints nothing.
+The value as a floating-point number, as in C.
 .TP
 .B s
 The value as a string.
@@ -830,15 +827,16 @@ Fractions in
 .I m
 and
 .I n
-are truncated, and an
-.I m
-before the start counts as 1 without shortening the result.
+are truncated, and positions before the start of
+.I s
+count toward
+.IR n .
 .TP
 \fBtolower(\fIs\fB)\fR, \fBtoupper(\fIs\fB)\fR
 .I s
 with ASCII letters converted to lowercase or uppercase.
 .PP
-Bit operations, on 32-bit unsigned integers:
+Bit operations, on 64-bit unsigned integers:
 .TP
 .BI and( a ", " b )
 Bitwise and.
@@ -850,7 +848,9 @@ Bitwise complement.
 .I a
 shifted left or right by
 .I n
-bits.
+bits, or 0 if
+.I n
+is 64 or more.
 .TP
 .BI or( a ", " b )
 Bitwise or.
@@ -884,7 +884,6 @@ The default
 .I format
 is
 .BR "\(dq%a %b %d %H:%M:%S %Z %Y\(dq" .
-A result longer than 239 bytes is the empty string.
 See
 .B NOTES
 for the conversions.
@@ -905,6 +904,9 @@ Return 0 on success, or \-1 and set
 if
 .I name
 is not open.
+For a pipe, return the exit status of its command, as
+.B system
+does.
 .TP
 \fBfflush(\fR[\fIname\fR]\fB)\fR
 Flush standard output, or the output file or pipe
@@ -971,8 +973,10 @@ or
 .BR x ,
 or
 .BR X ,
-which convert the number to a 32-bit
-.BR int ;
+which convert the number to a 64-bit integer, and write infinity and NaN
+as
+.B %g
+does;
 or
 .BR s ,
 which writes the number as
@@ -1176,11 +1180,17 @@ Success.
 .B 1
 Invalid usage, a syntax error, or a fatal error, such as division by
 zero or a file that cannot be opened.
+Also an error writing standard output other than a closed pipe, which is
+reported on standard error.
+.TP
+.B 141
+Standard output is a pipe whose reader has exited.
+No message is printed.
 .PP
 An
 .B exit
 statement with an expression sets the status to its value converted to
-an integer, modulo 256.
+an integer, modulo 256, unless standard output could not be written.
 .PP
 Errors in the program are reported on standard error as
 .PP
@@ -1295,9 +1305,6 @@ run in busybox
 .BR "sh\ \-c" ,
 not
 .BR cmd.exe .
-.B close
-of a pipe returns 0 once its command finishes, not the command's exit
-status.
 A command that cannot be found is reported by the shell, so
 .B "| getline"
 sees the end of input rather than returning \-1.
@@ -1361,9 +1368,10 @@ and
 .B %A
 write six hexadecimal digits after the point by default, as in
 .BR 0x1.800000p+0 ;
-and the
+and
 .B %F
-conversion prints nothing.
+is the same as
+.BR %f .
 Strings such as
 .BR 0x1A ,
 .BR inf ,
@@ -1379,7 +1387,8 @@ writes them, and so do the
 and
 .B u
 conversions of
-.BR printf .
+.B printf
+for values too large for a 64-bit integer.
 This gives at most 17 significant digits, followed by zeros, as in
 .BR 18446744073709552000 .
 Infinity and NaN are not integral, and the integer conversions write
@@ -1393,9 +1402,6 @@ so
 writes
 .BR 0 .
 .PP
-.B mktime
-returns a 32-bit value, so it wraps around for times after 03:14:07 UTC
-on 19 January 2038.
 .B strftime
 supports the conversions of the Microsoft C runtime, plus
 .BR %e ,
@@ -1436,45 +1442,12 @@ treats a time before the epoch or after the year 3000 as 0.
 .PP
 Differences from POSIX awk and gawk:
 .IP \(bu 2
-.B ^
-and
-.B **
-group left to right, so
-.B 2^3^2
-is 64.
-.IP \(bu 2
-An assignment in either branch of
-.B ?:
-is a syntax error unless it is in parentheses, as in
-.BR "c ? (a = 1) : (b = 2)" .
-.IP \(bu 2
-.IB command " | getline"
-does not change
-.B NR
-or
-.BR FNR .
-.IP \(bu 2
 .B substr
 truncates fractional positions and lengths instead of rounding them.
 .IP \(bu 2
 An input file that cannot be opened is a fatal error, and the
 .B END
 rules do not run.
-.IP \(bu 2
-With an empty
-.BR RS ,
-a last record followed by a single newline keeps that newline, which
-adds an empty field when
-.B FS
-is a single character other than space.
-.IP \(bu 2
-With an empty
-.B RS
-and a regular expression
-.BR FS ,
-newlines in a record separate fields but are not counted in
-.BR NF ,
-so the fields at the end of the record are lost.
 .IP \(bu 2
 .B ERRNO
 is a number.

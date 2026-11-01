@@ -1,0 +1,49 @@
+Let awk's strftime() return a result longer than 239 bytes.
+strftime() formatted into the 240-byte g_buf, and the C strftime()
+returns 0 when the result does not fit, so any longer result became
+the empty string. Format into a buffer that doubles until the result
+fits. Since 0 is also the return for an empty result, stop growing
+once the buffer is 64 times the length of the format, which no
+conversion comes near.
+
+---
+ editors/awk.c |   23 ++++++++++++++++++-----
+ 1 file changed, 18 insertions(+), 5 deletions(-)
+
+--- a/editors/awk.c
++++ b/editors/awk.c
+@@ -3193,16 +3193,29 @@
+ 		setvar_i(res, n);
+ 		break;
+ 
+-	case B_ti:
++	case B_ti: {
++		const char *fmt = (nargs > 0) ? as[0] : "%a %b %d %H:%M:%S %Z %Y";
++		struct tm *tm;
++		char *buf = NULL;
++		size_t size;
++
+ 		if (nargs > 1)
+ 			tt = getvar_i(av[1]);
+ 		else
+ 			time(&tt);
+-		i = strftime(g_buf, MAXVARFMT,
+-			((nargs > 0) ? as[0] : "%a %b %d %H:%M:%S %Z %Y"),
+-			localtime(&tt));
+-		setvar_sn(res, g_buf, i);
++		tm = localtime(&tt);
++		/* strftime() returns 0 for a result that does not fit, and
++		 * also for an empty one: grow the buffer up to a limit */
++		for (size = MAXVARFMT; ; size *= 2) {
++			buf = xrealloc(buf, size);
++			i = strftime(buf, size, fmt, tm);
++			if (i != 0 || size > strlen(fmt) * 64)
++				break;
++		}
++		setvar_sn(res, buf, i);
++		free(buf);
+ 		break;
++	}
+ 
+ 	case B_mt:
+ 		setvar_i(res, do_mktime(as[0]));

@@ -1,0 +1,47 @@
+Make awk's substr() count its length from a start before position 1.
+substr(s, m, n) is the characters of s from position m to m+n-1, but a
+start m below 1 was moved to 1 without shortening the length, so
+substr("hello", 0, 2) gave "he" instead of "h", and substr("hello", -1,
+3) gave "hel" instead of "h". Also, m and n were converted to int, which
+is undefined beyond its range: substr("hello", 1, 2^31) gave "" rather
+than "hello". Compute the end position in doubles and clamp both ends to
+the string.
+
+---
+ editors/awk.c |   24 ++++++++++++++++--------
+ 1 file changed, 16 insertions(+), 8 deletions(-)
+
+--- a/editors/awk.c
++++ b/editors/awk.c
+@@ -3068,15 +3068,23 @@
+ 	}
+ 
+ 	case B_ss: {
++		/* The characters from position m up to, not including, e
++		 * that exist. Compute in doubles: converting a position
++		 * beyond the range of int is undefined */
++		double m, e;
++
+ 		l = strlen(as[0]);
+-		i = getvar_i(av[1]) - 1;
+-		if (i > l)
+-			i = l;
+-		if (i < 0)
+-			i = 0;
+-		n = (nargs > 2) ? getvar_i(av[2]) : l-i;
+-		if (n < 0)
+-			n = 0;
++		m = trunc(getvar_i(av[1]));
++		e = (nargs > 2) ? m + trunc(getvar_i(av[2])) : l + 1;
++		if (!(m >= 1)) /* or NaN */
++			m = 1;
++		if (!(e <= l + 1))
++			e = l + 1;
++		i = n = 0;
++		if (e > m) {
++			i = m - 1;
++			n = e - m;
++		}
+ 		setvar_sn(res, as[0]+i, n);
+ 		break;
+ 	}

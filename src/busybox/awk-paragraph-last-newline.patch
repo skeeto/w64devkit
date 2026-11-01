@@ -1,0 +1,24 @@
+Drop the newline that ends the last record in awk's paragraph mode.
+With RS set to "", a record ends at a run of two or more newlines, but
+at the end of the input the last record also ends at a single newline.
+It kept that newline instead, so $0 had a trailing newline, and with a
+single-character FS other than space, which newline also separates, NF
+counted an extra empty field. Leave the newline out of the record and
+put it in RT.
+
+---
+ editors/awk.c |    3 +++
+ 1 file changed, 3 insertions(+)
+
+--- a/editors/awk.c
++++ b/editors/awk.c
+@@ -2471,6 +2471,9 @@
+ 						eo++;
+ 					if (b[eo] != '\0')
+ 						break;
++				} else if (p > rp && b[p-1] == '\n') {
++					/* at EOF, a last record ends at its newline */
++					so--;
+ 				}
+ 			}
+ 		}

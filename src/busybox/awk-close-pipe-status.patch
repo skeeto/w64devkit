@@ -1,0 +1,23 @@
+Make awk's close() of a pipe return the command's exit status.
+close() returned what pclose() returns, the wait status, so a command
+that exited with status 3 gave 768, while system() returns the exit
+status, as gawk's close() and system() both do. Shift the wait status
+as system() does; -1 for a failed pclose() stays -1.
+
+---
+ editors/awk.c |    3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+--- a/editors/awk.c
++++ b/editors/awk.c
+@@ -3898,8 +3898,9 @@
+ 					 * getline line <"doesnt_exist";
+ 					 * close("doesnt_exist"); <--- here rsm->F is NULL
+ 					 */
++					/* A pipe gives the exit status, as system() does */
+ 					if (rsm->F)
+-						err = rsm->is_pipe ? pclose(rsm->F) : fclose(rsm->F);
++						err = rsm->is_pipe ? (pclose(rsm->F) >> 8) : fclose(rsm->F);
+ 					free(rsm->buffer);
+ 					hash_remove(fdhash, L.s);
+ 				} else {

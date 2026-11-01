@@ -1,0 +1,58 @@
+Accept an assignment in the second or third operand of ?: in awk.
+POSIX and gawk parse "c ? a = 1 : b = 2" as "c ? (a = 1) : (b = 2)",
+but the parser climbed from the assignment over the lower-precedence
+?: and then rejected the whole ?: expression as the target of the
+assignment, so it was a syntax error without parentheses. Now an
+assignment does not climb over a ? or : above it, and a : climbs over
+assignments to reach its ?. The comment above the operator table
+documents the expected behaviour, which now holds.
+
+---
+ editors/awk.c |   21 +++++++++++++++++++--
+ 1 file changed, 19 insertions(+), 2 deletions(-)
+
+--- a/editors/awk.c
++++ b/editors/awk.c
+@@ -552,7 +552,6 @@
+  * around "b" in ?:, but not around "c" - they would barf on "w=5" above.
+  * gawk allows nesting of ?: - this works:
+  * u=0?v=4?5:6:w=7?8:9 means u=0?(v=4?5:6):(w=7?8:9)
+- * bbox is buggy here, requires parens: "u=0?(v=4):(w=5)"
+  */
+ 
+ /* internal variable names and their initial values       */
+@@ -1474,6 +1473,20 @@
+ 
+ static node *parse_expr(uint32_t);
+ 
++/* Is it =, += or another assignment? */
++static int is_assignment(uint32_t info)
++{
++	info &= OPCLSMASK;
++	return info == OC_MOVE || info == OC_REPLACE;
++}
++
++/* Is it the "?" or ":" of a ?: */
++static int is_ternary(uint32_t info)
++{
++	info &= OPCLSMASK;
++	return info == OC_TERNARY || info == OC_COLON;
++}
++
+ static node *parse_lrparen_list(void)
+ {
+ 	next_token(TC_LPAREN);
+@@ -1514,8 +1527,12 @@
+ 			/* for binary and postfix-unary operators, jump back over
+ 			 * previous operators with higher precedence */
+ 			vn = cn;
+-			while (((t_info & PRIMASK) > (vn->a.n->info & PRIMASK2))
++			while ((((t_info & PRIMASK) > (vn->a.n->info & PRIMASK2))
++			        /* an assignment in the 2nd or 3rd operand of ?: stays there */
++			        && !(is_assignment(t_info) && is_ternary(vn->a.n->info)))
+ 			    || (t_info == vn->info && t_info == TI_COLON)
++			    /* ":" ends an assignment in the 2nd operand of ?: */
++			    || (t_info == TI_COLON && is_assignment(vn->a.n->info))
+ 			) {
+ 				vn = vn->a.n;
+ 				if (!vn->a.n) syntax_error(EMSG_UNEXP_TOKEN);

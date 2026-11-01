@@ -1,0 +1,27 @@
+Count the fields that newlines separate with a regex FS and RS="".
+In paragraph mode newline separates fields in addition to FS. With a
+regular expression FS, awk_split() did split the record at newlines but
+counted only the fields that FS separated, so NF came out short and the
+fields at the end of the record were lost: with FS = ", *", the record
+"a, b\nc, d" had NF = 3 and fields a, b and c. Count a field at each
+newline too.
+
+---
+ editors/awk.c |    5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+--- a/editors/awk.c
++++ b/editors/awk.c
+@@ -2193,8 +2193,11 @@
+ 				n++; /* we saw yet another delimiter */
+ 			} else {
+ 				pmatch[0].rm_eo = l;
+-				if (s[l])
++				if (s[l]) {
++					/* a newline delimiter (RS="") */
+ 					pmatch[0].rm_eo++;
++					n++;
++				}
+ 			}
+ 			s1 = mempcpy(s1, s, l);
+ 			*s1++ = '\0';

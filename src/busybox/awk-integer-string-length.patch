@@ -1,0 +1,23 @@
+Make room for every digit of a large integral number in awk.
+fmt_num() converts an integral number to a string with "%.0f" into the
+240-byte g_buf, but an integral double can have 309 digits, so numbers
+of about 1e239 or more lost their last digits: "x = 1e300; print
+length(x "")" printed 239 instead of 301. Enlarge the buffer to hold
+the largest double with its sign.
+
+---
+ editors/awk.c |    3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+--- a/editors/awk.c
++++ b/editors/awk.c
+@@ -92,7 +92,8 @@
+ 	OPT_W = 1 << OPTBIT_W
+ };
+ 
+-#define	MAXVARFMT       240
++/* Room for "%.0f" of any double: up to 309 digits and a sign */
++#define	MAXVARFMT       320
+ 
+ /* variable flags */
+ #define	VF_NUMBER       0x0001	/* 1 = primary type is number */

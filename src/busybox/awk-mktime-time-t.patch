@@ -1,0 +1,20 @@
+Return awk's mktime() result as a time_t rather than an int.
+do_mktime() passed mktime()'s result through an int, so with a 64-bit
+time_t any time after 03:14:07 UTC on 19 January 2038 wrapped around to
+a negative number.
+
+---
+ editors/awk.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/editors/awk.c
++++ b/editors/awk.c
+@@ -2989,7 +2989,7 @@
+ 	return match_no;
+ }
+ 
+-static NOINLINE int do_mktime(const char *ds)
++static NOINLINE time_t do_mktime(const char *ds)
+ {
+ 	struct tm then;
+ 	int count;

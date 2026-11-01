@@ -1,0 +1,40 @@
+Write awk's %F conversion as %f with msvcrt, which lacks %F.
+msvcrt's printf does not know %F, so printf "%F" and an OFMT or CONVFMT
+of "%F" produced nothing for the number. %F differs from %f only in the
+case of the letters of infinity and NaN, which msvcrt writes in its own
+form anyway, so use %f in printf formats and in OFMT and CONVFMT when
+building against msvcrt.
+
+---
+ editors/awk.c |   13 +++++++++++++
+ 1 file changed, 13 insertions(+)
+
+--- a/editors/awk.c
++++ b/editors/awk.c
+@@ -1021,6 +1021,14 @@
+ 
+ 		if (strchr("diouxX", c)) {
+ 			snprintf(g_buf, MAXVARFMT, format, (int)n);
++#if ENABLE_PLATFORM_MINGW32 && !defined(_UCRT)
++		} else if (c == 'F') {
++			/* msvcrt has no %F, which differs from %f only for inf and nan */
++			char *f = xstrdup(format);
++			f[s - format] = 'f';
++			snprintf(g_buf, MAXVARFMT, f, n);
++			free(f);
++#endif
+ 		} else if (strchr("eEfFgGaA", c)) {
+  print_verbatim:
+ 			snprintf(g_buf, MAXVARFMT, format, n);
+@@ -2705,6 +2713,11 @@
+ 		while (!isalpha(c))
+ 			c = *++fmt_cur;
+ 		/* we are at A in "....%fmtA..." */
++#if ENABLE_PLATFORM_MINGW32 && !defined(_UCRT)
++		/* msvcrt has no %F, which differs from %f only for inf and nan */
++		if (c == 'F')
++			*fmt_cur = c = 'f';
++#endif
+ 
+ 		arg = evaluate(nextarg(&n), TMPVAR);
+ 

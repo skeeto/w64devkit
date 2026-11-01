@@ -1,0 +1,22 @@
+Count records read by "cmd | getline" in NR, as POSIX specifies.
+Only a plain getline from the main input incremented NR, so after
+"cmd | getline" or "cmd | getline var" NR was unchanged. Increment NR,
+but not FNR, which counts only the records of the current input file,
+for a record read from a command.
+
+---
+ editors/awk.c |    3 +++
+ 1 file changed, 3 insertions(+)
+
+--- a/editors/awk.c
++++ b/editors/awk.c
+@@ -3694,6 +3694,9 @@
+ 			if (i > 0 && !op1) {
+ 				incvar(intvar[FNR]);
+ 				incvar(intvar[NR]);
++			} else if (i > 0 && (opinfo & OPCLSMASK) == OC_PGETLINE) {
++				/* "cmd | getline" counts records in NR, not in FNR */
++				incvar(intvar[NR]);
+ 			}
+ 			setvar_i(res, i);
+ 			break;

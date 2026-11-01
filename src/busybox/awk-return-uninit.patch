@@ -1,0 +1,47 @@
+Return an uninitialized value from an awk function that gives no value.
+A bare "return", or the end of the function body, returns an
+uninitialized value, which compares equal both to 0 and to "", but awk
+returned an empty string that was set, so "f() == 0" was false. Clear
+the result and leave it unset in these cases, including a function
+with an empty body, which has no statements to reach the end of.
+
+---
+ editors/awk.c |   13 ++++++++++---
+ 1 file changed, 10 insertions(+), 3 deletions(-)
+
+--- a/editors/awk.c
++++ b/editors/awk.c
+@@ -3534,7 +3534,10 @@
+ 
+ 		case XC( OC_RETURN ):
+ 			debug_printf_eval("RETURN\n");
+-			copyvar(res, L.v);
++			if (op1)
++				copyvar(res, L.v);
++			else /* return an uninitialized value */
++				clrvar(res)->type &= ~VF_DIRTY;
+ 			break;
+ 
+ 		case XC( OC_NEXTFILE ):
+@@ -3545,7 +3548,8 @@
+ 			nextrec = TRUE;
+ 		case XC( OC_DONE ):
+ 			debug_printf_eval("DONE\n");
+-			clrvar(res);
++			/* a function ending here returns an uninitialized value */
++			clrvar(res)->type &= ~VF_DIRTY;
+ 			break;
+ 
+ 		case XC( OC_EXIT ):
+@@ -3656,7 +3660,10 @@
+ 			sv_progname = g_progname;
+ 
+ 			fnargs = argvars;
+-			res = evaluate(op->r.f->body.first, res);
++			if (op->r.f->body.first)
++				res = evaluate(op->r.f->body.first, res);
++			else /* an empty body returns an uninitialized value */
++				clrvar(res)->type &= ~VF_DIRTY;
+ 			nvfree(argvars, nargs);
+ 
+ 			g_progname = sv_progname;
