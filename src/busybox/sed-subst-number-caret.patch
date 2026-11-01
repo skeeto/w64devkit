@@ -1,0 +1,55 @@
+Do not ignore the s match number when the regex starts with ^.
+The s flag parser skipped a match number N when the regex began with
+^, so the first match was replaced instead of the Nth: "s/^a/X/2"
+turned "aaa" into "Xaa", where GNU sed leaves the line alone because ^
+matches only once, and in the extended regex "^a|b", which can match
+many times, "s/^a|b/X/2" replaced the leading a instead of the first b.
+Parse the number whatever the regex; the matching loop already keeps
+^ from matching after the start. But when the first match was an
+empty one at the end of the line and the loop skipped it, it did not
+note that the end had been tried, and counted a second match there:
+"s/^/X/2" still changed an empty line to "X", and "s/$/X/2" turned
+"abc" into "abcX". Note it.
+
+---
+ editors/sed.c |   21 ++++++++++++---------
+ 1 file changed, 12 insertions(+), 9 deletions(-)
+
+--- a/editors/sed.c
++++ b/editors/sed.c
+@@ -475,13 +475,11 @@
+ 		dbg("s flag:'%c'", substr[idx]);
+ 		/* Parse match number */
+ 		if (isdigit(substr[idx])) {
+-			if (match[0] != '^') {
+-				/* Match 0 treated as all, multiple matches we take the last one. */
+-				const char *pos = substr + idx;
++			/* Match 0 treated as all, multiple matches we take the last one. */
++			const char *pos = substr + idx;
+ /* FIXME: error check? */
+-				sed_cmd->which_match = (unsigned)strtol(substr+idx, (char**) &pos, 10);
+-				idx = pos - substr - 1;
+-			}
++			sed_cmd->which_match = (unsigned)strtol(substr+idx, (char**) &pos, 10);
++			idx = pos - substr - 1;
+ 			continue;
+ 		}
+ 		/* Skip spaces, but not a newline, which ends the command */
+@@ -916,9 +914,14 @@
+ 		) {
+ 			for (i = 0; i < end; i++)
+ 				pipe_putc(*line++);
+-			/* Null match? Print one more char */
+-			if (start == end && *line)
+-				pipe_putc(*line++);
++			/* Null match? Print one more char, or if at the
++			 * end, note that we tried matching there */
++			if (start == end) {
++				if (*line)
++					pipe_putc(*line++);
++				else
++					tried_at_eol = 1;
++			}
+ 			goto next;
+ 		}
+ 

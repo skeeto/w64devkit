@@ -359,3 +359,17 @@ find-delete-status.patch
 find-empty-status.patch
 find-name-trailing-backslash.patch
 find-follow-last-option.patch
+sed-hash-n-first-line.patch
+sed-address-zero.patch
+sed-address-delimiter-escape.patch
+sed-empty-address-regex.patch
+sed-subst-match-context.patch
+sed-unmatched-braces.patch
+sed-subst-number-caret.patch
+sed-w-dev-stdout.patch
+sed-y-no-brackets.patch
+sed-y-double-backslash.patch
+sed-l-command.patch
+sed-r-keep-cr.patch
+sed-in-place-quit.patch
+sed-stdin-operand.patch

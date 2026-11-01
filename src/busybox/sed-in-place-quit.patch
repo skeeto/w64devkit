@@ -1,0 +1,31 @@
+Close the input file after q with -i.
+With -i each file is processed on its own, and q ends only the current
+file. But q left that file open, at the line after the last one read.
+On Windows, where an open file cannot be replaced, "sed -i 2q f" then
+failed with "can't move" and left f unchanged whenever f had more than
+two lines. Elsewhere the rename succeeded, but the next file was not
+read from its start: the following process_files() went on reading the
+rest of the previous file, so "sed -i 1q a b", with three lines in a,
+replaced b with the third line of a. Close the file after q and move on
+to the next one.
+
+---
+ editors/sed.c |    7 +++++++
+ 1 file changed, 7 insertions(+)
+
+--- a/editors/sed.c
++++ b/editors/sed.c
+@@ -1791,6 +1791,13 @@
+ 			fchown(nonstdoutfd, statbuf.st_uid, statbuf.st_gid);
+ 
+ 			process_files();
++			/* After 'q' the file is still open: close it, so that
++			 * it can be replaced and the next file is read */
++			if (G.current_fp) {
++				fclose(G.current_fp);
++				G.current_fp = NULL;
++				G.current_input_file++;
++			}
+ 			fflush(G.nonstdout);
+ 			if (ferror(G.nonstdout)) {
+ 				xfunc_error_retval = 4;  /* It's what gnu sed exits with... */

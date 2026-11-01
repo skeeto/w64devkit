@@ -1,0 +1,47 @@
+Honor "#n" only at the start of the script.
+POSIX gives "#n" the meaning of -n only when they are the first two
+characters of the script, which is what GNU sed does. But sed turned on
+-n for any comment starting with "n" anywhere in the script, so a
+comment such as "#note" or "#no match" on a later line or in a later -e
+silently suppressed the output: "sed -e p -e '#note'" printed each line
+once instead of twice. Check for "#n" only at the start of the first
+line of the script.
+
+---
+ editors/sed.c |   11 ++++++++---
+ 1 file changed, 8 insertions(+), 3 deletions(-)
+
+--- a/editors/sed.c
++++ b/editors/sed.c
+@@ -141,6 +141,7 @@
+ struct globals {
+ 	/* options */
+ 	int be_quiet, regex_type;
++	smallint seen_first_line;
+ #if ENABLE_PLATFORM_MINGW32
+ 	int keep_cr;
+ #endif
+@@ -666,6 +667,13 @@
+ 	sed_cmd_t *sed_cmd;
+ 	unsigned len, n;
+ 
++	/* "#n" as the first two characters of the script is the same as -n */
++	if (!G.seen_first_line) {
++		G.seen_first_line = 1;
++		if (cmdstr[0] == '#' && cmdstr[1] == 'n')
++			G.be_quiet++;
++	}
++
+ 	/* Append this line to any unfinished line from last time. */
+ 	if (G.add_cmd_line) {
+ 		cmdstr = xasprintf_inplace(G.add_cmd_line,
+@@ -693,9 +701,6 @@
+ 
+ 		/* if this is a comment, jump past it and keep going */
+ 		if (*cmdstr == '#') {
+-			/* "#n" is the same as using -n on the command line */
+-			if (cmdstr[1] == 'n')
+-				G.be_quiet++;
+ 			cmdstr = strpbrk(cmdstr, "\n\r");
+ 			if (!cmdstr) break;
+ 			continue;

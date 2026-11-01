@@ -1,0 +1,105 @@
+Make an empty address regex stand for the last regex used.
+POSIX and GNU sed define an empty regex, as in "//p", as the last regex
+used when the command runs, and sed does that for s//. But an empty
+address regex was bound when the script was parsed, to the last address
+regex before it in the script, ignoring s commands. So
+"sed -n 's/a/X/;//p'" died with "no previous regexp" instead of
+printing the changed lines, and in "/x/p;s/y/Z/;//d" the // meant /x/
+instead of /y/. The parser also left its last address regex as the
+initial previous regex at run time, so an s// that ran before any regex
+silently used one that came later in the script. Mark an empty address
+regex instead, and resolve it when the address is tested. Record each
+address regex as the last one used whenever it is tested, matching or
+not, as is done for s and as GNU sed does, so that within a range the
+end regex is the last one used once it has been tried.
+
+---
+ editors/sed.c |   37 ++++++++++++++++++++-----------------
+ 1 file changed, 20 insertions(+), 17 deletions(-)
+
+--- a/editors/sed.c
++++ b/editors/sed.c
+@@ -178,6 +178,9 @@
+ 	} pipeline;
+ } FIX_ALIASING;
+ #define G (*(struct globals*)bb_common_bufsiz1)
++/* Marks an empty address regex (//), which stands for the last regex
++ * used, the one G.previous_regex_ptr points to when it is tested */
++#define EMPTY_REGEX ((regex_t *)&G.previous_regex_ptr)
+ #define INIT_G() do { \
+ 	setup_common_bufsiz(); \
+ 	BUILD_BUG_ON(sizeof(G) > COMMON_BUFSIZE); \
+@@ -408,13 +411,12 @@
+ 		next = index_of_next_unescaped_regexp_delim(delimiter, ++pos);
+ 		if (next != 0) {
+ 			temp = copy_parsing_escapes(pos, next, delimiter);
+-			G.previous_regex_ptr = *regex = xzalloc(sizeof(regex_t));
++			*regex = xzalloc(sizeof(regex_t));
+ 			xregcomp(*regex, temp, G.regex_type);
+ 			free(temp);
+ 		} else {
+-			*regex = G.previous_regex_ptr;
+-			if (!G.previous_regex_ptr)
+-				bb_simple_error_msg_and_die("no previous regexp");
++			/* the last regex used when the address is tested */
++			*regex = EMPTY_REGEX;
+ 		}
+ 		/* Move position to next character after last delimiter */
+ 		pos += (next+1);
+@@ -1124,12 +1126,21 @@
+ 
+ #define sed_puts(s, n) (puts_maybe_newline(s, G.nonstdout, &last_puts_char, n))
+ 
++/* Test an address regex, which becomes the last regex used */
++static int match_address(regex_t *regex, const char *pattern_space)
++{
++	if (regex == EMPTY_REGEX) {
++		regex = G.previous_regex_ptr;
++		if (!regex)
++			bb_simple_error_msg_and_die("no previous regexp");
++	}
++	G.previous_regex_ptr = regex;
++	return regexec(regex, pattern_space, 0, NULL, 0) == 0;
++}
++
+ static int beg_match(sed_cmd_t *sed_cmd, const char *pattern_space)
+ {
+-	int retval = sed_cmd->beg_match && !regexec(sed_cmd->beg_match, pattern_space, 0, NULL, 0);
+-	if (retval)
+-		G.previous_regex_ptr = sed_cmd->beg_match;
+-	return retval;
++	return sed_cmd->beg_match && match_address(sed_cmd->beg_match, pattern_space);
+ }
+ 
+ /* Process all the lines in all the files */
+@@ -1230,8 +1241,6 @@
+ 			dbg("end1:%d", sed_cmd->end_line ? sed_cmd->end_line == -1
+ 						? !next_line : (sed_cmd->end_line <= linenum)
+ 					: !sed_cmd->end_match);
+-			dbg("end2:%d", sed_cmd->end_match && old_matched
+-					&& !regexec(sed_cmd->end_match,pattern_space, 0, NULL, 0));
+ 			sed_cmd->in_match = !(
+ 				/* has the ending line come, or is this a single address command? */
+ 				(sed_cmd->end_line
+@@ -1242,8 +1251,7 @@
+ 				)
+ 				/* or does this line matches our last address regex */
+ 				|| (sed_cmd->end_match && old_matched
+-				     && (regexec(sed_cmd->end_match,
+-						pattern_space, 0, NULL, 0) == 0)
++				     && match_address(sed_cmd->end_match, pattern_space)
+ 				)
+ 			);
+ 		}
+@@ -1272,11 +1280,6 @@
+ 		if (sed_cmd->invert ? matched : !matched)
+ 			continue; /* no */
+ 
+-		/* Update last used regex in case a blank substitute BRE is found */
+-		if (sed_cmd->beg_match) {
+-			G.previous_regex_ptr = sed_cmd->beg_match;
+-		}
+-
+ 		/* actual sedding */
+ 		dbg("pattern_space:'%s' next_line:'%s' cmd:%c",
+ 				pattern_space, next_line, sed_cmd->cmd);

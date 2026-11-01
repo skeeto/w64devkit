@@ -108,6 +108,7 @@ Text written by
 .BR c ,
 .BR r ,
 .BR = ,
+.BR l ,
 .BR p ,
 and
 .B P
@@ -163,8 +164,8 @@ such as
 or
 .BR #note ,
 acts like
-.BR \-n ,
-wherever in the script it appears.
+.B \-n
+when it starts the first line of the script.
 .SS Addresses
 A command may be preceded by one address, which selects the lines that
 match it, or by two addresses separated by a comma, which select a range
@@ -178,7 +179,7 @@ Line number
 counting from 1.
 The count runs across files, but restarts for each file with
 .BR \-i .
-A lone 0 is the same as no address.
+A 0 is allowed only as described below.
 .TP
 .B $
 The last line of the input, or with
@@ -200,6 +201,10 @@ If the second address is a number that is not greater than the number of
 the first line, the range is that line alone.
 A second address that is a regular expression is first tried on the line
 after the start of the range.
+A first address of 0 is allowed only before such a second address, as in
+.BR 0,/regex/ :
+the range is then open from the start, so the regular expression is
+tried from the first line on, and the range is not started again.
 The second address may also be
 .BI + n \fR,
 which ends the range
@@ -289,15 +294,13 @@ and
 to LF, tab, and CR, including inside a bracket expression.
 In an
 .B s
-command it also replaces a backslash and the delimiter by the bare
-delimiter, so in
+command or an address it also replaces a backslash and the delimiter by
+the bare delimiter, so in
 .B s|a\e|b|X|
 the expression is
 .BR a|b ,
 which matches those three characters in a basic expression and is an
 alternation in an extended one.
-In an address the backslash stays, and the regular expression compiler
-sees it.
 A delimiter inside a bracket expression does not end the regular
 expression.
 .PP
@@ -325,33 +328,13 @@ An empty regular expression, as in
 .B //
 or
 .BR s//x/ ,
-stands for the last regular expression used.
-For
+stands for the last regular expression used when it is tried, in an
+address or in an
 .B s
-that is the last one used when the command runs, and for an address, the
-last address regular expression before it in the script, ignoring those
-of
-.B s
-commands.
-.PP
-With the
-.B g
-flag or a number
-.IR N ,
-each match after the first is searched for in the rest of the pattern
-space as if it began there, though not at the start of a line.
-So
-.BR \e\(ga ,
-.BR \eb ,
-.BR \eB ,
-and
-.B \e<
-can match differently there:
-.B s/\e<a/X/g
-changes
-.B aaa
-to
-.BR XXX .
+command.
+An address regular expression counts as used each time it is tried,
+whether or not it matches, and the second address of a range is first
+tried on the line after the start of the range.
 .SS Commands
 Each command may have the addresses described above, except as noted.
 .TP
@@ -367,7 +350,7 @@ A
 .B {
 with no matching
 .B }
-is an error only when its block is skipped.
+is an error.
 .TP
 .B }
 End a block.
@@ -375,7 +358,7 @@ A
 .B }
 with no matching
 .B {
-does nothing.
+is an error.
 .TP
 \fB:\fIlabel\fR
 Define a label, the word after the colon with leading blanks skipped.
@@ -457,6 +440,27 @@ The text has the form described under
 .BR a .
 Takes at most one address.
 .TP
+.B l
+Write the pattern space in an unambiguous form, followed by an LF.
+A backslash is written as
+.BR \e\e ,
+the alert, backspace, form feed, LF, CR, tab, and vertical tab
+characters as
+.BR \ea ,
+.BR \eb ,
+.BR \ef ,
+.BR \en ,
+.BR \er ,
+.BR \et ,
+and
+.BR \ev ,
+and any other byte that is not printable ASCII as a backslash and three
+octal digits.
+The end of the pattern space is marked with a
+.BR $ .
+Lines longer than 69 characters are folded, with a backslash at the end
+of each part, but never inside an escape.
+.TP
 .B n
 Write the pattern space unless
 .B \-n
@@ -488,9 +492,7 @@ of it.
 There is no exit code argument.
 With
 .B \-i
-it ends only the current file, and with a
-.B \-
-operand only the current part of the input, as described in
+it ends only the current file, as described in
 .BR NOTES .
 .TP
 \fBr\fR \fIfile\fR
@@ -501,7 +503,9 @@ to be written after the current line, like
 The file name is the rest of the line, with leading blanks skipped.
 A file that cannot be opened is silently ignored.
 Each line of the file is written followed by an LF, so a missing final
-LF is added and a CR before an LF is removed.
+LF is added, and a CR before an LF is removed unless
+.B \-b
+is given.
 Takes at most one address.
 .TP
 \fBs/\fIregex\fB/\fIreplacement\fB/\fR[\fIflags\fR]
@@ -551,8 +555,6 @@ Replace only the
 match.
 A number of 0 is the same as
 .BR g .
-It is ignored if the regular expression starts with
-.BR ^ .
 If both
 .B g
 and a number are given, the later one counts.
@@ -612,8 +614,10 @@ and
 .I /dev/null
 work.
 .I /dev/stdout
-is a second stream on standard output with a buffer of its own, so what
-is written to it can come out of order with the other output.
+is standard output itself, so what is written to it stays in order with
+the other output, and with
+.B \-i
+it is not the file being edited.
 .TP
 .B x
 Exchange the pattern space and the hold space.
@@ -632,20 +636,9 @@ In both strings,
 .BR \en ,
 .BR \et ,
 .BR \er ,
-and a backslash and the delimiter are escapes, but any other backslash
-is an ordinary byte, so
 .B \e\e
-is two backslashes.
-A
-.B [
-in
-.I source
-starts a bracket expression, as in a regular expression, and a delimiter
-inside it does not end
-.IR source ,
-so
-.B y/[/x/
-is an error.
+(one backslash), and a backslash and the delimiter are escapes, but any
+other backslash is an ordinary byte.
 .SH OPTIONS
 Options may be grouped, as in
 .BR \-nr ,
@@ -912,15 +905,12 @@ and
 are reported as unsupported commands.
 The command
 .B l
-is accepted and does nothing.
+takes no line length argument.
 .IP \(bu 2
 An address cannot be
 .IB first ~ step\fR,
 nor can a range end in
 .BI ~ n\fR.
-A range that starts at line 0, as in
-.BR 0,/regex/ ,
-never matches.
 There are no
 .B I
 and
@@ -961,11 +951,7 @@ accept only one address, and
 .B q
 takes no exit code.
 .IP \(bu 2
-A comment that starts with
-.B n
-turns on
-.BR \-n ,
-and every
+Every
 .B \-e
 script is read before any
 .B \-f
@@ -1027,32 +1013,6 @@ not ended by the end of a file ends there.
 A
 .B q
 ends only the current file, and the next file is still processed.
-Windows cannot replace a file that is still open, so a
-.B q
-that runs on a line other than the last of a file makes the replacement
-fail.
-.B sed
-reports
-.BR "can't move" ,
-exits with status 1, and leaves the file unchanged.
-For example,
-.B sed \-i 2q
-fails on a file with more than 2 lines.
-.PP
-Without
-.BR \-i ,
-each
-.B \-
-operand other than the last ends a part of the input, and the parts are
-processed one after another, each as if it were all the input.
-Line numbers start at 1 again in each part, although a line number
-address that has already matched does not match again, and
-.B $
-is the last line of the part.
-A
-.B q
-ends only its part, and the next part first reads what that part left
-unread, except for one line, which is lost.
 .PP
 File names may use drive letters and backslashes.
 They may contain any Unicode characters on Windows 10 version 1903 and

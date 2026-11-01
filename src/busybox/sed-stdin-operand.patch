@@ -1,0 +1,29 @@
+Do not process the input in parts at each "-" operand.
+Without -i all the files form one stream, but a "-" operand made
+sed_main() call process_files() on the files up to and including it
+right away, and then again for the rest. Each part was processed as if
+it were all the input: line numbers started again, "$" matched the last
+line of the part, and q ended only the part, after which the next part
+went on reading what the first left unread, minus one line that had
+already been read ahead and was lost. "seq 4 | sed 1q -" printed 1, 3
+and 4 instead of 1. Only mark the operand as standard input, and leave
+all the processing to the single process_files() call at the end.
+
+---
+ editors/sed.c |    4 +---
+ 1 file changed, 1 insertion(+), 3 deletions(-)
+
+--- a/editors/sed.c
++++ b/editors/sed.c
+@@ -1766,10 +1766,8 @@
+ 			G.last_input_file++;
+  start:
+ 			if (!(opt & OPT_in_place)) {
+-				if (LONE_DASH(*argv)) {
++				if (LONE_DASH(*argv))
+ 					*argv = (char*)bb_msg_standard_input;
+-					process_files();
+-				}
+ 				continue;
+ 			}
+ 

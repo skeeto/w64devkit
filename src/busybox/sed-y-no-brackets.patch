@@ -1,0 +1,57 @@
+Do not treat "[" as a bracket expression in y.
+The y command shares the delimiter scan of s, which skips over a
+bracket expression in the regex so that a delimiter inside it does not
+end the regex. But the source string of y is a plain list of
+characters, not a regex, so a "[" in it hid the delimiters that
+followed: "y/[/x/" and "y/[a/]x/" failed with "unmatched '/'" instead
+of mapping "[" to "x", and "[" and "a" to "]" and "x". Scan the source
+of y without bracket expressions, as is already done for the
+replacement of s and the destination of y, which matches GNU sed.
+
+---
+ editors/sed.c |   12 +++++++-----
+ 1 file changed, 7 insertions(+), 5 deletions(-)
+
+--- a/editors/sed.c
++++ b/editors/sed.c
+@@ -363,9 +363,11 @@
+ }
+ 
+ /*
+- *  Returns the index of the third delimiter
++ *  Returns the index of the third delimiter.
++ *  Only if regex is set (s, not y) can the match string have a bracket
++ *  expression, inside which the delimiter does not end it.
+  */
+-static int parse_regex_delim(const char *cmdstr, char **match, char **replace)
++static int parse_regex_delim(const char *cmdstr, char **match, char **replace, int regex)
+ {
+ 	const char *cmdstr_ptr = cmdstr;
+ 	unsigned char delimiter;
+@@ -378,7 +380,7 @@
+ 	delimiter = *cmdstr_ptr++;
+ 
+ 	/* save the match string */
+-	idx = index_of_next_unescaped_regexp_delim(delimiter, cmdstr_ptr);
++	idx = index_of_next_unescaped_regexp_delim(regex ? delimiter : - (int)delimiter, cmdstr_ptr);
+ 	*match = copy_parsing_escapes(cmdstr_ptr, idx, delimiter);
+ 	/* save the replacement string */
+ 	cmdstr_ptr += idx + 1;
+@@ -464,7 +466,7 @@
+ 	 *    ||     |        |||
+ 	 *    mandatory       optional
+ 	 */
+-	idx = parse_regex_delim(substr, &match, &sed_cmd->string);
++	idx = parse_regex_delim(substr, &match, &sed_cmd->string, 1);
+ 
+ 	/* determine the number of back references in the match string */
+ 	/* Note: we compute this here rather than in the do_subst_command()
+@@ -639,7 +641,7 @@
+ 		char *match, *replace;
+ 		int i = cmdstr[0];
+ 
+-		cmdstr += parse_regex_delim(cmdstr, &match, &replace)+1;
++		cmdstr += parse_regex_delim(cmdstr, &match, &replace, 0)+1;
+ 		/* \n already parsed, but \delimiter needs unescaping. */
+ 		parse_escapes(match,   match,   -1, i, i);
+ 		parse_escapes(replace, replace, -1, i, i);

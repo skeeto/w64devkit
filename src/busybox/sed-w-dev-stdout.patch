@@ -1,0 +1,26 @@
+Write "w /dev/stdout" through stdout itself.
+The w command and the s///w flag opened /dev/stdout as a new stream,
+with a buffer of its own, so what they wrote could come out before or
+after the normal output of the same cycle instead of in order. On Linux,
+when stdout was redirected to a file, opening /dev/stdout for writing
+also truncated that file, and the two streams then wrote at separate
+offsets, overwriting each other. GNU sed treats the name specially. Do
+the same: use stdout for /dev/stdout, without opening anything.
+
+---
+ editors/sed.c |    4 ++++
+ 1 file changed, 4 insertions(+)
+
+--- a/editors/sed.c
++++ b/editors/sed.c
+@@ -245,6 +245,10 @@
+ {
+ 	struct sed_FILE **pp = &G.FILE_head;
+ 	struct sed_FILE *cur;
++
++	/* Share stdout's buffer, so that the output stays in order */
++	if (strcmp(fname, "/dev/stdout") == 0)
++		return stdout;
+ 	while ((cur = *pp) != NULL) {
+ 		if (strcmp(cur->fname, fname) == 0)
+ 			return cur->fp;

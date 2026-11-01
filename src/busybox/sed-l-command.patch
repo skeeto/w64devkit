@@ -1,0 +1,70 @@
+Implement the l command.
+The l command, which POSIX requires, was accepted by the parser but did
+nothing when it ran, so "sed -n l" printed nothing at all. Implement it
+as POSIX describes and as GNU sed does by default: write the pattern
+space with each backslash doubled, \a, \b, \f, \n, \r, \t and \v for
+those characters, a three-digit octal escape for any other
+nonprintable or non-ASCII byte, and "$" at the end, folding lines
+longer than 69 characters with a backslash, never inside an escape.
+
+---
+ editors/sed.c |   41 +++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 41 insertions(+)
+
+--- a/editors/sed.c
++++ b/editors/sed.c
+@@ -1163,6 +1163,42 @@
+ 
+ #define sed_puts(s, n) (puts_maybe_newline(s, G.nonstdout, &last_puts_char, n))
+ 
++/* Write the pattern space for 'l': backslashes and nonprintable bytes
++ * escaped, long lines folded with a backslash, and '$' at the end */
++static void list_pattern_space(const char *s, char *last_puts_char)
++{
++	static const char escapes[] ALIGN1 = "\\\\\aa\bb\ff\nn\rr\tt\vv";
++	char buf[70 + 1];
++	int len = 0;
++
++	for (; *s; s++) {
++		unsigned char c = *s;
++		const char *p;
++		char esc[5];
++		int n;
++
++		for (p = escapes; *p && *p != c; p += 2)
++			continue;
++		if (*p)
++			sprintf(esc, "\\%c", p[1]);
++		else if (isprint_asciionly(c))
++			sprintf(esc, "%c", c);
++		else
++			sprintf(esc, "\\%03o", c);
++		n = strlen(esc);
++		/* At most 69 chars and a backslash on each folded line */
++		if (len + n > 69) {
++			strcpy(buf + len, "\\");
++			puts_maybe_newline(buf, G.nonstdout, last_puts_char, '\n');
++			len = 0;
++		}
++		strcpy(buf + len, esc);
++		len += n;
++	}
++	strcpy(buf + len, "$");
++	puts_maybe_newline(buf, G.nonstdout, last_puts_char, '\n');
++}
++
+ /* Test an address regex, which becomes the last regex used */
+ static int match_address(regex_t *regex, const char *pattern_space)
+ {
+@@ -1327,6 +1363,11 @@
+ 			sed_puts(itoa(linenum), '\n');
+ 			break;
+ 
++		/* Write the pattern space unambiguously */
++		case 'l':
++			list_pattern_space(pattern_space, &last_puts_char);
++			break;
++
+ 		/* Write the current pattern space up to the first newline */
+ 		case 'P':
+ 		{

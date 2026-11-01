@@ -1,0 +1,25 @@
+Make "\\" one backslash in the strings of y.
+POSIX says that in the strings of y two backslashes stand for one
+literal backslash, but sed kept both, so the two strings were out of
+step from there on: the source of "y/\\n/xy/" was the three bytes "\",
+"\" and "n", which left the "n" without a partner, so "a\n" became
+"axn" instead of "axy". Unescape "\\" after the other escapes, which
+already keep a "\\" pair together, so "\\n" is a backslash and an "n"
+and not a newline.
+
+---
+ editors/sed.c |    3 +++
+ 1 file changed, 3 insertions(+)
+
+--- a/editors/sed.c
++++ b/editors/sed.c
+@@ -645,6 +645,9 @@
+ 		/* \n already parsed, but \delimiter needs unescaping. */
+ 		parse_escapes(match,   match,   -1, i, i);
+ 		parse_escapes(replace, replace, -1, i, i);
++		/* "\\" is one backslash */
++		parse_escapes(match,   match,   -1, '\\', '\\');
++		parse_escapes(replace, replace, -1, '\\', '\\');
+ 
+ 		sed_cmd->string = xzalloc((strlen(match) + 1) * 2);
+ 		for (i = 0; match[i] && replace[i]; i++) {

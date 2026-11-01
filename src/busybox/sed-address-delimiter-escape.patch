@@ -1,0 +1,25 @@
+Unescape the delimiter in a \cREGEXc address.
+In an address regex with a custom delimiter, "\c" stands for the
+delimiter character c, as it does in the s command, but the address
+parser left the backslash in place and handed "\c" to the regex
+compiler. Where "\c" has a meaning of its own the address matched the
+wrong lines: "\|a\|b|p" was an alternation in a basic regex instead of
+matching "a|b", and in an extended regex it matched only a literal "|"
+instead of alternating. Remove the backslash before the delimiter, as
+the s command and GNU sed do.
+
+---
+ editors/sed.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/editors/sed.c
++++ b/editors/sed.c
+@@ -407,7 +407,7 @@
+ 			delimiter = *++pos;
+ 		next = index_of_next_unescaped_regexp_delim(delimiter, ++pos);
+ 		if (next != 0) {
+-			temp = copy_parsing_escapes(pos, next, 0);
++			temp = copy_parsing_escapes(pos, next, delimiter);
+ 			G.previous_regex_ptr = *regex = xzalloc(sizeof(regex_t));
+ 			xregcomp(*regex, temp, G.regex_type);
+ 			free(temp);

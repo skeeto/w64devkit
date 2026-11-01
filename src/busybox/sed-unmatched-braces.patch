@@ -1,0 +1,36 @@
+Diagnose unmatched braces when the script is parsed.
+A { without a matching } was reported only when its block was skipped
+at run time, and only then, so "sed -n '/a/{p'" ran happily as long as
+every line matched and failed on the first line that did not, after
+writing part of the output. A } without a matching { was silently
+ignored. Check the nesting once the whole script is read, and reject
+either error before any input is processed, as GNU sed does.
+
+---
+ editors/sed.c |   14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+--- a/editors/sed.c
++++ b/editors/sed.c
+@@ -1666,7 +1666,21 @@
+ 	}
+ 	/* Flush any unfinished commands. */
+ 	add_cmd("");
++	/* Check that the braces match */
++	{
++		sed_cmd_t *sed_cmd;
++		int depth = 0;
+ 
++		for (sed_cmd = G.sed_cmd_head; sed_cmd; sed_cmd = sed_cmd->next) {
++			if (sed_cmd->cmd == '{')
++				depth++;
++			if (sed_cmd->cmd == '}' && --depth < 0)
++				bb_simple_error_msg_and_die("unexpected }");
++		}
++		if (depth)
++			bb_simple_error_msg_and_die("unmatched {");
++	}
++
+ 	/* By default, we write to stdout */
+ 	G.nonstdout = stdout;
+ 

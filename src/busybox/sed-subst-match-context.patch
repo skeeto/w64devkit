@@ -1,0 +1,61 @@
+Search for later s matches with the text before them in view.
+With the g flag or a number, s looked for each match after the first by
+running the regex on the rest of the pattern space as a new string with
+REG_NOTBOL. That keeps ^ from matching again, but the regex no longer
+sees the character before the new start, so \<, \b, \B and \` judged it
+as the start of the text: "s/\<a/X/g" turned "aaa a" into "XXX X"
+instead of "Xaa X", "s/\b/X/g" put an X between every pair of letters,
+and "s/\`a/X/g" replaced every a. Where REG_STARTEND is available, as
+awk already does for gsub, search the whole pattern space from the
+offset reached instead, still with REG_NOTBOL, and make the match
+offsets relative to that offset again.
+
+---
+ editors/sed.c |   29 +++++++++++++++++++++++++++--
+ 1 file changed, 27 insertions(+), 2 deletions(-)
+
+--- a/editors/sed.c
++++ b/editors/sed.c
+@@ -844,6 +844,32 @@
+ 	}
+ }
+ 
++/* Find the next match in the rest of the pattern space, from line on,
++ * with offsets relative to line. Where possible, search the whole
++ * pattern space starting at line, so that \<, \b and the like see
++ * the text before line. Either way, ^ does not match at line. */
++static int regexec_rest(regex_t *regex, const char *pattern_space, const char *line)
++{
++#if defined(REG_STARTEND)
++	int i, r, ofs = line - pattern_space;
++
++	G.regmatch[0].rm_so = ofs;
++	G.regmatch[0].rm_eo = ofs + strlen(line);
++	r = regexec(regex, pattern_space, 10, G.regmatch, REG_STARTEND | REG_NOTBOL);
++	if (r == 0) {
++		for (i = 0; i < 10; i++) {
++			if (G.regmatch[i].rm_so != -1) {
++				G.regmatch[i].rm_so -= ofs;
++				G.regmatch[i].rm_eo -= ofs;
++			}
++		}
++	}
++	return r;
++#else
++	return regexec(regex, line, 10, G.regmatch, REG_NOTBOL);
++#endif
++}
++
+ static int do_subst_command(sed_cmd_t *sed_cmd, char **line_p)
+ {
+ 	char *line = *line_p;
+@@ -945,8 +971,7 @@
+ 			tried_at_eol = 1;
+ 		}
+ 
+-//maybe (end ? REG_NOTBOL : 0) instead of unconditional REG_NOTBOL?
+-	} while (regexec(current_regex, line, 10, G.regmatch, REG_NOTBOL) != REG_NOMATCH);
++	} while (regexec_rest(current_regex, *line_p, line) != REG_NOMATCH);
+ 
+ 	/* Copy rest of string into output pipeline */
+ 	while (1) {

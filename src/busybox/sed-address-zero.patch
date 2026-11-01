@@ -1,0 +1,63 @@
+Support "0,/regex/" and reject other uses of line address 0.
+A line number of 0 was stored like no address at all, so "0p" printed
+every line and "0d" deleted them all, while "0,/regex/", the GNU
+extension for a range whose regex may end it on the first line, never
+matched anything: "sed '0,/x/s//y/'" was a no-op. GNU sed rejects 0
+except as the first address of "0,/regex/". Do the same, and start such
+a range open, so its end regex is tried from the first line on. With -i
+it starts open again in each file. A range with no first address, such
+as ",/x/p", looked the same and silently never matched; reject it as
+an unknown command ",", as GNU sed does.
+
+---
+ editors/sed.c |   19 +++++++++++++++----
+ 1 file changed, 15 insertions(+), 4 deletions(-)
+
+--- a/editors/sed.c
++++ b/editors/sed.c
+@@ -715,11 +715,12 @@
+ 		sed_cmd = xzalloc(sizeof(sed_cmd_t));
+ 
+ 		/* first part (if present) is an address: either a '$', a number or a /regex/ */
+-		cmdstr += get_address(cmdstr, &sed_cmd->beg_line, &sed_cmd->beg_match);
++		n = get_address(cmdstr, &sed_cmd->beg_line, &sed_cmd->beg_match);
++		cmdstr += n;
+ 		sed_cmd->beg_line_orig = sed_cmd->beg_line;
+ 
+ 		/* second part (if present) will begin with a comma */
+-		if (*cmdstr == ',') {
++		if (n && *cmdstr == ',') {
+ 			int idx;
+ 
+ 			cmdstr++;
+@@ -748,6 +749,14 @@
+ 			sed_cmd->end_line_orig = sed_cmd->end_line;
+ 		}
+ 
++		/* Line 0 is only valid in "0,/regex/" (GNU extension): the range
++		 * is open before the first line, so the regex can end it there */
++		if (n && !sed_cmd->beg_line && !sed_cmd->beg_match) {
++			if (!sed_cmd->end_match)
++				bb_simple_error_msg_and_die("invalid usage of line address 0");
++			sed_cmd->in_match = 1;
++		}
++
+ 		/* skip whitespace before the command */
+ 		cmdstr = skip_whitespace(cmdstr);
+ 
+@@ -1697,11 +1706,13 @@
+ 			G.outname = NULL;
+ 
+ 			/* Fix disabled range matches and mangled ",+N" ranges,
+-			 * and end ranges left open: each file is separate */
++			 * and end ranges left open: each file is separate.
++			 * Only "0,/regex/" starts open */
+ 			for (sed_cmd = G.sed_cmd_head; sed_cmd; sed_cmd = sed_cmd->next) {
+ 				sed_cmd->beg_line = sed_cmd->beg_line_orig;
+ 				sed_cmd->end_line = sed_cmd->end_line_orig;
+-				sed_cmd->in_match = 0;
++				sed_cmd->in_match = !sed_cmd->beg_line_orig
++					&& !sed_cmd->beg_match && sed_cmd->end_match;
+ 			}
+ 		}
+ 		/* Here, to handle "sed 'cmds' nonexistent_file" case we did:

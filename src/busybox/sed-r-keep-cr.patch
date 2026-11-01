@@ -1,0 +1,30 @@
+Keep the CRs of a file read by r with -b.
+The -b option keeps the CR of each CRLF line ending in the input, but
+the r command read its file with xmalloc_fgetline(), which on Windows
+removes a CR before the LF, so with -b the input lines kept their CRLF
+endings while the lines inserted by r got bare LFs, and a CRLF file
+edited in place with -b came out with mixed line endings. With -b,
+read the file with xmalloc_fgets() and remove only the LF.
+
+---
+ editors/sed.c |    9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+--- a/editors/sed.c
++++ b/editors/sed.c
+@@ -1444,6 +1444,15 @@
+ 			rfile = fopen_for_read(sed_cmd->string);
+ 			if (rfile) {
+ 				char *line;
++#if ENABLE_PLATFORM_MINGW32
++				/* xmalloc_fgetline() removes a CR before the LF */
++				if (G.keep_cr) {
++					while ((line = xmalloc_fgets(rfile)) != NULL) {
++						chomp(line);
++						append(line);
++					}
++				} else
++#endif
+ 				while ((line = xmalloc_fgetline(rfile))
+ 						!= NULL)
+ 					append(line);
