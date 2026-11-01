@@ -1,0 +1,23 @@
+Report a source directory that cp -R cannot open.
+When opendir() failed on a source directory, as for one without read
+permission, or on Windows one whose path is too long to list,
+copy_file() had already created the destination directory and returned
+failure without a message. cp -R then left an empty directory and
+exited with status 1 without saying why. Use warn_opendir() so that
+the failure is reported like the others.
+
+---
+ libbb/copy_file.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/libbb/copy_file.c
++++ b/libbb/copy_file.c
+@@ -202,7 +202,7 @@
+ 		add_to_ino_dev_hashtable(&dest_stat, NULL);
+ 
+ 		/* Recursively copy files in SOURCE */
+-		dp = opendir(source);
++		dp = warn_opendir(source);
+ 		if (dp == NULL) {
+ 			retval = -1;
+ 			goto preserve_mode_ugid_time;

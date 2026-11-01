@@ -1,0 +1,35 @@
+Make cp -i ask only about a destination that exists.
+copy_file() asked "overwrite 'DEST'?" whenever creating DEST failed,
+so cp -i also asked about a destination that did not exist, for
+example in a missing directory, and only after an answer reported why
+it could not be created. Ask only when DEST exists, and otherwise go
+straight to the error.
+
+---
+ libbb/copy_file.c |   11 ++++++++---
+ 1 file changed, 8 insertions(+), 3 deletions(-)
+
+--- a/libbb/copy_file.c
++++ b/libbb/copy_file.c
+@@ -43,13 +43,18 @@
+ 
+ 	/* TODO: maybe we should do it only if ctty is present? */
+ 	if (flags & FILEUTILS_INTERACTIVE) {
++		struct stat sb;
+ 		// We would not do POSIX insanity. -i asks,
+ 		// then _unlinks_ the offender. Presto.
+ 		// (No "opening without O_EXCL", no "unlink only if -f")
+ 		// Or else we will end up having 3 open()s!
+-		fprintf(stderr, "%s: overwrite '%s'? ", applet_name, dest);
+-		if (!bb_ask_y_confirmation())
+-			return 0; /* not allowed to overwrite */
++		// Don't ask about a dest that doesn't exist: creating it
++		// failed for another reason, which is reported below.
++		if (lstat(dest, &sb) == 0 || errno != ENOENT) {
++			fprintf(stderr, "%s: overwrite '%s'? ", applet_name, dest);
++			if (!bb_ask_y_confirmation())
++				return 0; /* not allowed to overwrite */
++		}
+ 	}
+ 	if (unlink(dest) < 0) {
+ #if ENABLE_FEATURE_VERBOSE_CP_MESSAGE

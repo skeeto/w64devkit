@@ -1,0 +1,26 @@
+Make rmdir() fail with ENOTDIR for a file.
+RemoveDirectory() fails with ERROR_DIRECTORY when the path is not a
+directory, which the C runtime maps to EINVAL, so "rmdir file"
+reported "Invalid argument" rather than "Not a directory". Map it to
+ENOTDIR in mingw_rmdir(), as opendir() already does.
+
+---
+ win32/mingw.c |    6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+--- a/win32/mingw.c
++++ b/win32/mingw.c
+@@ -2302,8 +2302,12 @@
+ 
+ 	attrs = clear_readonly(path);
+ 	ret = rmdir(path);
+-	if (ret == -1)
++	if (ret == -1) {
++		/* the C runtime maps "not a directory" to EINVAL */
++		if (errno == EINVAL && GetLastError() == ERROR_DIRECTORY)
++			errno = ENOTDIR;
+ 		restore_readonly(path, attrs);
++	}
+ 	return ret;
+ }
+ 

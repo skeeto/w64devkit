@@ -1,0 +1,28 @@
+Stop rmdir -p at the top of a path relative to a drive.
+rmdir -p stops after the first component of a relative path, where
+dirname() returns ".". For a path relative to the current directory of
+a drive, such as "c:dir", dirname() returns "c:." instead, so rmdir
+went on to try to remove the current directory of that drive and
+failed with "Permission denied" and exit status 1 after removing
+everything it was asked to. Treat "X:." like ".".
+
+---
+ coreutils/rmdir.c |    7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+--- a/coreutils/rmdir.c
++++ b/coreutils/rmdir.c
+@@ -83,7 +83,12 @@
+ 				/* Path is now just the parent component.  Dirname
+ 				 * returns "." if there are no parents.
+ 				 */
+-				if (NOT_LONE_CHAR(path, '.')) {
++				if (NOT_LONE_CHAR(path, '.')
++#if ENABLE_PLATFORM_MINGW32
++				/* or "X:." for a path relative to drive X: */
++				 && !(has_dos_drive_prefix(path) && LONE_CHAR(path + 2, '.'))
++#endif
++				) {
+ 					continue;
+ 				}
+ 			}

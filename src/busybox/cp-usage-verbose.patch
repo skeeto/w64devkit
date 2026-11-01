@@ -1,0 +1,29 @@
+List -v in the cp usage message.
+cp accepts -v and prints each copy, but the usage message did not
+mention the option.
+
+---
+ coreutils/cp.c |    5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+--- a/coreutils/cp.c
++++ b/coreutils/cp.c
+@@ -89,8 +89,8 @@
+ //	(SELinux) set SELinux security context of copy to CONTEXT
+ 
+ //usage:#define cp_trivial_usage
+-//usage:       "[-arPLHpfinlsTu] SOURCE DEST\n"
+-//usage:       "or: cp [-arPLHpfinlsu] SOURCE... { -t DIRECTORY | DIRECTORY }"
++//usage:       "[-arPLHpfinlsTuv] SOURCE DEST\n"
++//usage:       "or: cp [-arPLHpfinlsuv] SOURCE... { -t DIRECTORY | DIRECTORY }"
+ //usage:#define cp_full_usage "\n\n"
+ //usage:       "Copy SOURCEs to DEST\n"
+ //usage:     "\n	-a	Same as -dpR"
+@@ -109,6 +109,7 @@
+ //usage:     "\n	-T	Refuse to copy if DEST is a directory"
+ //usage:     "\n	-t DIR	Copy all SOURCEs into DIR"
+ //usage:     "\n	-u	Copy only newer files"
++//usage:     "\n	-v	Verbose"
+ 
+ #include "libbb.h"
+ #include "libcoreutils/coreutils.h"

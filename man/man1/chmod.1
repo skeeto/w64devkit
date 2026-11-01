@@ -219,7 +219,14 @@ is its 9 permission characters, as in the
 format.
 .TP
 .B \-v
-Print that line for every file, whether or not its mode changes.
+Print a line for every file: the line above if its mode changes, and
+otherwise
+.RS
+.PP
+.EX
+mode of \(aq\fIfile\fR\(aq retained as \fIoctal\fR (\fIperms\fR)
+.EE
+.RE
 .TP
 .B \-f
 Do not report a file whose mode cannot be changed.
@@ -270,11 +277,9 @@ Invalid command line, with a usage message on standard error; an invalid
 or a file could not be found or changed.
 An invalid
 .I mode
-is reported at the first
+is reported before any
 .I file
-that exists, and
-.B chmod
-stops there, before changing anything.
+is looked at, and nothing is changed.
 .TP
 .B 141
 With
@@ -327,9 +332,6 @@ and so no
 .B \-\-reference
 or
 .BR \-\-preserve\-root .
-.IP \(bu 2
-.B \-v
-reports every file as changed, even when its mode is unchanged.
 .PP
 .B chmod
 does not change a file's owner or its access control list, which is what
@@ -338,10 +340,12 @@ usually controls access on Windows.
 .B \-c
 and
 .B \-v
-report the mode computed from the derived one, not what is stored, so
+report the mode a file has afterwards, derived again as described
+above, so
 .B "chmod \-c u+x notes.txt"
-reports a change that has no effect, and a directory is reported with
-the mode given even though it stays writable.
+reports nothing, and neither does
+.B "chmod \-c a\-w"
+for a directory, which stays writable.
 .PP
 Scripts that run
 .B chmod +x

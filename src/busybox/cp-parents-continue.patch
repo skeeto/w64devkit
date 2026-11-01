@@ -1,0 +1,32 @@
+Go on with the other sources when cp --parents cannot make a directory.
+When creating the leading directories of one SOURCE failed, cp
+--parents exited at once, so the remaining SOURCEs were not copied,
+unlike any other failure, which cp reports before going on. Record the
+failure and continue with the next SOURCE, as coreutils does.
+
+---
+ coreutils/cp.c |    6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+--- a/coreutils/cp.c
++++ b/coreutils/cp.c
+@@ -290,7 +290,10 @@
+ 			dest_dup = xstrdup(dest);
+ 			dest_dir = dirname(dest_dup);
+ 			if (bb_make_directory(dest_dir, -1, FILEUTILS_RECUR)) {
+-				return EXIT_FAILURE;
++				/* go on with the other SOURCEs */
++				status = EXIT_FAILURE;
++				free(dest_dup);
++				goto NEXT;
+ 			}
+ 			free(dest_dup);
+ 			goto DO_COPY;
+@@ -301,6 +304,7 @@
+ 		if (copy_file(*argv, dest, flags) < 0) {
+ 			status = EXIT_FAILURE;
+ 		}
++ IF_FEATURE_CP_LONG_OPTIONS(NEXT:)
+ 		if (!*++argv || *argv == last) {
+ 			/* possibly leaking dest... */
+ 			break;

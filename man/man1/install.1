@@ -64,10 +64,14 @@ Otherwise
 is copied to
 .I dest
 itself.
+With more than one
+.IR source ,
+.I dest
+must be an existing directory: otherwise
 .B install
-does not check that several sources have a directory to go into:
-each copy then replaces the one before it, no error is reported, and
-only the last source remains.
+writes
+.BI "install: target \(aq" dest "\(aq is not a directory"
+on standard error and exits with status 1 before it copies anything.
 .PP
 There is no option to copy a directory.
 A
@@ -232,10 +236,11 @@ exits with status 1 before it copies anything.
 Accepted for compatibility, but the group is never changed.
 The
 .I group
-must be a number.
-Any name, even
+must be a number, the name
 .BR root ,
-is reported as
+or the name of the current user, written with underscores in place of
+spaces.
+Any other name is reported as
 .BR "unknown group" ,
 and
 .B install
@@ -251,8 +256,11 @@ that modifies 0755.
 Only the owner write bit, 0200, has an effect: when it is clear the file
 is made read-only, and otherwise writable.
 A directory is never made read-only.
-A mode that cannot be parsed is not reported, and leaves the file
-writable.
+A mode that cannot be parsed is reported as
+.BI "install: invalid mode \(aq" mode \(aq \c
+\&, and
+.B install
+exits with status 1 before it copies anything.
 A symbolic mode with no
 .BR u ,
 .BR g ,
@@ -359,7 +367,8 @@ Success.
 .TP
 .B 1
 An invalid command line, with a usage message on standard error; an
-unknown user or group; or any operand that could not be copied,
+unknown user or group, an invalid mode, or several sources without a
+directory to go into; or any operand that could not be copied,
 stripped, or given its mode.
 .SH EXAMPLES
 Install a program, creating the directory it goes in, and strip it:
@@ -421,14 +430,6 @@ mode; see
 .IP \(bu 2
 An existing destination is deleted and created again, rather than
 overwritten in place, and no backup is made.
-.IP \(bu 2
-Several sources with a
-.I dest
-that is not a directory are not an error: each replaces the one before.
-.IP \(bu 2
-A
-.B \-m
-mode that does not parse is not an error.
 .IP \(bu 2
 .B \-v
 is accepted although the usage message omits it.

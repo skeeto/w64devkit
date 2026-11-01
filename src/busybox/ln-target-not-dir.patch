@@ -1,0 +1,24 @@
+Fail when several targets are given and LINK is not a directory.
+"ln a b c" with a c that is not a directory linked each target to c in
+turn: the first link was made and the others failed with "File exists",
+or with -f each replaced the one before. Check, as coreutils does, that
+the last operand is a directory when there are more than two, before
+making any link.
+
+---
+ coreutils/ln.c |    4 ++++
+ 1 file changed, 4 insertions(+)
+
+--- a/coreutils/ln.c
++++ b/coreutils/ln.c
+@@ -119,6 +119,10 @@
+ 		bb_simple_error_msg_and_die("-T accepts 2 args max");
+ 	}
+ 
++	if (argc > 2 && !is_directory(last, !(opts & LN_NODEREFERENCE))) {
++		bb_error_msg_and_die("target '%s' is not a directory", last);
++	}
++
+ 	if (!argv[1]) {
+ 		/* "ln PATH/TO/FILE" -> "ln PATH/TO/FILE FILE" */
+ 		*--argv = last;

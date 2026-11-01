@@ -1,0 +1,25 @@
+Reject an invalid install -m mode.
+install did not check the result of bb_parse_mode(), so a -m argument
+that does not parse gave a mode of (mode_t)-1, every bit set, and each
+file was installed with that mode and no error. Report the invalid
+mode and exit before copying anything, as mkdir and chmod do.
+
+---
+ coreutils/install.c |    5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+--- a/coreutils/install.c
++++ b/coreutils/install.c
+@@ -179,8 +179,11 @@
+ 		copy_flags |= FILEUTILS_PRESERVE_STATUS;
+ 	}
+ 	mode = 0755; /* GNU coreutils 6.10 compat */
+-	if (opts & OPT_MODE)
++	if (opts & OPT_MODE) {
+ 		mode = bb_parse_mode(mode_str, mode);
++		if (mode == (mode_t)-1)
++			bb_error_msg_and_die("invalid mode '%s'", mode_str);
++	}
+ 	uid = (opts & OPT_OWNER) ? get_ug_id(uid_str, xuname2uid) : getuid();
+ 	gid = (opts & OPT_GROUP) ? get_ug_id(gid_str, xgroup2gid) : getgid();
+ 

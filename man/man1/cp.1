@@ -214,10 +214,6 @@ or
 .BR Y ,
 and otherwise it is skipped, which is not an error.
 Existing directories are merged without asking.
-The prompt appears whenever creating the destination fails, so it can
-also appear for a destination that does not exist, and a
-.B y
-then reports the error.
 .B \-i
 and
 .B \-n
@@ -311,13 +307,16 @@ is written for each one deleted.
 Copy each source to the path formed by appending it, as written, to
 .IR directory ,
 creating any missing directories on the way.
-Leading slashes of
+Leading slashes and a drive prefix of
 .I source
-are dropped, and a drive letter makes the creation of the directories
-fail.
-When creating them fails,
+are dropped, so
+.I c:/src/a.h
+is copied to
+.IR directory/src/a.h .
+A failure to create the directories is reported, and
 .B cp
-stops at once, without copying the remaining sources.
+goes on with the next
+.IR source .
 With two operands,
 .I dest
 must be an existing directory.
@@ -334,8 +333,7 @@ is.
 .B \-\-help
 As the first argument only, write a usage message on standard output
 and exit with status 0.
-The message omits the long options and
-.BR \-v .
+The message omits the long options.
 .SH ENVIRONMENT
 .TP
 .B BB_GLOBBING
@@ -566,9 +564,11 @@ creates, counting the current directory for a relative path, fails.
 With
 .BR \-R ,
 a source directory that cannot be listed, such as one whose full path is
-258 or 259 characters, is created empty with no error message, though
+258 or 259 characters, is created empty and reported as
+.BI "cp: can\(aqt open \(aq" source "\(aq: " reason \c
+\&.
 .B \-v
-lists it, and the exit status is 1.
+still lists it, and the exit status is 1.
 .PP
 From
 .BR cmd.exe ,

@@ -1,0 +1,25 @@
+Don't let rename() replace a file with a directory.
+When the target of a rename existed, mingw_rename() fell back to
+MoveFileEx() with MOVEFILE_REPLACE_EXISTING, which replaces a file even
+when the source is a directory, so "mv dir file" deleted the file.
+POSIX requires rename() to fail with ENOTDIR in that case, and mv then
+reports it. Check for it before calling MoveFileEx().
+
+---
+ win32/mingw.c |    5 +++++
+ 1 file changed, 5 insertions(+)
+
+--- a/win32/mingw.c
++++ b/win32/mingw.c
+@@ -1277,6 +1277,11 @@
+ 			return 0;
+ 		if (errno != EEXIST)
+ 			return -1;
++		/* MoveFileEx() would replace a file with a directory */
++		if (mingw_is_directory(pold) && !mingw_is_directory(pnew)) {
++			errno = ENOTDIR;
++			return -1;
++		}
+ 	}
+ 	if (MoveFileEx(pold, pnew,
+ 				MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED))

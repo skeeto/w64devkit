@@ -1,0 +1,28 @@
+Describe -v and --ignore-fail-on-non-empty in the rmdir usage message.
+rmdir accepts -v, but the usage message did not list it, and it named
+--ignore-fail-on-non-empty without saying what the option does.
+
+---
+ coreutils/rmdir.c |    7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+--- a/coreutils/rmdir.c
++++ b/coreutils/rmdir.c
+@@ -20,12 +20,15 @@
+ /* http://www.opengroup.org/onlinepubs/007904975/utilities/rmdir.html */
+ 
+ //usage:#define rmdir_trivial_usage
+-//usage:       "[-p] DIRECTORY..."
++//usage:       "[-p"IF_FEATURE_VERBOSE("v")"] DIRECTORY..."
+ //usage:#define rmdir_full_usage "\n\n"
+ //usage:       "Remove DIRECTORY if it is empty\n"
+ //usage:     "\n	-p	Include parents"
++//usage:	IF_FEATURE_VERBOSE(
++//usage:     "\n	-v	Verbose"
++//usage:	)
+ //usage:	IF_LONG_OPTS(
+-//usage:     "\n	--ignore-fail-on-non-empty"
++//usage:     "\n	--ignore-fail-on-non-empty	Don't fail on non-empty DIRECTORY"
+ //usage:	)
+ //usage:
+ //usage:#define rmdir_example_usage

@@ -1,0 +1,35 @@
+Make chmod -c and -v report the mode a file got on Windows.
+chmod -c and -v reported the mode chmod was asked to set. On Windows
+only the owner write bit is stored, as the read-only attribute, and a
+directory never becomes read-only, so "chmod -c u+x file" or "chmod -c
+a-w dir" reported a change that did not happen. Read the mode back
+after changing it, and report and compare that.
+
+---
+ coreutils/chmod.c |    8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+--- a/coreutils/chmod.c
++++ b/coreutils/chmod.c
+@@ -71,6 +71,9 @@
+ 		struct stat *statbuf)
+ {
+ 	mode_t newmode;
++#if ENABLE_PLATFORM_MINGW32
++	struct stat sb;
++#endif
+ 
+ 	/* match coreutils behavior */
+ 	if (state->depth == 0) {
+@@ -87,6 +90,11 @@
+ 		bb_error_msg_and_die("invalid mode '%s'", (char *)state->userData);
+ 
+ 	if (chmod(fileName, newmode) == 0) {
++#if ENABLE_PLATFORM_MINGW32
++		/* Only the owner write bit is stored: report the result */
++		if ((OPT_VERBOSE || OPT_CHANGED) && stat(fileName, &sb) == 0)
++			newmode = sb.st_mode;
++#endif
+ 		if (OPT_VERBOSE
+ 		 || (OPT_CHANGED
+ 		     && (statbuf->st_mode & 07777) != (newmode & 07777))

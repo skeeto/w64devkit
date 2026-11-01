@@ -1,0 +1,19 @@
+List -T, not -t, in the ln usage summary.
+ln has a -T option, described in the help text, but no -t, yet the
+usage line advertised "[-sfnbtv]".
+
+---
+ coreutils/ln.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/coreutils/ln.c
++++ b/coreutils/ln.c
+@@ -21,7 +21,7 @@
+ /* http://www.opengroup.org/onlinepubs/007904975/utilities/ln.html */
+ 
+ //usage:#define ln_trivial_usage
+-//usage:       "[-sfnbtv] [-S SUF] TARGET... LINK|DIR"
++//usage:       "[-sfnbTv] [-S SUF] TARGET... LINK|DIR"
+ //usage:#define ln_full_usage "\n\n"
+ //usage:       "Create a link LINK or DIR/TARGET to the specified TARGET(s)\n"
+ //usage:     "\n	-s	Make symlinks instead of hardlinks"

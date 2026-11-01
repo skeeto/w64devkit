@@ -1,0 +1,36 @@
+Make chmod -v say when a mode is unchanged.
+chmod -v printed "mode of 'FILE' changed to ..." for every file, even
+one whose mode was already what was asked for. As coreutils does, say
+"retained as" for those, so that the lines -v adds to those of -c are
+told apart.
+
+---
+ coreutils/chmod.c |   11 ++++++-----
+ 1 file changed, 6 insertions(+), 5 deletions(-)
+
+--- a/coreutils/chmod.c
++++ b/coreutils/chmod.c
+@@ -90,17 +90,18 @@
+ 		bb_error_msg_and_die("invalid mode '%s'", (char *)state->userData);
+ 
+ 	if (chmod(fileName, newmode) == 0) {
++		int changed;
++
+ #if ENABLE_PLATFORM_MINGW32
+ 		/* Only the owner write bit is stored: report the result */
+ 		if ((OPT_VERBOSE || OPT_CHANGED) && stat(fileName, &sb) == 0)
+ 			newmode = sb.st_mode;
+ #endif
+-		if (OPT_VERBOSE
+-		 || (OPT_CHANGED
+-		     && (statbuf->st_mode & 07777) != (newmode & 07777))
+-		) {
++		changed = (statbuf->st_mode & 07777) != (newmode & 07777);
++		if (OPT_VERBOSE || (OPT_CHANGED && changed)) {
+ 			char modestr[12];
+-			printf("mode of '%s' changed to %04o (%s)\n", fileName,
++			printf("mode of '%s' %s %04o (%s)\n", fileName,
++				changed ? "changed to" : "retained as",
+ 				newmode & 07777, bb_mode_string(modestr, newmode)+1);
+ 		}
+ 		return TRUE;

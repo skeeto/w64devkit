@@ -1,0 +1,50 @@
+Refuse to replace a link with the file it would point to.
+ln -f removed an existing LINK before making the new one without
+checking that LINK was TARGET itself, so "ln -f x x", "ln -f x" (which
+means "ln -f x x") and, on a case-insensitive file system, "ln -f x X"
+deleted x and then failed to link it. ln -b renamed x to x~ and then
+failed the same way. As coreutils does, report that the two are the
+same file and leave them alone when they are the same inode and it has
+only one link, or the names are identical. "ln -sb x x" is still
+allowed, since it keeps the old x as a backup.
+
+---
+ coreutils/ln.c |   27 +++++++++++++++++++++++++++
+ 1 file changed, 27 insertions(+)
+
+--- a/coreutils/ln.c
++++ b/coreutils/ln.c
+@@ -124,6 +124,33 @@
+ 			}
+ 		}
+ 
++#if ENABLE_PLATFORM_POSIX || ENABLE_FEATURE_EXTRA_FILE_DATA
++		/* Removing (or with -b, renaming) LINK must not take TARGET
++		 * with it: "ln -f x x" would delete x. As coreutils does,
++		 * allow "ln -sb x x", which keeps the old x as a backup. */
++		if (((opts & LN_BACKUP) ? !(opts & LN_SYMLINK) : (opts & LN_FORCE))
++		 && stat(*argv, &statbuf) == 0
++		) {
++			struct stat linkbuf;
++
++			if (lstat(src, &linkbuf) == 0
++			 && statbuf.st_dev == linkbuf.st_dev
++			 && statbuf.st_ino == linkbuf.st_ino
++# if ENABLE_FEATURE_EXTRA_FILE_DATA
++			 /* ignore invalid inode numbers */
++			 && statbuf.st_ino != 0
++# endif
++			 /* the only link, or the same name */
++			 && (statbuf.st_nlink == 1 || strcmp(*argv, src) == 0)
++			) {
++				bb_error_msg("'%s' and '%s' are the same file", *argv, src);
++				status = EXIT_FAILURE;
++				free(src_name);
++				continue;
++			}
++		}
++#endif
++
+ 		if (opts & LN_BACKUP) {
+ 			char *backup;
+ 			backup = xasprintf("%s%s", src, suffix);

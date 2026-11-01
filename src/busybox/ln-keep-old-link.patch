@@ -1,0 +1,119 @@
+Keep the old link when ln -f or ln -b cannot make the new one.
+ln -f deleted an existing LINK, and ln -b renamed it to the backup
+name, before trying to make the new link. When that failed, for
+example because symbolic links are not supported or not permitted, or
+a hard link would cross file systems, the old LINK was gone. With -f,
+try to make the link first, and if LINK is in the way, make it under a
+temporary name and rename it over LINK, as coreutils does. If renaming
+fails, as on Windows for a symbolic link to a directory, fall back to
+deleting LINK and renaming again. With -b, rename the backup back to
+LINK if the link cannot be made.
+
+---
+ coreutils/ln.c |   60 ++++++++++++++++++++++++++++++++++++++++++++++++---------
+ 1 file changed, 51 insertions(+), 9 deletions(-)
+
+--- a/coreutils/ln.c
++++ b/coreutils/ln.c
+@@ -49,6 +49,38 @@
+ #define LN_VERBOSE          (1 << 5)
+ #define LN_LINKFILE         (1 << 6)
+ 
++/* Replace an existing LINK for -f. The new link is made under a
++ * temporary name and renamed over LINK, so that LINK is kept if
++ * the link can't be made at all (e.g. symlinks aren't supported). */
++static int replace_link(int (*link_func)(const char *, const char *),
++		const char *target, const char *name)
++{
++	char *tmp;
++	unsigned i = 0;
++	int r, e;
++
++	for (;;) {
++		tmp = xasprintf("%s.%u", name, i);
++		r = link_func(target, tmp);
++		if (r == 0 || errno != EEXIST || ++i == 1000)
++			break;
++		free(tmp);
++	}
++	if (r == 0) {
++		r = rename(tmp, name);
++		/* Some systems can't rename over a symlink to a directory */
++		if (r != 0 && unlink(name) == 0)
++			r = rename(tmp, name);
++		e = errno;
++		/* Also needed if tmp and name were already the same file,
++		 * which makes rename a no-op */
++		unlink(tmp);
++		errno = e;
++	}
++	free(tmp);
++	return r;
++}
++
+ int ln_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
+ int ln_main(int argc, char **argv)
+ {
+@@ -57,6 +89,7 @@
+ 	char *last;
+ 	char *src_name;
+ 	char *src;
++	char *backup;
+ 	char *suffix = (char*)"~";
+ 	struct stat statbuf;
+ 	int (*link_func)(const char *, const char *);
+@@ -151,24 +184,25 @@
+ 		}
+ #endif
+ 
++		backup = NULL;
+ 		if (opts & LN_BACKUP) {
+-			char *backup;
+ 			backup = xasprintf("%s%s", src, suffix);
+-			if (rename(src, backup) < 0 && errno != ENOENT) {
+-				bb_simple_perror_msg(src);
+-				status = EXIT_FAILURE;
++			if (rename(src, backup) < 0) {
++				if (errno != ENOENT) {
++					bb_simple_perror_msg(src);
++					status = EXIT_FAILURE;
++					free(backup);
++					continue;
++				}
+ 				free(backup);
+-				continue;
++				backup = NULL;
+ 			}
+-			free(backup);
+ 			/*
+ 			 * When the source and dest are both hard links to the same
+ 			 * inode, a rename may succeed even though nothing happened.
+ 			 * Therefore, always unlink().
+ 			 */
+ 			unlink(src);
+-		} else if (opts & LN_FORCE) {
+-			unlink(src);
+ 		}
+ 
+ 		link_func = link;
+@@ -180,11 +214,19 @@
+ 			printf("'%s' -> '%s'\n", src, *argv);
+ 		}
+ 
+-		if (link_func(*argv, src) != 0) {
++		if (link_func(*argv, src) != 0
++		 && (errno != EEXIST
++		    || (opts & (LN_BACKUP|LN_FORCE)) != LN_FORCE
++		    || replace_link(link_func, *argv, src) != 0)
++		) {
+ 			bb_simple_perror_msg(src);
+ 			status = EXIT_FAILURE;
++			/* put the old LINK back */
++			if (backup)
++				rename(backup, src);
+ 		}
+ 
++		free(backup);
+ 		free(src_name);
+ 	} while ((++argv)[1]);
+ 

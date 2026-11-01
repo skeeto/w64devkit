@@ -1,0 +1,48 @@
+Look up the root and current user groups by name.
+getgrgid() returns a group named "root" for gid 0 and one named after
+the current user for the default gid, and getpwnam() accepts those two
+names, but getgrnam() was a stub that always failed. So group names
+shown by ls -l were rejected as input: "install -g root" said "unknown
+group root" although "install -o root" was accepted. Make getgrnam()
+the counterpart of getgrgid(), as getpwnam() is of getpwuid().
+
+---
+ include/mingw.h |    2 +-
+ win32/mingw.c   |   15 +++++++++++++++
+ 2 files changed, 16 insertions(+), 1 deletion(-)
+
+--- a/include/mingw.h
++++ b/include/mingw.h
+@@ -60,7 +60,7 @@
+ 	gid_t gr_gid;
+ 	char **gr_mem;
+ };
+-IMPL(getgrnam,struct group *,NULL,const char *name UNUSED_PARAM);
++struct group *getgrnam(const char *name) FAST_FUNC;
+ struct group *getgrgid(gid_t gid) FAST_FUNC;
+ NOIMPL(initgroups,const char *group UNUSED_PARAM,gid_t gid UNUSED_PARAM);
+ static inline void endgrent(void) {}
+--- a/win32/mingw.c
++++ b/win32/mingw.c
+@@ -1472,6 +1472,21 @@
+ 	return &g;
+ }
+ 
++struct group * FAST_FUNC getgrnam(const char *name)
++{
++	const char *myname;
++
++	if ( (myname=get_user_name()) != NULL &&
++			strcmp(myname, name) == 0 ) {
++		return getgrgid(DEFAULT_GID);
++	}
++	else if (strcmp(name, "root") == 0) {
++		return getgrgid(0);
++	}
++
++	return NULL;
++}
++
+ #if 0
+ int FAST_FUNC getgrouplist(const char *user UNUSED_PARAM, gid_t group,
+ 					gid_t *groups, int *ngroups)

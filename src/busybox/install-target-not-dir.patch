@@ -1,0 +1,21 @@
+Fail when several sources are given and DEST is not a directory.
+"install a b c" with a c that is not a directory copied each source to
+c in turn, so only the last remained and no error was reported. Check,
+as coreutils does, that DEST is a directory when there is more than one
+source, before copying anything.
+
+---
+ coreutils/install.c |    2 ++
+ 1 file changed, 2 insertions(+)
+
+--- a/coreutils/install.c
++++ b/coreutils/install.c
+@@ -193,6 +193,8 @@
+ 		argv[argc] = NULL;
+ 		/* coreutils install resolves link in this case, don't use lstat */
+ 		isdir = stat(last, &statbuf) < 0 ? 0 : S_ISDIR(statbuf.st_mode);
++		if (argc > 1 && !isdir)
++			bb_error_msg_and_die("target '%s' is not a directory", last);
+ 	}
+ 
+ 	if (argc < 1)

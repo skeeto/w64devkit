@@ -59,16 +59,11 @@ Otherwise
 .I link
 is the new name, and only one
 .I target
-is expected.
+is expected: with more,
 .B ln
-does not check this: it links each
-.I target
-to the same name in turn.
-The first makes the link, and each other fails with
-.BR "File exists" .
-With
-.BR \-f ,
-each replaces the one before, so the last wins.
+writes
+.BI "ln: target \(aq" link "\(aq is not a directory"
+on standard error and exits with status 1 before making any link.
 .PP
 The last component of a
 .I target
@@ -159,29 +154,35 @@ create symbolic links; see
 .BR NOTES .
 .TP
 .B \-f
-Delete an existing
-.I link
-first.
-A read-only file is deleted too, after its read-only attribute is
-cleared, which every hard link to the file shares.
-A failure to delete is not reported, and the new link then fails if the
-name is still taken.
-.IP
-The deletion comes before the new link is made, so the old
-.I link
-is lost if that fails, as it does when symbolic links are not permitted.
+Replace an existing
+.IR link .
+When the name is taken,
 .B ln
-does not check that
+makes the new link under a temporary name in the same directory, which
+is
 .I link
-and
+followed by a dot and a number, and renames it over
+.IR link .
+So the old
+.I link
+is kept if the new link cannot be made, as when symbolic links are not
+permitted, and a failure to replace it is reported.
+A read-only file is replaced too, after its read-only attribute is
+cleared, which every hard link to the file shares.
+.IP
+When
+.I link
+is
 .I target
-are the same file, so
-.B ln \-f x x
-deletes
-.IR x .
-For a hard link, a
-.I target
-that does not exist is found first, and nothing is deleted.
+itself, as in
+.BR "ln \-f x x" ,
+.BR "ln \-f x" ,
+or, since Windows file names are not case sensitive by default,
+.BR "ln \-f x X" ,
+.B ln
+writes
+.BI "ln: \(aq" target "\(aq and \(aq" link "\(aq are the same file"
+on standard error and changes nothing.
 .TP
 .B \-n
 When
@@ -213,6 +214,15 @@ does not exist, nothing is renamed and that is not an error.
 Any other failure to rename is reported, and the
 .I target
 is skipped.
+If the new link then cannot be made, the backup is renamed back to
+.IR link .
+Except with
+.BR \-s ,
+.I link
+must not be
+.I target
+itself, as for
+.BR \-f .
 Overrides
 .BR \-f .
 .TP
@@ -242,11 +252,6 @@ fail are written too.
 .B \-\-help
 As the first argument only, write a usage message on standard output
 and exit with status 0.
-The message lists a
-.B \-t
-option, which
-.B ln
-does not accept.
 .SH ENVIRONMENT
 .TP
 .B BB_CRITICAL_ERROR_DIALOGS
@@ -360,29 +365,6 @@ and
 .B \-t
 are invalid.
 .IP \(bu 2
-The same file is not detected.
-.B ln \-f x x
-deletes
-.IR x ,
-and so does
-.B ln \-f x
-with one operand.
-.B ln \-b x x
-renames
-.I x
-to
-.IR x~ ,
-and then fails.
-Windows file names are not case sensitive by default, so
-.B ln \-f x X
-also deletes
-.IR x .
-.IP \(bu 2
-Several targets are not checked to have a directory as
-.IR link ;
-see
-.BR Operands .
-.IP \(bu 2
 .B \-v
 writes each line before the link is made.
 .PP
@@ -400,7 +382,7 @@ With
 .B \-f
 or
 .BR \-b ,
-the old link is then already deleted or renamed.
+the old link is then kept.
 .PP
 A junction, as made by
 .BR jn (1),
@@ -415,10 +397,11 @@ treat it as an ordinary name.
 cannot make junctions.
 .PP
 Paths may have drive letters and backslashes.
-Names in a directory are joined with a slash, so
+Names in a directory are joined with a slash, unless the directory
+already ends in a separator, so
 .B ln \-v x \(aqdir\e\(aq
 writes
-.BR \(aqdir\e/x\(aq .
+.BR \(aqdir\ex\(aq .
 A name made from a
 .I target
 is what follows its last slash, backslash, or drive prefix.

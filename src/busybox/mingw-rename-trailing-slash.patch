@@ -1,0 +1,27 @@
+Make rename() of a file to a name ending in a slash fail with ENOTDIR.
+On Linux, rename("f", "new/") fails with ENOTDIR when f is not a
+directory, so "mv f new/" reports that new is not a directory. Windows
+does not treat the trailing slash that way: the rename failed with an
+unrelated error, or renamed f to new. Check for it in mingw_rename().
+
+---
+ win32/mingw.c |    8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+--- a/win32/mingw.c
++++ b/win32/mingw.c
+@@ -1269,6 +1269,14 @@
+ 	DWORD attrs, err;
+ 	DWORD flags = MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED;
+ 
++	/* A target with a trailing slash can only be a directory */
++	if (last_char_is_dir_sep(pnew) &&
++			(attrs = GetFileAttributes(pold)) != INVALID_FILE_ATTRIBUTES &&
++			!(attrs & FILE_ATTRIBUTE_DIRECTORY)) {
++		errno = ENOTDIR;
++		return -1;
++	}
++
+ 	/*
+ 	 * For non-symlinks, try native rename() first to get errno right.
+ 	 * It is based on MoveFile(), which cannot overwrite existing files.

@@ -1,0 +1,33 @@
+Make mv -v report only the moves it made.
+mv -v printed "'SRC' -> 'DEST'" after every attempt, so a source that
+could not be moved was listed as if it had been, after its error
+message, and so was one skipped by -n or by answering no to -i. Print
+the line only after a successful rename or copy, as coreutils does.
+
+---
+ coreutils/mv.c |    6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+--- a/coreutils/mv.c
++++ b/coreutils/mv.c
+@@ -172,16 +172,18 @@
+ 				if ((copy_file(*argv, dest, copy_flag) >= 0)
+ 				 && (remove_file(*argv, FILEUTILS_RECUR | FILEUTILS_FORCE) >= 0)
+ 				) {
+-					goto RET_0;
++					goto MOVED;
+ 				}
+ 			}
+  RET_1:
+ 			status = 1;
++			goto RET_0;
+ 		}
+- RET_0:
++ MOVED:
+ 		if (flags & OPT_VERBOSE) {
+ 			printf("'%s' -> '%s'\n", *argv, dest);
+ 		}
++ RET_0:
+ 		if (dest != last) {
+ 			free((void *) dest);
+ 		}

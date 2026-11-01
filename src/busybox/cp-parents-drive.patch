@@ -1,0 +1,29 @@
+Drop the drive prefix of a source copied by cp --parents.
+cp --parents appends each SOURCE to the target directory, and leading
+slashes are dropped so that an absolute path lands inside it. A drive
+prefix was kept, so "cp --parents c:/src/a.h inc" tried to create
+"inc/c:" and failed, or with a drive-relative path such as "c:a.h"
+wrote "inc/c:a.h", which Windows takes as an alternate data stream of
+the file "inc/c". Drop the drive prefix as the slashes are dropped,
+giving "inc/src/a.h".
+
+---
+ coreutils/cp.c |    6 ++++++
+ 1 file changed, 6 insertions(+)
+
+--- a/coreutils/cp.c
++++ b/coreutils/cp.c
+@@ -286,7 +286,13 @@
+ 		if (flags & OPT_parents) {
+ 			char *dest_dup;
+ 			char *dest_dir;
++#if ENABLE_PLATFORM_MINGW32
++			/* Like leading slashes, a drive prefix isn't appended */
++			dest = concat_path_file(last,
++					*argv + (has_dos_drive_prefix(*argv) ? 2 : 0));
++#else
+ 			dest = concat_path_file(last, *argv);
++#endif
+ 			dest_dup = xstrdup(dest);
+ 			dest_dir = dirname(dest_dup);
+ 			if (bb_make_directory(dest_dir, -1, FILEUTILS_RECUR)) {

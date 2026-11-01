@@ -111,7 +111,8 @@ An existing destination directory is never replaced: moving a file or
 directory onto one fails with
 .BR "Is a directory" ,
 even when it is empty.
-A directory moved onto an existing file does replace it.
+A directory cannot replace an existing file: the move fails with
+.BR "Not a directory" .
 .SS Output
 .B mv
 reports each error on standard error as
@@ -198,15 +199,12 @@ Incompatible with
 .BR \-v ", " \-\-verbose
 Write
 .BI \(aq source "\(aq \-> \(aq" dest \(aq
-on standard output for each source, after trying to move it.
-The line is written whether the move succeeded, failed, or was skipped
+on standard output for each source that is moved, after moving it.
+Nothing is written for a source that cannot be moved, or that is skipped
 by
 .B \-n
 or by an answer to
-.BR \-i ,
-but not when
-.B \-T
-refuses it.
+.BR \-i .
 .I dest
 is the name of the destination itself, or, for a move into a
 directory, the directory and the new name joined with a slash.
@@ -317,23 +315,8 @@ hard link to the same file is removed, leaving the other name.
 .IP \(bu 2
 An existing directory is never replaced, not even an empty one.
 .IP \(bu 2
-A directory replaces an existing file.
-.IP \(bu 2
-.B \-v
-writes a line for every source, including those that failed or were
-skipped.
-.IP \(bu 2
 A destination directory that is missing, or is not a directory, is not
 detected before moving starts.
-.IP \(bu 2
-A trailing slash on a
-.I dest
-that does not exist is ignored, so
-.B mv f new/
-renames the file
-.I f
-to
-.IR new .
 .IP \(bu 2
 Options not listed above, such as
 .BR \-b ,
@@ -357,21 +340,17 @@ Otherwise the move changes the case of the name.
 .PP
 A file moved to another volume is copied and deleted by Windows, and
 keeps its times and read-only attribute.
-A directory or junction cannot be moved to another volume: the move
-fails with
+Windows cannot move a directory to another volume, so
+.B mv
+copies it with everything in it, as
+.B cp \-a
+does, and then removes the original.
+If anything cannot be copied, the error is reported, the exit status is
+1, and the original is kept along with the partial copy.
+A junction, or a symbolic link to a directory, cannot be moved to
+another volume: the move fails with
 .B Permission denied
 and the source is left alone.
-Copy a directory with
-.B cp \-a
-and remove the original with
-.B rm \-r
-instead.
-Replacing a read-only file on another volume also fails with
-.BR "Permission denied" .
-.B mv
-has its own fallback that copies a tree and removes the original, but
-it runs only when the rename fails with a cross-device error (EXDEV),
-which none of these moves produce.
 .PP
 Windows also refuses to move a directory that another process uses as
 its current directory, with

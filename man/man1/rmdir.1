@@ -94,13 +94,13 @@ The path does not exist, the operand is empty, or the full path is
 The directory has contents.
 .TP
 .B Not a directory
-The operand is a symbolic link or junction named without a trailing
-slash; see
+The operand is a file, or a symbolic link or junction named without a
+trailing slash; see
 .BR NOTES .
 .TP
 .B Invalid argument
-The operand is a file, or contains a character that Windows does not
-allow in a name, such as
+The operand contains a character that Windows does not allow in a name,
+such as
 .B ?\&
 or
 .BR * .
@@ -130,7 +130,6 @@ each parent tried by
 .BR \-p ,
 and a directory that then cannot be removed, whose error follows on
 standard error.
-The usage message omits this option.
 .TP
 .B \-\-ignore\-fail\-on\-non\-empty
 Skip a directory that is not empty, without a message and without
@@ -143,14 +142,10 @@ Every other error is still reported.
 .B \-\-help
 As the first argument only, write a usage message on standard output
 and exit with status 0.
-The message omits
-.BR \-v ,
-.BR \-\-parents ,
+The message omits the long options
+.B \-\-parents
 and
-.BR \-\-verbose ,
-and lists
-.B \-\-ignore\-fail\-on\-non\-empty
-without a description.
+.BR \-\-verbose .
 .SH ENVIRONMENT
 .TP
 .B BB_GLOBBING
@@ -267,8 +262,6 @@ With a trailing slash, as in
 .IR link/ ,
 a junction is not detected: it is removed, even when its target has
 contents, and the target is untouched.
-A file is refused with
-.BR "Invalid argument" .
 A directory that a process uses as its current directory cannot be
 removed, so
 .B rmdir .\&
@@ -298,13 +291,10 @@ fails with
 .BR "Permission denied" .
 With
 .BR \-p ,
-the parent of
-.I c:dir
-is
-.IR c:. ,
-so
-.B rmdir
-goes on to try it instead of stopping.
+the walk ends after
+.IR c:dir ,
+as it does after
+.IR dir .
 .PP
 Names may contain any Unicode character on Windows 10 version 1903 and
 later, and are limited to the system code page on earlier versions.

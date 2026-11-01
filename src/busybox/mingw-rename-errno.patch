@@ -1,0 +1,87 @@
+Report why rename() failed, including EXDEV for another volume.
+mingw_rename() set errno to EACCES for every failure of MoveFileEx(),
+so mv never saw EXDEV and its fallback of copying and deleting could
+not run. Moving a directory to another volume failed with "Permission
+denied" even when the target did not exist: rename(), being based on
+MoveFile(), allows the move to be done by copying, and copying a
+directory fails with an access error. Replacing a read-only file on
+another volume failed too, because the retry after clearing the
+attribute no longer allowed copying. Translate the error of the last
+MoveFileEx() call, keeping EISDIR for a directory target. When
+rename() fails for a directory, try MoveFileEx() without
+MOVEFILE_COPY_ALLOWED, so that another volume gives
+ERROR_NOT_SAME_DEVICE, which maps to EXDEV. Pass the same flags to the
+retry for a read-only target.
+
+---
+ win32/mingw.c |   36 ++++++++++++++++++++++++------------
+ 1 file changed, 24 insertions(+), 12 deletions(-)
+
+--- a/win32/mingw.c
++++ b/win32/mingw.c
+@@ -1266,7 +1266,8 @@
+ #undef rename
+ int FAST_FUNC mingw_rename(const char *pold, const char *pnew)
+ {
+-	DWORD attrs;
++	DWORD attrs, err;
++	DWORD flags = MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED;
+ 
+ 	/*
+ 	 * For non-symlinks, try native rename() first to get errno right.
+@@ -1275,19 +1276,28 @@
+ 	if (!is_symlink(pold)) {
+ 		if (!rename(pold, pnew))
+ 			return 0;
+-		if (errno != EEXIST)
++		if (mingw_is_directory(pold)) {
++			/* MoveFileEx() would replace a file with a directory */
++			if (GetFileAttributes(pnew) != INVALID_FILE_ATTRIBUTES &&
++					!mingw_is_directory(pnew)) {
++				errno = ENOTDIR;
++				return -1;
++			}
++			/*
++			 * MoveFile() allows a move to another volume to be done
++			 * by copying, which fails for a directory with an access
++			 * error.  Try without copying, to get the EXDEV that mv
++			 * needs to fall back to copying the tree itself.
++			 */
++			flags = MOVEFILE_REPLACE_EXISTING;
++		} else if (errno != EEXIST) {
+ 			return -1;
+-		/* MoveFileEx() would replace a file with a directory */
+-		if (mingw_is_directory(pold) && !mingw_is_directory(pnew)) {
+-			errno = ENOTDIR;
+-			return -1;
+ 		}
+ 	}
+-	if (MoveFileEx(pold, pnew,
+-				MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED))
++	if (MoveFileEx(pold, pnew, flags))
+ 		return 0;
+-	/* TODO: translate more errors */
+-	if (GetLastError() == ERROR_ACCESS_DENIED &&
++	err = GetLastError();
++	if (err == ERROR_ACCESS_DENIED &&
+ 	    (attrs = GetFileAttributes(pnew)) != INVALID_FILE_ATTRIBUTES) {
+ 		if (attrs & FILE_ATTRIBUTE_DIRECTORY) {
+ 			errno = EISDIR;
+@@ -1295,13 +1305,15 @@
+ 		}
+ 		if ((attrs & FILE_ATTRIBUTE_READONLY) &&
+ 		    SetFileAttributes(pnew, attrs & ~FILE_ATTRIBUTE_READONLY)) {
+-			if (MoveFileEx(pold, pnew, MOVEFILE_REPLACE_EXISTING))
++			if (MoveFileEx(pold, pnew, flags))
+ 				return 0;
++			err = GetLastError();
+ 			/* revert file attributes on failure */
+ 			SetFileAttributes(pnew, attrs);
+ 		}
+ 	}
+-	errno = EACCES;
++	SetLastError(err);
++	errno = err_win_to_posix();
+ 	return -1;
+ }
+ 

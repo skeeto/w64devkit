@@ -1,0 +1,22 @@
+Check the chmod mode before looking at any file.
+chmod parsed MODE only for a file it had found, so with no existing
+file an invalid MODE went unreported, and only the missing files were.
+Check MODE once at the start, as coreutils does, and report it before
+anything else.
+
+---
+ coreutils/chmod.c |    3 +++
+ 1 file changed, 3 insertions(+)
+
+--- a/coreutils/chmod.c
++++ b/coreutils/chmod.c
+@@ -136,6 +136,9 @@
+ 
+ 	/* Ok, ready to do the deed now */
+ 	smode = *argv++;
++	/* Whether MODE is valid doesn't depend on the file's mode */
++	if (bb_parse_mode(smode, 0) < 0)
++		bb_error_msg_and_die("invalid mode '%s'", smode);
+ 	do {
+ 		if (!recursive_action(*argv,
+ 			OPT_RECURSE,    // recurse
