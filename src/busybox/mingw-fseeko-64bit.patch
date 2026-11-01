@@ -1,0 +1,25 @@
+Seek with a 64-bit offset in fseeko.
+fseeko was defined as fseek, whose offset is a long, which has 32 bits
+on Windows even in 64-bit builds, so the 64-bit offset was truncated.
+A seek of 2 GiB or more into a file either failed, when the low 32
+bits were negative, or went to the wrong place. This broke od -j and
+hexdump -s on large files, which printed data from the wrong offset
+under addresses for the right one, and the seeks diff makes to reread
+lines of large files. Define fseeko as fseeko64, which takes a 64-bit
+offset.
+
+---
+ include/mingw.h |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/include/mingw.h
++++ b/include/mingw.h
+@@ -140,7 +140,7 @@
+  * stdio.h
+  */
+ #undef fseeko
+-#define fseeko(f,o,w) fseek(f,o,w)
++#define fseeko(f,o,w) fseeko64(f,o,w)
+ 
+ int fdprintf(int fd, const char *format, ...);
+ FILE* mingw_fopen(const char *filename, const char *mode) FAST_FUNC;

@@ -1,0 +1,40 @@
+Stop od -A reading past the end of its radix tables.
+The tables giving the address radix letter and padding for each -A
+argument had entries for d, o and x but not n, so -A n read both from
+past the end of the arrays. The padding read is used to indent the
+lines after the first of each block when there are several formats,
+so with -A n those lines were indented by an arbitrary amount instead
+of not at all. An empty -A argument matched the terminating NUL of the
+list of radix letters and read further still, garbling the address
+format. Add the entries for n, with no padding, and reject an empty
+argument, quoting the whole argument in the message rather than its
+first character, which for an empty argument is a NUL.
+
+---
+ coreutils/od_bloaty.c |    8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+--- a/coreutils/od_bloaty.c
++++ b/coreutils/od_bloaty.c
+@@ -1240,17 +1240,17 @@
+ 	if (opt & OPT_A) {
+ 		static const char doxn[] ALIGN1 = "doxn";
+ 		static const char doxn_address_base_char[] ALIGN1 = {
+-			'u', 'o', 'x', /* '?' fourth one is not important */
++			'u', 'o', 'x', 'o' /* fourth one is not important */
+ 		};
+ 		static const uint8_t doxn_address_pad_len_char[] ALIGN1 = {
+-			'7', '7', '6', /* '?' */
++			'7', '7', '6', '0' /* no address, no padding */
+ 		};
+ 		const char *p;
+ 		int pos;
+ 		p = strchr(doxn, str_A[0]);
+-		if (!p)
++		if (!p || !str_A[0])
+ 			bb_error_msg_and_die("bad output address radix "
+-				"'%c' (must be [doxn])", str_A[0]);
++				"'%s' (must be [doxn])", str_A);
+ 		pos = p - doxn;
+ 		if (pos == 3) G.format_address = format_address_none;
+ 		address_base_char = doxn_address_base_char[pos];

@@ -1,0 +1,25 @@
+Keep room for the terminator after a string cut off by od -S with -N.
+The string buffer was grown only when it was already full at the top
+of the read loop, so a printable run that filled the buffer exactly as
+the -N limit was reached left the loop with the buffer full, and the
+terminating NUL was written one byte past the end of the heap block.
+This happened when the run's length was the buffer's size, such as 100
+or 112 bytes with the default -S 3 (the buffer starts at 100 bytes and
+grows by an eighth when full). Grow the buffer one byte earlier so the
+terminator always fits.
+
+---
+ coreutils/od_bloaty.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/coreutils/od_bloaty.c
++++ b/coreutils/od_bloaty.c
+@@ -1107,7 +1107,7 @@
+ 		i = 0;
+ 		start = address;
+ 		while (!(option_mask32 & OPT_N) || address < end_offset) {
+-			if (i == bufsize) {
++			if (i == bufsize - 1) { /* keep room for the NUL */
+ 				bufsize += bufsize/8;
+ 				buf = xrealloc(buf, bufsize);
+ 			}

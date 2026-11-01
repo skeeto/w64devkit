@@ -1,0 +1,69 @@
+Parse od --traditional offsets as [+]NUM[.][b|B] and nothing else.
+parse_old_offset cut the operand at its first '.' and parsed what came
+before it, so the b of N.b, which should multiply the decimal N by
+512, was ignored, and so was anything else after the period: an
+operand such as 1.txt, which names a file, was taken as an offset of 1
+and standard input was dumped instead. An operand starting with a
+digit but not a valid number, such as 1file, or 19 in octal, made
+xstrtooff_sfx die with "invalid number" instead of being treated as
+a file, as the operand rules intend and as GNU od does. Parse the
+number with strtoull, accept only an optional period and an optional
+b or B after it, and return 0 for anything else, so that the caller
+can try the operand as a file.
+
+---
+ coreutils/od_bloaty.c |   32 +++++++++++++++++---------------
+ 1 file changed, 17 insertions(+), 15 deletions(-)
+
+--- a/coreutils/od_bloaty.c
++++ b/coreutils/od_bloaty.c
+@@ -1169,12 +1169,9 @@
+ static int
+ parse_old_offset(char *s, off_t *offset)
+ {
+-	static const struct suffix_mult Bb[] ALIGN_SUFFIX = {
+-		{ "B", 1024 },
+-		{ "b", 512 },
+-		{ "", 0 }
+-	};
+-	char *p;
++	unsigned long long n;
++	unsigned mult = 1;
++	char *end;
+ 	int radix;
+ 
+ 	/* Skip over any leading '+'. */
+@@ -1184,19 +1181,24 @@
+ 	/* Determine the radix we'll use to interpret S.  If there is a '.',
+ 	 * it's decimal, otherwise, if the string begins with '0X'or '0x',
+ 	 * it's hexadecimal, else octal.  */
+-	p = strchr(s, '.');
+ 	radix = 8;
+-	if (p) {
+-		p[0] = '\0'; /* cheating */
++	if (strchr(s, '.'))
+ 		radix = 10;
+-	} else if (s[0] == '0' && (s[1] == 'x' || s[1] == 'X'))
++	else if (s[0] == '0' && (s[1] == 'x' || s[1] == 'X'))
+ 		radix = 16;
+ 
+-	*offset = xstrtooff_sfx(s, radix, Bb);
+-	if (p)
+-		p[0] = '.'; /* undo cheating */
+-
+-	return (*offset >= 0);
++	/* NUM[.][b|B]; in hex, b and B are digits.
++	 * Anything else is not an offset, but may be a file name. */
++	errno = 0;
++	n = strtoull(s, &end, radix);
++	if (*end == '.')
++		end++;
++	if (*end == 'b' || *end == 'B')
++		mult = (*end++ == 'b') ? 512 : 1024;
++	if (*end != '\0' || errno || n > OFF_T_MAX / mult)
++		return 0;
++	*offset = n * mult;
++	return 1;
+ }
+ #endif
+ 

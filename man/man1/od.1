@@ -182,22 +182,9 @@ with a period for each byte that is not printable ASCII.
 Several specifiers may follow one another in a
 .B \-t
 argument, as in
-.BR dCdS ,
-but a numeric size must end the argument.
-A letter after it, such as the
-.B z
-in
-.B x1z
-or the second
-.B d
-in
-.BR d2d2 ,
-gives a misleading error about a 4294967295-byte type.
-Give the size as a letter, as in
-.BR xCz ,
-or give
-.B \-t
-again.
+.B dCdS
+or
+.BR x1zd2 .
 .SS Traditional syntax
 Without
 .BR \-\-traditional ,
@@ -212,7 +199,7 @@ hexadecimal when it starts with
 .B 0x
 or
 .BR 0X .
-The period ends the number, and anything after it is ignored.
+The period comes right after the digits.
 A leading
 .B +
 is ignored.
@@ -224,29 +211,30 @@ at the end of an octal or decimal number multiplies it by 512 or 1024,
 as in
 .B 1b
 or
-.BR 2b. ;
+.BR 2.b ;
 in a hexadecimal number they are digits.
 .PP
 One operand is an offset or a file.
 Two operands are an offset and a label, or a file and an offset.
 Three are a file, an offset, and a label.
 Anything else is an error.
-Where an offset may appear, an operand that starts with a digit, after
-any
-.BR + ,
-is taken as one, so
-.B od \-\-traditional 1.txt
-skips 1 byte of standard input, and a malformed offset such as
-.B 1file
-is an error.
+Where an offset may appear, an operand written as one is taken as one,
+so a file named
+.B 10
+must be given as
+.BR ./10 ;
+any other operand, such as
+.B 1.txt
+or
+.BR 1file ,
+is a file.
 .PP
 The label, written like an offset, is the address to show for the first
 byte written.
 Each address is then followed by the label address in parentheses.
 With
 .BR "\-A n" ,
-only an address in parentheses is written, and it is the plain address,
-not the label address.
+only the label address is written, in parentheses.
 .SH OPTIONS
 Options may be grouped, as in
 .BR \-bx ,
@@ -372,9 +360,9 @@ for hexadecimal, with at least 6 lowercase digits;
 or
 .B n
 for none, which also omits the final address.
-Any other character is an error, but an empty
-.I radix
-is accepted and garbles the addresses.
+Any other character, or an empty
+.IR radix ,
+is an error.
 .TP
 \fB\-N\fR \fIbytes\fR, \fB\-\-read\-bytes=\fR\fIbytes\fR
 Read at most
@@ -395,8 +383,6 @@ Within regular files the skip seeks, and a regular file wholly within it
 is not read; other input is read and discarded.
 A skip past the end of the combined input is an error, and nothing is
 written.
-A skip of 2 GiB or more into a regular file goes wrong; see
-.BR NOTES .
 .TP
 \fB\-S\fR \fIlength\fR, \fB\-\-strings\fR[\fB=\fR\fIlength\fR]
 Write strings instead of values.
@@ -482,9 +468,7 @@ Standard output is a pipe that was closed before all output was written.
 A file that cannot be opened or read is reported, and
 .B od
 goes on with the next file.
-A failed seek, described in
-.BR NOTES ,
-is not reported, and
+A failed seek is not reported, and
 .B od
 goes on from the start of the file.
 Either way the exit status is 1.
@@ -606,12 +590,6 @@ Use
 for doubles.
 .PP
 With
-.B \-A n
-and more than one format, the lines after the first for each block are
-indented by an arbitrary number of columns, because the width of the
-missing address is read from past the end of a table.
-.PP
-With
 .B \-N
 and no
 .BR \-S ,
@@ -626,13 +604,7 @@ Addresses, and the numbers given to
 .B \-j
 and
 .BR \-N ,
-are 64-bit, but a skip that reaches 2 GiB or more into a regular file
-seeks with only the low 32 bits of the offset, as a signed number.
-When those bits are negative the seek fails, and
-.B od
-dumps from the start of the file and exits with status 1, without a
-message; otherwise it dumps from the wrong place.
-Either way the addresses show the requested skip.
+are 64-bit.
 A pipe is skipped by reading, so
 .B cat
 .I file

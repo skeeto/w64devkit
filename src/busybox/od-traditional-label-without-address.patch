@@ -1,0 +1,40 @@
+Show the label address with od --traditional -A n and a label.
+With a label operand, each address is followed by the label address
+in parentheses. When -A n suppresses the address, od switches to
+format_address_paren to write only the parenthesized part, but that
+function was given the plain address, while the label offset was
+added only by format_address_label. So -A n with a label wrote the
+real address in parentheses and the label had no effect. GNU od has
+the same flaw. Add the label offset in format_address_paren, which
+serves both cases.
+
+---
+ coreutils/od_bloaty.c |    6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+--- a/coreutils/od_bloaty.c
++++ b/coreutils/od_bloaty.c
+@@ -879,12 +879,12 @@
+ }
+ 
+ #if ENABLE_LONG_OPTS
+-/* only used with --traditional */
++/* only used with --traditional: the label address, in parentheses */
+ static void
+ format_address_paren(off_t address, char c)
+ {
+ 	putchar('(');
+-	format_address_std(address, ')');
++	format_address_std(address + G_pseudo_offset, ')');
+ 	if (c) putchar(c);
+ }
+ 
+@@ -892,7 +892,7 @@
+ format_address_label(off_t address, char c)
+ {
+ 	format_address_std(address, ' ');
+-	format_address_paren(address + G_pseudo_offset, c);
++	format_address_paren(address, c);
+ }
+ #endif
+ 

@@ -444,11 +444,7 @@ and
 need a byte count.
 .PP
 .B \-s
-seeks with a 32-bit offset.
-A skip that ends 2 GiB or more into a file either fails with
-.B Invalid argument
-or lands at the wrong position, though the offsets written assume the
-right one.
+seeks past the skipped bytes rather than reading them.
 On a pipe, the seek does nothing, so the dump starts at the beginning of
 the input while its offsets include the skip.
 .PP

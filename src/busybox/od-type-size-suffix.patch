@@ -1,0 +1,59 @@
+Let a type letter follow a numeric size in od -t.
+The size in a type specifier was parsed with bb_strtou, which fails
+when the number is followed by a letter, so a specifier with a numeric
+size could only end the argument: -t x1z, d2d2 or x1c died with
+"4294967295-byte integral type is not supported". The size was also
+taken in any base, so x010 meant x8 and x0x8 was accepted. Parse it
+with strtoul in decimal, as GNU od does, and leave what follows to be
+parsed as the z suffix or the next specifier.
+
+---
+ coreutils/od_bloaty.c |   24 +++++++++++++-----------
+ 1 file changed, 13 insertions(+), 11 deletions(-)
+
+--- a/coreutils/od_bloaty.c
++++ b/coreutils/od_bloaty.c
+@@ -597,15 +597,16 @@
+ 		if (!p || *p == '\0') {
+ 			size = sizeof(int);
+ 			if (isdigit(s[0])) {
+-				size = bb_strtou(s, &end, 0);
+-				if (errno == ERANGE
+-				 || MAX_INTEGRAL_TYPE_SIZE < size
+-				 || integral_type_size[size] == NO_SIZE
++				/* a type letter may follow: not bb_strtou */
++				unsigned long n = strtoul(s, &end, 10);
++				if (MAX_INTEGRAL_TYPE_SIZE < n
++				 || integral_type_size[n] == NO_SIZE
+ 				) {
+ 					bb_error_msg_and_die("invalid type string '%s'; "
+-						"%u-byte %s type is not supported",
+-						s_orig, size, "integral");
++						"%lu-byte %s type is not supported",
++						s_orig, n, "integral");
+ 				}
++				size = n;
+ 				s = end;
+ 			}
+ 		} else {
+@@ -692,14 +693,15 @@
+ 		if (!p || *p == '\0') {
+ 			size = sizeof(double);
+ 			if (isdigit(s[0])) {
+-				size = bb_strtou(s, &end, 0);
+-				if (errno == ERANGE || size > MAX_FP_TYPE_SIZE
+-				 || fp_type_size[size] == NO_SIZE
++				unsigned long n = strtoul(s, &end, 10);
++				if (n > MAX_FP_TYPE_SIZE
++				 || fp_type_size[n] == NO_SIZE
+ 				) {
+ 					bb_error_msg_and_die("invalid type string '%s'; "
+-						"%u-byte %s type is not supported",
+-						s_orig, size, "floating point");
++						"%lu-byte %s type is not supported",
++						s_orig, n, "floating point");
+ 				}
++				size = n;
+ 				s = end;
+ 			}
+ 		} else {
