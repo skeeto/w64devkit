@@ -373,3 +373,11 @@ sed-l-command.patch
 sed-r-keep-cr.patch
 sed-in-place-quit.patch
 sed-stdin-operand.patch
+grep-recursive-errors.patch
+grep-compile-before-reading.patch
+grep-max-count-zero.patch
+grep-quiet-overrides-count.patch
+grep-only-matching-invert-context.patch
+grep-fixed-only-matching.patch
+grep-word-retry.patch
+grep-only-matching-patterns.patch

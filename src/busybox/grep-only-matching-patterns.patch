@@ -1,0 +1,177 @@
+Print the matches of every pattern with grep -o, in line order.
+grep -o printed only the matches of the first pattern that selected the
+line, so grep -o -e c -e a printed only "a" for "abc", and -F -o -e bar
+-e foo printed both "foo" but not "bar" for "foo bar foo". Instead,
+find the leftmost match of any pattern, the longest of those, print it,
+and search again after it, as GNU grep does. With -x the match is
+always the whole line, so print that. A new function finds the next -F
+match, so the loop handles both kinds of pattern.
+
+---
+ findutils/grep.c     |  109 ++++++++++++++++++++++++++++++++-------------------
+ testsuite/grep.tests |   18 ++++++++
+ 2 files changed, 87 insertions(+), 40 deletions(-)
+
+--- a/findutils/grep.c
++++ b/findutils/grep.c
+@@ -431,6 +431,38 @@
+ 	return 1;
+ }
+ 
++/* Find the first occurrence of the fixed string at or after line[start]
++ * which -w accepts, and set *so and *eo to its offsets in the line.
++ * Returns 0 on a match. */
++static int find_fixed(grep_list_data_t *gl, char *line, unsigned start,
++		unsigned *so, unsigned *eo)
++{
++	unsigned len = strlen(gl->pattern);
++	char *str = line + start;
++
++	for (;;) {
++		char *match = (option_mask32 & OPT_i)
++			? strcasestr(str, gl->pattern)
++			: strstr(str, gl->pattern);
++		if (!match)
++			return 1;
++		if (option_mask32 & OPT_w) {
++			/* skip a match which is not a whole word */
++			char c = (match != line) ? match[-1] : ' ';
++			char d = match[len];
++			if (isalnum(c) || c == '_' || isalnum(d) || d == '_') {
++				if (*match == '\0')
++					return 1;
++				str = match + 1;
++				continue;
++			}
++		}
++		*so = match - line;
++		*eo = *so + len;
++		return 0;
++	}
++}
++
+ static int grep_file(FILE *file)
+ {
+ 	smalluint found;
+@@ -596,41 +628,45 @@
+ 				print_n_lines_after = lines_after;
+ #endif
+ 				if (option_mask32 & OPT_o) {
+-					if (FGREP_FLAG) {
+-						/* -Fo prints each occurrence as it is in the line
+-						 * (unless -v: -Fov doesn't print anything at all) */
+-						unsigned len = strlen(gl->pattern);
+-						char *str = line;
+-						/* Empty match is not printed */
+-						while (found && len != 0) {
+-							char *match = (option_mask32 & OPT_i)
+-								? strcasestr(str, gl->pattern)
+-								: strstr(str, gl->pattern);
+-							char old;
+-							if (!match)
+-								break;
+-							if (option_mask32 & OPT_w) {
+-								/* skip a match which is not a whole word */
+-								char c = (match != line) ? match[-1] : ' ';
+-								old = match[len];
+-								if (isalnum(c) || c == '_'
+-								 || isalnum(old) || old == '_'
+-								) {
+-									str = match + 1;
++#if !ENABLE_EXTRA_COMPAT
++					unsigned line_len = strlen(line);
++#endif
++					unsigned pos = 0;
++
++					if (option_mask32 & OPT_x) {
++						/* the match is the whole line */
++						if (found && line_len != 0)
++							print_line(line, line_len, linenum, ':');
++					} else while (found) { /* -ov: no matches to print */
++						/* Print the leftmost match of any pattern
++						 * (the longest of those), then look after it */
++						unsigned start = UINT_MAX;
++						unsigned end = 0;
++						unsigned len;
++						char old;
++
++						for (pattern_ptr = pattern_head; pattern_ptr; pattern_ptr = pattern_ptr->link) {
++							unsigned so, eo;
++
++							gl = (grep_list_data_t *)pattern_ptr->data;
++							if (FGREP_FLAG) {
++								if (find_fixed(gl, line, pos, &so, &eo) != 0)
+ 									continue;
+-								}
++							} else {
++								if (find_match(gl, line, pos, line_len) != 0)
++									continue;
++								so = gl->matched_range.rm_so;
++								eo = gl->matched_range.rm_eo;
+ 							}
+-							str = match + len;
+-							old = *str;
+-							*str = '\0';
+-							print_line(match, len, linenum, ':');
+-							*str = old;
++							if (so < start || (so == start && eo > end)) {
++								start = so;
++								end = eo;
++							}
+ 						}
+-					} else while (found) { /* -ov: no matches to print */
+-						unsigned start = gl->matched_range.rm_so;
+-						unsigned end = gl->matched_range.rm_eo;
+-						unsigned len = end - start;
+-						char old = line[end];
++						if (start == UINT_MAX)
++							break;
++						len = end - start;
++						old = line[end];
+ 						line[end] = '\0';
+ 						/* Empty match is not printed: try "echo test | grep -o ''" */
+ 						if (len != 0)
+@@ -638,14 +674,7 @@
+ 						if (old == '\0')
+ 							break;
+ 						line[end] = old;
+-						if (len == 0)
+-							end++;
+-#if !ENABLE_EXTRA_COMPAT
+-						if (find_match(gl, line, end, end + strlen(line + end)) != 0)
+-#else
+-						if (find_match(gl, line, end, line_len) != 0)
+-#endif
+-							break;
++						pos = (len == 0) ? end + 1 : end;
+ 					}
+ 				} else {
+ 					print_line(line, line_len, linenum, ':');
+--- a/testsuite/grep.tests
++++ b/testsuite/grep.tests
+@@ -279,7 +279,25 @@
+ 	"abc\n""\n""a  b\n""x_\n""ab \n" \
+ 	""
+ 
++testing "grep -o prints the matches of every pattern" \
++	"grep -o -e c -e ab -e abc input" \
++	"abc\n""ab\n""c\n" \
++	"abc ab c\n" \
++	""
+ 
++testing "grep -F -o prints the matches of every pattern" \
++	"grep -F -o -e bar -e foo input" \
++	"foo\n""bar\n""foo\n" \
++	"foo bar foo\n" \
++	""
++
++testing "grep -x -o prints the line once" \
++	"grep -x -o -e a -e abc input" \
++	"abc\n" \
++	"abc\n" \
++	""
++
++
+ testing "grep -x -v -e EXP1 -e EXP2 finds nothing if either EXP matches" \
+ 	"grep -x -v -e '.*aa.*' -e 'bb.*'; echo \$?" \
+ 	"1\n" \

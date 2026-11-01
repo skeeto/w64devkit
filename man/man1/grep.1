@@ -207,7 +207,7 @@ none follows its count, on the next line.
 .B \-o
 Print only the matched part of each selected line, each match on its own
 line.
-Empty regular expression matches are not printed.
+Empty matches are not printed.
 See
 .B NOTES
 for how this differs from GNU
@@ -216,20 +216,14 @@ for how this differs from GNU
 .BR \-q ", " \-\-quiet
 Print no lines, and exit with status 0 at the first selected line, even
 if there were errors.
-With
+Overrides
 .B \-c
-or
-.BR \-L ,
-files with no selected line are still reported until then.
+and
+.BR \-L .
 .TP
 .B \-s
-Do not report files that cannot be opened.
+Do not report files or directories that cannot be opened.
 The exit status still reports the error.
-Directories that
-.B \-r
-or
-.B \-R
-cannot read are reported anyway, and do not affect the exit status.
 .TP
 .B \-r
 Search the files under each directory operand, recursively.
@@ -283,13 +277,7 @@ selected line.
 Trailing context is still printed after it, up to the next selected line.
 With a
 .I num
-of 0, only the first line is read; it is never printed, but if it is
-selected, it counts as such for
-.BR \-c ,
-.BR \-l ,
-.BR \-L ,
-.BR \-q ,
-and the exit status.
+of 0, no line is read, so none is selected.
 .TP
 .BI "\-A " num
 Print
@@ -388,8 +376,8 @@ No line was selected.
 .TP
 .B 2
 An error: an invalid option or argument, an invalid regular expression,
-a pattern file that cannot be read, or a file that cannot be opened,
-even if lines were selected in others.
+a pattern file that cannot be read, or a file or directory that cannot
+be opened, even if lines were selected in others.
 With
 .BR \-q ,
 a selected line ends the search with status 0 regardless of earlier
@@ -476,64 +464,10 @@ and
 have no effect.
 .IP \(bu 2
 With
-.BR \-F ,
-.B \-o
-prints the pattern as given, once per line, however often and in
-whatever case it occurs.
-With several patterns,
-.B \-o
-prints the matches of only one of them on each line; join them with
-.B \e|
-or
-.B |
-instead.
-Each later match on a line is found as if the line began where the
-previous match ended, which changes the result of
-.BR \eb ,
-.BR \eB ,
-.BR \e< ,
-and
-.BR \e> .
-Context lines are printed whole.
-With
-.BR \-v ,
-.B \-o
-prints no line text: a selected line prints nothing, and a context line
-prints only its prefix, the file name and line number when shown,
-without a newline.
-.IP \(bu 2
-A regular expression is compiled when first needed, so an invalid one is
-not reported if no input is read.
+.BR \-o ,
+context lines are printed whole.
 .IP \(bu 2
 Read errors end a file silently.
-.IP \(bu 2
-With
-.B \-w
-but neither
-.B \-F
-nor
-.BR \-x ,
-when a match is not a whole word, the search resumes where it ends,
-without trying a shorter match at the same place or one that starts
-inside it.
-So
-.B grep \-w \(aqa[^c]*\(aq
-does not select a line reading
-.IR "a bc" ,
-nor
-.B grep \-w \(aqa.a\(aq
-one reading
-.IR "ba a a" .
-With these options, an empty pattern, such as a blank line in a
-.B \-f
-file, matches only lines that are empty or begin with a character other
-than an ASCII letter, digit, or underscore.
-GNU
-.BR grep ,
-and this one with
-.BR \-F ,
-also match a line that ends with such a character or has two of them in
-a row.
 .IP \(bu 2
 GNU options not listed above, such as
 .BR \-P ,

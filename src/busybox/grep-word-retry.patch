@@ -1,0 +1,272 @@
+Retry rejected grep -w matches properly, seeing the text before them.
+When a regex match was not a whole word, grep -w searched again only
+after its end, so it missed a shorter match at the same place and any
+match starting inside it: grep -w 'a[^c]*' did not select "a bc", nor
+grep -w 'a.a' "ba a a", and an empty pattern selected only lines that
+began with a non-word character. The search after the end, like each
+later match of -o, also ran on the rest of the line with REG_NOTBOL,
+as if it began there, so \<, \> and \b matched inside words:
+grep -o '\<a' printed "a" four times for "aaaa".
+
+Find matches in a new function that searches from an offset in the
+whole line, using REG_STARTEND where regexec has it (re_search already
+works this way), and that, when a match is not a whole word, tries
+shorter matches at the same place, with REG_NOTEOL so that $ does not
+match early, and then matches starting one byte further on, as GNU grep
+does. The -o loop uses it for each later match as well.
+
+---
+ findutils/grep.c     |  175 ++++++++++++++++++++++++++-------------------------
+ testsuite/grep.tests |   18 +++++
+ 2 files changed, 110 insertions(+), 83 deletions(-)
+
+--- a/findutils/grep.c
++++ b/findutils/grep.c
+@@ -348,6 +348,89 @@
+ }
+ #endif
+ 
++#if ENABLE_EXTRA_COMPAT
++# define rm_so start[0]
++# define rm_eo end[0]
++#endif
++
++/* Search line[start..end) for the regex, and set gl->matched_range
++ * to offsets from the line start. The text before start still counts
++ * for ^, \<, \b and the like (only for ^ without REG_STARTEND).
++ * With noteol, $ does not match at end. Returns 0 on a match. */
++static int regex_search(grep_list_data_t *gl, char *line,
++		unsigned start, unsigned end, int noteol)
++{
++#if !ENABLE_EXTRA_COMPAT
++	/* REG_NOTBOL too: BSD regexec matches ^ at rm_so without it */
++	int eflags = (noteol ? REG_NOTEOL : 0) | (start ? REG_NOTBOL : 0);
++# ifdef REG_STARTEND
++	gl->matched_range.rm_so = start;
++	gl->matched_range.rm_eo = end;
++	return regexec(&gl->compiled_regex, line, 1, &gl->matched_range,
++			eflags | REG_STARTEND);
++# else
++	char c = line[end];
++	int r;
++
++	line[end] = '\0';
++	r = regexec(&gl->compiled_regex, line + start, 1, &gl->matched_range,
++			eflags);
++	line[end] = c;
++	gl->matched_range.rm_so += start;
++	gl->matched_range.rm_eo += start;
++	return r;
++# endif
++#else
++	gl->compiled_regex.not_eol = noteol;
++	return re_search(&gl->compiled_regex, line, end,
++			start, /*range:*/ end - start,
++			&gl->matched_range) < 0;
++#endif
++}
++
++/* Find the first match at or after line[start], of a line of length
++ * len, which -w accepts: one not preceded or followed by a word
++ * character. Returns 0 on a match. */
++static int find_match(grep_list_data_t *gl, char *line,
++		unsigned start, unsigned len)
++{
++	while (regex_search(gl, line, start, len, 0) == 0) {
++		unsigned so = gl->matched_range.rm_so;
++		unsigned eo = gl->matched_range.rm_eo;
++		char c;
++
++		/* no -w, or -x which overrides it? */
++		if ((option_mask32 & (OPT_w | OPT_x)) != OPT_w)
++			return 0;
++		c = so ? line[so - 1] : ' ';
++		if (!isalnum(c) && c != '_') {
++			/* Try this match, then shorter ones at the same place:
++			 * "echo 'a bc' | grep -w 'a[^c]*'" matches "a" */
++			for (;;) {
++				c = line[eo];
++				if (!isalnum(c) && c != '_') {
++					gl->matched_range.rm_so = so;
++					gl->matched_range.rm_eo = eo;
++					return 0;
++				}
++				if (eo == so
++				 || regex_search(gl, line, so, eo - 1, 1) != 0
++				 || gl->matched_range.rm_so != so
++				) {
++					break;
++				}
++				eo = gl->matched_range.rm_eo;
++			}
++		}
++		/* Then those starting further on, even inside this one:
++		 * "echo 'ba a a' | grep -w 'a.a'" matches the second "a a" */
++		if (so == len)
++			break;
++		start = so + 1;
++	}
++	return 1;
++}
++
+ static int grep_file(FILE *file)
+ {
+ 	smalluint found;
+@@ -359,8 +442,6 @@
+ 	char *line = NULL;
+ 	ssize_t line_len;
+ 	size_t line_alloc_len;
+-# define rm_so start[0]
+-# define rm_eo end[0]
+ #endif
+ #if ENABLE_FEATURE_GREP_CONTEXT
+ 	int print_n_lines_after = 0;
+@@ -423,74 +504,17 @@
+  opt_f_not_found: ;
+ 				}
+ 			} else {
+-#if ENABLE_EXTRA_COMPAT
+-				unsigned start_pos;
+-#else
+-				int match_flg;
+-#endif
+-				char *match_at;
+-
+ #if !ENABLE_EXTRA_COMPAT
+-				gl->matched_range.rm_so = 0;
+-				gl->matched_range.rm_eo = 0;
+-				match_flg = 0;
++				unsigned len = strlen(line);
+ #else
+-				start_pos = 0;
++				unsigned len = line_len;
+ #endif
+-				match_at = line;
+- opt_w_again:
+-//bb_error_msg("'%s' start_pos:%d line_len:%d", match_at, start_pos, line_len);
+-				if (
+-#if !ENABLE_EXTRA_COMPAT
+-					regexec(&gl->compiled_regex, match_at, 1, &gl->matched_range, match_flg) == 0
+-#else
+-					re_search(&gl->compiled_regex, match_at, line_len,
+-							start_pos, /*range:*/ line_len,
+-							&gl->matched_range) >= 0
+-#endif
+-				) {
++				if (find_match(gl, line, 0, len) == 0) {
+ 					if (option_mask32 & OPT_x) {
+ 						found |= (gl->matched_range.rm_so == 0
+-						         && match_at[gl->matched_range.rm_eo] == '\0');
+-					} else
+-					if (!(option_mask32 & OPT_w)) {
+-						found = 1;
++						         && line[gl->matched_range.rm_eo] == '\0');
+ 					} else {
+-						char c = ' ';
+-						if (match_at > line || gl->matched_range.rm_so != 0) {
+-							c = match_at[gl->matched_range.rm_so - 1];
+-						}
+-						if (!isalnum(c) && c != '_') {
+-							c = match_at[gl->matched_range.rm_eo];
+-						}
+-						if (!isalnum(c) && c != '_') {
+-#if !ENABLE_EXTRA_COMPAT
+-							/* -o wants offsets from line start */
+-							gl->matched_range.rm_so += match_at - line;
+-							gl->matched_range.rm_eo += match_at - line;
+-#endif
+-							found = 1;
+-						} else {
+-			/*
+-			 * Why check gl->matched_range.rm_eo?
+-			 * Zero-length match makes -w skip the line:
+-			 * "echo foo | grep ^" prints "foo",
+-			 * "echo foo | grep -w ^" prints nothing.
+-			 * Without such check, we can loop forever.
+-			 */
+-#if !ENABLE_EXTRA_COMPAT
+-							if (gl->matched_range.rm_eo != 0) {
+-								match_at += gl->matched_range.rm_eo;
+-								match_flg |= REG_NOTBOL;
+-								goto opt_w_again;
+-							}
+-#else
+-							if (gl->matched_range.rm_eo > start_pos) {
+-								start_pos = gl->matched_range.rm_eo;
+-								goto opt_w_again;
+-							}
+-#endif
+-						}
++						found = 1;
+ 					}
+ 				}
+ 			}
+@@ -607,15 +631,6 @@
+ 						unsigned end = gl->matched_range.rm_eo;
+ 						unsigned len = end - start;
+ 						char old = line[end];
+-						if (option_mask32 & OPT_w) {
+-							/* skip a match which is not a whole word */
+-							char c = start ? line[start - 1] : ' ';
+-							if (isalnum(c) || c == '_'
+-							 || isalnum(old) || old == '_'
+-							) {
+-								len = 0;
+-							}
+-						}
+ 						line[end] = '\0';
+ 						/* Empty match is not printed: try "echo test | grep -o ''" */
+ 						if (len != 0)
+@@ -623,20 +638,14 @@
+ 						if (old == '\0')
+ 							break;
+ 						line[end] = old;
+-						if (start == end)
++						if (len == 0)
+ 							end++;
+ #if !ENABLE_EXTRA_COMPAT
+-						if (regexec(&gl->compiled_regex, line + end,
+-								1, &gl->matched_range, REG_NOTBOL) != 0)
+-							break;
+-						gl->matched_range.rm_so += end;
+-						gl->matched_range.rm_eo += end;
++						if (find_match(gl, line, end, end + strlen(line + end)) != 0)
+ #else
+-						if (re_search(&gl->compiled_regex, line, line_len,
+-								end, line_len - end,
+-								&gl->matched_range) < 0)
+-							break;
++						if (find_match(gl, line, end, line_len) != 0)
+ #endif
++							break;
+ 					}
+ 				} else {
+ 					print_line(line, line_len, linenum, ':');
+--- a/testsuite/grep.tests
++++ b/testsuite/grep.tests
+@@ -261,7 +261,25 @@
+ 	"foobar foo2\n" \
+ 	""
+ 
++testing "grep -w tries shorter matches" \
++	"grep -w -o 'a[^c]*' input" \
++	"a\n" \
++	"a bc\n" \
++	""
+ 
++testing "grep -w tries matches starting inside a rejected one" \
++	"grep -w -o 'a.a' input" \
++	"a a\n" \
++	"ba a a\n" \
++	""
++
++testing "grep -w '' matches only between non-word chars" \
++	"grep -w '' input" \
++	"\n""a  b\n""ab \n" \
++	"abc\n""\n""a  b\n""x_\n""ab \n" \
++	""
++
++
+ testing "grep -x -v -e EXP1 -e EXP2 finds nothing if either EXP matches" \
+ 	"grep -x -v -e '.*aa.*' -e 'bb.*'; echo \$?" \
+ 	"1\n" \

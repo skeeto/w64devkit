@@ -1,0 +1,72 @@
+Compile grep's regular expressions before reading any input.
+Each one was compiled when first needed to match a line, so an invalid
+expression went unreported, with exit status 1 instead of 2, when the
+input was empty, when every input file failed to open, or when an
+earlier pattern matched every line. Compile them all once the options
+are parsed.
+
+---
+ findutils/grep.c     |   29 ++++++++++++++++++-----------
+ testsuite/grep.tests |    5 +++++
+ 2 files changed, 23 insertions(+), 11 deletions(-)
+
+--- a/findutils/grep.c
++++ b/findutils/grep.c
+@@ -427,18 +427,7 @@
+ #endif
+ 				char *match_at;
+ 
+-				if (!(gl->flg_mem_allocated_compiled & COMPILED)) {
+-					gl->flg_mem_allocated_compiled |= COMPILED;
+ #if !ENABLE_EXTRA_COMPAT
+-					xregcomp(&gl->compiled_regex, gl->pattern, reflags);
+-#else
+-					memset(&gl->compiled_regex, 0, sizeof(gl->compiled_regex));
+-					gl->compiled_regex.translate = case_fold; /* for -i */
+-					if (re_compile_pattern(gl->pattern, strlen(gl->pattern), &gl->compiled_regex))
+-						bb_error_msg_and_die("bad regex '%s'", gl->pattern);
+-#endif
+-				}
+-#if !ENABLE_EXTRA_COMPAT
+ 				gl->matched_range.rm_so = 0;
+ 				gl->matched_range.rm_eo = 0;
+ 				match_flg = 0;
+@@ -903,6 +892,24 @@
+ 		load_pattern_list(&pattern_head, *argv++);
+ 	}
+ 
++	/* compile the regexes now: a bad one is an error even with no input */
++	if (!FGREP_FLAG) {
++		llist_t *cur;
++		for (cur = pattern_head; cur; cur = cur->link) {
++			grep_list_data_t *gl = (grep_list_data_t *)cur->data;
++
++			gl->flg_mem_allocated_compiled |= COMPILED;
++#if !ENABLE_EXTRA_COMPAT
++			xregcomp(&gl->compiled_regex, gl->pattern, reflags);
++#else
++			memset(&gl->compiled_regex, 0, sizeof(gl->compiled_regex));
++			gl->compiled_regex.translate = case_fold; /* for -i */
++			if (re_compile_pattern(gl->pattern, strlen(gl->pattern), &gl->compiled_regex))
++				bb_error_msg_and_die("bad regex '%s'", gl->pattern);
++#endif
++		}
++	}
++
+ 	/* argv[0..(argc-1)] should be names of file to grep through. If
+ 	 * there is more than one file to grep, we will print the filenames. */
+ 	if (argv[0] && argv[1])
+--- a/testsuite/grep.tests
++++ b/testsuite/grep.tests
+@@ -125,6 +125,11 @@
+ 	"" \
+ 	"" "test\n"
+ 
++testing "grep reports a bad regex with no input" \
++	"grep 'a\\{1' input 2>/dev/null; echo \$?" \
++	"2\n" \
++	"" ""
++
+ testing "grep -f EMPTY_FILE" \
+ 	"grep -f input" \
+ 	"" \

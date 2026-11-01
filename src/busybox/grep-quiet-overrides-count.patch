@@ -1,0 +1,36 @@
+Make grep -q print nothing when given with -c or -L.
+-q exits at the first selected line, but until then -c printed the
+count of each file with no selected line and -L printed its name, and
+with -L the exit status was 0 when no line was selected at all. Clear
+-c and -L under -q, which is how GNU grep lets -q override them.
+
+---
+ findutils/grep.c     |    3 +++
+ testsuite/grep.tests |    4 ++++
+ 2 files changed, 7 insertions(+)
+
+--- a/findutils/grep.c
++++ b/findutils/grep.c
+@@ -829,6 +829,9 @@
+ 	);
+ #endif
+ 	invert_search = ((option_mask32 & OPT_v) != 0); /* 0 | 1 */
++	/* -q prints nothing, not even -c counts or -L names */
++	if (option_mask32 & OPT_q)
++		option_mask32 &= ~(OPT_c | OPT_L);
+ 
+ 	{	/* convert char **argv to pattern_list */
+ 		llist_t *cur, *new = NULL;
+--- a/testsuite/grep.tests
++++ b/testsuite/grep.tests
+@@ -103,6 +103,10 @@
+ 	"(standard input)\n0\n" "qwe\n" "asd\n"
+ testing "grep -L exitcode 1" "grep -L qwe input; echo \$?" \
+ 	"1\n" "qwe\n" ""
++testing "grep -q -c prints nothing" "grep -q -c qwe input; echo \$?" \
++	"1\n" "asd\n" ""
++testing "grep -q -L prints nothing" "grep -q -L qwe input; echo \$?" \
++	"1\n" "asd\n" ""
+ 
+ optional EGREP
+ testing "grep -E supports extended regexps" "grep -E fo+" "foo\n" "" \

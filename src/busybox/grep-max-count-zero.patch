@@ -1,0 +1,56 @@
+Make grep -m 0 select no line.
+The test that stops reading after the last allowed selected line came
+after each line was processed, so with -m 0 the first line was read and
+matched before it. When it was selected, -c counted it, -l printed the
+file name, -L did not, -q exited with status 0, and the exit status was
+0. Make the test before reading each line instead, so -m 0 reads
+nothing.
+
+---
+ findutils/grep.c     |   13 ++++++-------
+ testsuite/grep.tests |    5 +++++
+ 2 files changed, 11 insertions(+), 7 deletions(-)
+
+--- a/findutils/grep.c
++++ b/findutils/grep.c
+@@ -374,6 +374,12 @@
+ #endif
+ 
+ 	while (
++		/* Did we print all context after last requested match?
++		 * Checked before reading, so that -m 0 reads nothing */
++		!((option_mask32 & OPT_m)
++		  && !print_n_lines_after
++		  && nmatches == max_matches
++		) &&
+ #if !ENABLE_EXTRA_COMPAT
+ 		(line = xmalloc_fgetline(file)) != NULL
+ #else
+@@ -637,13 +643,6 @@
+ #if !ENABLE_EXTRA_COMPAT
+ 		free(line);
+ #endif
+-		/* Did we print all context after last requested match? */
+-		if ((option_mask32 & OPT_m)
+-		 && !print_n_lines_after
+-		 && nmatches == max_matches
+-		) {
+-			break;
+-		}
+ 	} /* while (read line) */
+ 
+ 	/* special-case file post-processing for options where we don't print line
+--- a/testsuite/grep.tests
++++ b/testsuite/grep.tests
+@@ -125,6 +125,11 @@
+ 	"" \
+ 	"" "test\n"
+ 
++testing "grep -m 0 selects nothing" \
++	"grep -m 0 -c one input; echo \$?" \
++	"0\n1\n" \
++	"one\n" ""
++
+ testing "grep reports a bad regex with no input" \
+ 	"grep 'a\\{1' input 2>/dev/null; echo \$?" \
+ 	"2\n" \

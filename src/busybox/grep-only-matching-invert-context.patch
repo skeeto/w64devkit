@@ -1,0 +1,47 @@
+Print context lines whole with grep -o -v, as with -o alone.
+print_line() printed no line text at all under -o -v, a special case
+for selected lines, which have no match to print. Those no longer reach
+it, but context lines from -A, -B and -C still did, and each printed
+only its file name and line number prefix, with no newline, so it ran
+into the next line of output. Drop the special case.
+
+---
+ findutils/grep.c     |    9 +++------
+ testsuite/grep.tests |    5 +++++
+ 2 files changed, 8 insertions(+), 6 deletions(-)
+
+--- a/findutils/grep.c
++++ b/findutils/grep.c
+@@ -319,15 +319,12 @@
+ 		printf("%s%c", cur_file, decoration);
+ 	if (PRINT_LINE_NUM)
+ 		printf("%i%c", linenum, decoration);
+-	/* Emulate weird GNU grep behavior with -ov */
+-	if ((option_mask32 & (OPT_v|OPT_o)) != (OPT_v|OPT_o)) {
+ #if !ENABLE_EXTRA_COMPAT
+-		puts(line);
++	puts(line);
+ #else
+-		fwrite(line, 1, line_len, stdout);
+-		putchar(NUL_DELIMITED ? '\0' : '\n');
++	fwrite(line, 1, line_len, stdout);
++	putchar(NUL_DELIMITED ? '\0' : '\n');
+ #endif
+-	}
+ }
+ 
+ #if ENABLE_EXTRA_COMPAT
+--- a/testsuite/grep.tests
++++ b/testsuite/grep.tests
+@@ -129,6 +129,11 @@
+ 	"" \
+ 	"" "test\n"
+ 
++testing "grep -o -v prints context lines whole" \
++	"grep -n -o -v -B1 two input" \
++	"1-two\n" \
++	"two\nthree\n" ""
++
+ testing "grep -m 0 selects nothing" \
+ 	"grep -m 0 -c one input; echo \$?" \
+ 	"0\n1\n" \

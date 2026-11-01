@@ -1,0 +1,36 @@
+Set exit status 2 for errors found by grep -r, and honor -s for them.
+grep ignored the result of the directory walk, so a subdirectory that
+could not be opened, or a dangling symbolic link below the operands,
+was reported but left the exit status at 0 or 1 instead of 2. The walk
+also reported the subdirectory itself, so -s did not silence it. Set
+the error status when the walk fails, and make it quiet under -s.
+
+---
+ findutils/grep.c |    8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+--- a/findutils/grep.c
++++ b/findutils/grep.c
+@@ -760,16 +760,20 @@
+ static int grep_dir(const char *dir)
+ {
+ 	int matched = 0;
+-	recursive_action(dir, 0
++	if (!recursive_action(dir, 0
+ 		| ACTION_RECURSE
+ 		| ((option_mask32 & OPT_R) ? ACTION_FOLLOWLINKS : 0)
+ 		| ACTION_FOLLOWLINKS_L0 /* grep -r ... SYMLINK follows it */
+ 		| ACTION_DEPTHFIRST
++		| (SUPPRESS_ERR_MSGS ? ACTION_QUIET : 0)
+ 		| 0,
+ 		/* fileAction= */ file_action_grep,
+ 		/* dirAction= */ NULL,
+ 		/* userData= */ &matched
+-	);
++	)) {
++		/* a file or subdirectory could not be read */
++		open_errors = 1;
++	}
+ 	return matched;
+ }
+ 

@@ -1,0 +1,78 @@
+Print each fixed-string match with grep -F -o, as it is in the line.
+grep -F -o printed the pattern once for each selected line, however
+many times it occurred there, and in the pattern's own case with -i,
+so "Foo foo" printed "foo" once instead of "Foo" and "foo". An empty
+pattern printed an empty line, though empty matches are otherwise not
+printed. Search the line for each occurrence and print the text found,
+skipping those that are not whole words under -w.
+
+---
+ findutils/grep.c     |   31 ++++++++++++++++++++++++++++---
+ testsuite/grep.tests |   15 +++++++++++++++
+ 2 files changed, 43 insertions(+), 3 deletions(-)
+
+--- a/findutils/grep.c
++++ b/findutils/grep.c
+@@ -573,10 +573,35 @@
+ #endif
+ 				if (option_mask32 & OPT_o) {
+ 					if (FGREP_FLAG) {
+-						/* -Fo just prints the pattern
++						/* -Fo prints each occurrence as it is in the line
+ 						 * (unless -v: -Fov doesn't print anything at all) */
+-						if (found)
+-							print_line(gl->pattern, strlen(gl->pattern), linenum, ':');
++						unsigned len = strlen(gl->pattern);
++						char *str = line;
++						/* Empty match is not printed */
++						while (found && len != 0) {
++							char *match = (option_mask32 & OPT_i)
++								? strcasestr(str, gl->pattern)
++								: strstr(str, gl->pattern);
++							char old;
++							if (!match)
++								break;
++							if (option_mask32 & OPT_w) {
++								/* skip a match which is not a whole word */
++								char c = (match != line) ? match[-1] : ' ';
++								old = match[len];
++								if (isalnum(c) || c == '_'
++								 || isalnum(old) || old == '_'
++								) {
++									str = match + 1;
++									continue;
++								}
++							}
++							str = match + len;
++							old = *str;
++							*str = '\0';
++							print_line(match, len, linenum, ':');
++							*str = old;
++						}
+ 					} else while (found) { /* -ov: no matches to print */
+ 						unsigned start = gl->matched_range.rm_so;
+ 						unsigned end = gl->matched_range.rm_eo;
+--- a/testsuite/grep.tests
++++ b/testsuite/grep.tests
+@@ -129,6 +129,21 @@
+ 	"" \
+ 	"" "test\n"
+ 
++testing "grep -F -o prints each match as found" \
++	"grep -F -o -i foo input" \
++	"Foo\n""foo\n""FOO\n" \
++	"Foo foo xFOO\n" ""
++
++testing "grep -F -w -o prints only whole words" \
++	"grep -F -w -o foo input" \
++	"foo\n""foo\n" \
++	"foobar foo foo\n" ""
++
++testing "grep -F -o does not print empty matches" \
++	"grep -F -o '' input; echo \$?" \
++	"0\n" \
++	"test\n" ""
++
+ testing "grep -o -v prints context lines whole" \
+ 	"grep -n -o -v -B1 two input" \
+ 	"1-two\n" \
