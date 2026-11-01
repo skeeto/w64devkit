@@ -1,0 +1,29 @@
+Treat a timeout of zero as no time limit.
+A SECS of 0 made timeout send the signal at once, so "timeout 0 prog"
+killed prog as soon as it started. GNU timeout treats a zero duration
+as disabling the timeout. Do the same, and wait for prog without a
+limit. A -k of 0 already meant no second signal.
+
+---
+ coreutils/timeout.c |    5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+--- a/coreutils/timeout.c
++++ b/coreutils/timeout.c
+@@ -71,13 +71,14 @@
+ 	return FALSE;
+ }
+ 
+-/* Return TRUE if child exits before timeout expires */
++/* Return TRUE if child exits before timeout expires (0: never expires) */
+ static NOINLINE int timeout_wait(duration_t timeout, HANDLE proc, DWORD *status)
+ {
+ 	/* The wait is a 32-bit count of milliseconds, in which INFINITE
+ 	 * (0xFFFFFFFF) means forever, so wait for long times in chunks. */
+ 	for (;;) {
+-		DWORD t = timeout > 1000000 ? 1000000000 : (DWORD)(timeout * 1000);
++		DWORD t = timeout == 0 ? INFINITE :
++			timeout > 1000000 ? 1000000000 : (DWORD)(timeout * 1000);
+ 		DWORD ret = WaitForSingleObject(proc, t);
+ 		if (ret == WAIT_OBJECT_0) {
+ 			/* process is gone */

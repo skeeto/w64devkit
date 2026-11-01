@@ -1,0 +1,29 @@
+Don't make usleep a NOFORK applet on WIN32.
+On WIN32 a NOFORK applet runs inside the shell process, and Sleep()
+can't be interrupted, so ^C during "usleep N" in the shell only took
+effect after the whole pause. (On Linux, nanosleep() returns early on
+SIGINT.) Make usleep a normal applet on WIN32, as sleep already is, so
+that it runs in its own process and ^C ends it at once.
+
+---
+ coreutils/usleep.c |    8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+--- a/coreutils/usleep.c
++++ b/coreutils/usleep.c
+@@ -12,7 +12,15 @@
+ //config:	help
+ //config:	usleep is used to pause for a specified number of microseconds.
+ 
++// NOTE: For WIN32 this applet is not NOFORK: Sleep() can't be interrupted,
++//       so ^C in a shell would only take effect after the pause.
++
++//applet:IF_PLATFORM_MINGW32(
++//applet:IF_USLEEP(APPLET(usleep, BB_DIR_BIN, BB_SUID_DROP))
++//applet:)
++//applet:IF_PLATFORM_POSIX(
+ //applet:IF_USLEEP(APPLET_NOFORK(usleep, usleep, BB_DIR_BIN, BB_SUID_DROP, usleep))
++//applet:)
+ 
+ //kbuild:lib-$(CONFIG_USLEEP) += usleep.o
+ 

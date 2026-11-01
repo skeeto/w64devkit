@@ -1,0 +1,24 @@
+Accept only "inf" and "infinity" as an infinite sleep.
+sleep compared just the first three characters of its first argument
+with "inf", so any argument that began with them, such as "information"
+or "infinity5", made it sleep forever instead of failing as an invalid
+number. Compare the whole argument, ignoring case, for the spellings
+the comment says GNU sleep accepts.
+
+---
+ coreutils/sleep.c |    4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+--- a/coreutils/sleep.c
++++ b/coreutils/sleep.c
+@@ -84,7 +84,9 @@
+ 	}
+ 
+ 	/* GNU sleep accepts "inf", "INF", "infinity" and "INFINITY" */
+-	if (strncasecmp(argv[0], "inf", 3) == 0)
++	if (strcasecmp(argv[0], "inf") == 0
++	 || strcasecmp(argv[0], "infinity") == 0
++	)
+ 		for (;;)
+ 			sleep(INT_MAX);
+ 

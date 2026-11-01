@@ -1,0 +1,22 @@
+Don't use an uninitialised exit code if it can't be retrieved.
+timeout_wait() ignored the result of GetExitCodeProcess(), so had the
+call failed, timeout_main() would have turned an uninitialised variable
+into its exit status. Report 125, the status timeout uses for its own
+failures, instead.
+
+---
+ coreutils/timeout.c |    3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+--- a/coreutils/timeout.c
++++ b/coreutils/timeout.c
+@@ -78,7 +78,8 @@
+ 		DWORD ret = WaitForSingleObject(proc, t);
+ 		if (ret == WAIT_OBJECT_0) {
+ 			/* process is gone */
+-			GetExitCodeProcess(proc, status);
++			if (!GetExitCodeProcess(proc, status))
++				*status = 125;
+ 			return TRUE;
+ 		}
+ 		if (ret != WAIT_TIMEOUT || timeout <= 1000000)

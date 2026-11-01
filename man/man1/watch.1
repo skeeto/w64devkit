@@ -368,10 +368,7 @@ scrolled above it stays in the scrollback; see
 The period is rounded down to whole milliseconds and passed to the
 Windows
 .B Sleep
-function, so a period shorter than a millisecond does not wait, and a
-period of 2^32 milliseconds, about 49.7 days, or more wraps around as
-described in
-.BR sleep (1).
+function, so a period shorter than a millisecond does not wait.
 .PP
 .B watch
 does not check for errors writing its own output, so when standard

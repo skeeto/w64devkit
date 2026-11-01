@@ -1,0 +1,23 @@
+Reject a fractional duration that does not start with a number.
+For an argument with a period whose first character is neither a digit
+nor a period, such as "-1.5" or "x.5", the number before the suffix is
+empty. strtod() accepts the empty string, so parse_duration_str() went
+on to write a '1' into the byte before the argument, outside its
+buffer, and then failed with a message quoting "1-1.5". Treat a number
+with no digits as invalid, as is already done for a lone ".".
+
+---
+ libbb/duration.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/libbb/duration.c
++++ b/libbb/duration.c
+@@ -52,7 +52,7 @@
+ 		str[len] = '\0';
+ 		errno = 0;
+ 		d = strtod(str, &pp);
+-		if (errno || *pp)
++		if (errno || *pp || pp == str)
+ 			bb_show_usage();
+ 		str += len;
+ 		*str-- = sv;

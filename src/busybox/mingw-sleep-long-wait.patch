@@ -1,0 +1,48 @@
+Sleep in chunks so that long sleeps do not wrap around.
+sleep() and nanosleep() passed the delay to Sleep() as a 32-bit count of
+milliseconds without checking it. A delay of 2^32 ms, about 49.7 days,
+or more wrapped around, so "sleep 4294968" returned after 0.7 seconds,
+and "tail -f -s 4294968" and "watch -n 4294968" repeated at that rate.
+A delay that came out at exactly 0xFFFFFFFF ms was INFINITE and never
+returned. A negative tv_sec wrapped around as well. Sleep in chunks of
+1000000 seconds, make sleep() call nanosleep(), and reject a negative
+tv_sec with EINVAL, as POSIX requires.
+
+---
+ win32/mingw.c |   16 +++++++++++++---
+ 1 file changed, 13 insertions(+), 3 deletions(-)
+
+--- a/win32/mingw.c
++++ b/win32/mingw.c
+@@ -1097,18 +1097,28 @@
+ 
+ unsigned int sleep (unsigned int seconds)
+ {
+-	Sleep(seconds*1000);
++	struct timespec ts;
++
++	ts.tv_sec = seconds;
++	ts.tv_nsec = 0;
++	nanosleep(&ts, NULL);
+ 	return 0;
+ }
+ 
+ int FAST_FUNC nanosleep(const struct timespec *req, struct timespec *rem)
+ {
+-	if (req->tv_nsec < 0 || 1000000000 <= req->tv_nsec) {
++	time_t sec;
++
++	if (req->tv_sec < 0 || req->tv_nsec < 0 || 1000000000 <= req->tv_nsec) {
+ 		errno = EINVAL;
+ 		return -1;
+ 	}
+ 
+-	Sleep(req->tv_sec*1000 + req->tv_nsec/1000000);
++	/* Sleep takes a 32-bit count of milliseconds, in which INFINITE
++	 * (0xFFFFFFFF) means forever, so sleep for long times in chunks. */
++	for (sec = req->tv_sec; sec > 1000000; sec -= 1000000)
++		Sleep(1000000 * 1000);
++	Sleep(sec*1000 + req->tv_nsec/1000000);
+ 
+ 	/* Sleep is not interruptible.  So there is no remaining delay.  */
+ 	if (rem != NULL) {

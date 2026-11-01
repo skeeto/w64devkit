@@ -1,0 +1,42 @@
+Wait in chunks so that long timeouts do not wrap around.
+timeout_wait() converted the timeout to a 32-bit count of milliseconds
+for WaitForSingleObject(). A timeout of 2^32 ms, about 49.7 days, or
+more wrapped around, so "timeout 50d" timed out after about 7 hours and
+"timeout 4294968" after 0.7 seconds, and one that came out at exactly
+0xFFFFFFFF ms was INFINITE and never expired. Converting an out of
+range double to DWORD is also undefined. Wait in chunks of 1000000
+seconds. This applies to -k as well.
+
+---
+ coreutils/timeout.c |   19 +++++++++++++------
+ 1 file changed, 13 insertions(+), 6 deletions(-)
+
+--- a/coreutils/timeout.c
++++ b/coreutils/timeout.c
+@@ -71,13 +71,20 @@
+ /* Return TRUE if child exits before timeout expires */
+ static NOINLINE int timeout_wait(duration_t timeout, HANDLE proc, DWORD *status)
+ {
+-	DWORD t = (DWORD)(timeout * 1000);
+-	if (WaitForSingleObject(proc, t) == WAIT_OBJECT_0) {
+-		/* process is gone */
+-		GetExitCodeProcess(proc, status);
+-		return TRUE;
++	/* The wait is a 32-bit count of milliseconds, in which INFINITE
++	 * (0xFFFFFFFF) means forever, so wait for long times in chunks. */
++	for (;;) {
++		DWORD t = timeout > 1000000 ? 1000000000 : (DWORD)(timeout * 1000);
++		DWORD ret = WaitForSingleObject(proc, t);
++		if (ret == WAIT_OBJECT_0) {
++			/* process is gone */
++			GetExitCodeProcess(proc, status);
++			return TRUE;
++		}
++		if (ret != WAIT_TIMEOUT || timeout <= 1000000)
++			return FALSE;
++		timeout -= 1000000;
+ 	}
+-	return FALSE;
+ }
+ #else
+ static NOINLINE int timeout_wait(duration_t timeout, pid_t pid)

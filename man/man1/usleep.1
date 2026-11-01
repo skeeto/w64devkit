@@ -59,9 +59,7 @@ waits, except that unless
 is
 .BR 0 ,
 an argument that contains a wildcard is replaced by the names of
-matching files when
-.B usleep
-runs in its own process, as needed when run from
+matching files, as needed when run from
 .BR cmd.exe .
 Variables that affect every busybox applet, such as
 .B BB_TERMINAL_MODE
@@ -125,25 +123,24 @@ A value below 1000 is a count of zero milliseconds and returns at once.
 The kit's
 .BR sh (1)
 runs
-.BR usleep ,
-an applet that busybox marks
+.B usleep
+in another busybox process, as it does
+.BR sleep (1),
+not inside the shell like an applet that busybox marks
 .BR NOFORK ,
-inside a shell process rather than in a process of its own.
-This holds in a pipeline or subshell too, which runs in a copy of the
-shell.
-There Ctrl+C cannot interrupt the wait and takes effect only after the
-wait is over.
-Started in its own process, as
+so Ctrl+C ends the wait at once.
+The shell reports status 130 for a
+.B usleep
+ended by Ctrl+C.
+Started as
 .B busybox usleep
 or through the launcher
-.IR usleep.exe ,
-from the shell or from
+.I usleep.exe
+from
 .BR cmd.exe ,
-it ends at once on Ctrl+C, and the process exits with status
-.BR 0xC000013A .
-For a wait that Ctrl+C must be able to end in the shell, use
-.BR sleep (1),
-which the shell runs in another process.
+the process exits with status
+.B 0xC000013A
+on Ctrl+C.
 .SH SEE ALSO
 .BR busybox (1),
 .BR sh (1),

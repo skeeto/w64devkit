@@ -157,3 +157,13 @@ kill-remote-thread-failure.patch
 kill-signal-zero-rights.patch
 pkill-kill-failure.patch
 timeout-kill-failure.patch
+duration-no-leading-number.patch
+duration-suffix-error-message.patch
+mingw-sleep-long-wait.patch
+timeout-long-wait.patch
+timeout-exit-code-failure.patch
+timeout-wait-after-signal.patch
+timeout-zero-no-limit.patch
+sleep-inf-exact.patch
+usleep-not-nofork-win32.patch
+ping-long-wait-timeout.patch

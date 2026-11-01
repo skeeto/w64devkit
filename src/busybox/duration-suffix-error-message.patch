@@ -1,0 +1,42 @@
+Quote the whole argument when a fractional duration has a bad suffix.
+To get the multiplier for the suffix, parse_duration_str() replaced the
+number in front of it with a '1' and passed the result to xatoul_sfx().
+When the suffix was invalid, the error message therefore quoted the
+modified string, so "1.5e3" was reported as "invalid number '1e3'".
+Look the suffix up in the table directly, and quote the argument as it
+was given.
+
+---
+ libbb/duration.c |   14 ++++++++------
+ 1 file changed, 8 insertions(+), 6 deletions(-)
+
+--- a/libbb/duration.c
++++ b/libbb/duration.c
+@@ -35,6 +35,7 @@
+ 	duration_t duration;
+ 
+ 	if (strchr(str, '.')) {
++		const struct suffix_mult *sm;
+ 		double d;
+ 		char *pp;
+ 		int len;
+@@ -54,12 +55,13 @@
+ 		d = strtod(str, &pp);
+ 		if (errno || *pp || pp == str)
+ 			bb_show_usage();
+-		str += len;
+-		*str-- = sv;
+-		sv = *str;
+-		*str = '1';
+-		duration = d * xatoul_sfx(str, duration_suffixes);
+-		*str = sv;
++		str[len] = sv;
++		for (sm = duration_suffixes; sm->mult; sm++)
++			if (strcmp(str + len, sm->suffix) == 0)
++				break;
++		if (!sm->mult && sv)
++			bb_error_msg_and_die("invalid number '%s'", str);
++		duration = sm->mult ? d * sm->mult : d;
+ 	} else {
+ 		duration = xatoul_sfx(str, duration_suffixes);
+ 	}

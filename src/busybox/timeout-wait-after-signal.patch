@@ -1,0 +1,58 @@
+Wait for the program to end after signalling it.
+When the time ran out, timeout sent the signal and exited at once with
+status 124, without waiting for the program. A program that was slow to
+exit kept running after timeout had returned, so a script carried on
+while it still held its files, and with signal 0 the program was simply
+left behind. GNU timeout waits for the program, and on Linux the
+BusyBox timeout process is the program itself, so in both cases the
+caller sees it end. Wait for the program once a signal has been sent.
+When the signal can't be sent, as to a program of the other bitness,
+exit at once as before rather than wait for a program that was not
+signalled.
+
+---
+ coreutils/timeout.c |   18 ++++++++++++------
+ 1 file changed, 12 insertions(+), 6 deletions(-)
+
+--- a/coreutils/timeout.c
++++ b/coreutils/timeout.c
+@@ -60,12 +60,15 @@
+ 	}
+ }
+ 
+-/* Report a failure to signal the child, unless it has already exited */
+-static void signal_child(pid_t pid, int signo)
++/* Report a failure to signal the child, unless it has already exited.
++ * Return TRUE if the signal was sent. */
++static int signal_child(pid_t pid, int signo)
+ {
+-	if (kill(pid, signo) != 0 &&
+-			WaitForSingleObject(child, 0) != WAIT_OBJECT_0)
++	if (kill(pid, signo) == 0)
++		return TRUE;
++	if (WaitForSingleObject(child, 0) != WAIT_OBJECT_0)
+ 		bb_perror_msg("can't kill pid %d", (int)pid);
++	return FALSE;
+ }
+ 
+ /* Return TRUE if child exits before timeout expires */
+@@ -233,14 +236,17 @@
+ 
+ 	pid = (pid_t)GetProcessId(child);
+ 	if (pid) {
+-		signal_child(pid, signo);
++		int sent = signal_child(pid, signo);
+ 
+ 		if (kill_timeout > 0) {
+ 			if (timeout_wait(kill_timeout, child, &code))
+ 				goto finish;
+-			signal_child(pid, SIGKILL);
++			sent = signal_child(pid, SIGKILL);
+ 			status = 137;
+ 		}
++		/* Like GNU timeout, wait for a signalled PROG to end */
++		if (sent)
++			WaitForSingleObject(child, INFINITE);
+ 	}
+  finish:
+ 	CloseHandle(child);

@@ -45,8 +45,7 @@ Nothing else is part of a number: no sign, exponent, hexadecimal
 digits, white space, or comma.
 A number with no period must not exceed 4294967295 once its suffix is
 applied.
-A number with a period need only fit in a double, but see
-.BR NOTES .
+A number with a period need only fit in a double.
 .PP
 The delay is the sum of the arguments, rounded down to whole
 milliseconds.
@@ -54,16 +53,17 @@ All arguments are checked before the wait begins, so an invalid argument
 anywhere means no delay at all.
 A total of zero returns at once.
 .PP
-If the first argument begins with
-.BR inf ,
-in any mix of uppercase and lowercase, such as
-.BR inf ,
-.BR INFINITY ,
+If the first argument is
+.B inf
 or
-.BR information ,
+.BR infinity ,
+in any mix of uppercase and lowercase,
 .B sleep
 never returns on its own.
 The other arguments are then not examined.
+In any other position, or with anything added, as in
+.BR information ,
+it is an invalid number.
 .SH OPTIONS
 .B sleep
 has no options.
@@ -111,8 +111,9 @@ The delay elapsed, or the first argument was
 There were no arguments, or an argument was invalid.
 Nothing is waited for.
 .PP
-An argument without a period that is not a number, or whose digits
-exceed 4294967295, is reported on standard error as
+An argument without a period that is not a number or whose digits
+exceed 4294967295, or one with a period and an invalid suffix, is
+reported on standard error as
 .PP
 .RS 4
 .EX
@@ -133,9 +134,10 @@ No arguments, or only
 give a usage message on standard error.
 So does an argument with a period whose leading digits and periods are
 not a number that fits in a double, such as a lone
-.B .\&
+.BR .\& ,
+.BR 1.2.3 ,
 or
-.BR 1.2.3 .
+.BR \-1.5 .
 .SH EXAMPLES
 Pause for half a second:
 .PP
@@ -181,41 +183,9 @@ and
 .B \-\-help
 is recognized only as the first argument.
 .IP \(bu 2
-Only the first argument can mean infinity, and it does so when it
-merely begins with
-.BR inf .
+Only the first argument can mean infinity.
 .IP \(bu 2
 A number with no period has an upper limit.
-.PP
-The delay is passed to the Windows
-.B Sleep
-function in milliseconds, and busybox does not check it against the
-32-bit limit of that function.
-The total therefore wraps around modulo 4294967296 milliseconds, which
-is 49 days, 17 hours, 2 minutes, and 47.296 seconds.
-A total of 4294968 seconds waits for 0.7 seconds, and
-.B 50d
-for about 7 hours.
-A total of 4294967295 milliseconds after wrapping, such as
-.BR 4294967.2955 ,
-is the value that
-.B Sleep
-takes to mean forever, so it never returns.
-.PP
-The invalid number message for an argument that has a period quotes a
-modified copy of it, in which the leading digits and periods are
-replaced by a single
-.BR 1 .
-So
-.B 1.5e3
-is reported as
-.BR 1e3 .
-An argument with a period but no leading digit or period, such as
-.BR \-1.5 ,
-gets a
-.B 1
-put in front instead, and is reported as
-.BR 1\-1.5 .
 .PP
 Ctrl+C ends
 .B sleep
@@ -223,9 +193,7 @@ at once.
 The kit's
 .BR sh (1)
 runs an applet that busybox marks
-.BR NOFORK ,
-such as
-.BR usleep (1),
+.B NOFORK
 inside its own process, where Ctrl+C takes effect only after the applet
 returns, but
 .B sleep

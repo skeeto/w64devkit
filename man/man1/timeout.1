@@ -31,10 +31,10 @@ sends
 .I prog
 a signal, by default
 .BR TERM ,
-and exits.
+and waits for it to end.
 With
 .BR \-k ,
-it does not exit at once, but waits
+it waits only
 .I killsecs
 seconds more for
 .I prog
@@ -92,6 +92,17 @@ applied.
 The wait is counted in whole milliseconds, and begins once
 .I prog
 has been created.
+A
+.I secs
+of zero, such as
+.B 0
+or
+.BR 0.0 ,
+sets no limit, and
+.B timeout
+waits for
+.I prog
+however long it runs.
 See
 .BR sleep (1)
 for the syntax and its error messages, but unlike
@@ -165,7 +176,10 @@ is delivered, as described in
 .BR kill (1).
 Signal 0 sends nothing, so
 .I prog
-keeps running.
+keeps running, and without
+.B \-k
+.B timeout
+waits until it ends on its own.
 .TP
 .BI "\-k " killsecs
 After sending the first signal, wait up to
@@ -265,18 +279,18 @@ produced them.
 .B 124
 .I secs
 seconds passed and the signal was sent.
-Without
-.BR \-k ,
-.B timeout
-does not wait for
-.I prog
-to end, and does not know whether the signal worked.
 With
 .BR \-k ,
 .I prog
-ended within
+then ended within
 .I killsecs
-seconds after the signal.
+seconds.
+Without it,
+.B timeout
+waited for
+.I prog
+to end, unless the signal could not be sent; see
+.BR NOTES .
 .TP
 .B 125
 .B timeout
@@ -288,7 +302,8 @@ or
 .TP
 .B 126
 .I prog
-was found, but Windows refused to run it because of an access error.
+was found, but Windows refused to run it because of an access error, or
+it is a path to a directory or to a file that is not executable.
 .TP
 .B 127
 .I prog
@@ -296,7 +311,9 @@ was not found, or could not be started for any other reason, such as a
 file with a
 .B .exe
 suffix that is not a program.
-A directory, or a file that is not executable, is not found.
+A search of
+.B PATH
+passes over a directory or a file that is not executable.
 .TP
 .B 137
 .B KILL
@@ -381,11 +398,6 @@ There are no long options, and no
 or
 .BR \-v .
 .IP \(bu 2
-A
-.I secs
-of 0 does not disable the limit.
-The signal is sent at once.
-.IP \(bu 2
 Only the signals above exist.
 .IP \(bu 2
 Only the process that
@@ -397,13 +409,6 @@ A shell script that runs
 as a separate process is ended, but the
 .B sleep
 keeps running.
-.IP \(bu 2
-Without
-.BR \-k ,
-.B timeout
-exits as soon as it has sent the signal, and
-.I prog
-may still be running for a moment, or indefinitely.
 .PP
 A signal other than
 .B KILL
@@ -439,16 +444,6 @@ for such a program, or
 .B \-k
 to follow up with
 .BR KILL .
-.PP
-The wait is passed to Windows in milliseconds, in 32 bits, and is not
-checked, so it wraps around modulo 4294967296 milliseconds, which is 49
-days, 17 hours, 2 minutes, and 47.296 seconds.
-A
-.I secs
-of
-.B 50d
-times out after about 7 hours.
-Keep durations under 49 days.
 .PP
 If
 .B timeout

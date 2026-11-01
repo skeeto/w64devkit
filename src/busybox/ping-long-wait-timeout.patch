@@ -1,0 +1,21 @@
+Don't let the -W timeout wrap around after about 71 minutes.
+After the last ping of -c, the WIN32 code computed the deadline for a
+reply with expire * 1000000 in unsigned int arithmetic, which wraps
+around for -W 4295 or more: "ping -c 1 -W 4295" gave up after 33
+milliseconds. Do the multiplication in 64 bits.
+
+---
+ networking/ping.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/networking/ping.c
++++ b/networking/ping.c
+@@ -595,7 +595,7 @@
+ 		signal(SIGALRM, print_stats_and_exit);
+ 		alarm(expire);
+ #else
+-		G.timeouttill = monotonic_us() + expire * 1000000;
++		G.timeouttill = monotonic_us() + expire * 1000000ULL;
+ 		G.nextfun = print_stats_and_exit;
+ #endif
+ 	}
