@@ -1,0 +1,48 @@
+Look up a page named like NAME.SECTION under its whole name too.
+A page operand that ends in a dot and a section name was only looked
+up as NAME in that section, so a page whose own name has such a suffix
+could not be found at all: "man gcc-4.8" searched section 8 for
+"gcc-4" and reported "no manual entry", although man1/gcc-4.8.1 was
+there. When that search finds nothing, search again for the whole
+operand as a page name in the usual sections, as if it had no suffix.
+
+---
+ miscutils/man.c |   13 ++++++++++++-
+ 1 file changed, 12 insertions(+), 1 deletion(-)
+
+--- a/miscutils/man.c
++++ b/miscutils/man.c
+@@ -417,6 +417,7 @@
+ 		int cur_mp;
+ 		int found = 0;
+ 		char *name = *argv;
++		char *whole_name = NULL; /* look up NAME.SECTION whole */
+ 
+  retry:
+ 		if (strchr(name, '/')) {
+@@ -433,7 +434,9 @@
+ 			/* is MANPAGE of the form NAME.SECTION? */
+ 			char *sect_ext = strrchr(name, '.');
+ 			G.dir = cur_path;
+-			if (sect_ext && is_section_name(conf_sec_list, sect_ext + 1)) {
++			if (sect_ext && name != whole_name
++			 && is_section_name(conf_sec_list, sect_ext + 1)
++			) {
+ 				*sect_ext = '\0';
+ 				cur_sect = sect_ext + 1;
+ 			}
+@@ -469,6 +472,14 @@
+ 			if (sect_ext) *sect_ext = '.';
+ 		}
+  check_found:
++		if (!found && name != whole_name && !strchr(name, '/')) {
++			/* gcc-4.8: not gcc-4 in section 8, try page gcc-4.8 */
++			char *p = strrchr(name, '.');
++			if (p && is_section_name(conf_sec_list, p + 1)) {
++				whole_name = name;
++				goto retry;
++			}
++		}
+ 		if (!found) {
+ 			/* x86_64-w64-mingw32-gcc -> gcc */
+ 			static const char triplet[] ALIGN1 = "-w64-mingw32-";

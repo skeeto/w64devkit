@@ -66,8 +66,14 @@ relative to the directory that holds
 .PP
 Empty elements, and elements spelled the same as an earlier one, are
 ignored.
-A relative element is relative to the root of the system drive, not to
-the current directory.
+A relative element of
+.B MANPATH
+is relative to the current directory, and one in the configuration file
+is relative to the root of the system drive; either is made absolute
+before it is compared with earlier ones.
+An element that begins with a single slash or backslash, such as
+.IR /usr/share/man ,
+is on the system drive.
 .PP
 In each directory,
 .B man
@@ -87,24 +93,24 @@ A cat page hides the man page of its section.
 .PP
 If the first operand is a section and another operand follows, only
 that section is searched, for every operand.
-A section here is any text whose first occurrence in the list of
-sections ends at a colon or at the end of the list.
-That includes a run such as
+A section here is an entry of the list of sections, or a run of
+adjacent entries such as
 .BR 2:3 ,
-which searches both, and the tail of a section:
-.B man p foo
-searches only section
-.BR p ,
-for
-.IR manp/foo.p .
-.B 0
-is not a section, because it first occurs in
-.BR 0p .
+which searches both.
 A
 .I page
 that ends in a dot and a section, as in
 .BR printf.3 ,
-is searched for in that section only, which takes precedence.
+is searched for in that section, which takes precedence.
+If it is not found there,
+.B man
+looks again for the whole name as a page, so that
+.B gcc\-4.8
+finds
+.I man1/gcc\-4.8.1
+although
+.B 8
+is a section.
 .PP
 When no page is found, and the name contains
 .BR \-w64\-mingw32\- ,
@@ -303,9 +309,10 @@ A drive, such as
 to use instead of the system drive.
 .B man
 makes the root of that drive its working directory before it searches,
-which is why relative
+which is why
 .B MANPATH
-elements, and
+elements that begin with a single slash, relative directories in the
+configuration file, and
 .I /etc
 for the configuration file, are found there.
 .TP
@@ -334,7 +341,9 @@ A set but empty
 .B MANPAGER
 or
 .B PAGER
-still counts, and then nothing is displayed.
+still counts, and means no pager:
+.B man
+writes the pages to standard output.
 .TP
 .B MANPATH
 Manual directories to search first, separated by semicolons.
@@ -371,9 +380,9 @@ and
 Every operand was found.
 .TP
 .B 1
-Some operand was not found, a relative
-.I file
-does not exist,
+Some operand was not found, the locations shown by
+.B \-w
+could not be written,
 .B gunzip
 or
 .B unzstd
@@ -478,21 +487,8 @@ A file operand may use slashes or backslashes.
 A drive letter with no slash after it, as in
 .IR c:doc/page.1 ,
 starts from the current directory of that drive.
-A file operand that does not begin with a drive letter and a slash, or
-with a UNC prefix, is made absolute first, which fails if it does not
-exist.
-.B man
-then stops at once, before it processes any operand, with status 1 and
-the message
-.PP
-.RS 4
-.EX
-man: can\(aqt open \(aq\fIfile\fR\(aq: \fIreason\fR
-.EE
-.RE
-.PP
-A missing file that begins with a drive letter and a slash, or with a
-UNC prefix, is reported as a page that is not found.
+A file operand is made absolute first, and a missing file is reported
+under that absolute name as a page that is not found.
 .PP
 Pages may be compressed.
 For each page file,

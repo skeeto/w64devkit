@@ -1,0 +1,24 @@
+Write pages directly when MANPAGER or PAGER is set but empty.
+An empty MANPAGER or PAGER replaced the pager with an empty command, so
+man ran "nroff ... 2>&1 | " and sh failed with a syntax error, or ran
+system("") for a cat page, and nothing was shown. Treat an empty value
+as no pager, as man-db does, and write the formatted page to standard
+output as when it is not a terminal.
+
+---
+ miscutils/man.c |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+--- a/miscutils/man.c
++++ b/miscutils/man.c
+@@ -387,8 +387,8 @@
+ 		char *env_pager = getenv("MANPAGER");
+ 		if (!env_pager)
+ 			env_pager = getenv("PAGER");
+-		if (env_pager)
+-			G.pager = env_pager;
++		if (env_pager) /* set but empty: no pager, like man-db */
++			G.pager = env_pager[0] ? env_pager : NULL;
+ 	}
+ 
+ 	if (!isatty(STDOUT_FILENO)) {

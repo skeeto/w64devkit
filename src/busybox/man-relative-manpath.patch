@@ -1,0 +1,74 @@
+Resolve relative MANPATH elements against the current directory.
+man changes to the root of the system drive before it reads MANPATH,
+so a relative element such as "MANPATH=man" or "MANPATH=../doc/man"
+was looked up from the system drive root rather than from the current
+directory, and pages under it were not found, or a different directory
+was searched. Read MANPATH before the directory change and store each
+element that does not start with a directory separator as an absolute
+path. Elements such as "/usr/share/man" still refer to the system drive
+as before, and duplicates are detected on the absolute form.
+
+---
+ miscutils/man.c |   23 +++++++++++++++++------
+ 1 file changed, 17 insertions(+), 6 deletions(-)
+
+--- a/miscutils/man.c
++++ b/miscutils/man.c
+@@ -241,22 +241,32 @@
+ 	if (path) while (*path) {
+ 		char *next_path;
+ 		char **path_element;
++		char *elem;
+ 		next_path = strchr(path, PATH_SEP);
+ 		if (next_path) {
+ 			if (next_path == path) /* "::"? */
+ 				goto next;
+ 			*next_path = '\0';
+ 		}
++#if ENABLE_PLATFORM_MINGW32
++		/* A relative path is relative to the current directory,
++		 * which man_main() changes to the system drive later */
++		elem = is_dir_sep(path[0]) ? NULL : _fullpath(NULL, path, 0);
++		elem = elem ? bs_to_slash_strip_slash(elem) : xstrdup(path);
++#else
++		elem = xstrdup(path);
++#endif
+ 		/* Do we already have path? */
+ 		path_element = man_path_list;
+ 		if (path_element) while (*path_element) {
+-			if (strcmp(*path_element, path) == 0) {
++			if (strcmp(*path_element, elem) == 0) {
++				free(elem);
+ 				goto skip;
+ 			}
+ 			path_element++;
+ 		}
+ 		man_path_list = xrealloc_vector(man_path_list, 4, *count_mp);
+-		man_path_list[*count_mp] = xstrdup(path);
++		man_path_list[*count_mp] = elem;
+ 		(*count_mp)++;
+ 		/* man_path_list is NULL terminated */
+ 		/* man_path_list[*count_mp] = NULL; - xrealloc_vector did it */
+@@ -310,6 +320,11 @@
+ 
+ 	opt = getopt32(argv, "^+" "aw" "\0" "-1"/*at least one arg*/);
+ 	argv += optind;
++
++	count_mp = 0;
++	man_path_list = add_MANPATH(NULL, &count_mp,
++			getenv("MANDATORY_MANPATH"+10) /* "MANPATH" */
++	);
+ #if ENABLE_PLATFORM_MINGW32
+ 	/* add system drive prefix to filenames, if necessary */
+ 	for (ptr = argv; *ptr; ++ptr) {
+@@ -326,10 +341,6 @@
+ 
+ 	conf_sec_list = xstrdup("0p:1:1p:2:3:3p:4:5:6:7:8:9");
+ 
+-	count_mp = 0;
+-	man_path_list = add_MANPATH(NULL, &count_mp,
+-			getenv("MANDATORY_MANPATH"+10) /* "MANPATH" */
+-	);
+ 	/* Parse man.conf[ig] or man_db.conf */
+ 	/* man version 1.6f uses man.config */
+ 	/* man-db implementation of man uses man_db.conf */

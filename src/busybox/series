@@ -510,3 +510,8 @@ getenv-fallback-case.patch
 pipe-progress-errors.patch
 tee-report-errors.patch
 getlogin-errno.patch
+man-missing-file-operand.patch
+man-relative-manpath.patch
+man-empty-pager.patch
+man-section-name-match.patch
+man-dotted-page-name.patch

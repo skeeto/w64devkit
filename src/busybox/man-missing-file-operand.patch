@@ -1,0 +1,31 @@
+Report a missing relative file operand as not found, not fatally.
+Before changing to the system drive, man made each file operand absolute
+with xabsolute_path(), which resolves a relative path with realpath()
+and dies when that fails. One missing file such as "man ./x.1 ./y.1"
+therefore stopped man with "can't open './x.1'" before it showed any
+page, while a missing absolute path was reported as "no manual entry"
+and the other operands were processed. Make file operands absolute with
+_fullpath(), which does not require the file to exist, so that a
+missing file is reported like any other page that is not found.
+
+---
+ miscutils/man.c |    8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+--- a/miscutils/man.c
++++ b/miscutils/man.c
+@@ -313,8 +313,12 @@
+ #if ENABLE_PLATFORM_MINGW32
+ 	/* add system drive prefix to filenames, if necessary */
+ 	for (ptr = argv; *ptr; ++ptr) {
+-		if (strchr(*ptr, '/') || strchr(*ptr, '\\'))
+-			*ptr = bs_to_slash(xabsolute_path(*ptr));
++		if (strchr(*ptr, '/') || strchr(*ptr, '\\')) {
++			/* unlike xabsolute_path() this works for a missing
++			 * file, which is then reported as not found */
++			char *path = _fullpath(NULL, *ptr, 0);
++			*ptr = bs_to_slash(path ? path : xabsolute_path(*ptr));
++		}
+ 	}
+ 	cwd = xrealloc_getcwd_or_warn(NULL);
+ 	xchdir_system_drive();
