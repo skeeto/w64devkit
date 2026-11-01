@@ -1,0 +1,23 @@
+Stop expr's substr from truncating a long length.
+The length was passed to xstrndup as a size_t, so where size_t is
+narrower than the 64-bit integer, as on 32-bit systems, its high bits
+were dropped: "expr substr abcdef 2 4294967297" printed "b" instead of
+"bcdef", and a length of 4294967296 printed nothing. Now a length longer
+than the string is limited to the string's length first.
+
+---
+ coreutils/expr.c |    3 +++
+ 1 file changed, 3 insertions(+)
+
+--- a/coreutils/expr.c
++++ b/coreutils/expr.c
+@@ -418,6 +418,9 @@
+ 		 || i1->u.i <= 0 || i2->u.i <= 0)
+ 			v = str_value("");
+ 		else {
++			/* Don't let a long length wrap around in size_t */
++			if (i2->u.i > (arith_t) strlen(l->u.s))
++				i2->u.i = strlen(l->u.s);
+ 			v = xmalloc(sizeof(VALUE));
+ 			v->type = STRING;
+ 			v->u.s = xstrndup(l->u.s + i1->u.i - 1, i2->u.i);

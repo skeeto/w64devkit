@@ -1,0 +1,23 @@
+Make expr's | give 0 when both operands are null.
+POSIX and GNU expr return the second operand of | only when it is not
+null, and 0 otherwise, but expr returned the second operand whenever
+the first was null, so "expr '' \| ''" printed an empty line instead of
+0. Now a null second operand gives the integer 0.
+
+---
+ coreutils/expr.c |    4 ++++
+ 1 file changed, 4 insertions(+)
+
+--- a/coreutils/expr.c
++++ b/coreutils/expr.c
+@@ -559,6 +559,10 @@
+ 		if (null(l)) {
+ 			freev(l);
+ 			l = r;
++			if (null(r)) {
++				freev(r);
++				l = int_value(0);
++			}
+ 		} else
+ 			freev(r);
+ 	}

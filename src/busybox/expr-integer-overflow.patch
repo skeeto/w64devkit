@@ -1,0 +1,77 @@
+Report an error when an expr integer is out of range.
+A number outside the range of the integer type was replaced silently by
+the nearest limit, so "expr 99999999999999999999 = 99999999999999999998"
+printed 1, and +, - and * overflowed, which C leaves undefined, so that
+"expr 9223372036854775807 + 1" printed -9223372036854775808. Now such a
+number is reported as out of range and an overflowing result as an
+integer overflow, both errors with exit status 2. GNU expr built without
+arbitrary-precision arithmetic also stops with an error in these cases.
+Since comparisons convert their operands the same way, comparing an
+out-of-range number, even with a string that is not a number, is now an
+error rather than a comparison with the nearest limit.
+
+---
+ coreutils/expr.c |   25 +++++++++++++++++++++----
+ 1 file changed, 21 insertions(+), 4 deletions(-)
+
+--- a/coreutils/expr.c
++++ b/coreutils/expr.c
+@@ -85,6 +85,7 @@
+ typedef int64_t arith_t;
+ 
+ #define ARITH_MIN   INT64_MIN
++#define ARITH_MAX   INT64_MAX
+ #define PF_REZ      LL_FMT
+ #define PF_REZ_TYPE (long long)
+ #define STRTOL(s, e, b) strtoll(s, e, b)
+@@ -92,6 +93,7 @@
+ typedef long arith_t;
+ 
+ #define ARITH_MIN   LONG_MIN
++#define ARITH_MAX   LONG_MAX
+ #define PF_REZ      "l"
+ #define PF_REZ_TYPE (long)
+ #define STRTOL(s, e, b) strtol(s, e, b)
+@@ -197,10 +199,12 @@
+ 		char *e;
+ 
+ 		/* Don't interpret the empty string as an integer.  */
+-		/* Currently does not worry about overflow or int/long differences. */
++		errno = 0;
+ 		i = STRTOL(v->u.s, &e, 10);
+ 		if ((v->u.s == e) || *e)
+ 			return 0;
++		if (errno == ERANGE)
++			bb_error_msg_and_die("%s: out of range", v->u.s);
+ 		free(v->u.s);
+ 		v->u.i = i;
+ 		v->type = INTEGER;
+@@ -258,12 +262,25 @@
+ 		bb_simple_error_msg_and_die("non-numeric argument");
+ 	li = l->u.i;
+ 	ri = r->u.i;
+-	if (op == '+')
++	if (op == '+') {
++		if (ri > 0 ? li > ARITH_MAX - ri : li < ARITH_MIN - ri)
++			bb_simple_error_msg_and_die("integer overflow");
+ 		return li + ri;
+-	if (op == '-')
++	}
++	if (op == '-') {
++		if (ri < 0 ? li > ARITH_MAX + ri : li < ARITH_MIN + ri)
++			bb_simple_error_msg_and_die("integer overflow");
+ 		return li - ri;
+-	if (op == '*')
++	}
++	if (op == '*') {
++		if (li > 0
++		 ? (ri > 0 ? li > ARITH_MAX / ri : ri < ARITH_MIN / li)
++		 : (ri > 0 ? li < ARITH_MIN / ri : li != 0 && ri < ARITH_MAX / li)
++		) {
++			bb_simple_error_msg_and_die("integer overflow");
++		}
+ 		return li * ri;
++	}
+ 	if (ri == 0)
+ 		bb_simple_error_msg_and_die("division by zero");
+ 	if (ri == -1 && li == ARITH_MIN) {

@@ -1,0 +1,32 @@
+Make test treat "( x )" as a one-argument test of x.
+POSIX says that with three arguments, if the first is "(" and the third
+is ")", the result is the one-argument test of the second, which is
+true when it is not empty. test left this to the general parser, which
+took an operator in the middle as an operator, so "test ( -n )" and
+"test ( ! )" failed with "closing paren expected". Now the parentheses
+are removed and the middle argument tested as a single argument.
+
+---
+ coreutils/test.c |   10 +++++++++-
+ 1 file changed, 9 insertions(+), 1 deletion(-)
+
+--- a/coreutils/test.c
++++ b/coreutils/test.c
+@@ -979,8 +979,16 @@
+ 					goto ret;
+ 				}
+ 				/* """If $1 is '(' and $3 is ')', perform the unary test of $2."""
+-				 * Looks like this works without additional coding.
++				 * Example why code below is necessary: test '(' -n ')'
+ 				 */
++				if (LONE_CHAR(argv[0], '(')
++				 && LONE_CHAR(argv[2], ')')
++				) {
++					/* "test [!] ( x )" */
++					argv[2] = NULL;
++					argv++;
++					goto again;
++				}
+ 				goto check_negate;
+ 			}
+ 			/* argv[3] exists (at least 4 args), is it exactly 4 args? */

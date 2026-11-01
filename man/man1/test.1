@@ -95,23 +95,24 @@ or
 Otherwise, if the first is
 .BR ! ,
 the negation of the two-argument expression of the rest.
+Otherwise, if the first is
+.B (
+and the third is
+.BR ) ,
+true if the second is not empty, whatever it is.
 .TP
 .B 4
 If the first argument is
 .BR ! ,
-the negation of the three-argument expression of the rest, except that
-when the third is
-.B \-a
-or
-.BR \-o ,
-the
-.B !\&
-applies to the second alone, where POSIX negates the whole.
+the negation of the three-argument expression of the rest.
+If the first is
+.B (
+and the fourth is
+.BR ) ,
+the two-argument expression of the second and third.
 .PP
 Any other expression uses the full grammar under
-.BR "Combining expressions" ,
-apart from a quirk with parentheses described in
-.BR NOTES .
+.BR "Combining expressions" .
 .SS File tests
 These take a
 .I file
@@ -615,29 +616,8 @@ by its own account.
 compares the volume serial number and file index, so hard links, and a
 link or junction and its target, are the same file.
 The emulated devices, files whose data is not stored locally, and any
-other files whose identity cannot be read all compare equal to each
-other.
-.PP
-When the whole expression, after any leading
-.BR ! ,
-is a unary test in parentheses, such as
-.B ( \-n x )
-or
-.BR "! ( \-d dir )" ,
-it fails with
-.B closing paren expected
-and status 2.
-So does a unary operator or
-.B !\&
-alone in parentheses, such as
-.BR "( \-n )" ,
-which POSIX makes a test of a non-empty string.
-Leave out the parentheses.
-A longer expression, such as
-.B ( ! \-d dir )
-or
-.BR "( \-n x ) \-a y" ,
-is not affected.
+other files whose identity cannot be read are not the same file as any
+file, not even themselves.
 .SH SEE ALSO
 .BR busybox (1),
 .BR expr (1),

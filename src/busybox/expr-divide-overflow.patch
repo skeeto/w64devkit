@@ -1,0 +1,43 @@
+Report an error when expr divides the most negative integer by -1.
+The quotient does not fit, which C leaves undefined for both / and %.
+Where the division is one instruction, as on x86-64, it traps, so
+"expr -9223372036854775808 / -1" and the same with % killed expr (with
+SIGFPE on Linux, an integer overflow exception on Windows) instead of
+printing a result or an error; on 32-bit x86 the quotient wrapped to
+the dividend. Now / reports an integer overflow and exits with status 2,
+and %, whose result is 0, prints 0.
+
+---
+ coreutils/expr.c |    8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+--- a/coreutils/expr.c
++++ b/coreutils/expr.c
+@@ -84,12 +84,14 @@
+ #if ENABLE_EXPR_MATH_SUPPORT_64
+ typedef int64_t arith_t;
+ 
++#define ARITH_MIN   INT64_MIN
+ #define PF_REZ      LL_FMT
+ #define PF_REZ_TYPE (long long)
+ #define STRTOL(s, e, b) strtoll(s, e, b)
+ #else
+ typedef long arith_t;
+ 
++#define ARITH_MIN   LONG_MIN
+ #define PF_REZ      "l"
+ #define PF_REZ_TYPE (long)
+ #define STRTOL(s, e, b) strtol(s, e, b)
+@@ -264,6 +266,12 @@
+ 		return li * ri;
+ 	if (ri == 0)
+ 		bb_simple_error_msg_and_die("division by zero");
++	if (ri == -1 && li == ARITH_MIN) {
++		/* The quotient overflows, which traps on x86 */
++		if (op == '%')
++			return 0;
++		bb_simple_error_msg_and_die("integer overflow");
++	}
+ 	if (op == '/')
+ 		return li / ri;
+ 	return li % ri;

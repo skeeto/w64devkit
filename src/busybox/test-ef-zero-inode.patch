@@ -1,0 +1,28 @@
+Stop test -ef from matching files whose identity is unknown.
+On Windows stat() leaves the volume serial number and file index at 0
+when it cannot read them: for emulated devices such as /dev/null, files
+whose data is not stored locally, and files that cannot be opened. So
+"test /dev/null -ef /dev/zero" was true, as was -ef for any two such
+files. Now -ef is false when the file index is 0, as copy_file() and
+the inode hash already treat it as invalid.
+
+---
+ coreutils/test.c |    7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+--- a/coreutils/test.c
++++ b/coreutils/test.c
+@@ -628,7 +628,12 @@
+ 		if (op->op_num == FILOT)
+ 			return !sb2 && (sb1 || b1.st_mtime < b2.st_mtime);
+ 		/*if (op->op_num == FILEQ)*/
+-		return !sb1 && !sb2 && b1.st_dev == b2.st_dev && b1.st_ino == b2.st_ino;
++		return !sb1 && !sb2 && b1.st_dev == b2.st_dev && b1.st_ino == b2.st_ino
++#if ENABLE_PLATFORM_MINGW32
++			/* ignore invalid inode numbers */
++			&& b1.st_ino != 0
++#endif
++			;
+ 	}
+ 	/*return 1; - NOTREACHED */
+ }

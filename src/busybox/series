@@ -433,3 +433,10 @@ tail-grow-byte-buffer.patch
 head-long-long-count.patch
 head-reposition-stdin.patch
 head-grow-buffer.patch
+expr-divide-overflow.patch
+expr-integer-overflow.patch
+expr-or-both-null.patch
+expr-substr-long-length.patch
+test-special-case-args.patch
+test-three-arg-parens.patch
+test-ef-zero-inode.patch

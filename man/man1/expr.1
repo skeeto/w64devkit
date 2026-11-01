@@ -32,8 +32,13 @@ A leading zero does not make a number octal, so
 .B 010
 counts as 10.
 Hexadecimal and floating-point numbers are not integers.
-A number outside the 64-bit range is replaced by the nearest limit,
-and arithmetic that overflows wraps around without an error.
+A number outside the 64-bit range is the error
+.IB number ": out of range"
+in arithmetic, as a position or length for
+.BR substr ,
+and in a comparison, even with a string that is not a number.
+Arithmetic whose result is outside the range is the error
+.BR "integer overflow" .
 .PP
 An integer is printed in decimal, and a string as it is, so
 .B expr 007
@@ -71,7 +76,8 @@ the division by zero is reported.
 .IB arg1 " | " arg2
 .I arg1
 if it is not null, otherwise
-.IR arg2 .
+.I arg2
+if it is not null, otherwise the integer 0.
 .TP
 .IB arg1 " & " arg2
 .I arg1
@@ -367,6 +373,12 @@ or
 .B %
 is 0.
 .TP
+.IB number ": out of range"
+An integer argument is outside the 64-bit range.
+.TP
+.B integer overflow
+The result of an arithmetic operator is outside the 64-bit range.
+.TP
 .BI "bad regex \(aq" regexp "\(aq: " reason
 The regular expression does not compile, for a reason such as an
 unmatched
@@ -467,11 +479,6 @@ always evaluate both operands, so
 .B expr 1 \e| 1 / 0
 fails instead of printing 1.
 .IP \(bu 2
-When both operands of
-.B |
-are null, the value is the second operand, such as the empty string,
-where POSIX and GNU give 0.
-.IP \(bu 2
 There is no
 .B +
 prefix to force a string, only
@@ -545,30 +552,6 @@ bytes, and
 .B .\&
 matches one byte of it.
 Strings are ordered by byte value.
-.PP
-In the x86 kit, dividing
-.B \-9223372036854775808
-by
-.B \-1
-wraps around like other overflows: the quotient is
-.B \-9223372036854775808
-and the remainder is 0.
-In the x64 kit, it raises a processor exception, with
-.B /
-or
-.BR % .
-Windows ends
-.B expr
-with status
-.BR 0xC0000095 ,
-and
-.B expr
-prints no message.
-The kit's shell then prints the Windows error message and
-.B Error 0xc0000095
-on standard error, and sets
-.B $?\&
-to 149, the low byte.
 .PP
 Standard output is binary, so the newline is a bare LF.
 When standard output is a console, the output is converted for display
