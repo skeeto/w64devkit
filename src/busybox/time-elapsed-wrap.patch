@@ -1,0 +1,30 @@
+Keep the elapsed time in 64 bits.
+The elapsed time was kept in an unsigned int of milliseconds, so the
+report for a command that ran longer than about 49.7 days wrapped
+around. Store the unsigned long long that monotonic_ms() returns, and
+for %e divide before truncating.
+
+---
+ miscutils/time.c |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+--- a/miscutils/time.c
++++ b/miscutils/time.c
+@@ -51,7 +51,7 @@
+ typedef struct {
+ 	int waitstatus;
+ 	struct rusage ru;
+-	unsigned elapsed_ms;	/* Wallclock time of process.  */
++	unsigned long long elapsed_ms; /* Wallclock time of process.  */
+ } resource_t;
+ 
+ /* msec = milliseconds = 1/1,000 (1*10e-3) second.
+@@ -368,7 +368,7 @@
+ #endif
+ 			case 'e':	/* Elapsed real time in seconds.  */
+ 				printf("%u.%02u",
+-						(unsigned)resp->elapsed_ms / 1000,
++						(unsigned)(resp->elapsed_ms / 1000),
+ 						(unsigned)(resp->elapsed_ms / 10) % 100);
+ 				break;
+ #if !ENABLE_PLATFORM_MINGW32

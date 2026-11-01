@@ -338,3 +338,15 @@ awk-integer-string-length.patch
 awk-convfmt-int-range.patch
 awk-bitops-64.patch
 awk-exit-write-error.patch
+xargs-oversized-item.patch
+xargs-count-fixed-args.patch
+xargs-parallel-exit-259.patch
+xargs-parallel-exit-status.patch
+xargs-quote-at-eof.patch
+xargs-wait-on-error.patch
+xargs-option-x.patch
+spawn-flush-stdio.patch
+spawn-empty-batch-nowait.patch
+spawn-close-process-handle.patch
+time-elapsed-wrap.patch
+time-ignore-ctrl-c.patch

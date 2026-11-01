@@ -1,0 +1,69 @@
+Make -x exit when the size limit cuts a command short.
+-x was accepted, and described as "Exit if size is exceeded", but did
+nothing. POSIX says that with -x xargs terminates if a command line
+containing the number of arguments given by -n will not fit in the
+size limit. With no -n, as in GNU xargs, any command cut short by the
+size limit is an error.
+
+After reading the arguments for a command, if there are fewer than -n
+of them because the next one did not fit, report "argument line too
+long" and exit with status 1 without running the command. If the
+arguments filled the buffer exactly, look past white space to see
+whether another one follows. On Windows the same applies when quoting
+takes the command line past the Windows limit.
+
+---
+ findutils/xargs.c |   28 +++++++++++++++++++++++++++-
+ 1 file changed, 27 insertions(+), 1 deletion(-)
+
+--- a/findutils/xargs.c
++++ b/findutils/xargs.c
+@@ -691,6 +691,22 @@
+ }
+ #endif
+ 
++#if ENABLE_FEATURE_XARGS_SUPPORT_TERMOPT
++/* After the args filled the buffer exactly: is there another one? */
++static int more_args(void)
++{
++	int c;
++
++	do
++		c = getchar();
++	while (!(option_mask32 & OPT_ZEROTERM) && c != EOF && ISSPACE(c));
++	if (c == EOF)
++		return 0;
++	ungetc(c, stdin);
++	return 1;
++}
++#endif
++
+ #if ENABLE_FEATURE_XARGS_SUPPORT_CONFIRMATION
+ /* Prompt the user for a response, and
+  * if user responds affirmatively, return true;
+@@ -991,7 +1007,7 @@
+ 				n_chars += quote_len(args[i]) + 1;
+ 				if (n_chars > WIN32_MAX_CHARS) {
+ 					if (i == initial_idx
+-					 || (opt & (OPT_REPLSTR | OPT_REPLSTR1))
++					 || (opt & (OPT_REPLSTR | OPT_REPLSTR1 | OPT_TERMINATE))
+ 					)
+ 						bb_simple_error_msg_and_die("argument line too long");
+ 					tail = args + i;
+@@ -1011,6 +1027,16 @@
+ 		}
+ 		opt |= OPT_NO_EMPTY;
+ 
++#if ENABLE_FEATURE_XARGS_SUPPORT_TERMOPT
++		/* -x: fewer than max_args args because the next one doesn't fit? */
++		if ((opt & OPT_TERMINATE)
++		 && G.idx - 1 - initial_idx < n_max_arg
++		 && (*rem != '\0' || (rem == buf + n_max_chars && more_args()))
++		) {
++			bb_simple_error_msg_and_die("argument line too long");
++		}
++#endif
++
+ 		if (opt & (OPT_INTERACTIVE | OPT_VERBOSE)) {
+ 			const char *fmt = " %s" + 1;
+ #if !ENABLE_PLATFORM_MINGW32

@@ -263,11 +263,15 @@ An invalid option, an option without its argument, or no
 operand, with a usage message on standard error.
 Also the
 .B \-o
-file could not be opened, or
+file could not be opened,
 .I prog
-could not be started.
+could not be started, or the report could not be written.
 .PP
-For the last two, standard error gets one of
+When the
+.B \-o
+file could not be opened or
+.I prog
+could not be started, standard error gets one of
 .PP
 .RS 4
 .EX
@@ -354,19 +358,11 @@ For a script, they are those of its interpreter, and for a batch file
 those of
 .BR cmd.exe ,
 not of the programs they run.
-When
-.I prog
-is an empty batch file,
-.B time
-prints
-.BR "time: wait: Invalid argument" ,
-and its report and exit status are meaningless.
 .PP
 The elapsed time comes from the Windows performance counter, a monotonic
 clock, so changing the system clock while
 .I prog
 runs does not affect it.
-It is kept in 32 bits of milliseconds and wraps after about 49.7 days.
 .PP
 The Unix build of this applet also has
 .B \-v
@@ -396,14 +392,16 @@ This build has none of them:
 is an invalid option, and each such directive is written as a question
 mark and its letter.
 .PP
-Unlike the Unix build,
+As in the Unix build,
 .B time
-does not ignore Ctrl+C while it waits.
-A Ctrl+C in the console ends
-.B time
-as well as
-.IR prog ,
-and no report is written.
+ignores Ctrl+C and Ctrl+Break while it waits, and writes its report
+when
+.I prog
+exits.
+A
+.I prog
+that shares the console gets them itself, and any other is ended as if
+by signal 2.
 .PP
 The exit code of a Windows process has 32 bits.
 Busybox treats some codes as signals:

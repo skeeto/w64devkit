@@ -87,8 +87,7 @@ is the single item
 A pair of quotes with nothing between them and nothing else around
 them makes no item.
 .IP \(bu 2
-A quote still open at the end of the input is an error, except a quote
-that is the last byte and starts an item, which is ignored.
+A quote still open at the end of the input is an error.
 On the error,
 .B xargs
 exits with status 1 without running
@@ -121,10 +120,10 @@ A command that
 .B xargs
 starts as a new process has a second limit, because Windows allows a
 command line of about 32767 characters.
-The items of a run, counted as they appear on the Windows command line,
-with quotes and escapes and one space after each, total at most 32750
-bytes.
-When they would pass that,
+The command, its arguments, and the items of a run, counted as they
+appear on the Windows command line, with quotes and escapes and one
+space after each, total at most 32750 bytes.
+When the items would pass that,
 .B xargs
 runs those that fit and carries the rest into the next run, whatever
 .B \-s
@@ -133,29 +132,13 @@ says, so that run may have more items or bytes than
 or
 .B \-s
 allow.
-The command and its own arguments are not counted, so a long command
-can still make the command line too long:
-.B xargs
-then reports
-.B Arg list too long
-and exits with status 126.
 An item that fits the limit of
 .B \-s
-but alone passes 32750 bytes, as with a large
+but does not fit this limit even alone, as with a large
 .B \-s
-or an item with many double quotes, ends the input without an error:
+or an item with many double quotes, is an error:
 .B xargs
-drops it and everything after it.
-If it is the first item and
-.B \-r
-is not given,
-.I command
-first runs once with no added arguments.
-If the input did not end before the
-.B \-s
-buffer filled,
-.B xargs
-instead reports
+runs the items before it, then reports
 .B argument line too long
 and exits with status 1.
 An applet that runs inside
@@ -344,15 +327,26 @@ It is from 0 to 2147483647.
 The default is 1, which waits for each command before starting the
 next, and 0, or a number above 64, means 64.
 .B xargs
-waits for the running commands before it exits, except after an error
-of its own with status 1, such as an unmatched quote, when it exits at
-once and leaves them running.
+waits for the running commands before it exits, even after an error of
+its own, such as an unmatched quote.
 See
 .B NOTES
 for what this changes.
 .TP
 .B \-x
-Accepted and ignored.
+Exit with status 1 when a run would get fewer than
+.B \-n
+items because the next item does not fit in the limit of
+.B \-s
+or, for a command started as a new process, the Windows limit; see
+.BR "Size limits" .
+Without
+.BR \-n ,
+any run cut short by a size limit is an error.
+.B xargs
+reports
+.B argument line too long
+and does not run that command.
 .TP
 .B \-\-help
 Print a usage message on standard output and exit with status 0.
@@ -417,7 +411,10 @@ exited with status 0, or there was nothing to run.
 .B 1
 .B xargs
 itself failed: an invalid option or number, an unmatched quote, an item,
-or the command and its arguments, too long for the size limit, a
+or the command and its arguments, too long for the size limit, a run
+cut short with
+.BR \-x ,
+a
 .B \-a
 file that cannot be opened, or no memory.
 .TP
@@ -438,8 +435,7 @@ stopped.
 .TP
 .B 126
 .I command
-was found but could not be run, such as when its command line is too
-long, and
+was found but could not be run, and
 .B xargs
 stopped.
 .TP
@@ -556,9 +552,6 @@ In particular there is no
 .BR \-l ,
 or
 .BR \-o .
-.IP \(bu 2
-.B \-x
-does nothing.
 .IP \(bu 2
 .B \-p
 reads single keys from the console, and only the first key counts,
@@ -688,11 +681,6 @@ be interleaved.
 looks at the exit code of a command only when it needs its slot, or at
 the end, so after a failure it may start one more command before it
 stops.
-It uses the Windows exit code as it is, without the mapping above: a
-code from 256 to 0x17F counts as a failure, with status 123, a code of
-0x180 or more is reported as a signal, with status 125, and a code of
-0x80000000 or more as a command that could not be run, with status 126
-or 127.
 .PP
 The standard input of
 .I command

@@ -1,0 +1,42 @@
+Map the exit codes of commands run in parallel as for other commands.
+With -P, xargs used the raw Windows exit code as the command's status.
+A code of 0x80000000 or more, such as 0xC0000005 for an access
+violation, was negative and taken for a failure to start the command:
+xargs printed a message with a stale errno and exited with 126 or 127.
+A command ended by busybox kill, whose code has the signal number in
+its top byte, was reported as killed by a huge signal number, and other
+codes above 255 were not reduced as they are without -P.
+
+Convert the code with exit_code_to_wait_status(), as waitpid() does for
+the commands xargs runs one at a time, and return the status in the
+form wait4pid() uses.
+
+---
+ findutils/xargs.c |    9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
+
+--- a/findutils/xargs.c
++++ b/findutils/xargs.c
+@@ -226,7 +226,7 @@
+ #if ENABLE_FEATURE_XARGS_SUPPORT_PARALLEL && ENABLE_PLATFORM_MINGW32
+ static int wait_for_slot(int *idx)
+ {
+-	int i;
++	int i, wstat;
+ 
+ 	/* if less than max_procs running, set status to 0, return next free slot */
+ 	if (G.running_procs < G.max_procs) {
+@@ -246,7 +246,12 @@
+ 			*idx = G.running_procs - 1;
+ 			if (!G.max_procs)
+ 				G.running_procs--;
+-			return status;
++			/* Map the exit code as waitpid() does, and return the
++			 * status in the form wait4pid() uses */
++			wstat = exit_code_to_wait_status(status);
++			if (WIFSIGNALED(wstat))
++				return WTERMSIG(wstat) + 0x180;
++			return WEXITSTATUS(wstat);
+ 		}
+ 	}
+ 

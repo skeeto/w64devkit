@@ -1,0 +1,39 @@
+Report an item too long for the Windows command line on its own.
+When quoting pushed a command line past the Windows limit, xargs ran
+the items that fit and carried the rest into the next command. An item
+whose quoted form passed the limit by itself was carried forever: the
+next command was left with no items, which xargs takes to mean the end
+of input, so it stopped there with status 0, silently dropping that
+item and everything after it. If the item came first and -r was not
+given, the command first ran once with no items.
+
+Report such an item as too long, as xargs already does for an item
+that does not fit in its buffer.
+
+---
+ findutils/xargs.c |    7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+--- a/findutils/xargs.c
++++ b/findutils/xargs.c
+@@ -950,7 +950,8 @@
+ 		/* Check if quoting expands the command line.  If it does we
+ 		 * truncate args[] and preserve the tail for processing later.
+ 		 * With -I the args come from a single input line and form one
+-		 * command, which can't be split. */
++		 * command, which can't be split.  Nor can an arg that is too
++		 * long on its own. */
+ 		args = G.args;
+ 		if (quote) {
+  skip_read:
+@@ -958,7 +959,9 @@
+ 			for (i = initial_idx; args[i]; i++) {
+ 				n_chars += quote_len(args[i]) + 1;
+ 				if (n_chars > WIN32_MAX_CHARS) {
+-					if (opt & (OPT_REPLSTR | OPT_REPLSTR1))
++					if (i == initial_idx
++					 || (opt & (OPT_REPLSTR | OPT_REPLSTR1))
++					)
+ 						bb_simple_error_msg_and_die("argument line too long");
+ 					tail = args + i;
+ 					saved_arg = *tail;

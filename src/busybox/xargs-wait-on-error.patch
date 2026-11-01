@@ -1,0 +1,46 @@
+Wait for the running commands when xargs fails with -P.
+With -P, an error found while reading the input, such as an unmatched
+quote, made xargs exit at once with status 1 while the commands it had
+started were still running. Their output then appeared after xargs had
+exited, and whatever ran after xargs raced with them. GNU xargs waits
+for its children before it exits.
+
+Set a die_func that waits for the running commands, as xargs does at
+the end of input.
+
+---
+ findutils/xargs.c |   16 ++++++++++++++++
+ 1 file changed, 16 insertions(+)
+
+--- a/findutils/xargs.c
++++ b/findutils/xargs.c
+@@ -410,6 +410,17 @@
+ 	return status;
+ }
+ 
++#if ENABLE_FEATURE_XARGS_SUPPORT_PARALLEL
++/* Used as die_func: on a fatal error don't leave running commands
++ * behind, wait for them as at the end of input */
++static void wait_for_children(void)
++{
++	die_func = NULL;
++	G.max_procs = 0;
++	xargs_exec(); /* final waitpid() loop */
++}
++#endif
++
+ /* In POSIX/C locale isspace is only these chars: "\t\n\v\f\r" and space.
+  * "\t\n\v\f\r" happen to have ASCII codes 9,10,11,12,13.
+  */
+@@ -940,6 +951,11 @@
+ 	}
+ #endif
+ 
++#if ENABLE_FEATURE_XARGS_SUPPORT_PARALLEL
++	if (G.max_procs != 1)
++		die_func = wait_for_children;
++#endif
++
+ 	initial_idx = G.idx;
+ #if ENABLE_PLATFORM_MINGW32
+ 	/* The fixed args are on the Windows command line too */

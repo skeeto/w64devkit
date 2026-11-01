@@ -1,0 +1,27 @@
+Don't let Ctrl-C end time on Windows before its report.
+On Unix, time ignores SIGINT and SIGQUIT while it waits for the
+command, so an interrupted command is still reported. On Windows,
+Ctrl-C ended time along with the command and no report was written.
+
+While waiting, install kill_child_ctrl_handler(), as the exec emulation
+and drop already do: time survives Ctrl-C and Ctrl-Break, a child
+attached to the console handles them itself, and any other child is
+killed with SIGINT.
+
+---
+ miscutils/time.c |    4 ++++
+ 1 file changed, 4 insertions(+)
+
+--- a/miscutils/time.c
++++ b/miscutils/time.c
+@@ -460,6 +460,10 @@
+ 	if ((pid=spawn((char **)cmd)) == -1)
+ 		bb_perror_msg_and_die("can't execute %s", cmd[0]);
+ 
++	/* Have Ctrl-C end the child but not self */
++	kill_child_ctrl_handler(pid);
++	SetConsoleCtrlHandler(kill_child_ctrl_handler, TRUE);
++
+ 	resuse_end(pid, resp);
+ #endif
+ }

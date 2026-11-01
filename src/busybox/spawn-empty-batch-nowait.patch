@@ -1,0 +1,42 @@
+Return a real process when asked to start an empty batch file.
+spawnve() can't run an empty batch file, so spawnveq() pretended that
+it had and returned 0. That is right for P_WAIT, where it is the exit
+status, but for P_NOWAIT it is a process handle: mingw_spawn() turned
+it into pid 0 and the wait for it failed. time printed "wait: Invalid
+argument" and a report of uninitialised values, xargs and find -exec
+reported the command as failed, and sh read the exit code of a null
+handle and reported garbage such as "Error 0x7fff" and status 255.
+
+For P_NOWAIT, run "%COMSPEC% /d /c rem", which does nothing, in place
+of the batch file, so the caller gets a real process that exits with 0.
+Without COMSPEC, fail with ENOEXEC rather than return a bogus handle.
+
+---
+ win32/process.c |   14 +++++++++++++-
+ 1 file changed, 13 insertions(+), 1 deletion(-)
+
+--- a/win32/process.c
++++ b/win32/process.c
+@@ -196,9 +196,21 @@
+ 
+ 	if (has_bat_suffix(path)) {
+ 		/* Another special case:  spawnve returns ENOEXEC when passed an
+-		 * empty batch file.  Pretend it worked. */
++		 * empty batch file.  Pretend it worked.  A caller that waits
++		 * for the process needs a real one, so run a command that does
++		 * nothing in its place. */
+ 		if (st.st_size == 0) {
++			char *rem_argv[] = {
++				(char *)"cmd", (char *)"/d", (char *)"/c", (char *)"rem",
++				NULL
++			};
++			const char *comspec = getenv("COMSPEC");
++
+ 			ret = 0;
++			if (mode == P_NOWAIT) {
++				errno = ENOEXEC;
++				ret = comspec ? spawnve(mode, comspec, rem_argv, env) : -1;
++			}
+ 			goto done;
+ 		}
+ 	}

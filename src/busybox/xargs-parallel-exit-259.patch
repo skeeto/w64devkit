@@ -1,0 +1,27 @@
+Don't mistake a command that exited with 259 for a running one.
+With -P, xargs looked for finished commands with GetExitCodeProcess()
+and took STILL_ACTIVE (259) to mean that a command was still running.
+A command that exited with status 259 was never reaped: its handle
+stayed signalled, so WaitForMultipleObjects() returned at once every
+time and xargs spun at full CPU forever.
+
+Test whether the process handle is signalled instead.
+
+---
+ findutils/xargs.c |    5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+--- a/findutils/xargs.c
++++ b/findutils/xargs.c
+@@ -237,8 +237,9 @@
+ check_exit_codes:
+ 	for (i = G.running_procs - 1; i >= 0; i--) {
+ 		DWORD status = 0;
+-		if (!GetExitCodeProcess(G.procs[i], &status) ||
+-				status != STILL_ACTIVE) {
++		/* Don't rely on STILL_ACTIVE: a process may exit with 259 */
++		if (WaitForSingleObject(G.procs[i], 0) != WAIT_TIMEOUT) {
++			GetExitCodeProcess(G.procs[i], &status);
+ 			CloseHandle(G.procs[i]);
+ 			if (i + 1 < G.running_procs)
+ 				G.procs[i] = G.procs[G.running_procs - 1];

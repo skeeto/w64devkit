@@ -1,0 +1,26 @@
+Flush stdio buffers before starting a child process.
+spawn() on other platforms calls fflush_all() before it forks, so that
+output buffered by the parent comes out before the child's. The Windows
+spawn functions did not, so when stdout was a pipe or a file, output
+such as that of find -print stayed in the buffer while the commands run
+by -exec wrote theirs, and came out after it.
+
+Flush all streams in mingw_spawnvp(), which the spawn functions share.
+
+---
+ win32/process.c |    4 ++++
+ 1 file changed, 4 insertions(+)
+
+--- a/win32/process.c
++++ b/win32/process.c
+@@ -355,6 +355,10 @@
+ 	char *path;
+ 	intptr_t ret;
+ 
++	/* Like spawn() on other platforms: don't let buffered output
++	 * appear after the child's */
++	fflush_all();
++
+ #if ENABLE_FEATURE_PREFER_APPLETS && NUM_APPLETS > 1
+ 	if ((!has_path(cmd) || unix_path(cmd)) &&
+ 			find_applet_by_name(bb_basename(cmd)) >= 0)

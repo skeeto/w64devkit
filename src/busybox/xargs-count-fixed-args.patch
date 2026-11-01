@@ -1,0 +1,56 @@
+Count the command's own arguments towards the Windows length limit.
+When xargs checked that the quoted items fit on the Windows command
+line it counted only the items, not the command and the arguments
+given with it, so a command with long arguments could still be given a
+command line longer than Windows allows. Windows then refused to run
+it, and xargs exited with status 126, or, under Wine, the line was cut
+short and items were silently lost.
+
+Start the count with the quoted length of the fixed arguments.
+
+---
+ findutils/xargs.c |   12 ++++++++++--
+ 1 file changed, 10 insertions(+), 2 deletions(-)
+
+--- a/findutils/xargs.c
++++ b/findutils/xargs.c
+@@ -772,6 +772,7 @@
+ 	int delta = 0;
+ 	int quote = TRUE;
+ 	char *old_buf = NULL;
++	size_t fixed_chars = 0;
+ #endif
+ #if ENABLE_FEATURE_XARGS_SUPPORT_ZERO_TERM \
+  || ENABLE_FEATURE_XARGS_SUPPORT_REPL_STR
+@@ -933,6 +934,13 @@
+ #endif
+ 
+ 	initial_idx = G.idx;
++#if ENABLE_PLATFORM_MINGW32
++	/* The fixed args are on the Windows command line too */
++	if (quote) {
++		for (i = 0; i < initial_idx; i++)
++			fixed_chars += quote_len(G.args[i]) + 1;
++	}
++#endif
+ 	while (1) {
+ 		char *rem;
+ #if ENABLE_PLATFORM_MINGW32
+@@ -955,7 +963,7 @@
+ 		args = G.args;
+ 		if (quote) {
+  skip_read:
+-			n_chars = 0;
++			n_chars = fixed_chars;
+ 			for (i = initial_idx; args[i]; i++) {
+ 				n_chars += quote_len(args[i]) + 1;
+ 				if (n_chars > WIN32_MAX_CHARS) {
+@@ -1004,7 +1012,7 @@
+ 			/* The command line was truncated.  Preload args[] with
+ 			 * the tail we saved earlier. */
+ 			*tail = saved_arg;
+-			n_chars = 0;
++			n_chars = fixed_chars;
+ 			for (i = 0; tail[i]; i++) {
+ 				args[initial_idx + i] = tail[i];
+ 				n_chars += quote_len(tail[i]) + 1;

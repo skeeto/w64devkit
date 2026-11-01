@@ -1,0 +1,122 @@
+Close the process handle of a child started by spawn().
+mingw_spawn() converted the handle returned by spawnve() to a pid and
+never closed it, leaking a handle, and the process object behind it,
+for every command run: thousands in a long find -exec or xargs run, and
+without limit in crond -f and in httpd -f, which starts a process for
+each connection. Closing it at once would break waitpid(), which opens
+the process by its pid and so would fail for a child that had already
+exited and been destroyed.
+
+Keep the handles in a list until the processes have been waited for,
+as Unix keeps zombies. waitpid() uses the handle from the list for such
+a pid, and closes it once the process has exited. httpd -f never waits
+for its connection processes, so start them with mingw_spawn_proc() and
+close the handle at once.
+
+---
+ networking/httpd.c |    9 +++++++--
+ win32/process.c    |   40 ++++++++++++++++++++++++++++++++++++----
+ 2 files changed, 43 insertions(+), 6 deletions(-)
+
+--- a/win32/process.c
++++ b/win32/process.c
+@@ -8,6 +8,15 @@
+ # define ERROR_ELEVATION_REQUIRED __MSABI_LONG(740)
+ #endif
+ 
++/* Handles of the processes started by mingw_spawn(), kept until they
++ * have been waited for.  They keep the pids valid until then, as a
++ * zombie does on Unix. */
++static struct spawned_proc {
++	pid_t pid;
++	HANDLE proc;
++} *spawned;
++static int nspawned;
++
+ pid_t FAST_FUNC waitpid(pid_t pid, int *status, int options)
+ #if ENABLE_TIME
+ {
+@@ -23,11 +32,20 @@
+ 	HANDLE proc;
+ 	DWORD code;
+ 	DWORD waitcode;
++	int i;
+ 
+ 	/* Windows does not understand parent-child */
+ 	if (pid > 0 && (options == 0 || options == WNOHANG)) {
+-		if ( (proc=OpenProcess(SYNCHRONIZE|PROCESS_QUERY_INFORMATION,
+-						FALSE, pid)) != NULL ) {
++		for (i = 0; i < nspawned; i++) {
++			if (spawned[i].pid == pid)
++				break;
++		}
++		if (i < nspawned)
++			proc = spawned[i].proc;
++		else
++			proc = OpenProcess(SYNCHRONIZE|PROCESS_QUERY_INFORMATION,
++						FALSE, pid);
++		if (proc != NULL) {
+ 			waitcode = WaitForSingleObject(proc, options == WNOHANG ? 0 : INFINITE);
+ 			if (status)
+ 				GetExitCodeProcess(proc, &code);
+@@ -51,7 +69,12 @@
+ 				}
+ 			}
+ #endif
+-			CloseHandle(proc);
++			/* A spawned process keeps its handle until it exits */
++			if (i == nspawned || waitcode != WAIT_TIMEOUT) {
++				CloseHandle(proc);
++				if (i < nspawned)
++					spawned[i] = spawned[--nspawned];
++			}
+ 			if (status)
+ 				*status = exit_code_to_wait_status(code);
+ 			if (waitcode == WAIT_TIMEOUT)
+@@ -401,10 +424,19 @@
+ mingw_spawn(char **argv)
+ {
+ 	intptr_t ret;
++	pid_t pid;
+ 
+ 	ret = mingw_spawnvp(P_NOWAIT, argv[0], (char *const *)argv);
++	if (ret == -1)
++		return -1;
+ 
+-	return ret == -1 ? (pid_t)-1 : (pid_t)GetProcessId((HANDLE)ret);
++	/* Keep the handle for waitpid() */
++	pid = GetProcessId((HANDLE)ret);
++	spawned = xrealloc_vector(spawned, 4, nspawned);
++	spawned[nspawned].pid = pid;
++	spawned[nspawned].proc = (HANDLE)ret;
++	nspawned++;
++	return pid;
+ }
+ 
+ intptr_t FAST_FUNC
+--- a/networking/httpd.c
++++ b/networking/httpd.c
+@@ -3316,6 +3316,7 @@
+ 		xchdir(G.spawn_dir);
+ 	while (1) {
+ 		int n;
++		intptr_t proc;
+ 
+ 		/* Wait for connections... */
+ 		n = accept(sock, NULL, NULL);
+@@ -3326,9 +3327,13 @@
+ 		setsockopt_keepalive(n);
+ 
+ 		argv_copy[4] = itoa(n);
+-		if ((foreground ?
+-				spawn(argv_copy) : mingw_spawn_detach(argv_copy)) == -1)
++		proc = foreground ? mingw_spawn_proc((const char **)argv_copy) :
++				mingw_spawn_detach(argv_copy);
++		if (proc == -1)
+ 			bb_perror_msg("can't execute 'httpd'");
++		/* The child isn't waited for, so don't keep its handle */
++		else if (foreground)
++			CloseHandle((HANDLE)proc);
+ 
+ 		/* parent, or spawn failed */
+ 		close(n);

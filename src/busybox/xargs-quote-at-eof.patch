@@ -1,0 +1,26 @@
+Report a quote left open at the very end of the input.
+At end of input, xargs checked for an unmatched quote only if the item
+being read had some characters. An opening quote that was the last
+byte of the input, as in "a '", started an item with no characters
+yet, so it was silently ignored and the command ran with the items
+before it.
+
+Treat an open quote at end of input as an unfinished item, which
+reports the error.
+
+---
+ findutils/xargs.c |    3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+--- a/findutils/xargs.c
++++ b/findutils/xargs.c
+@@ -453,7 +453,8 @@
+ 	while (1) {
+ 		int c = getchar();
+ 		if (c == EOF) {
+-			if (p != s)
++			/* An open quote is an error even if nothing follows it */
++			if (p != s || state == QUOTE)
+ 				goto close_word;
+ 			goto ret;
+ 		}

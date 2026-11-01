@@ -872,16 +872,6 @@ executable suffix nor
 .BR .dll ,
 so that test is slow over many files.
 .PP
-When standard output is not a console, the names written by
-.B \-print
-wait in a buffer until it fills or
-.B find
-exits, and are not flushed before
-.B \-exec
-runs a command, so the output of commands can come first.
-.B \-ok
-flushes before it asks.
-.PP
 Windows has its own
 .B find.exe
 in
