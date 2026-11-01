@@ -1,0 +1,50 @@
+Send no body with an httpd error answer to HEAD.
+send_headers() appends the built-in HTML page to every error answer,
+and sends the file of an E line in its place, whatever the method. A
+HEAD request answered with 404, 401 or 403 therefore got a body, which
+a client that trusts HEAD to have none reads as the start of the next
+response.
+
+Remember whether the method is HEAD, and stop after the headers.
+
+---
+ networking/httpd.c |    7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+--- a/networking/httpd.c
++++ b/networking/httpd.c
+@@ -503,6 +503,7 @@
+ 
+ struct globals {
+ 	smallint flg_deny_all;
++	smallint head_request;  /* HEAD: send no body */
+ #if ENABLE_FEATURE_HTTPD_GZIP
+ 	/* client can handle gzip / we are going to send gzip */
+ 	smallint accept_gzip;
+@@ -1306,6 +1307,8 @@
+ 			fprintf(stderr, "headers: '%s'\n", iobuf);
+ 		}
+ 		full_write(STDOUT_FILENO, iobuf, len);
++		if (G.head_request)
++			send_EOF_and_exit();
+ 		dbg("writing error page: '%s'\n", error_page);
+ 		return send_file_and_exit(error_page, SEND_BODY);
+ 	}
+@@ -1397,7 +1400,7 @@
+ 
+ 	iobuf[len++] = '\r';
+ 	iobuf[len++] = '\n';
+-	if (infoString) {
++	if (infoString && !G.head_request) {
+ 		len += sprintf(iobuf + len,
+ 				"<HTML><HEAD><TITLE>%u %s</TITLE></HEAD>\n"
+ 				"<BODY><H1>%u %s</H1>\n"
+@@ -2755,6 +2758,8 @@
+ 		send_headers_and_exit(HTTP_BAD_REQUEST);
+ #endif
+  found:
++	G.head_request = (prequest == request_HEAD);
++
+ 	/* Copy URL to stack-allocated char[] */
+ 	urlcopy = alloca((HTTP_slash - urlp) + 2 + strlen(index_page));
+ 	strcpy(urlcopy, urlp);

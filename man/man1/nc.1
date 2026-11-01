@@ -275,16 +275,6 @@ A failed write to the connection, as when the peer has gone, prints
 .BR "nc: write error: Invalid argument" ,
 a misleading reason.
 .PP
-The listening socket sets
-.BR SO_REUSEADDR ,
-which on Windows lets sockets share a port.
-A second
-.B nc
-can listen on a port that another
-.B nc
-is listening on without an error, and Windows decides which of them
-receives a connection.
-.PP
 The sending direction of the connection is shut down as soon as standard
 input ends.
 When standard input is already at end of file, as with

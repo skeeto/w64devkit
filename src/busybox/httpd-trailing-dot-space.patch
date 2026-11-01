@@ -1,0 +1,34 @@
+Refuse httpd path components ending in a dot or space on Windows.
+Windows drops dots and spaces from the end of a file or directory name,
+so "httpd.conf." and "httpd.conf " open httpd.conf and "adm./" is the
+directory adm. The checks on the request path compare names exactly,
+so /httpd.conf. sent the configuration file with its passwords,
+/adm./secret.htm skipped the password for /adm, and /cgi-bin./x.cgi
+sent the source of the program.
+
+No file that httpd can serve has such a name, so refuse any component
+that ends in a dot or space once the path is cleaned. This also covers
+"..." and ".. ", which are not removed as parent references.
+
+---
+ networking/httpd.c |    9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+--- a/networking/httpd.c
++++ b/networking/httpd.c
+@@ -2761,6 +2761,15 @@
+ 	 * alternate data stream (httpd.conf::$DATA) */
+ 	if (strchr(urlcopy, ':'))
+ 		send_headers_and_exit(HTTP_NOT_FOUND);
++	/* Windows ignores dots and spaces at the end of a path component,
++	 * so it would take "/httpd.conf." as "/httpd.conf" */
++	for (tptr = urlcopy; *tptr; tptr++) {
++		if ((*tptr == '.' || *tptr == ' ')
++		 && (tptr[1] == '/' || tptr[1] == '\0')
++		) {
++			send_headers_and_exit(HTTP_NOT_FOUND);
++		}
++	}
+ #endif
+ 
+ 	/* Log it */

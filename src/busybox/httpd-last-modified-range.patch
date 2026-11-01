@@ -1,0 +1,48 @@
+Omit httpd's Last-Modified header when gmtime_r() fails.
+The result of gmtime_r() was passed to strftime() unchecked. gmtime_r()
+returns NULL for a time it cannot represent, which on Windows is any
+time before 1970 or after the year 3000, so a request for a file with
+such a modification time crashed the process serving it and the client
+got no reply.
+
+Leave the header out in that case.
+
+---
+ networking/httpd.c |   12 +++++-------
+ 1 file changed, 5 insertions(+), 7 deletions(-)
+
+--- a/networking/httpd.c
++++ b/networking/httpd.c
+@@ -1316,7 +1316,11 @@
+ 
+ 	if (file_size != -1) {    /* file */
+ #if ENABLE_FEATURE_HTTPD_LAST_MODIFIED
+-		strftime(date_str, sizeof(date_str), RFC1123FMT, gmtime_r(&last_mod, &tm));
++		/* gmtime_r() fails for a time it can't represent */
++		if (gmtime_r(&last_mod, &tm)) {
++			strftime(date_str, sizeof(date_str), RFC1123FMT, &tm);
++			len += sprintf(iobuf + len, "Last-Modified: %s\r\n", date_str);
++		}
+ #endif
+ #if ENABLE_FEATURE_HTTPD_RANGES
+ 		if (responseNum == HTTP_PARTIAL_CONTENT) {
+@@ -1362,9 +1366,6 @@
+ #if ENABLE_FEATURE_HTTPD_RANGES
+ 			"Accept-Ranges: bytes\r\n"
+ #endif
+-#if ENABLE_FEATURE_HTTPD_LAST_MODIFIED
+-			"Last-Modified: %s\r\n"
+-#endif
+ #if ENABLE_FEATURE_HTTPD_ETAG
+ 			"ETag: %s\r\n"
+ #endif
+@@ -1376,9 +1377,6 @@
+ 	 * but de-facto standard is to send it (see comment below).
+ 	 */
+ 			"Content-Length: %"OFF_FMT"u\r\n",
+-#if ENABLE_FEATURE_HTTPD_LAST_MODIFIED
+-				date_str,
+-#endif
+ #if ENABLE_FEATURE_HTTPD_ETAG
+ 				etag,
+ #endif

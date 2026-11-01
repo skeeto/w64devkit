@@ -1,0 +1,31 @@
+Do not set SO_REUSEADDR on Windows.
+On Unix, SO_REUSEADDR lets a server bind its port again while old
+connections are in TIME_WAIT. On Windows it lets a socket bind a port
+that another socket is already listening on, and Windows then decides
+which of them gets each connection. A second "nc -l -p 8080" or httpd
+on a port in use started without an error, and another program could
+take over connections to the port. Windows reuses addresses in
+TIME_WAIT without the option.
+
+Make setsockopt_reuseaddr() do nothing on Windows.
+
+---
+ libbb/xconnect.c |    6 ++++++
+ 1 file changed, 6 insertions(+)
+
+--- a/libbb/xconnect.c
++++ b/libbb/xconnect.c
+@@ -35,7 +35,13 @@
+ 
+ void FAST_FUNC setsockopt_reuseaddr(int fd)
+ {
++#if !ENABLE_PLATFORM_MINGW32
+ 	setsockopt_SOL_SOCKET_1(fd, SO_REUSEADDR);
++#else
++	/* Windows reuses an address in TIME_WAIT anyway, and SO_REUSEADDR
++	 * would let a socket bind a port that another one listens on. */
++	(void)fd;
++#endif
+ }
+ int FAST_FUNC setsockopt_broadcast(int fd)
+ {

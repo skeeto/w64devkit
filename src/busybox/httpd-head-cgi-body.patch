@@ -1,0 +1,46 @@
+Discard the body a CGI program writes in answer to HEAD.
+RFC 3875 section 4.3.2 says that the server must discard the body if a
+script provides one for a HEAD request. httpd passed on all of the
+program's output, and few scripts check REQUEST_METHOD, so HEAD got the
+full page.
+
+For HEAD, pass on the output up to the blank line that ends the headers
+and then close the connection.
+
+---
+ networking/httpd.c |   17 +++++++++++++++++
+ 1 file changed, 17 insertions(+)
+
+--- a/networking/httpd.c
++++ b/networking/httpd.c
+@@ -1512,6 +1512,9 @@
+ 	struct pollfd pfd[3];
+ 	int out_cnt;
+ 	int count;
++	/* For HEAD: newlines in a row. Our output starts with a status
++	 * line, or the CGI's output follows one that we wrote. */
++	int nl = 1;
+ 
+ 	/* iobuf is used for CGI -> network data,
+ 	 * hdr_buf is for network -> CGI data (POSTDATA) */
+@@ -1718,6 +1721,20 @@
+ 					send_EOF_and_exit();  /* EOF (or error) */
+ 			}
+ 			IF_FEATURE_HTTPD_CGI(G.cgi_output = 1;)
++			if (G.head_request) {
++				/* Send the headers, but not the body (RFC 3875 4.3.2) */
++				int i;
++				for (i = 0; i < count; i++) {
++					if (iobuf[i] == '\n') {
++						if (++nl == 2) {
++							full_write(STDOUT_FILENO, iobuf, i + 1);
++							send_EOF_and_exit();
++						}
++					} else if (iobuf[i] != '\r') {
++						nl = 0;
++					}
++				}
++			}
+ //FIXME: many (most?) servers translate bare "\n" to "\r\n", only in the headers, not body (the part after empty line)
+ 			if (full_write(STDOUT_FILENO, iobuf, count) != count)
+ 				break;

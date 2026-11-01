@@ -1,0 +1,59 @@
+Report httpd startup errors before detaching on Windows.
+Without -f, httpd started a detached copy of itself before it entered
+the home directory, bound the port or read the config file, and exited
+with status 0. A missing home directory, a missing -c file, a bad
+address or a port in use was reported by nobody, since the copy's
+standard error is the null device, and the server was simply not there.
+
+Do all of that first, so that a failure is reported with status 1 and
+config errors appear on the terminal. Then close the socket, return to
+the starting directory and detach the copy, which repeats the same steps
+from the same place.
+
+---
+ networking/httpd.c |   13 +++++++++++--
+ 1 file changed, 11 insertions(+), 2 deletions(-)
+
+--- a/networking/httpd.c
++++ b/networking/httpd.c
+@@ -3385,6 +3385,7 @@
+ 	IF_FEATURE_HTTPD_SETUID(struct bb_uidgid_t ugid;)
+ 	IF_FEATURE_HTTPD_AUTH_MD5(const char *pass;)
+ 	IF_PLATFORM_MINGW32(int fd;)
++	IF_PLATFORM_MINGW32(const char *start_dir;)
+ #if 0 // PACK64_LITERAL_STR test
+ 	char testing[16] = "Status: ";
+ 	printf("0x%08llx\n", PACK64_LITERAL_STR("Status: "));
+@@ -3402,6 +3403,7 @@
+ 	G.conn_limit = 256;
+ #endif
+ 	home_httpd = xrealloc_getcwd_or_warn(NULL);
++	IF_PLATFORM_MINGW32(start_dir = home_httpd;)
+ 	/* We do not "absolutize" path given by -h (home) opt.
+ 	 * If user gives relative path in -h,
+ 	 * $SCRIPT_FILENAME will not be set. */
+@@ -3466,8 +3468,6 @@
+ #endif
+ #else /* ENABLE_PLATFORM_MINGW32 */
+ 	foreground = (opt & OPT_FOREGROUND) == OPT_FOREGROUND;
+-	if (!foreground && argv[0][0] != '-')
+-		mingw_daemonize(argv);
+ #endif
+ 
+ 	/* Chdir to home (unless we were re_exec()ed for NOMMU case
+@@ -3523,6 +3523,15 @@
+ #endif
+ 	parse_conf(DEFAULT_PATH_HTTPD_CONF, FIRST_PARSE);
+ #if ENABLE_PLATFORM_MINGW32
++	if (!foreground && argv[0][0] != '-') {
++		/* Startup worked, so errors have been reported.  The detached
++		 * copy does it all again, from the directory we started in. */
++		if (!(opt & OPT_INETD))
++			close(server_socket);
++		if (start_dir)
++			xchdir(start_dir);
++		mingw_daemonize(argv);
++	}
+ # if ENABLE_FEATURE_HTTPD_CGI
+ 	if ((opt & OPT_INETD) && fd == 0) {
+ 		cgi_handler(argv + optind);

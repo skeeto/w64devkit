@@ -1,0 +1,31 @@
+Answer an httpd request path that contains a colon with 404 on Windows.
+A Windows file name cannot contain a colon: in a path it starts a drive
+("C:") or names an alternate data stream ("file::$DATA"). A request for
+/C:/data/file.txt was an absolute path, so a client could read any file
+on any drive, and /httpd.conf::$DATA or /adm::$INDEX_ALLOCATION/x.htm
+reached httpd.conf or a protected directory under a name that the
+httpd.conf and password checks did not recognise.
+
+Refuse such paths after they are cleaned, before anything looks at the
+file system.
+
+---
+ networking/httpd.c |    7 +++++++
+ 1 file changed, 7 insertions(+)
+
+--- a/networking/httpd.c
++++ b/networking/httpd.c
+@@ -2756,6 +2756,13 @@
+ 		tptr++;
+ 	}
+ 
++#if ENABLE_PLATFORM_MINGW32
++	/* A colon would make the path absolute (C:/...) or name an
++	 * alternate data stream (httpd.conf::$DATA) */
++	if (strchr(urlcopy, ':'))
++		send_headers_and_exit(HTTP_NOT_FOUND);
++#endif
++
+ 	/* Log it */
+ 	if (VERBOSE_2)
+ 		bb_error_msg("%s %s", prequest, urlcopy);

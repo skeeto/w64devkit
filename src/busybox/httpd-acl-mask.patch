@@ -1,0 +1,24 @@
+Clear the host bits of an httpd A: or D: network address.
+A client matches a rule when its address ANDed with the mask equals the
+rule's address, which was stored as written. A rule such as
+"A:192.168.1.5/24", with bits set outside the mask, therefore matched
+no client at all, silently.
+
+Mask the address when the rule is parsed, as is usual for a network
+written this way.
+
+---
+ networking/httpd.c |    2 ++
+ 1 file changed, 2 insertions(+)
+
+--- a/networking/httpd.c
++++ b/networking/httpd.c
+@@ -955,6 +955,8 @@
+ 				pip->ip = 0; /* could be set before error is detected - zero it (again) */
+ 				pip->mask = 0;
+ 			}
++			/* "10.1.2.3/8" means the network 10.0.0.0/8 */
++			pip->ip &= pip->mask;
+ 			//bb_error_msg_and_die("ip:0x%08x mask:0x%08x", pip->ip, pip->mask);
+ 			pip->allow_deny = ch;
+ 			if (ch == 'D') {

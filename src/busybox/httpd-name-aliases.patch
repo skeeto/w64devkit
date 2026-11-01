@@ -1,0 +1,75 @@
+Refuse httpd requests that name a file by an alias on Windows.
+Windows gives a file with a long name a second, short name such as
+HTTPD~1.CON for httpd.conf or ADMINI~1 for administration, and opens
+the file by either. It also ignores the case of letters outside ASCII,
+such as the vowels with umlauts. The httpd.conf and password checks
+know only the long name and the case of ASCII letters, so /HTTPD~1.CON
+sent the configuration file with its passwords, /ADMINI~1/secret.htm
+skipped the password for /administration, and the password for a
+directory with a non-ASCII letter in its name was skipped when the
+request changed the case of that letter. A short name also hid a
+suffix longer than three characters from the interpreter lines.
+
+Look up each component of the path that has a '~' or a non-ASCII byte
+with FindFirstFile, and refuse the request when the name it returns is
+not the one asked for.
+
+---
+ networking/httpd.c |   38 ++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 38 insertions(+)
+
+--- a/networking/httpd.c
++++ b/networking/httpd.c
+@@ -2526,7 +2526,42 @@
+ 	/* this is less expensive than arming alarm() before every write */
+ }
+ 
++#if ENABLE_PLATFORM_MINGW32
+ /*
++ * Does a component of the relative path name a file other than by its
++ * own name?  Windows finds a file by its short (8.3) name, which has a
++ * '~', and ignores the case of non-ASCII letters, but the checks on the
++ * path know only the long name and the case of ASCII letters.
++ */
++static int is_other_name(char *path)
++{
++	char *p, *q;
++	int ret = 0;
++
++	for (p = path; !ret && *p; p = q + (*q == '/')) {
++		WIN32_FIND_DATAA fd;
++		HANDLE h;
++		int check = 0;
++		char c;
++
++		for (q = p; *q && *q != '/'; q++)
++			check |= (*q == '~' || (unsigned char)*q >= 0x80);
++		if (!check)
++			continue;
++		c = *q;
++		*q = '\0';
++		h = FindFirstFileA(path, &fd);
++		if (h != INVALID_HANDLE_VALUE) {
++			ret = strcasecmp(p, fd.cFileName) != 0;
++			FindClose(h);
++		}
++		*q = c;
++	}
++	return ret;
++}
++#endif
++
++/*
+  * Handle an incoming http request and exit.
+  */
+ static void handle_incoming_and_exit(const len_and_sockaddr *fromAddr) NORETURN;
+@@ -2770,6 +2805,9 @@
+ 			send_headers_and_exit(HTTP_NOT_FOUND);
+ 		}
+ 	}
++	/* "/ADMINI~1/" would be "/administration/" */
++	if (is_other_name(urlcopy + 1))
++		send_headers_and_exit(HTTP_NOT_FOUND);
+ #endif
+ 
+ 	/* Log it */

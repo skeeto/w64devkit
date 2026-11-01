@@ -1,0 +1,29 @@
+Treat a backslash in an httpd request path as a separator on Windows.
+httpd removes ".." components and matches password lines, subdirectory
+config files and the cgi-bin/ prefix by looking for '/' alone, but
+Windows also takes '\' as a path separator. A request for
+/..\..\file.txt or /..%5C..%5Cfile.txt read files outside the home
+directory, /adm\secret.htm skipped the password that /adm/secret.htm
+needed, /sub\file.txt ignored sub/httpd.conf, and /cgi-bin%5Cx.cgi sent
+the source of the program.
+
+Turn backslashes into slashes once the path is decoded, so that every
+later check sees the separators that Windows will.
+
+---
+ networking/httpd.c |    4 ++++
+ 1 file changed, 4 insertions(+)
+
+--- a/networking/httpd.c
++++ b/networking/httpd.c
+@@ -2716,6 +2716,10 @@
+ 		/* '/' or NUL is encoded */
+ 		send_headers_and_exit(HTTP_NOT_FOUND);
+ 	}
++#if ENABLE_PLATFORM_MINGW32
++	/* Windows takes a backslash as a path separator too */
++	bs_to_slash(urlcopy);
++#endif
+ 
+ 	/* Canonicalize path */
+ 	/* Algorithm stolen from libbb bb_simplify_path(),

@@ -1,0 +1,38 @@
+Give httpd CGI programs REMOTE_ADDR without brackets.
+REMOTE_ADDR was the client's address and port as formatted for logging
+with the port removed, which leaves an IPv6 address in brackets, such
+as "[::1]". RFC 3875 defines it as the bare address. A server listening
+on both IPv4 and IPv6 also showed every IPv4 client as
+"[::ffff:192.0.2.1]".
+
+Remove the brackets, and show an IPv4-mapped address as plain IPv4.
+
+---
+ networking/httpd.c |   13 ++++++++++++-
+ 1 file changed, 12 insertions(+), 1 deletion(-)
+
+--- a/networking/httpd.c
++++ b/networking/httpd.c
+@@ -1865,10 +1865,21 @@
+ 	{
+ 		char *p = rmt_ip_str ? rmt_ip_str : (char*)"";
+ 		char *cp = strrchr(p, ':');
++		char *addr = p;
+ 		if (ENABLE_FEATURE_IPV6 && cp && strchr(cp, ']'))
+ 			cp = NULL;
+ 		if (cp) *cp = '\0'; /* delete :PORT */
+-		setenv1("REMOTE_ADDR", p);
++		if (ENABLE_FEATURE_IPV6 && cp && p[0] == '[' && cp[-1] == ']') {
++			/* "[ADDR]": the variable has no brackets (RFC 3875) */
++			cp[-1] = '\0';
++			addr = p + 1;
++			/* and an IPv4 client of an IPv6 socket is shown as IPv4 */
++			if (strncasecmp(addr, "::ffff:", 7) == 0 && strchr(addr, '.'))
++				addr += 7;
++		}
++		setenv1("REMOTE_ADDR", addr);
++		if (addr != p)
++			cp[-1] = ']';
+ 		if (cp) {
+ 			*cp = ':';
+ # if ENABLE_FEATURE_HTTPD_SET_REMOTE_PORT_TO_ENV

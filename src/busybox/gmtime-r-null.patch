@@ -1,0 +1,28 @@
+Return NULL from gmtime_r() for a time the runtime cannot convert.
+gmtime() returns NULL for a time before 1970 or after the year 3000,
+and gmtime_r() copied from that pointer without checking it, so it
+crashed. httpd crashed this way when it sent the Last-Modified header
+of such a file.
+
+Return NULL, as POSIX allows.
+
+---
+ win32/mingw.c |    7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+--- a/win32/mingw.c
++++ b/win32/mingw.c
+@@ -1218,7 +1218,12 @@
+ struct tm * FAST_FUNC gmtime_r(const time_t *timep, struct tm *result)
+ {
+ 	/* gmtime() in MSVCRT.DLL is thread-safe, but not reentrant */
+-	memcpy(result, gmtime(timep), sizeof(struct tm));
++	struct tm *tm = gmtime(timep);
++
++	/* NULL for a time before 1970 or after 3000 */
++	if (tm == NULL)
++		return NULL;
++	memcpy(result, tm, sizeof(struct tm));
+ 	return result;
+ }
+ 

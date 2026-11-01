@@ -1,0 +1,41 @@
+Read httpd config lines of any length.
+parse_conf() read the file with fgets() into a 160-byte buffer, so a
+longer line was split, and its tail was parsed as a directive of its
+own. A long password was cut short and the rest reported as an error,
+and a long comment whose tail read "D:*" denied every client.
+
+Read whole lines with xmalloc_fgetline().
+
+---
+ networking/httpd.c |    6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+--- a/networking/httpd.c
++++ b/networking/httpd.c
+@@ -805,7 +805,7 @@
+ 
+ 	FILE *f;
+ 	const char *filename;
+-	char buf[160];
++	char *buf;
+ 
+ 	/* discard old rules */
+ #if ENABLE_FEATURE_HTTPD_ACL_IP
+@@ -869,7 +869,7 @@
+ 	 * *.php:/path/php  # run xxx.php through an interpreter
+ 	 * /file:user:pass  # username and password
+ 	 */
+-	while (fgets(buf, sizeof(buf), f) != NULL) {
++	for (; (buf = xmalloc_fgetline(f)) != NULL; free(buf)) {
+ 		unsigned strlen_buf;
+ 		unsigned char ch;
+ 		char *after_colon;
+@@ -1109,7 +1109,7 @@
+ 		/* the line is not recognized */
+  config_error:
+ 		bb_error_msg("config error '%s' in '%s'", buf, filename);
+-	} /* while (fgets) */
++	} /* for each line */
+ 
+ 	fclose(f);
+ 	return 0;

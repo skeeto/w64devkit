@@ -1,0 +1,23 @@
+Report an httpd A: or D: line whose address cannot be parsed.
+Such a line is turned into a rule that denies every client, which is
+the safe choice, but the message that would have said so is commented
+out. A typo such as "A:192.168.1.300" made the server answer 403 to
+everyone with nothing in the log to explain why.
+
+Report it as a config error, as other bad lines are.
+
+---
+ networking/httpd.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/networking/httpd.c
++++ b/networking/httpd.c
+@@ -951,7 +951,7 @@
+ 			if (scan_ip_mask(after_colon, &pip->ip, &pip->mask)) {
+ 				/* IP{/mask} syntax error detected, protect all */
+ 				ch = 'D';
+-				//bb_error_msg("ERR");
++				bb_error_msg("config error '%s' in '%s'", buf, filename);
+ 				pip->ip = 0; /* could be set before error is detected - zero it (again) */
+ 				pip->mask = 0;
+ 			}

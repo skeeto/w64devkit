@@ -29,8 +29,8 @@ reply.
 Without
 .BR \-f ,
 .B httpd
-starts a copy of itself detached from the console, and the original
-exits at once.
+checks that the server can start, then starts a copy of itself detached
+from the console, and the original exits.
 The server changes to the home directory, which is the directory it was
 started in unless
 .B \-h
@@ -81,7 +81,8 @@ A method of 15 characters or more is answered with
 .PP
 The path is the text before the first
 .BR ? .
-It is percent-decoded, and then cleaned: repeated slashes and
+It is percent-decoded, and then cleaned: backslashes become slashes,
+repeated slashes and
 .B .\&
 components are removed, and a
 .B ..\&
@@ -92,6 +93,13 @@ that would climb above the root, or a malformed escape, is answered with
 .BR 400 ,
 and an escaped slash or NUL is answered with
 .BR 404 .
+So is a cleaned path that Windows would read differently: one with a
+colon, which starts a drive or a data stream, one with a component that
+ends in a dot or space, which Windows ignores, or one with a component
+that is the short 8.3 name of a file with a longer name, such as
+.IR HTTPD~1.CON ,
+or that differs from the file's name in the case of a letter outside
+ASCII.
 The text after the first
 .B ?\&
 is the query string, which is never decoded.
@@ -221,7 +229,9 @@ exist.
 .PP
 An error answer carries a short HTML page, built in or named by an
 .B E
-line, and a
+line, except for
+.BR HEAD ,
+and a
 .B 302
 or
 .B 304
@@ -234,8 +244,8 @@ in any directory, is answered with
 .BR 403 .
 .SS CGI programs
 A path that begins with
-.I cgi\-bin/
-runs a program.
+.IR cgi\-bin/ ,
+in any case, runs a program.
 The file must exist and be executable to Windows: it has one of the
 suffixes
 .BR .com ,
@@ -285,7 +295,8 @@ line runs under
 .BR sh .
 A
 .BI *. ext : interpreter
-line in the configuration file makes any file with that suffix outside
+line in the configuration file makes any file with that suffix, in any
+case, outside
 .I cgi\-bin
 a CGI program as well, run by the interpreter.
 That includes the index file of a directory, and then
@@ -311,7 +322,7 @@ with the variables listed under
 added.
 A
 .B HEAD
-request runs the program too, and all of its output is sent.
+request runs the program too, but only the headers it writes are sent.
 .PP
 The program writes its headers, a blank line, and the body.
 .B httpd
@@ -360,7 +371,6 @@ A
 starts a comment that runs to the end of the line.
 Blank lines are ignored.
 A line may end in LF or CR LF.
-A line longer than 159 characters is read as several lines.
 A line that is not a directive is reported on standard error as
 .B config error
 and skipped.
@@ -395,11 +405,13 @@ or
 for a network, where
 .I mask
 has four numbers with dots.
+Bits of
 .I address
-must have no bits set outside the mask, or the line never matches.
+outside the mask are ignored.
 .RE
 .IP
-A line whose address or mask cannot be read denies every client.
+A line whose address or mask cannot be read is reported as a
+configuration error, and denies every client.
 An IPv6 client is checked as the address 0.0.0.0, unless it is an
 IPv4-mapped address, which is checked as its IPv4 address.
 .TP
@@ -448,13 +460,9 @@ Use
 .I directory
 as the home directory, in place of
 .BR \-h .
-Each connection starts in the new home directory and reads the file
-again, so
+A relative
 .I directory
-and a
-.B \-c
-file must be absolute paths, or every connection is closed without a
-reply.
+is relative to the home directory it replaces.
 .TP
 \fBI:\fR\fIfile\fR
 Use
@@ -556,7 +564,7 @@ Operands are ignored.
 Run in the foreground, and serve until the process is killed.
 Without it,
 .B httpd
-detaches, and cannot report errors or log; see
+detaches once it has started, and cannot log; see
 .BR NOTES .
 .TP
 .B \-v
@@ -735,9 +743,12 @@ an empty string.
 The query string as the client sent it, or an empty string.
 .TP
 .B REMOTE_ADDR
-The client's address.
-An IPv6 address is in brackets, as is an IPv4 client of a server that
-listens on both families.
+The client's address, such as
+.B 127.0.0.1
+or
+.BR ::1 .
+An IPv4 client of a server that listens on both families has its IPv4
+address.
 .TP
 .B REMOTE_USER
 The user name, when the request matched a password line.
@@ -790,15 +801,14 @@ or
 was written, or the background server was started.
 .TP
 .B 1
-An invalid option, or a background server that cannot be started.
-With
-.BR \-f ,
-also a home directory that cannot be entered, a
+An invalid option, a home directory that cannot be entered, a
 .B \-c
-file that cannot be opened, or an address that cannot be read or bound.
+file that cannot be opened, an address that cannot be read or bound, or
+a background server that cannot be started.
 .PP
-The foreground server runs until it is killed, unless it cannot start
-the process for a connection, when it exits with status 0.
+The foreground server runs until it is killed.
+If it cannot start the process for a connection, it reports the error,
+closes the connection, and goes on.
 .SH EXAMPLES
 Serve the directory
 .I public
@@ -905,52 +915,16 @@ A CGI program is started through another busybox process.
 Nothing limits how many connections are served at once.
 .PP
 In the background, standard input, output, and error of the server are
-the null device.
-Nothing is logged, and a failure such as a bad address or a missing
-.B \-c
-file is not reported: the starting process has already exited with status
-0.
-Use
-.B \-f
-to see them.
-The listening socket allows address reuse, which on Windows lets a second
-server bind a port that is in use.
+the null device, and nothing is logged.
+The starting process enters the home directory, binds the port, and
+reads the configuration file before it detaches, so it reports a failure
+in any of these with status 1; the detached server then does them again.
 .PP
 .B httpd
 is not meant to face untrusted clients.
-It keeps requests inside the home directory only by rejecting
-.B ..\&
-components between forward slashes.
-A backslash, written raw or as
-.BR %5C ,
-is also a separator to Windows, and a path that starts with a drive
-letter, as in
-.IR /C:/data/file.txt ,
-is absolute, so a client can read any file that the user running the
-server can read.
-The checks that compare the request path with a pattern see only forward
-slashes: password lines, subdirectory configuration files, and the
-.I cgi\-bin/
-prefix, which is also case-sensitive although Windows file names are not.
-A request for
-.I /adm\ehome.htm
-is not asked for the password that
-.I /adm/home.htm
-needs, and
-.I /CGI\-BIN/hello.cgi
-sends the source of the program.
-Windows also ignores a final dot in a directory name, a final dot or
-space in a file name, and a
-.B ::$DATA
-suffix, which names the file's contents.
-So
-.I /adm./home.htm
-skips the password,
-.I /cgi\-bin./hello.cgi
-sends the source, and
-.I /httpd.conf.\&
-sends the configuration file, passwords included.
 Passwords cross the network in the clear, and there is no TLS.
+A junction or symbolic link below the home directory is followed, even
+to a file outside it.
 .PP
 The decoded bytes of a URL path are the file name in the ANSI code page,
 which is UTF-8 on Windows 10 version 1903 and later.
@@ -959,13 +933,16 @@ has other characters cannot be served.
 Windows file names are not case-sensitive, so
 .I /A.TXT
 finds
-.IR a.txt .
+.IR a.txt ,
+but a request that changes the case of a letter outside ASCII is
+answered with
+.BR 404 .
 The match of suffixes for
 .B Content\-type
-and of the
+is case-sensitive, and the match of the
 .I cgi\-bin/
-prefix are case-sensitive, and the match of
-.I httpd.conf
+prefix, of interpreter suffixes, of
+.IR httpd.conf ,
 and of password paths is not.
 .SH SEE ALSO
 .BR busybox (1),

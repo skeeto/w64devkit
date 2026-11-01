@@ -1,0 +1,57 @@
+Start httpd's child processes where the config file was read.
+On Windows, each connection is served by a new httpd process, and each
+CGI program is started through another, and both read the config file
+again from the current directory they inherit. An H line had already
+moved the server into the new home directory, so in the children a
+relative H was taken relative to itself, and a relative -c file was
+looked for in the wrong place. Both are fatal, so every connection was
+closed without a reply.
+
+Remember the directory in which the first H line was read, and return
+to it before starting a child process.
+
+---
+ networking/httpd.c |   11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+--- a/networking/httpd.c
++++ b/networking/httpd.c
+@@ -513,6 +513,7 @@
+ #endif
+ #if ENABLE_PLATFORM_MINGW32
+ 	smallint foreground;
++	char *spawn_dir;        /* where an H line was read */
+ # if ENABLE_FEATURE_HTTPD_CGI
+ 	int server_argc;
+ 	char **server_argv;
+@@ -922,6 +923,12 @@
+ 
+ 		/* do not allow jumping around using H in subdir's configs */
+ 		if (flag == FIRST_PARSE && ch == 'H') {
++#if ENABLE_PLATFORM_MINGW32
++			/* Our child processes read this file again: they
++			 * must start from here for H and -c to mean the same */
++			if (!G.spawn_dir)
++				G.spawn_dir = xrealloc_getcwd_or_warn(NULL);
++#endif
+ 			home_httpd = xstrdup(after_colon);
+ 			xchdir(home_httpd);
+ 			continue;
+@@ -1921,6 +1928,8 @@
+ #endif
+ 	/* argv[server_argc + N] = NULL; - xzalloc did it */
+ 
++	if (G.spawn_dir)
++		xchdir(G.spawn_dir);
+ 	pid = foreground ? mingw_spawn(argv) : mingw_spawn_detach(argv);
+ 	if (pid == -1)
+ 		log_and_exit();
+@@ -3270,6 +3279,8 @@
+ 	argv_copy[3] = (char *)"-I";
+ 	memcpy(&argv_copy[5], &argv[1], argc * sizeof(argv[0]));
+ 
++	if (G.spawn_dir)
++		xchdir(G.spawn_dir);
+ 	while (1) {
+ 		int n;
+ 

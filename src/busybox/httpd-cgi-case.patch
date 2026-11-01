@@ -1,0 +1,49 @@
+Ignore case in httpd's cgi-bin/ and interpreter checks on Windows.
+Windows file names are not case-sensitive, but httpd decided whether a
+file is a CGI program by comparing the path with "cgi-bin/" and its
+suffix with the "*.ext:interpreter" lines exactly. A request for
+/CGI-BIN/hello.cgi, or /index.PHP with a "*.php" line, opened the same
+file but sent its source instead of running it.
+
+Compare without regard to case on Windows.
+
+---
+ networking/httpd.c |   11 ++++++++++-
+ 1 file changed, 10 insertions(+), 1 deletion(-)
+
+--- a/networking/httpd.c
++++ b/networking/httpd.c
+@@ -1909,7 +1909,7 @@
+ 		if (suffix) {
+ 			Htaccess *cur;
+ 			for (cur = script_i; cur; cur = cur->next) {
+-				if (strcmp(cur->before_colon + 1, suffix) == 0) {
++				if (strcasecmp(cur->before_colon + 1, suffix) == 0) {
+ 					/* found interpreter name */
+ 					argv[server_argc + 6] = (char *)cur->after_colon;
+ 					argv[server_argc + 7] = (char *)script;
+@@ -2827,7 +2827,12 @@
+ 	tptr = urlcopy + 1;      /* skip first '/' */
+ 
+ #if ENABLE_FEATURE_HTTPD_CGI
++# if !ENABLE_PLATFORM_MINGW32
+ 	if (is_prefixed_with(tptr, "cgi-bin/")) {
++# else
++	/* file names are case-insensitive: "/CGI-BIN/x" is cgi-bin/x too */
++	if (is_prefixed_with_case(tptr, "cgi-bin/")) {
++# endif
+ 		IF_FEATURE_HTTPD_CONFIG_WITH_SCRIPT_INTERPR(script_i = NULL; /* no interpreter */)
+ 		cgi_type = CGI_NORMAL;
+ 		if (stat(tptr, &sb) == 0) {
+@@ -2866,7 +2871,11 @@
+ 				char *suffix = strrchr(tptr, '.');
+ 				if (suffix) {
+ 					for (; script_i; script_i = script_i->next) {
++# if !ENABLE_PLATFORM_MINGW32
+ 						if (strcmp(script_i->before_colon + 1, suffix) == 0) {
++# else
++						if (strcasecmp(script_i->before_colon + 1, suffix) == 0) {
++# endif
+ 							cgi_type = CGI_INTERPRETER;
+ 							break;
+ 						}

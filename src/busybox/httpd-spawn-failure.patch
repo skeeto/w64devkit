@@ -1,0 +1,24 @@
+Keep serving when httpd cannot start the process for a connection.
+On Windows, the server starts a new process for each connection, and
+died with bb_perror_msg_and_die() if that failed. Since the exit status
+had been set to 0 for the serving loop, one failure ended the server
+with a successful status, while on other systems a failed fork() only
+drops that connection.
+
+Report the error, close the connection and go on.
+
+---
+ networking/httpd.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/networking/httpd.c
++++ b/networking/httpd.c
+@@ -3284,7 +3284,7 @@
+ 		argv_copy[4] = itoa(n);
+ 		if ((foreground ?
+ 				spawn(argv_copy) : mingw_spawn_detach(argv_copy)) == -1)
+-			bb_perror_msg_and_die("can't execute 'httpd'");
++			bb_perror_msg("can't execute 'httpd'");
+ 
+ 		/* parent, or spawn failed */
+ 		close(n);
