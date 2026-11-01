@@ -325,7 +325,7 @@ or one that is only a drive, is refused.
 .B rm
 clears the read-only attribute of a file before it removes it, and of a
 directory once the directory is empty, so read-only items are removed.
-If the removal then fails, the attribute stays cleared.
+If the removal then fails, the attribute is set again.
 Hidden and system files are removed like any other.
 .PP
 Windows does not remove a file that another program has open without

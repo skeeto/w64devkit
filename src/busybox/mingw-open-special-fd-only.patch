@@ -1,0 +1,26 @@
+Emulate /dev/zero and /dev/urandom only for O_SPECIAL opens.
+mingw_open called update_special_fd after every open of /dev/zero or
+/dev/urandom, including a plain write-only open, which goes to the null
+device. That replaced the descriptor of an earlier O_SPECIAL open, and
+closing the null device one then cleared it, so the earlier descriptor
+read from the null device instead. "shred -z /dev/zero FILE" thus wrote
+no zeros to FILE, and "shred /dev/urandom FILE" no random data, yet
+both exited with status 0. Record the descriptor only for O_SPECIAL
+opens, which are the ones the emulation is for.
+
+---
+ win32/mingw.c |    3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+--- a/win32/mingw.c
++++ b/win32/mingw.c
+@@ -270,7 +270,8 @@
+ 
+ 	fd = open(filename, oflags&~O_SPECIAL, pmode);
+ 	if (fd >= 0) {
+-		update_special_fd(dev, fd);
++		if (special)
++			update_special_fd(dev, fd);
+ 	}
+ 	else if ((oflags & O_ACCMODE) != O_RDONLY && errno == EACCES) {
+ 		if (mingw_is_directory(filename))

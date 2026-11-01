@@ -1,0 +1,29 @@
+Open files for writing in fsync and sync FILE on Windows.
+fsync and "sync FILE" open the file read-only, as on Linux, but
+FlushFileBuffers needs a handle with write access. The fsync emulation
+treats the resulting ERROR_ACCESS_DENIED as success, so nothing was
+ever flushed while the exit status was 0. Open the file read-write
+first, and fall back to the read-only open only when that fails.
+
+---
+ coreutils/sync.c |    8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+--- a/coreutils/sync.c
++++ b/coreutils/sync.c
+@@ -54,8 +54,14 @@
+ 
+ 	ret = EXIT_SUCCESS;
+ 	do {
++		int fd;
++# if ENABLE_PLATFORM_MINGW32
++		/* Windows can only flush a file that is open for writing */
++		fd = open(*argv, O_RDWR);
++		if (fd < 0)
++# endif
+ 		/* GNU "sync FILE" uses O_NONBLOCK open */
+-		int fd = open_or_warn(*argv, /*O_NOATIME |*/ O_NOCTTY | O_RDONLY | O_NONBLOCK);
++		fd = open_or_warn(*argv, /*O_NOATIME |*/ O_NOCTTY | O_RDONLY | O_NONBLOCK);
+ 		/* open(NOATIME) can only be used by owner or root, don't use NOATIME here */
+ 
+ 		if (fd < 0) {

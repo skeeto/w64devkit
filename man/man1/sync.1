@@ -101,11 +101,8 @@ option and no
 operands, so it cannot flush individual files.
 The
 .B fsync
-applet takes file operands, but opens them read-only, which on Windows
-flushes nothing.
-See
-.BR fsync (1)
-for ways to flush a file.
+applet flushes individual files; see
+.BR fsync (1).
 .SH SEE ALSO
 .BR busybox (1),
 .BR fsync (1)

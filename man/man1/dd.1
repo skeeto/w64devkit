@@ -273,11 +273,6 @@ bytes before writing it.
 .TP
 .B conv=fsync
 Flush the output file to disk before finishing.
-With different
-.B ibs
-and
-.BR obs ,
-the flush comes before the final short output block is written.
 It fails with status 1 when the output is
 .IR /dev/null ,
 with
@@ -517,19 +512,12 @@ the names
 .IR /dev/tty ,
 .IR /dev/stdin ,
 .IR /dev/stdout ,
+.IR /dev/stderr ,
 and
-.I /dev/stderr
+.I /dev/fd/n
 work as on Unix, with
 .I /dev/tty
 the console.
-.I /dev/fd/n
-gives descriptor
-.I n
-itself rather than a copy, and
-.B dd
-closes it once it has moved it to standard input or output, so
-.B of=/dev/fd/2
-loses the record counts and later error messages.
 .I /dev/zero
 and
 .I /dev/urandom
@@ -558,7 +546,6 @@ stops with an error before copying.
 When the output is a console, each block is converted for display from
 the ANSI code page, which is UTF-8 on Windows 10 version 1903 and later,
 and escape sequences, such as those for color, take effect.
-A block that contains a NUL byte is written unconverted.
 Redirect the output to a file or a pipe when copying binary data.
 Data read from a console is converted from the console's input code page
 to the ANSI code page, unless the ANSI code page is UTF-8.

@@ -1,4 +1,4 @@
-.TH FIND 1 2026-10-27 "w64devkit" "w64devkit Manual"
+.TH FIND 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 find \- search for files in a directory hierarchy
 .SH SYNOPSIS
@@ -514,7 +514,7 @@ Delete the file or directory.
 Always true, even when the deletion fails: the failure is reported on
 standard error and the exit status is not affected.
 A read-only file is deleted too, and a directory must be empty.
-The read-only attribute is cleared first, and stays cleared when the
+The read-only attribute is cleared first, and set again when the
 deletion then fails.
 A path named exactly
 .B .\&

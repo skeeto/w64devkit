@@ -1,0 +1,27 @@
+Report why cp could not remove an existing destination.
+When the destination could not be created and then could not be
+unlinked either, ask_and_unlink always printed the error from the first
+attempt. For an existing destination that is EEXIST, so a destination
+that could not be removed, such as a file in use, gave "can't create
+'dst': File exists", which hides the real cause. Keep the first error
+only when unlink says the destination does not exist, and otherwise
+report the unlink error.
+
+---
+ libbb/copy_file.c |    5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+--- a/libbb/copy_file.c
++++ b/libbb/copy_file.c
+@@ -60,7 +60,10 @@
+ 			return -1; /* error */
+ 		}
+ #endif
+-		errno = e; /* do not use errno from unlink */
++		/* If dest is not there, say why it could not be created;
++		 * else say why it could not be removed */
++		if (errno == ENOENT)
++			errno = e;
+ 		bb_perror_msg("can't create '%s'", dest);
+ 		return -1; /* error */
+ 	}

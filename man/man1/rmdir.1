@@ -1,4 +1,4 @@
-.TH RMDIR 1 2026-10-20 "w64devkit" "w64devkit Manual"
+.TH RMDIR 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 rmdir \- remove empty directories
 .SH SYNOPSIS
@@ -278,8 +278,8 @@ fails with
 A read-only directory is removed.
 .B rmdir
 clears the read-only attribute of each path before it tries to remove
-it, so a file or directory that then cannot be removed, such as a
-directory that is not empty, is left without the attribute.
+it, and sets it again if the path then cannot be removed, such as a
+directory that is not empty.
 .PP
 Paths may have drive letters and backslashes.
 Both kinds of slash separate components, and messages show a path as

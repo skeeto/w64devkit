@@ -1,0 +1,37 @@
+Open /dev/fd/N as a new descriptor, not as N itself.
+mingw_open and mingw_fopen returned descriptor N itself for /dev/fd/N,
+unlike /dev/stdin and the other names, which are duplicated as on
+Linux. Closing the result therefore closed the caller's descriptor N:
+"dd of=/dev/fd/2" closed standard error after moving it to standard
+output, so its record counts were lost, and "od /dev/fd/0 /dev/fd/0"
+failed on the second operand with "Bad file descriptor". Return a
+duplicate instead.
+
+---
+ win32/mingw.c |    7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+--- a/win32/mingw.c
++++ b/win32/mingw.c
+@@ -257,7 +257,7 @@
+ 			return mingw_popen_special(filename);
+ 		}
+ 	} else if ((fd=get_dev_fd(filename)) >= 0)
+-		return fd;
++		return dup(fd);
+ 
+ 	if ((oflags & O_CREAT)) {
+ 		va_start(args, oflags);
+@@ -318,8 +318,11 @@
+ 	} else if (dev == DEV_URANDOM || dev == DEV_ZERO) {
+ 		fd = mingw_popen_special(filename);
+ 		return fd == -1 ? NULL : fdopen(fd, "rb");
+-	} else if ((fd=get_dev_fd(filename)) >= 0)
++	} else if ((fd=get_dev_fd(filename)) >= 0) {
++		if ((fd = dup(fd)) < 0)
++			return NULL;
+ 		return fdopen(fd, otype);
++	}
+ 	stream = fopen(filename, otype);
+ 	if (stream == NULL && errno == EACCES && strcmp(otype, "r") == 0 &&
+ 			mingw_is_directory(filename))

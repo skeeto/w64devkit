@@ -1,0 +1,68 @@
+Extend files with SetEndOfFile instead of the CRT's ftruncate.
+mingw-w64's ftruncate calls msvcrt's _chsize_s when it is available,
+and _chsize_s extends a file by writing zeros to it. So "truncate -s"
+and dd with seek= took time and disk space in proportion to the growth,
+even though both mark the file sparse first, and a huge size ran until
+the disk was full. Add a mingw_ftruncate that sets the size of a disk
+file with SetEndOfFile, which allocates nothing for a sparse file and
+leaves the new range reading as zeros, and use the CRT for other
+handles.
+
+---
+ include/mingw.h |    2 ++
+ win32/mingw.c   |   26 ++++++++++++++++++++++++++
+ 2 files changed, 28 insertions(+)
+
+--- a/include/mingw.h
++++ b/include/mingw.h
+@@ -526,6 +526,7 @@
+ int mingw_dup2 (int fd, int fdto) FAST_FUNC;
+ char *mingw_getcwd(char *pointer, int len) FAST_FUNC;
+ off_t mingw_lseek(int fd, off_t offset, int whence) FAST_FUNC;
++int mingw_ftruncate(int fd, off_t length) FAST_FUNC;
+ 
+ 
+ int getuid(void);
+@@ -589,6 +590,7 @@
+ #define sync mingw_sync
+ #undef lseek
+ #define lseek mingw_lseek
++#define ftruncate mingw_ftruncate
+ 
+ #undef access
+ #define access mingw_access
+--- a/win32/mingw.c
++++ b/win32/mingw.c
+@@ -2489,6 +2489,32 @@
+ 	return _lseeki64(fd, offset, whence);
+ }
+ 
++#undef ftruncate
++int FAST_FUNC mingw_ftruncate(int fd, off_t length)
++{
++	HANDLE h = (HANDLE)_get_osfhandle(fd);
++	LARGE_INTEGER zero, pos, len;
++	BOOL ok;
++
++	/* The CRT extends a file by writing zeros, which is slow and
++	 * fills a sparse file.  SetEndOfFile() just sets the size. */
++	if (h == INVALID_HANDLE_VALUE || GetFileType(h) != FILE_TYPE_DISK ||
++			length < 0)
++		return ftruncate(fd, length);
++
++	zero.QuadPart = 0;
++	len.QuadPart = length;
++	if (!SetFilePointerEx(h, zero, &pos, FILE_CURRENT)) {
++		errno = err_win_to_posix();
++		return -1;
++	}
++	ok = SetFilePointerEx(h, len, NULL, FILE_BEGIN) && SetEndOfFile(h);
++	if (!ok)
++		errno = err_win_to_posix();
++	SetFilePointerEx(h, pos, NULL, FILE_BEGIN);
++	return ok ? 0 : -1;
++}
++
+ /* precise time is only supported since win8 */
+ #undef GetSystemTimePreciseAsFileTime
+ void CompatGetSystemTimePreciseAsFileTime(FILETIME *ft)

@@ -1,0 +1,72 @@
+Make shred fail when a pass cannot be written.
+shred ignored the results of bb_copyfd_size and fdatasync, so a write
+error, such as a full disk, was reported but the exit status stayed 0,
+the remaining passes were still attempted, and -u then removed a file
+that had not been overwritten. Stop at the first failed write or sync
+of a file, keep the file, go on to the next one, and exit with status
+1, as GNU shred does.
+
+---
+ coreutils/shred.c |   29 ++++++++++++++++++++++-------
+ 1 file changed, 22 insertions(+), 7 deletions(-)
+
+--- a/coreutils/shred.c
++++ b/coreutils/shred.c
+@@ -39,12 +39,24 @@
+ 
+ #include "libbb.h"
+ 
++static int write_pass(int src_fd, int fd, off_t size, const char *fname)
++{
++	if (bb_copyfd_size(src_fd, fd, size) < 0)
++		return -1; /* already complained */
++	if (fdatasync(fd) != 0) {
++		bb_simple_perror_msg(fname);
++		return -1;
++	}
++	return 0;
++}
++
+ int shred_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
+ int shred_main(int argc UNUSED_PARAM, char **argv)
+ {
+ 	char *opt_s;
+ 	int rand_fd = rand_fd; /* for compiler */
+ 	int zero_fd;
++	int ret = EXIT_SUCCESS;
+ 	unsigned num_iter = 3;
+ 	unsigned opt;
+ 	enum {
+@@ -91,14 +103,12 @@
+ 			}
+ 
+ 			for (i = 0; i < num_iter; i++) {
+-				bb_copyfd_size(rand_fd, fd, size);
+-				fdatasync(fd);
++				if (write_pass(rand_fd, fd, size, fname) != 0)
++					goto fail;
+ 				xlseek(fd, 0, SEEK_SET);
+ 			}
+-			if (opt & OPT_z) {
+-				bb_copyfd_size(zero_fd, fd, size);
+-				fdatasync(fd);
+-			}
++			if ((opt & OPT_z) && write_pass(zero_fd, fd, size, fname) != 0)
++				goto fail;
+ 		}
+ 		if (opt & OPT_u) {
+ 			ftruncate(fd, 0);
+@@ -111,7 +121,12 @@
+ 		else
+ #endif
+ 		xclose(fd);
++		continue;
++ fail:
++		/* do not remove a file which was not overwritten */
++		xclose(fd);
++		ret = EXIT_FAILURE;
+ 	}
+ 
+-	return EXIT_SUCCESS;
++	return ret;
+ }

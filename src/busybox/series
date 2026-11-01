@@ -203,3 +203,14 @@ dirname-double-slash.patch
 ttysize-leading-space.patch
 which-applet-break.patch
 which-option-name.patch
+mingw-unlink-keep-readonly.patch
+copy-file-unlink-errno.patch
+mingw-dev-fd-dup.patch
+mingw-open-special-fd-only.patch
+mingw-fstat-pipe-char-type.patch
+sync-file-open-rdwr.patch
+shred-error-status.patch
+shred-check-size-once.patch
+dd-fsync-after-last-block.patch
+truncate-size-range.patch
+mingw-ftruncate-sparse.patch

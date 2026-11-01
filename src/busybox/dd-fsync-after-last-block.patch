@@ -1,0 +1,36 @@
+Sync the output after dd writes the final partial block.
+With different ibs and obs, data left in the output buffer at the end
+of input is written after the main loop, but conv=fsync synced the
+output before that write, so the final partial output block was not
+covered by the sync. Write the remaining data first.
+
+---
+ coreutils/dd.c |   11 ++++++-----
+ 1 file changed, 6 insertions(+), 5 deletions(-)
+
+--- a/coreutils/dd.c
++++ b/coreutils/dd.c
+@@ -704,17 +704,18 @@
+ 		}
+ 	}
+ 
+-	if (G.flags & FLAG_FSYNC) {
+-		if (fsync(ofd) < 0)
+-			goto die_outfile;
+-	}
+-
+ #if ENABLE_FEATURE_DD_IBS_OBS
+ 	if (ocount != 0) {
+ 		if (write_and_stats(obuf, ocount, obs, outfile))
+ 			goto out_status;
+ 	}
+ #endif
++
++	if (G.flags & FLAG_FSYNC) {
++		if (fsync(ofd) < 0)
++			goto die_outfile;
++	}
++
+ 	if (close(ifd) < 0) {
+  die_infile:
+ 		bb_simple_perror_msg_and_die(infile);

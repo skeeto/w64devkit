@@ -1,0 +1,93 @@
+Restore the read-only attribute when unlink or rmdir fails.
+mingw_unlink and mingw_rmdir cleared the read-only attribute so that a
+read-only file or directory could be removed, but left it cleared when
+the removal then failed, for example because another process held the
+file open or the directory was not empty. So rm, rmdir, find -delete,
+and cp or install replacing a file all turned a read-only file that
+they could not remove into a writable one. Clear the attribute only
+when it is set, and put it back if the removal fails, as mingw_rename
+already does.
+
+---
+ win32/mingw.c |   44 +++++++++++++++++++++++++++++++++++++-------
+ 1 file changed, 37 insertions(+), 7 deletions(-)
+
+--- a/win32/mingw.c
++++ b/win32/mingw.c
+@@ -2036,23 +2036,48 @@
+ 	return result;
+ }
+ 
++/*
++ * Read-only files and directories cannot be removed.  Clear the
++ * attribute and return the original attributes, or 0 if unchanged.
++ */
++static DWORD clear_readonly(const char *path)
++{
++	DWORD attrs = GetFileAttributes(path);
++
++	if (attrs != INVALID_FILE_ATTRIBUTES &&
++			(attrs & FILE_ATTRIBUTE_READONLY) &&
++			SetFileAttributes(path, attrs & ~FILE_ATTRIBUTE_READONLY))
++		return attrs;
++	return 0;
++}
++
++/* Put back the attributes if the removal failed, preserving errno. */
++static void restore_readonly(const char *path, DWORD attrs)
++{
++	if (attrs) {
++		int err = errno;
++		SetFileAttributes(path, attrs);
++		errno = err;
++	}
++}
++
+ #undef unlink
+ #undef rmdir
+ int FAST_FUNC mingw_unlink(const char *pathname)
+ {
+ 	int ret;
++	DWORD attrs = clear_readonly(pathname);
+ 
+-	/* read-only files cannot be removed */
+-	chmod(pathname, 0666);
+-
+ 	ret = unlink(pathname);
+ 	if (ret == -1 && errno == EACCES) {
+ 		/* a symlink to a directory needs to be removed by calling rmdir */
+ 		/* (the *real* Windows rmdir, not mingw_rmdir) */
+ 		if (is_symlink(pathname)) {
+-			return rmdir(pathname);
++			ret = rmdir(pathname);
+ 		}
+ 	}
++	if (ret == -1)
++		restore_readonly(pathname, attrs);
+ 	return ret;
+ }
+ 
+@@ -2232,15 +2257,20 @@
+ 
+ int FAST_FUNC mingw_rmdir(const char *path)
+ {
++	DWORD attrs;
++	int ret;
++
+ 	/* On Linux rmdir(2) doesn't remove symlinks */
+ 	if (is_symlink(path)) {
+ 		errno = ENOTDIR;
+ 		return -1;
+ 	}
+ 
+-	/* read-only directories cannot be removed */
+-	chmod(path, 0666);
+-	return rmdir(path);
++	attrs = clear_readonly(path);
++	ret = rmdir(path);
++	if (ret == -1)
++		restore_readonly(path, attrs);
++	return ret;
+ }
+ 
+ void mingw_sync(void)

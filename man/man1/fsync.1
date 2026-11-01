@@ -1,4 +1,4 @@
-.TH FSYNC 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH FSYNC 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 fsync \- request that files be flushed to disk
 .SH SYNOPSIS
@@ -9,21 +9,21 @@ fsync \- request that files be flushed to disk
 .B fsync
 opens each
 .I file
-read-only, requests that its buffered data be written to disk, and
-closes it, in the order given.
+for reading and writing, requests that its buffered data be written to
+disk, and closes it, in the order given.
 A
 .I file
 that cannot be opened is reported on standard error and skipped, and the
 remaining files are still processed.
 Nothing is written to standard output.
 .PP
-On Windows, a file opened read-only cannot be flushed.
-The request fails with an access error, which
+A
+.I file
+that cannot be opened for writing, such as a read-only file, is opened
+read-only instead, and on Windows it is then not flushed, though
 .B fsync
-treats as success, so naming a file flushes nothing.
-See
-.B NOTES
-for a way to flush.
+reports success; see
+.BR NOTES .
 .SH OPTIONS
 Options may be grouped, as in
 .BR \-dd ,
@@ -114,14 +114,11 @@ fsync: \fIfile\fR: \fIreason\fR
 .EE
 .RE
 .SH EXAMPLES
-Flush a file through a handle that the shell opens for appending, which,
-unlike one that
-.B fsync
-opens itself, has write access:
+Flush a file:
 .PP
 .RS 4
 .EX
-$ fsync /dev/stdout >>data.db
+$ fsync data.db
 .EE
 .RE
 .PP
@@ -135,11 +132,7 @@ fsync: can\(aqt open \(aqmissing.db\(aq: No such file or directory
 .EE
 .RE
 .PP
-Copy a file and flush the copy.
-Unlike
-.BR fsync ,
-.B dd
-flushes through the handle it wrote with:
+Copy a file and flush the copy:
 .PP
 .RS 4
 .EX
@@ -147,33 +140,26 @@ $ dd if=in.bin of=out.bin conv=fsync
 .EE
 .RE
 .SH NOTES
-For a named file, opening it for reading is all that
-.B fsync
-does.
 Windows allows
 .B FlushFileBuffers
-only on a handle with write access, and
+only on a handle with write access, which is why
 .B fsync
-opens each file read-only.
-The flush fails with an access-denied error, which busybox's emulation
-of the C function
+opens each file for writing.
+A file that cannot be opened for writing, such as one with the
+read-only attribute or one that another program has open without
+allowing writes, is opened read-only.
+Its flush then fails with an access-denied error, which busybox's
+emulation of the C function
 .B fsync
-deliberately reports as success.
-The exit status therefore shows only that each file could be opened for
-reading.
+deliberately reports as success, so the file is not flushed and the
+exit status is unaffected.
 .PP
-To get data to disk, flush through a handle with write access.
-.B dd\ conv=fsync
-does so for its output file.
 .I /dev/stdout
 and
 .I /dev/fd/N
-reuse an open descriptor, with its access rights, so the shell's
-redirection in the first example under
-.B EXAMPLES
-gives
-.B fsync
-a handle it can flush.
+reuse an open descriptor, with its access rights, so
+.B "fsync /dev/stdout >>data.db"
+flushes through the shell's handle.
 .PP
 A directory operand fails with
 .BR "Permission denied" .
@@ -182,12 +168,15 @@ File names may use drive letters and backslashes.
 They may contain any Unicode characters on Windows 10 version 1903 and
 later, and are limited to the system code page on earlier versions.
 The device names
-.IR /dev/null ,
 .IR /dev/tty ,
 .IR /dev/zero ,
 and
 .I /dev/urandom
 are accepted, and succeed.
+.I /dev/null
+fails with
+.BR "Input/output error" ,
+because Windows cannot flush the null device.
 .IR /dev/stdin ,
 .IR /dev/stdout ,
 .IR /dev/stderr ,

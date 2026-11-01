@@ -142,6 +142,9 @@ or
 .BR \-F ,
 .B tail
 writes the initial output, and then runs until interrupted.
+With no
+.I file
+operand, both are ignored when standard input is a pipe.
 Every
 .B \-s
 seconds it reads each file again, in operand order, and writes any data
@@ -464,9 +467,13 @@ Where GNU
 .B tail
 ignores
 .B \-f
-for a pipe on standard input, this one keeps polling the pipe forever,
-even after the writer exits.
-Interrupt it.
+for a pipe on standard input, this one does so only when there is no
+.I file
+operand.
+Given
+.B \-
+as an operand, it keeps polling the pipe forever, even after the writer
+exits.
 .IP \(bu 2
 When both
 .B \-c

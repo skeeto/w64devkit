@@ -1,0 +1,35 @@
+Reject a truncate size that does not fit in off_t.
+The size was parsed as an unsigned long long and stored in off_t, so a
+size above the off_t maximum became negative. truncate then created
+the file and failed to resize it with "Invalid argument". Parse it with
+XATOOFF_SFX, which limits it to the off_t range, so it is rejected
+before any file is touched.
+
+---
+ coreutils/truncate.c |    8 +-------
+ 1 file changed, 1 insertion(+), 7 deletions(-)
+
+--- a/coreutils/truncate.c
++++ b/coreutils/truncate.c
+@@ -28,12 +28,6 @@
+ 
+ #include "libbb.h"
+ 
+-#if ENABLE_LFS
+-# define XATOU_SFX xatoull_sfx
+-#else
+-# define XATOU_SFX xatoul_sfx
+-#endif
+-
+ /* This is a NOFORK applet. Be very careful! */
+ 
+ int truncate_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
+@@ -59,7 +53,7 @@
+ 	// with truncate, but not with dd!
+ 	// We share kMG_suffixes[], so we can't make both tools
+ 	// compatible at once...
+-	size = XATOU_SFX(size_str, kMG_suffixes);
++	size = XATOOFF_SFX(size_str, kMG_suffixes);
+ 
+ 	argv += optind;
+ 	while (*argv) {

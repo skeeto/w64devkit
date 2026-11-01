@@ -1,4 +1,4 @@
-.TH SHRED 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH SHRED 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 shred \- overwrite and optionally remove files to hide their contents
 .SH SYNOPSIS
@@ -31,6 +31,13 @@ The random bytes come from the Windows generator
 Files are processed in order.
 The first file that cannot be opened or removed ends the run with an
 error: earlier files stay shredded, and later ones are not touched.
+A read or write error during a pass, such as a full disk, is reported on
+standard error and ends the passes for that file, which is kept even
+with
+.BR \-u ,
+and
+.B shred
+goes on to the next file.
 A directory cannot be opened.
 An operand of
 .B \-
@@ -98,8 +105,7 @@ An invalid
 .IR size ,
 such as one that is negative, has leading white space, or is followed by
 other text, prints the usage message on standard error and exits with
-status 1.
-It is not examined for a file of length 0.
+status 1 before any file is opened.
 .TP
 .BI "\-n " count
 Make
@@ -155,10 +161,6 @@ control console output, are described in
 .TP
 .B 0
 Every file was processed.
-A read or write error during a pass is reported on standard error, but
-does not stop
-.B shred
-or change the status.
 .TP
 .B 1
 Invalid command line, with a usage message on standard error; an invalid
@@ -169,6 +171,9 @@ a file that cannot be opened or removed; or a failure to rewind or close
 a file.
 .B shred
 stops at the first such failure.
+A read or write error during a pass also gives status 1, but
+.B shred
+goes on to the next file.
 .SH EXAMPLES
 Overwrite a file, zero it, and remove it:
 .PP
@@ -226,8 +231,7 @@ and
 .B \-x
 do nothing.
 .IP \(bu 2
-The first file that cannot be opened or removed ends the run, and a
-read or write error does not change the exit status.
+The first file that cannot be opened or removed ends the run.
 .IP \(bu 2
 .B \-u
 removes a file without first renaming it.
@@ -252,15 +256,7 @@ An operand of
 .I /dev/urandom
 or
 .I /dev/zero
-is the null device, and it breaks the passes for the files after it:
-after
-.IR /dev/urandom ,
-the random passes write nothing, and after
-.IR /dev/zero ,
-the
-.B \-z
-pass writes nothing.
-The exit status is still 0.
+is the null device, which has length 0, so nothing is written to it.
 .SH SEE ALSO
 .BR busybox (1),
 .BR chmod (1),

@@ -105,9 +105,8 @@ deletes the old file, even a read-only one, and creates it again.
 So other hard links to the old file keep its contents, and a symbolic
 link at the destination is replaced rather than followed.
 A file that cannot be deleted, such as a running program, is not
-replaced, and the copy fails with
-.BR "File exists" ,
-but a read-only one is left writable.
+replaced, and the copy fails with the reason, such as
+.BR "Permission denied" .
 .PP
 It is an error for a destination to be the same file as its source.
 .B install

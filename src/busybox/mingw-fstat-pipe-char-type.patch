@@ -1,0 +1,40 @@
+Give pipes and character devices a file type in fstat.
+For a handle that is not a disk file, mingw_fstat set only permission
+bits in st_mode, so S_ISFIFO and S_ISCHR were false for pipes, consoles
+and the null device, although stat on the same devices by name reports
+them. tail -f with standard input on a pipe therefore did not drop the
+-f as on Linux and never exited after the input ended. Set S_IFIFO or
+S_IFCHR from GetFileType, as file_attr_to_st_mode does for stat.
+
+---
+ win32/mingw.c |    7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+--- a/win32/mingw.c
++++ b/win32/mingw.c
+@@ -938,12 +938,13 @@
+ {
+ 	HANDLE fh = (HANDLE)_get_osfhandle(fd);
+ 	BY_HANDLE_FILE_INFORMATION fdata;
++	DWORD type;
+ 
+ 	if (fh == INVALID_HANDLE_VALUE)
+ 		goto fail;
+ 
+ 	/* direct non-file handles to MS's fstat() */
+-	if (GetFileType(fh) != FILE_TYPE_DISK) {
++	if ((type=GetFileType(fh)) != FILE_TYPE_DISK) {
+ 		struct _stati64 buf64;
+ 
+ 		if (_fstati64(fd, &buf64) != 0)
+@@ -951,6 +952,10 @@
+ 
+ 		buf->st_mode = (S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH|S_IWOTH)
+ 							& ~(current_umask & 0022);
++		if (type == FILE_TYPE_PIPE)
++			buf->st_mode |= S_IFIFO;
++		else if (type == FILE_TYPE_CHAR)
++			buf->st_mode |= S_IFCHR;
+ 		buf->st_attr = FILE_ATTRIBUTE_NORMAL;
+ 		buf->st_size = buf64.st_size;
+ 		buf->st_atim.tv_sec = buf64.st_atime;

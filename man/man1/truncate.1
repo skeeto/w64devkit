@@ -1,4 +1,4 @@
-.TH TRUNCATE 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH TRUNCATE 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 truncate \- shrink or extend files to a given size
 .SH SYNOPSIS
@@ -85,26 +85,22 @@ Suffixes are case-sensitive:
 .BR GB ", " GD
 1000000000.
 .PP
-A number that is malformed, or that does not fit in 64 bits unsigned,
-ends
+A number that is malformed or too large ends
 .B truncate
-with status 1 and one of these messages, the second for a number that
-its suffix makes too large:
+with status 1 and one of these messages, the first for a malformed
+number or one that does not fit in 64 bits unsigned, and the second for
+a number, with its suffix applied, above 9223372036854775807:
 .PP
 .RS 4
 .EX
 truncate: invalid number \(aq\fIsize\fR\(aq
-truncate: number \fIsize\fR is not in 0..18446744073709551615 range
+truncate: number \fIsize\fR is not in 0..9223372036854775807 range
 .EE
 .RE
 .PP
-A
-.I size
-above 9223372036854775807 is accepted, but resizing then fails with
-.BR "Invalid argument" ,
-after the
+No
 .I file
-is created if it did not exist.
+is created or changed in either case.
 .SH OPTIONS
 Options may be grouped, as in
 .BR "\-cs 1M" ,
@@ -309,15 +305,13 @@ forms such as
 .B KiB
 are invalid.
 .PP
-Extending a file allocates the new range on disk and fills it with
-zeros, so it takes time and disk space in proportion to the growth.
-A very large size keeps running until the disk is full or
-.B truncate
-is interrupted, and an interrupted run leaves the file partly extended.
+Extending a file sets its length without writing the new range, which
+reads as zero bytes.
 On NTFS,
 .B truncate
-first marks the file sparse, and the mark stays on the file, but the new
-range is allocated like any other data, not left as a hole.
+first marks the file sparse, and the mark stays on the file, so the new
+range takes no disk space.
+On other file systems the range is allocated on disk.
 .PP
 A directory operand fails with
 .BR "Is a directory" ,
