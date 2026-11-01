@@ -1,0 +1,44 @@
+Report a failure to signal the child in timeout.
+On Windows timeout ignored the result of kill(), so when the signal
+could not be delivered, as for a 32-bit program run by a 64-bit
+timeout or the reverse with any signal but KILL, timeout exited 124
+without a word and left the program running. Print an error when
+kill() fails and the child is still running. A child that exited just
+before the signal is not reported, and the exit status is unchanged.
+
+---
+ coreutils/timeout.c |   12 ++++++++++--
+ 1 file changed, 10 insertions(+), 2 deletions(-)
+
+--- a/coreutils/timeout.c
++++ b/coreutils/timeout.c
+@@ -60,6 +60,14 @@
+ 	}
+ }
+ 
++/* Report a failure to signal the child, unless it has already exited */
++static void signal_child(pid_t pid, int signo)
++{
++	if (kill(pid, signo) != 0 &&
++			WaitForSingleObject(child, 0) != WAIT_OBJECT_0)
++		bb_perror_msg("can't kill pid %d", (int)pid);
++}
++
+ /* Return TRUE if child exits before timeout expires */
+ static NOINLINE int timeout_wait(duration_t timeout, HANDLE proc, DWORD *status)
+ {
+@@ -217,12 +225,12 @@
+ 
+ 	pid = (pid_t)GetProcessId(child);
+ 	if (pid) {
+-		kill(pid, signo);
++		signal_child(pid, signo);
+ 
+ 		if (kill_timeout > 0) {
+ 			if (timeout_wait(kill_timeout, child, &code))
+ 				goto finish;
+-			kill(pid, SIGKILL);
++			signal_child(pid, SIGKILL);
+ 			status = 137;
+ 		}
+ 	}

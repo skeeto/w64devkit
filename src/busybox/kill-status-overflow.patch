@@ -1,0 +1,28 @@
+Stop the exit status of kill and killall from wrapping around.
+Both return the number of failures as the exit status, of which only
+the low eight bits survive, so 256 failures gave status 0, as if every
+signal had been sent. Cap the count at 255.
+
+---
+ procps/kill.c |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+--- a/procps/kill.c
++++ b/procps/kill.c
+@@ -304,7 +304,7 @@
+ 			free(pidList);
+ 			arg = *++argv;
+ 		} while (arg);
+-		return errors;
++		return MIN(errors, 255);
+ 	}
+ #endif
+ 
+@@ -345,6 +345,6 @@
+ # endif
+ 		arg = *++argv;
+ 	}
+-	return errors;
++	return MIN(errors, 255);
+ #endif
+ }

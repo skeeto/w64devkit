@@ -124,8 +124,12 @@ and
 plus
 .B EXIT
 for 0.
-Signal 0, and a number without a name, select processes but send
-nothing.
+Signal 0 sends nothing, but fails for a selected process that
+.B KILL
+could not be sent to.
+A number without a name is accepted, but fails with
+.B "Invalid argument"
+for every process.
 See
 .B NOTES
 for what the signals do on Windows.
@@ -169,8 +173,7 @@ For
 .BR pkill ,
 write a line
 .IB name " killed (pid " pid )
-on standard output for each selected process, even when the signal was
-not delivered.
+on standard output for each process that was signaled.
 .B pgrep
 accepts
 .B \-e
@@ -214,10 +217,12 @@ or
 .B \-\-help
 was given.
 .B pkill
-exits 0 even when a signal could not be delivered.
+exits 0 only if it signaled at least one of them.
 .TP
 .B 1
-No process was selected, or an error such as an invalid option,
+No process was selected,
+.B pkill
+signaled none of them, or an error such as an invalid option,
 .IR ppid ,
 or regular expression.
 .TP
@@ -308,7 +313,10 @@ not taken for its parent.
 Only when the start time of the process now holding that ID cannot be
 read does the process appear to be its child.
 .B pkill
-silently fails to signal a process it cannot open.
+reports each process it fails to signal, such as one it cannot open,
+with
+.BI "pkill: can\(aqt kill pid " pid :
+and the reason.
 .PP
 Windows has no signals, so
 .B pkill
@@ -333,9 +341,10 @@ which the kit's shell reports as 128 plus the signal number.
 .B pkill
 does not wait for the process to exit.
 Injecting a thread works only when the process and busybox are both
-32-bit or both 64-bit, so otherwise only
+32-bit or both 64-bit, so otherwise every signal except
 .B KILL
-takes effect.
+and 0 fails with
+.BR "Permission denied" .
 Only the selected process is signaled, not its children.
 .PP
 Each command excludes only its own process.

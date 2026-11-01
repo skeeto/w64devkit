@@ -1,0 +1,79 @@
+Make pkill report the processes it failed to signal.
+act() ignored the result of kill(), so "pkill -e" printed "NAME killed
+(pid N)" for a process that was not signaled, the failure gave no
+message, and pkill exited 0 as long as some process matched. As
+procps-ng pkill does, warn when kill() fails, except for a process
+that has exited in the meantime (ESRCH), print the -e line only for a
+process that was signaled, and exit 1 when no process was signaled.
+
+---
+ procps/pgrep.c |   19 ++++++++++++++-----
+ 1 file changed, 14 insertions(+), 5 deletions(-)
+
+--- a/procps/pgrep.c
++++ b/procps/pgrep.c
+@@ -129,7 +129,8 @@
+ #endif
+ #define OPT_PPID	(opt & (1 << OPTBIT_P))
+ 
+-static void act(unsigned pid, char *cmd, int signo)
++/* Return 1 if the process was listed or signaled */
++static int act(unsigned pid, char *cmd, int signo)
+ {
+ 	if (pgrep) {
+ 		if (option_mask32 & ((1 << OPTBIT_L)|(1 << OPTBIT_A))) /* -l or -a */
+@@ -137,11 +138,17 @@
+ 		else
+ 			printf("%u\n", pid);
+ 	} else {
+-		kill(pid, signo);
++		if (kill(pid, signo) != 0) {
++			/* a process that has just exited is not an error */
++			if (errno != ESRCH)
++				bb_perror_msg("can't kill pid %u", pid);
++			return 0;
++		}
+ 		if (option_mask32 & (1 << OPTBIT_E)) {
+ 			printf("%s killed (pid %u)\n", cmd, pid);
+ 		}
+ 	}
++	return 1;
+ }
+ 
+ int pgrep_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
+@@ -152,6 +159,7 @@
+ 	unsigned opt;
+ 	int scan_mask;
+ 	int matched_pid;
++	int acted;
+ #if ENABLE_PLATFORM_MINGW32
+ 	const int sid2match = -1;
+ 	int ppid2match;
+@@ -213,6 +221,7 @@
+ 		xregcomp(&re_buffer, argv[0], OPT_ANCHOR ? REG_EXTENDED : (REG_EXTENDED|REG_NOSUB));
+ 
+ 	matched_pid = 0;
++	acted = 0;
+ 	cmd_last = NULL;
+ 	proc = NULL;
+ 	while ((proc = procps_scan(proc, scan_mask)) != NULL) {
+@@ -299,16 +308,16 @@
+ 			}
+ 			if (cmdlen >= 0)
+ 				cmd[cmdlen] = '\0';
+-			act(proc->pid, cmd, signo);
++			acted |= act(proc->pid, cmd, signo);
+ 			if (OPT_FIRST)
+ 				break;
+ 		}
+ 	}
+ 
+ 	if (cmd_last) {
+-		act(matched_pid, cmd_last, signo);
++		acted |= act(matched_pid, cmd_last, signo);
+ 		if (ENABLE_FEATURE_CLEAN_UP)
+ 			free(cmd_last);
+ 	}
+-	return matched_pid == 0; /* return 1 if no processes listed/signaled */
++	return !acted; /* return 1 if no processes listed/signaled */
+ }

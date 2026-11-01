@@ -151,3 +151,9 @@ ps-times-64bit.patch
 ps-start-time-boot-once.patch
 find-pid-by-name-long-names.patch
 pidof-omit-check-early.patch
+signal-name-empty-slot.patch
+kill-status-overflow.patch
+kill-remote-thread-failure.patch
+kill-signal-zero-rights.patch
+pkill-kill-failure.patch
+timeout-kill-failure.patch

@@ -1,0 +1,27 @@
+Report a failure to inject the thread that delivers a signal.
+kill_signal_by_handle() returned 0 even when CreateRemoteThread()
+failed, so kill() reported success for a signal that was never
+delivered and the target kept running, while kill, killall, pkill and
+timeout all took the signal as sent. Return -1 and leave the error of
+CreateRemoteThread() for kill() to convert to errno.
+
+---
+ win32/process.c |    7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+--- a/win32/process.c
++++ b/win32/process.c
+@@ -930,8 +930,11 @@
+ 		return -1;
+ 	}
+ 
+-	if (sig != 0 && (thread = CreateRemoteThread(process, NULL, 0,
+-					   ExitProcess, arg, 0, &thread_id))) {
++	if (sig != 0) {
++		thread = CreateRemoteThread(process, NULL, 0, ExitProcess, arg,
++						0, &thread_id);
++		if (!thread)
++			return -1;
+ 		CloseHandle(thread);
+ 	}
+ 	return 0;

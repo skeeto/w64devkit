@@ -1,0 +1,24 @@
+Do not match a signal name against an empty slot of the signal table.
+get_signum() strips an optional SIG prefix and compares the rest with
+every entry of signals[], including those left empty for numbers the
+platform does not define. An empty name, or SIG alone, so matched the
+first such gap. On Windows "kill -s '' PID" and "kill -SIG PID" sent
+signal 5 and failed with "Invalid argument", "kill -l SIG" printed 5,
+and the shell's "trap CMD ''" succeeded. Skip empty entries, so these
+names are rejected as unknown signals.
+
+---
+ libbb/u_signal_names.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/libbb/u_signal_names.c
++++ b/libbb/u_signal_names.c
+@@ -172,7 +172,7 @@
+ 	if (strncasecmp(name, "SIG", 3) == 0)
+ 		name += 3;
+ 	for (i = 0; i < ARRAY_SIZE(signals); i++)
+-		if (strcasecmp(name, signals[i]) == 0)
++		if (signals[i][0] && strcasecmp(name, signals[i]) == 0)
+ 			return i;
+ 
+ #if ENABLE_DESKTOP

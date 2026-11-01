@@ -1,0 +1,56 @@
+Let signal 0 succeed for any running process that SIGKILL could end.
+Signal 0 delivers nothing, yet kill() opened the process with the
+thread creation and memory rights needed to inject a thread, and then
+required it to have the same architecture as busybox. So "kill -0 PID"
+for a running 32-bit process from a 64-bit busybox, or the reverse,
+failed with "Permission denied", as did a process that grants the
+right to terminate it but not those rights, and a script polling with
+kill -0 took the process to be gone. For signal 0, open the process
+with the same rights as for SIGKILL, which works whatever its
+architecture, and only check that it is still running.
+
+---
+ win32/process.c |   18 +++++++++---------
+ 1 file changed, 9 insertions(+), 9 deletions(-)
+
+--- a/win32/process.c
++++ b/win32/process.c
+@@ -930,13 +930,11 @@
+ 		return -1;
+ 	}
+ 
+-	if (sig != 0) {
+-		thread = CreateRemoteThread(process, NULL, 0, ExitProcess, arg,
+-						0, &thread_id);
+-		if (!thread)
+-			return -1;
+-		CloseHandle(thread);
+-	}
++	thread = CreateRemoteThread(process, NULL, 0, ExitProcess, arg,
++					0, &thread_id);
++	if (!thread)
++		return -1;
++	CloseHandle(thread);
+ 	return 0;
+ }
+ 
+@@ -946,7 +944,9 @@
+ 	int ret = 0;
+ 	DWORD code, flags;
+ 
+-	if (sig == SIGKILL)
++	/* Signal 0 only checks that the process exists and that SIGKILL,
++	 * which works whatever its architecture, could be sent to it. */
++	if (sig == SIGKILL || sig == 0)
+ 		flags = PROCESS_TERMINATE | PROCESS_QUERY_INFORMATION;
+ 	else
+ 		flags = SYNCHRONIZE | PROCESS_CREATE_THREAD |
+@@ -967,7 +967,7 @@
+ 		 * removing .lock files, terminating spawned processes (if any),
+ 		 * etc). */
+ 		ret = !TerminateProcess(process, SIGKILL << 24);
+-	} else {
++	} else if (sig != 0) {
+ 		ret = kill_signal_by_handle(process, sig);
+ 	}
+ 	CloseHandle(process);

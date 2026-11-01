@@ -205,15 +205,15 @@ Any other name or number is rejected with
 .B bad signal name
 and exit status 1, before any process is looked at.
 .IP
-Signal 0 sends nothing, but still fails for a process that could not be
-signaled, so it tests whether each match exists and can be signaled.
+Signal 0 sends nothing, but still fails for a process that has exited
+or that
+.B KILL
+could not be sent to, so it tests whether each match exists and can
+be signaled.
 A number from 0 to 22 with no name, such as 21, is accepted but fails
 with
 .B Invalid argument
 for each process it is sent to.
-So does an empty name, or
-.B SIG
-alone, which is taken as 5.
 .TP
 .B \-\-
 Ends the options, so that the first
@@ -287,7 +287,7 @@ that matches no process, and one for each process that could not be
 signaled.
 A single failure also gives 1.
 Every operand is tried, whatever fails.
-The status is this count modulo 256, so 256 failures give 0.
+A count above 255 gives 255.
 .SH EXAMPLES
 Terminate every instance of a program:
 .PP
@@ -370,7 +370,7 @@ Names include the extension and are case-sensitive.
 .IP \(bu 2
 Failures to signal a process are reported and counted.
 .BR pkill (1)
-ignores them.
+reports them, but fails only when it signals no process.
 .PP
 An operand is a name, never a path, so one such as
 .I ./server.exe
@@ -399,13 +399,11 @@ for
 The busybox shell reports that as death by the signal, with status 128
 plus the signal number.
 Only the matched process is signaled, not its children.
-A thread that cannot be created is not reported, so a successful exit
-status does not prove that the process exited.
 .PP
 Injecting a thread works only into a process of the same bitness as
 busybox, 64-bit or 32-bit, so for any other process every signal except
-.BR KILL ,
-including 0, fails with
+.B KILL
+and 0 fails with
 .BR "Permission denied" .
 A process that Windows does not let busybox open, such as a system
 process or one of another user, fails the same way.

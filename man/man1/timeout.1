@@ -405,8 +405,6 @@ exits as soon as it has sent the signal, and
 .I prog
 may still be running for a moment, or indefinitely.
 .PP
-.B timeout
-does not report a failure to send a signal.
 A signal other than
 .B KILL
 is delivered asynchronously, by a thread injected into
@@ -421,13 +419,20 @@ kit's
 .BR timeout ,
 every signal except
 .B KILL
-does nothing: after
+and 0 fails: after
 .I secs
 seconds
 .B timeout
-exits with status 124 and
+reports
+.B can\(aqt kill pid
+with the reason
+.BR "Permission denied" ,
+exits with status 124, and
 .I prog
 keeps running.
+A failure to send a signal is reported only while
+.I prog
+is still running, and does not change the exit status.
 Use
 .B \-s KILL
 for such a program, or

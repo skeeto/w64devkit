@@ -81,9 +81,6 @@ The signals are:
 .PP
 Any other number from 0 to 22 is accepted, but sending it fails with
 .BR "Invalid argument" .
-So does an empty name, or
-.B SIG
-alone, which is taken as 5.
 Other names, such as
 .BR USR1 ,
 .BR ALRM ,
@@ -96,8 +93,9 @@ They differ only in the exit code the process gets, and in how
 .B KILL
 is delivered; see
 .BR NOTES .
-Signal 0 sends nothing, but fails if the process cannot be signaled, so
-it tests for a process.
+Signal 0 sends nothing, but fails unless the process is running and
+.B KILL
+could be sent to it, so it tests for a process.
 .SH OPTIONS
 Options are recognized only at the start of the arguments, and cannot be
 grouped.
@@ -189,7 +187,7 @@ failure.
 The number of failures: each operand that is not a valid PID, and each
 PID that could not be signaled.
 A negative PID or 0 counts once, however many of its processes fail.
-The status is this count modulo 256, so 256 failures give 0.
+A count above 255 gives 255.
 .PP
 In the kit's shell, the built-in
 .B kill \-l
@@ -293,15 +291,14 @@ is 143 for a process ended by
 .BR TERM .
 .PP
 A signal is delivered asynchronously.
-The command returns once it has created the thread, and does not report
-a failure to create it, so the process may exit a moment later, or not
-at all.
+The command returns once it has created the thread, so the process
+may exit a moment later.
 Injecting a thread works only when
 .B kill
 and the target are both 32-bit or both 64-bit.
 Otherwise every signal except
-.BR KILL ,
-including 0, fails.
+.B KILL
+and 0 fails.
 .PP
 The reason after
 .B can\(aqt kill pid
