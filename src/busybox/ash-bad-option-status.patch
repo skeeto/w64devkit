@@ -1,0 +1,26 @@
+Exit with status 2 when the command line names an unknown -o option.
+An invalid option letter on the shell's command line, as in "sh -Z",
+makes the shell exit with status 2, but an unknown option name, as in
+"sh -o bogus", made it print the error and exit with status 0, because
+procargs() raised the error without setting the exit status, so a
+caller could not tell that the shell had not run its script. bash and
+dash exit with status 2.
+
+Set the exit status to 2 before raising the error. "set -o bogus"
+inside the shell is unchanged: the set builtin still fails with
+status 1 and the shell carries on.
+
+---
+ shell/ash.c |    1 +
+ 1 file changed, 1 insertion(+)
+
+--- a/shell/ash.c
++++ b/shell/ash.c
+@@ -16778,6 +16778,7 @@
+ 		optlist[i] = 2;
+ 	if (options(&login_sh)) {
+ 		/* it already printed err message */
++		exitstatus = 2;
+ 		raise_exception(EXERROR); /* does not return */
+ 	}
+ 	xargv = argptr;

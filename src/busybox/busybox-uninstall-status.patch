@@ -1,0 +1,124 @@
+Report failures of busybox --uninstall in its exit status.
+busybox --uninstall reported a link it could not delete but still
+exited with status 0, and when the links could not be listed at all,
+because the file did not exist or, on Windows XP, FindFirstFileNameW is
+missing, enumerate_links() returned 0 as if there were no more links,
+so busybox did nothing, said nothing and exited with status 0.
+
+Make enumerate_links() return -1 with errno set on error, keeping 0 for
+the end of the list (ERROR_HANDLE_EOF), report the error with the
+file's name, and exit with status 1 after any failure.
+
+---
+ libbb/appletlib.c |   10 ++++++++--
+ win32/mingw.c     |   30 ++++++++++++++++++++----------
+ 2 files changed, 28 insertions(+), 12 deletions(-)
+
+--- a/libbb/appletlib.c
++++ b/libbb/appletlib.c
+@@ -1106,21 +1106,27 @@
+ 		char name[PATH_MAX];
+ 		int dry_run = (argv[2] && strcmp(argv[2], "-n") == 0 && ++argv);
+ 		const char *file = argv[2];
++		int ret, status = EXIT_SUCCESS;
+ 
+ 		if (!argv[2])
+ 			bb_error_msg_and_die(bb_msg_requires_arg, "--uninstall");
+ 
+-		while (enumerate_links(file, name)) {
++		while ((ret = enumerate_links(file, name)) > 0) {
+ 			if (dry_run) {
+ 				full_write1_str(name);
+ 				full_write1_str("\n");
+ 			}
+ 			else if (unlink(name) != 0) {
+ 				bb_simple_perror_msg(name);
++				status = EXIT_FAILURE;
+ 			}
+ 			file = NULL;
+ 		}
+-		return 0;
++		if (ret < 0) {
++			bb_simple_perror_msg(argv[2]);
++			status = EXIT_FAILURE;
++		}
++		return status;
+ 	}
+ #endif
+ 
+--- a/win32/mingw.c
++++ b/win32/mingw.c
+@@ -2580,8 +2580,8 @@
+ /*
+  * Enumerate the names of all hard links to a file.  The first call
+  * provides the file name as the first argument; subsequent calls must
+- * set the first argument to NULL.  Returns 0 on error or when there are
+- * no more links.
++ * set the first argument to NULL.  Returns 1 with the next name, 0 when
++ * there are no more links, or -1 with errno set on error.
+  */
+ int FAST_FUNC enumerate_links(const char *file, char *name)
+ {
+@@ -2596,8 +2596,10 @@
+ 	DECLARE_PROC_ADDR(BOOL, FindNextFileNameW, HANDLE, LPDWORD, PWSTR);
+ 
+ 	if (!INIT_PROC_ADDR(kernel32.dll, FindFirstFileNameW) ||
+-			!INIT_PROC_ADDR(kernel32.dll, FindNextFileNameW))
+-		return 0;
++			!INIT_PROC_ADDR(kernel32.dll, FindNextFileNameW)) {
++		errno = ENOSYS;
++		return -1;
++	}
+ 
+ 	if (file != NULL) {
+ 		wchar_t wfile[PATH_MAX];
+@@ -2605,20 +2607,22 @@
+ 		 * which may be mounted on a directory.  Get its path from the
+ 		 * file's real path, which doesn't use a SUBST drive. */
+ 		if (!realpath(file, aname))
+-			return 0;
++			return -1;
+ 		slash_to_bs(aname);
+ 		MultiByteToWideChar(CP_ACP, 0, aname, -1, wfile, PATH_MAX);
+ 		if (!GetVolumePathNameW(wfile, wname, PATH_MAX))
+-			return 0;
++			goto fail;
+ 		WideCharToMultiByte(CP_ACP, 0, wname, -1, vol, PATH_MAX, NULL, NULL);
+ 		len = strlen(vol);
+ 		if (len && vol[len - 1] == '\\')
+ 			vol[len - 1] = '\0';
+ 		h = FindFirstFileNameW(wfile, 0, &length, wname);
+ 		if (h == INVALID_HANDLE_VALUE)
+-			return 0;
++			goto fail;
+ 	}
+ 	else if (!FindNextFileNameW(h, &length, wname)) {
++		if (GetLastError() != ERROR_HANDLE_EOF)
++			goto fail;
+ 		FindClose(h);
+ 		h = INVALID_HANDLE_VALUE;
+ 		return 0;
+@@ -2627,14 +2631,20 @@
+ 	memcpy(aname, vol, len);
+ 	if (!WideCharToMultiByte(CP_ACP, 0, wname, -1, aname + len,
+ 						PATH_MAX - len, NULL, NULL)) {
+-		FindClose(h);
+-		h = INVALID_HANDLE_VALUE;
+-		return 0;
++		SetLastError(ERROR_FILENAME_EXCED_RANGE);
++		goto fail;
+ 	}
+ 	/* The name exists, so use it as it is if it can't be resolved. */
+ 	if (!realpath(aname, name))
+ 		bs_to_slash(strcpy(name, aname));
+ 	return 1;
++ fail:
++	errno = err_win_to_posix();
++	if (h != INVALID_HANDLE_VALUE) {
++		FindClose(h);
++		h = INVALID_HANDLE_VALUE;
++	}
++	return -1;
+ }
+ #endif
+ 

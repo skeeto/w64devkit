@@ -1,0 +1,36 @@
+Return a valid name from enumerate_links() when realpath() fails.
+enumerate_links() ignored the result of realpath() on each link name,
+so if it failed the caller got whatever the buffer held before: the
+previous link's name, or on the first call uninitialised memory, which
+busybox --uninstall then printed or deleted. Likewise a name too long
+for the buffer was not terminated.
+
+Fall back to the volume-prefixed name itself, which FindFirstFileNameW
+or FindNextFileNameW has just reported, and end the list, closing the
+handle, if the name does not fit.
+
+---
+ win32/mingw.c |   12 +++++++++---
+ 1 file changed, 9 insertions(+), 3 deletions(-)
+
+--- a/win32/mingw.c
++++ b/win32/mingw.c
+@@ -2625,9 +2625,15 @@
+ 	}
+ 	len = strlen(vol);
+ 	memcpy(aname, vol, len);
+-	WideCharToMultiByte(CP_ACP, 0, wname, -1, aname + len, PATH_MAX - len,
+-						NULL, NULL);
+-	realpath(aname, name);
++	if (!WideCharToMultiByte(CP_ACP, 0, wname, -1, aname + len,
++						PATH_MAX - len, NULL, NULL)) {
++		FindClose(h);
++		h = INVALID_HANDLE_VALUE;
++		return 0;
++	}
++	/* The name exists, so use it as it is if it can't be resolved. */
++	if (!realpath(aname, name))
++		bs_to_slash(strcpy(name, aname));
+ 	return 1;
+ }
+ #endif

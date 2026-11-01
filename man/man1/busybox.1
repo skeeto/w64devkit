@@ -536,9 +536,6 @@ so that
 and
 .B #!/usr/bin/env
 lines work.
-When the shell runs the file, this search uses
-.B PATH
-as it was when the shell started, ignoring changes made in the shell.
 A file whose name ends in
 .B .sh
 and that has no
@@ -599,7 +596,7 @@ The links go in
 which is created if needed, or else in the directory that contains
 .IR busybox.exe .
 Existing files are left alone.
-Other failures are reported, but do not change the exit status.
+Other failures are reported, and make the exit status 1.
 .RS
 .TP
 .B \-s
@@ -651,8 +648,10 @@ and all its links, except that Windows refuses to delete the last link
 to a running program.
 The kit's launchers are not links, so given a launcher, this deletes
 only that launcher.
-Failures are reported, but do not change the exit status.
-On Windows XP, which lacks the API for finding links, it does nothing.
+Failures are reported, and make the exit status 1.
+On Windows XP, which lacks the API for finding links, it deletes nothing
+and fails with
+.BR "Function not implemented" .
 .RS
 .TP
 .B \-n
@@ -909,7 +908,8 @@ with no arguments or with one of the
 Invalid arguments to
 .B \-\-install
 or
-.BR \-\-uninstall .
+.BR \-\-uninstall ,
+or a link that it could not create, find, or delete.
 .TP
 .B 127
 The applet was not found.
@@ -1263,7 +1263,9 @@ Bugs are fixed in
 .BR xargs ,
 .BR xz ,
 .BR yes ,
-the shell, and
+the shell,
+.BR "busybox \-\-install" ,
+and
 .BR "busybox \-\-uninstall" .
 .IP \(bu 2
 A pipe whose reader has exited ends an applet with status 141, as on

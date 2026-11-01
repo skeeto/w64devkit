@@ -1,0 +1,43 @@
+Return to the prompt after an error in PROMPT_COMMAND.
+An interactive shell runs PROMPT_COMMAND under its own exception
+handler, which printed ^C after an interrupt but called exitshell() for
+any other exception. So a syntax error or a failed expansion in the
+commands, such as ${x?} or an error in a function they call, ended the
+interactive shell, although the same error in a command typed at the
+prompt only returns to the prompt. The handler also recognized an
+interrupt by bb_got_signal being SIGINT, but that stays set after any
+Ctrl-C, such as one that stopped the previous command, so after one an
+error or exit in the commands was handled as an interrupt. And the
+interrupt path left their redirections and local variables in place.
+
+Decide by the exception type, and after an interrupt or an error do
+what the main loop does for an interactive shell: undo the shell state
+the commands left behind (the reset in exitreset(), pushed input files
+and local variables), keep $? as it was, and go on to the prompt. Input
+already read but not yet parsed is kept, since it does not belong to
+the commands. exit and the other exceptions still end the shell.
+
+---
+ shell/ash.c |   11 +++++++++--
+ 1 file changed, 9 insertions(+), 2 deletions(-)
+
+--- a/shell/ash.c
++++ b/shell/ash.c
+@@ -15799,8 +15799,15 @@
+ 					checkkwd = 0;
+ 					heredoclist = 0;
+ 					evalstring((char *)cmd, 0);
+-				} else if (bb_got_signal == SIGINT) {
+-					write(STDOUT_FILENO, "^C\n", 3);
++				} else if (exception_type == EXINT
++						|| exception_type == EXERROR) {
++					/* Clean up as after an error in a command,
++					 * but keep any input not yet read. */
++					if (exception_type == EXINT)
++						write(STDOUT_FILENO, "^C\n", 3);
++					exitreset();
++					popallfiles();
++					unwindlocalvars(NULL);
+ 				} else {
+ 					exitreset();
+ 					exitshell();

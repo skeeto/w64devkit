@@ -400,3 +400,9 @@ patch-truncated-hunk.patch
 patch-die-remove-temp.patch
 patch-keep-crlf.patch
 patch-keep-read-only.patch
+ash-bad-option-status.patch
+ash-prompt-command-error.patch
+interp-path-from-envp.patch
+uninstall-link-realpath.patch
+busybox-install-status.patch
+busybox-uninstall-status.patch

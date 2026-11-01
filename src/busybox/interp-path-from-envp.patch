@@ -1,0 +1,49 @@
+Search the new environment's PATH for a #! interpreter.
+When the interpreter on a script's #! line is in /bin, /usr/bin, /sbin
+or /usr/sbin, is not an applet and does not exist, it is looked up in
+PATH. mingw_spawn_interpreter() did this with getenv("PATH"), but the
+shell keeps its variables to itself and passes them to the program
+only through envp, so the search used the PATH the shell was started
+with. After "PATH=/some/dir:$PATH" in a script, a command run from
+/some/dir was found but a script there naming it on its #! line failed
+with "not found", and an interpreter left out of the new PATH was
+still used.
+
+Take PATH from envp when the caller passes one, which only the shell
+does, and from the process environment otherwise.
+
+---
+ win32/process.c |   15 ++++++++++++++-
+ 1 file changed, 14 insertions(+), 1 deletion(-)
+
+--- a/win32/process.c
++++ b/win32/process.c
+@@ -179,6 +179,19 @@
+ 	return find_executable(name, &path);
+ }
+ 
++/* Search the PATH in envp, if given, else our own PATH. */
++static char *
++find_first_executable_envp(const char *name, char *const *envp)
++{
++	const char *path = NULL;
++
++	if (!envp)
++		return find_first_executable(name);
++	for (; *envp && !path; envp++)
++		path = is_prefixed_with_case(*envp, "PATH=");
++	return find_executable(name, &path);
++}
++
+ static intptr_t
+ spawnveq(int mode, const char *path, char *const *argv, char *const *env)
+ {
+@@ -368,7 +381,7 @@
+ 
+ 	path = file_is_win32_exe(interp.path);
+ 	if (!path && is_unix_path)
+-		path = find_first_executable(interp.name);
++		path = find_first_executable_envp(interp.name, envp);
+ 
+ 	if (path) {
+ 		new_argv[0] = path;

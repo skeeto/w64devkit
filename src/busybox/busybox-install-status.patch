@@ -1,0 +1,75 @@
+Exit with status 1 when busybox --install fails to make a link.
+install_links() reported each link it could not create, other than
+one that already exists, but returned nothing, and busybox_main()
+returned 0 after it. So "busybox --install DIR" exited successfully
+even when it had made no links at all, for example when DIR could not
+be created or was on another file system.
+
+Return EXIT_FAILURE from install_links() when a link fails and make it
+the exit status. Existing files are still not an error.
+
+---
+ libbb/appletlib.c |   13 ++++++++-----
+ 1 file changed, 8 insertions(+), 5 deletions(-)
+
+--- a/libbb/appletlib.c
++++ b/libbb/appletlib.c
+@@ -780,7 +780,7 @@
+ };
+ 
+ /* create (sym)links for each applet */
+-static void install_links(const char *busybox, int use_symbolic_links,
++static int install_links(const char *busybox, int use_symbolic_links,
+ 		char *custom_install_dir)
+ {
+ 	/* directory table
+@@ -791,6 +791,7 @@
+ 	const char *appname = applet_names;
+ 	unsigned i;
+ 	int rc;
++	int status = EXIT_SUCCESS;
+ #  if ENABLE_PLATFORM_MINGW32
+ 	const char *sd = "";
+ 
+@@ -826,17 +827,20 @@
+ 		rc = lf(busybox, fpc);
+ 		if (rc != 0 && errno != EEXIST) {
+ 			bb_simple_perror_msg(fpc);
++			status = EXIT_FAILURE;
+ 		}
+ 		free(fpc);
+ 		while (*appname++ != '\0')
+ 			continue;
+ 	}
++	return status;
+ }
+ # elif ENABLE_BUSYBOX
+-static void install_links(const char *busybox UNUSED_PARAM,
++static int install_links(const char *busybox UNUSED_PARAM,
+ 		int use_symbolic_links UNUSED_PARAM,
+ 		char *custom_install_dir UNUSED_PARAM)
+ {
++	return EXIT_SUCCESS;
+ }
+ # endif
+ 
+@@ -1063,7 +1067,7 @@
+ 		 * DIR: directory to install links to
+ 		 */
+ 		use_symbolic_links = (argv[2] && strcmp(argv[2], "-s") == 0 && ++argv);
+-		install_links(busybox, use_symbolic_links, argv[2]);
++		return install_links(busybox, use_symbolic_links, argv[2]);
+ #else
+ 		char *target;
+ 		uint32_t opt;
+@@ -1093,9 +1097,8 @@
+ 
+ 		use_symbolic_links = opt & OPT_s;
+ 		/* NULL target -> install to Unix-style dirs */
+-		install_links(bb_busybox_exec_path, use_symbolic_links, target);
++		return install_links(bb_busybox_exec_path, use_symbolic_links, target);
+ #endif
+-		return 0;
+ 	}
+ 
+ #if ENABLE_PLATFORM_MINGW32 && ENABLE_FEATURE_INSTALLER

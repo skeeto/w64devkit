@@ -442,8 +442,7 @@ file runs under
 .BR cmd.exe ,
 which Windows starts for it.
 The status is the batch file's exit code.
-An empty batch file gives a meaningless status, usually with an error
-message.
+An empty batch file does nothing and gives status 0.
 .IP \(bu 2
 A file that begins with
 .B #!\&
@@ -460,11 +459,8 @@ Otherwise the shell runs the named interpreter, and tries the suffixes
 as it does for a command name.
 When the interpreter is in one of the four Unix directories above and
 no such file exists, the shell runs the program of that name found
-through the
-.B PATH
-that the shell was started with; a change to
-.B PATH
-in the shell does not affect this search.
+through
+.BR PATH .
 Interpreters may nest four deep.
 .IP \(bu 2
 A file whose name ends in
@@ -1382,7 +1378,7 @@ turn it off.
 The names are listed in this section and under
 .BR "Shell options" .
 An unknown name on the command line makes the shell exit at once with
-status 0.
+status 2.
 .TP
 .BR \-s ", " "\-o stdin"
 Read commands from standard input; see
@@ -1677,7 +1673,7 @@ and leave
 as it was.
 A syntax error or a failed expansion in them, such as
 .BR ${x?} ,
-ends the shell.
+stops them, and the shell goes on to show the prompt.
 .TP
 .BR PS1 ", " PS2 ", " PS4
 .B PS1
