@@ -1,4 +1,4 @@
-.TH RESET 1 2026-10-27 "w64devkit" "w64devkit Manual"
+.TH RESET 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 reset \- reset the console's text attributes and clear its screen
 .SH SYNOPSIS
@@ -21,11 +21,15 @@ It writes
 .RB ESC\  [3J ,
 which erases the scrollback of a terminal that keeps its own, such as
 Windows Terminal.
-When busybox emulates it, it does the same as the next step.
+When busybox emulates it, it does the same as step 5.
 .IP 4. 4
+It writes
+.RB ESC\  [?25h ,
+which makes a hidden cursor visible.
+.IP 5. 4
 It moves the cursor to the top left corner of the console's screen
 buffer, then fills the whole buffer with spaces.
-.IP 5. 4
+.IP 6. 4
 It runs
 .BR "stty sane" ,
 which turns on echo, line input, and processed input in the console's
@@ -38,10 +42,10 @@ device, nothing is written and nothing is changed.
 Whether standard input or standard error is a console does not matter.
 .PP
 When the console has virtual terminal processing enabled, it interprets
-the three sequences; see
+the four sequences; see
 .BR BB_TERMINAL_MODE .
 Otherwise busybox emulates them through the console API.
-The fourth step always uses the console API.
+The fifth step always uses the console API.
 .PP
 The fill, and an emulated
 .RB ESC\  [m ,
@@ -193,8 +197,6 @@ It takes no options or terminal type, ignores its arguments instead of
 rejecting them, and does not use
 .B TERM
 or terminfo.
-.IP \(bu 2
-It does not make a hidden cursor visible.
 .PP
 Unlike
 .BR clear ,

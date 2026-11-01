@@ -1,0 +1,22 @@
+Make reset show a hidden cursor on Windows.
+The Windows branch of reset dropped the ESC [ ? 25 h that the Unix
+branch writes, so a cursor that a program had hidden stayed hidden
+after reset. Write it after leaving the alternate screen buffer.
+
+---
+ console-tools/reset.c |    3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+--- a/console-tools/reset.c
++++ b/console-tools/reset.c
+@@ -64,8 +64,9 @@
+ 		// "ESC [ m"        -- Reset all display attributes
+ 		// "ESC [ ? 1049 l" -- Use normal screen buffer
+ 		// "ESC [ 3 J"      -- Clear screen buffer (Win 10/11 terminal)
++		// "ESC [ ? 25 h"   -- Make cursor visible
+ 		// reset_screen     -- Clear screen buffer (Win 10 console)
+-		full_write1_str(ESC"[m" ESC"[?1049l" ESC"[3J");
++		full_write1_str(ESC"[m" ESC"[?1049l" ESC"[3J" ESC"[?25h");
+ 		reset_screen();
+ #endif
+ 		/* http://bugs.busybox.net/view.php?id=1414:

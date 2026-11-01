@@ -1,0 +1,71 @@
+Keep a mark for every letter in less, and let marks move.
+add_mark() appended each mark to a 15-entry table and, after 14 marks,
+went back to the start and reset the count, so goto_mark(), which
+searches only up to the count, no longer found most older marks.
+Marking a letter again added a second entry that the search never
+reached, so the mark could not be moved. The search also read one
+entry past the count, and its "Mark not set" test looked at an entry
+that was never written. Give each letter one entry, reusing it when the
+letter is marked again, and search only the entries that are set.
+
+---
+ miscutils/less.c |   25 +++++++++++++++----------
+ 1 file changed, 15 insertions(+), 10 deletions(-)
+
+--- a/miscutils/less.c
++++ b/miscutils/less.c
+@@ -225,7 +225,7 @@
+ #endif
+ #if ENABLE_FEATURE_LESS_MARKS
+ 	unsigned num_marks;
+-	unsigned mark_lines[15][2];
++	unsigned mark_lines[52][2]; /* room for every letter */
+ #endif
+ #if ENABLE_FEATURE_LESS_REGEXP
+ 	unsigned *match_lines;
+@@ -1824,18 +1824,23 @@
+ static void add_mark(void)
+ {
+ 	int letter;
++	unsigned i;
+ 
+ 	print_statusline("Mark: ");
+ 	letter = less_getch(sizeof("Mark: ") - 1);
+ 
+ 	if (isalpha(letter)) {
+-		/* If we exceed 15 marks, start overwriting previous ones */
+-		if (num_marks == 14)
+-			num_marks = 0;
+-
+-		mark_lines[num_marks][0] = letter;
+-		mark_lines[num_marks][1] = cur_fline;
+-		num_marks++;
++		/* Move the letter's mark if it has one */
++		for (i = 0; i < num_marks; i++)
++			if (mark_lines[i][0] == letter)
++				break;
++		if (i == num_marks) {
++			if (num_marks == ARRAY_SIZE(mark_lines))
++				return;
++			num_marks++;
++		}
++		mark_lines[i][0] = letter;
++		mark_lines[i][1] = cur_fline;
+ 	} else {
+ 		print_statusline("Invalid mark letter");
+ 	}
+@@ -1851,12 +1856,12 @@
+ 	clear_line();
+ 
+ 	if (isalpha(letter)) {
+-		for (i = 0; i <= num_marks; i++)
++		for (i = 0; i < num_marks; i++)
+ 			if (letter == mark_lines[i][0]) {
+ 				buffer_line(mark_lines[i][1]);
+ 				break;
+ 			}
+-		if (num_marks == 14 && letter != mark_lines[14][0])
++		if (i == num_marks)
+ 			print_statusline("Mark not set");
+ 	} else
+ 		print_statusline("Invalid mark letter");

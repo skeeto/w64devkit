@@ -1,0 +1,86 @@
+Convert and emulate console writes that contain NUL bytes.
+ansi_emulate_write() wrote any block that contained a NUL byte to the
+console unchanged, because its loop works on C strings. Such a block
+skipped the code page conversion and the escape sequence emulation, so
+UTF-8 text came out garbled and colour sequences showed as text, as
+with "echo -e '\033[31mred\0'" or cat on a file with NULs. Process the
+block a NUL-terminated part at a time and write each NUL as it is.
+
+---
+ win32/winansi.c |   38 ++++++++++++++++++++++++--------------
+ 1 file changed, 24 insertions(+), 14 deletions(-)
+
+--- a/win32/winansi.c
++++ b/win32/winansi.c
+@@ -1084,9 +1084,9 @@
+ static int ansi_emulate_write(int fd, const void *buf, size_t count)
+ {
+ 	int rv = 0, i;
+-	int special = FALSE, has_null = FALSE;
++	int special = FALSE;
+ 	const unsigned char *s = (const unsigned char *)buf;
+-	char *pos, *str;
++	char *pos, *str, *end;
+ 	size_t len, out_len;
+ 	static size_t max_len = 0;
+ 	static char *mem = NULL;
+@@ -1094,17 +1094,12 @@
+ 	for ( i=0; i<count; ++i ) {
+ 		if ( s[i] == '\033' || s[i] > 0x7f ) {
+ 			special = TRUE;
++			break;
+ 		}
+-		else if ( !s[i] ) {
+-			has_null = TRUE;
+-		}
+ 	}
+ 
+-	/*
+-	 * If no special treatment is required or the data contains NUL
+-	 * characters output the string as-is.
+-	 */
+-	if ( !special || has_null ) {
++	/* if no special treatment is required output the string as-is */
++	if ( !special ) {
+ 		return write(fd, buf, count);
+ 	}
+ 
+@@ -1117,9 +1112,10 @@
+ 	memcpy(mem, buf, count);
+ 	mem[count] = '\0';
+ 	pos = str = mem;
++	end = mem + count;
+ 
+-	/* we've checked the data doesn't contain any NULs */
+-	while (*pos) {
++	/* a NUL ends a part of the data that is processed as a string */
++	while (str < end) {
+ 		pos = strchr(str, '\033');
+ 		if (pos && !(terminal_mode(FALSE) & VT_OUTPUT)) {
+ 			len = pos - str;
+@@ -1140,9 +1136,23 @@
+ 			rv += str - pos;
+ 			pos = str;
+ 		} else {
++			/* write up to the next NUL, then the NUL itself */
+ 			len = strlen(str);
+-			out_len = conv_writeCon(fd, str, len);
+-			return (out_len == -1) ? -1 : rv+out_len;
++			if (len) {
++				out_len = conv_writeCon(fd, str, len);
++				if (out_len == -1)
++					return -1;
++				rv += out_len;
++				if (out_len != len)
++					return rv;
++			}
++			str += len;
++			if (str < end) {
++				if (write(fd, str, 1) == -1)
++					return -1;
++				++rv;
++				++str;
++			}
+ 		}
+ 	}
+ 	return rv;

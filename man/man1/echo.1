@@ -326,11 +326,6 @@ from the ANSI code page, which is UTF-8 on Windows 10 version 1903 and
 later.
 Escape sequences, such as those for color, take effect, and busybox
 emulates them on consoles without virtual terminal support.
-The whole output is one block, so on a console a NUL octet in it, such
-as from
-.BR \e0 ,
-makes busybox write all of it unconverted and without escape sequence
-emulation.
 .SH SEE ALSO
 .BR busybox (1),
 .BR printf (1),

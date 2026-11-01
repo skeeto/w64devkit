@@ -1,0 +1,54 @@
+Exit with status 1 when stty cannot show the window size.
+display_window_size() printed an error when it could not find the
+size, but stty still exited with status 0, so "stty size" and "stty -a"
+looked successful to a script that checked. Remember the failure and
+exit with status 1 after the remaining work, as GNU stty does for size.
+As before, -a succeeds silently on a device with no size information.
+
+---
+ coreutils/stty.c |    8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+--- a/coreutils/stty.c
++++ b/coreutils/stty.c
+@@ -840,6 +840,8 @@
+ 	unsigned max_col;
+ 	/* Current position, to know when to wrap */
+ 	unsigned current_col;
++	/* EXIT_FAILURE once the window size could not be shown */
++	smallint exitcode;
+ } FIX_ALIASING;
+ #define G (*(struct globals*)bb_common_bufsiz1)
+ #define INIT_G() do { \
+@@ -847,6 +849,7 @@
+ 	G.device_name = bb_msg_standard_input; \
+ 	G.max_col = 80; \
+ 	G.current_col = 0; /* we are noexec, must clear */ \
++	G.exitcode = EXIT_SUCCESS; \
+ } while (0)
+ 
+ #if !ENABLE_PLATFORM_MINGW32
+@@ -948,6 +951,7 @@
+ 	if (get_terminal_width_height(STDIN_FILENO, &width, &height)) {
+ 		if ((errno != EINVAL) || ((fmt_str += 2), !fancy)) {
+ 			perror_on_device(fmt_str);
++			G.exitcode = EXIT_FAILURE;
+ 		}
+ 	} else {
+ 		wrapf(fancy ? "rows %u; columns %u;" : "%u %u\n",
+@@ -1564,7 +1568,7 @@
+ 	if (stty_state & (STTY_verbose_output | STTY_recoverable_output | STTY_noargs)) {
+ 		G.max_col = get_terminal_width(STDOUT_FILENO);
+ 		output_func(&mode, display_all);
+-		return EXIT_SUCCESS;
++		return G.exitcode;
+ 	}
+ 
+ 	/* Second pass: perform actions */
+@@ -1713,5 +1717,5 @@
+ #endif
+ 	}
+ 
+-	return EXIT_SUCCESS;
++	return G.exitcode;
+ }

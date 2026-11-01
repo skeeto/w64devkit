@@ -335,7 +335,11 @@ or
 An invalid option or a missing option argument, an unknown encoding, a
 file that could not be opened or replaced, a conversion error, or an
 output error, reported as
-.BR "write error" .
+.B write error
+or, for
+.BR \-l ,
+as
+.BR "iconv: standard output: \fIreason\fP" .
 .SH EXAMPLES
 Convert a Windows\-1252 file to UTF\-8:
 .PP
@@ -455,8 +459,6 @@ A directory operand fails with
 When standard output is a console, the output is treated as text in the
 ANSI code page and converted for display, so only output in that
 encoding is readable there.
-Each block of up to 512 output bytes is also cut short at its first NUL
-byte, as found in UTF\-16 output.
 Write to a file or a pipe for any other encoding.
 .SH SEE ALSO
 .BR busybox (1),

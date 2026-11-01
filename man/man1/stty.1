@@ -87,7 +87,7 @@ While echo is on,
 alone is rejected by the console:
 .B stty
 prints
-.BR "stty: standard input: Invalid argument" ,
+.BR "stty: console: Invalid argument" ,
 exits with status 1, and leaves the mode as it was.
 .TP
 .B sane
@@ -181,17 +181,19 @@ see
 .TP
 .B 0
 Success.
-This includes a
-.B size
-or
-.B \-a
-that could not find the window size.
 .TP
 .B 1
 An argument was invalid,
 .B \-a
-was combined with a setting, the process has no console, or the console
-rejected the new mode.
+was combined with a setting, the process has no console, the console
+rejected the new mode, or a
+.B size
+or
+.B \-a
+could not find the window size.
+In that last case
+.B stty
+first does the rest of its work.
 .SH EXAMPLES
 Print the height and width of the console:
 .PP

@@ -1,0 +1,63 @@
+Write all of a console block that contains NUL bytes.
+winansi_fwrite() and winansi_vfprintf() passed their buffer to
+ansi_emulate(), which treats it as a C string, so on a console
+everything after the first NUL byte of a block was silently dropped
+while the full count was reported as written. tee, fold, iconv and
+base32 -d lost the rest of a line or block that way. Emulate each
+NUL-terminated part in turn and write the NULs between them.
+
+---
+ win32/winansi.c |   28 ++++++++++++++++++++++++++--
+ 1 file changed, 26 insertions(+), 2 deletions(-)
+
+--- a/win32/winansi.c
++++ b/win32/winansi.c
+@@ -845,6 +845,30 @@
+ 	return rv;
+ }
+ 
++/*
++ * Like ansi_emulate() for a buffer that may contain NUL bytes: each
++ * NUL-terminated part is emulated and the NULs are written as they are.
++ * There must be a NUL at str[len].
++ */
++static int ansi_emulate_buf(const char *str, size_t len, FILE *stream)
++{
++	const char *end = str + len;
++	int rv = 0, n;
++
++	for (;;) {
++		if ((n=ansi_emulate(str, stream)) == EOF)
++			return EOF;
++		rv += n;
++		str += strlen(str);
++		if (str == end)
++			return rv;
++		if (fputc('\0', stream) == EOF)
++			return EOF;
++		rv++;
++		str++;
++	}
++}
++
+ int FAST_FUNC winansi_putchar(int c)
+ {
+ 	return winansi_fputc(c, stdout);
+@@ -920,7 +944,7 @@
+ 	memcpy(str, ptr, lmemb);
+ 	str[lmemb] = '\0';
+ 
+-	rv = ansi_emulate(str, stream);
++	rv = ansi_emulate_buf(str, lmemb, stream);
+ 	free(str);
+ 
+ 	return rv == EOF ? 0 : nmemb;
+@@ -1020,7 +1044,7 @@
+ 	if (len == -1)
+ 		goto abort;
+ 
+-	rv = ansi_emulate(buf, stream);
++	rv = ansi_emulate_buf(buf, len, stream);
+ 
+ 	if (buf != small_buf)
+ 		free(buf);

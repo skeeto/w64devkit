@@ -1,0 +1,31 @@
+Save wrapped lines whole with the "s" command.
+less keeps a line that is wider than the screen as several rows, and
+"s" wrote each row followed by a newline. Every wrapped line was split
+in the saved file where it wrapped, and the empty row that follows
+input ending in a newline added a blank line at the end. Write a
+newline only where a line of the input ends, and after the last row
+only if its line was terminated.
+
+---
+ miscutils/less.c |   10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+--- a/miscutils/less.c
++++ b/miscutils/less.c
+@@ -1802,8 +1802,14 @@
+ 			msg = "Error opening log file";
+ 			goto ret;
+ 		}
+-		for (i = 0; i <= max_fline; i++)
+-			fprintf(fp, "%s\n", flines[i]);
++		for (i = 0; i <= max_fline; i++) {
++			fputs(flines[i], fp);
++			/* The rows of a wrapped line make one line, and the
++			 * last row ends one only if the input did */
++			if (i == max_fline ? terminated
++			    : LINENO(flines[i + 1]) != LINENO(flines[i]))
++				fputc('\n', fp);
++		}
+ 		fclose(fp);
+ 		msg = "Done";
+ 	}

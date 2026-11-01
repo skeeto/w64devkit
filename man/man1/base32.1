@@ -159,8 +159,7 @@ Encoded lines end with LF, and carriage returns in encoded input are
 ignored, so CRLF line endings decode correctly.
 Decoded octets reach a file or pipe unchanged, but when standard output
 is a console they pass through the busybox-w32 console layer as text:
-escape sequences take effect, non-ASCII bytes may be converted, and NUL
-bytes cut the output short.
+escape sequences take effect, and non-ASCII bytes may be converted.
 .PP
 .I file
 may be a Windows path, with a drive letter and either kind of slash, or

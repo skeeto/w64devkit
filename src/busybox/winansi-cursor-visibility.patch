@@ -1,0 +1,43 @@
+Emulate the escape sequences that show and hide the cursor.
+On a console without virtual terminal processing, ESC [ ? 25 h and
+ESC [ ? 25 l were not recognized, so they were written to the console
+as text. Show or hide the cursor through SetConsoleCursorInfo()
+instead.
+
+---
+ win32/winansi.c |   17 +++++++++++++++++
+ 1 file changed, 17 insertions(+)
+
+--- a/win32/winansi.c
++++ b/win32/winansi.c
+@@ -325,6 +325,17 @@
+ 	SetConsoleCursorPosition(console, pos);
+ }
+ 
++static void show_cursor(int flag)
++{
++	HANDLE console = get_console();
++	CONSOLE_CURSOR_INFO cci;
++
++	if (!GetConsoleCursorInfo(console, &cci))
++		return;
++	cci.bVisible = flag;
++	SetConsoleCursorInfo(console, &cci);
++}
++
+ static const unsigned char colour_1bit[16] = {
+ 	/* Black */   0,
+ 	/* Red   */   FOREGROUND_RED,
+@@ -709,6 +720,12 @@
+ 			func = str + 5;
+ 			break;
+ 		}
++		if (strncmp(str+1, "25", 2) == 0 &&
++				(str[3] == 'h' || str[3] == 'l') ) {
++			show_cursor(str[3] == 'h');
++			func = str + 3;
++			break;
++		}
+ 		/* fall through */
+ 	default:
+ 		/* Unsupported code */

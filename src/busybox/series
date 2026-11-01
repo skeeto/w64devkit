@@ -475,3 +475,14 @@ realpath-missing-in-root.patch
 realpath-missing-slash.patch
 realpath-missing-link-target.patch
 basename-root-suffix.patch
+winansi-fwrite-nul.patch
+winansi-write-nul.patch
+winansi-cursor-visibility.patch
+reset-show-cursor.patch
+less-save-whole-lines.patch
+less-cr-no-column.patch
+less-marks.patch
+less-toggle-tilde.patch
+less-restore-tty-on-open-error.patch
+stty-size-error-status.patch
+stty-console-device-name.patch

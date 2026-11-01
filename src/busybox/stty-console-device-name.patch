@@ -1,0 +1,24 @@
+Name the console, not standard input, in stty errors on Windows.
+On Windows, tcgetattr() and tcsetattr() open CONIN$ and the window size
+comes from CONOUT$, whatever standard input is, but errors still said
+"standard input", as in "stty: standard input: Invalid argument" when
+the console rejected a mode, which pointed at the wrong file when
+standard input was redirected. Call the device "console" there.
+
+---
+ coreutils/stty.c |    4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+--- a/coreutils/stty.c
++++ b/coreutils/stty.c
+@@ -846,7 +846,9 @@
+ #define G (*(struct globals*)bb_common_bufsiz1)
+ #define INIT_G() do { \
+ 	setup_common_bufsiz(); \
+-	G.device_name = bb_msg_standard_input; \
++	/* on Windows the console is opened, whatever stdin is */ \
++	G.device_name = IF_NOT_PLATFORM_MINGW32(bb_msg_standard_input) \
++			IF_PLATFORM_MINGW32("console"); \
+ 	G.max_col = 80; \
+ 	G.current_col = 0; /* we are noexec, must clear */ \
+ 	G.exitcode = EXIT_SUCCESS; \

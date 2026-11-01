@@ -1,0 +1,40 @@
+Discard a CR in less before counting its column.
+On Windows, read_lines() skips CR so that CRLF line endings show as
+plain line ends, but only after it had counted the CR as a column. Each
+CR moved the wrap point of its line one column to the left, so a CRLF
+line one column narrower than the screen wrapped at its CR and showed
+an extra empty row that the same line with LF did not. Skip the CR
+before the width check.
+
+---
+ miscutils/less.c |   12 +++++++-----
+ 1 file changed, 7 insertions(+), 5 deletions(-)
+
+--- a/miscutils/less.c
++++ b/miscutils/less.c
+@@ -626,6 +626,13 @@
+ 				}
+ 			}
+ #endif
++#if ENABLE_PLATFORM_MINGW32
++			/* CR is discarded before it can take a column */
++			if (c == '\r') {
++				readpos++;
++				continue;
++			}
++#endif
+ 			/* backspace? [needed for manpages] */
+ 			/* <tab><bs> is (a) insane and */
+ 			/* (b) harder to do correctly, so we refuse to do it */
+@@ -661,11 +668,6 @@
+ 				last_line_pos = 0;
+ 				break;
+ 			}
+-#if ENABLE_PLATFORM_MINGW32
+-			if (c == '\r') {
+-				continue;
+-			}
+-#endif
+ 			/* NUL is substituted by '\n'! */
+ 			if (c == '\0') c = '\n';
+ 			if (p - current_line >= cap) {

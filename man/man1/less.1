@@ -120,8 +120,7 @@ Bytes are shown as follows:
 .IP \(bu 2
 A tab advances to the next multiple of 8 columns.
 .IP \(bu 2
-A CR is discarded, so CRLF line endings show as plain line ends, but it
-still takes a column when a line is wrapped.
+A CR is discarded, so CRLF line endings show as plain line ends.
 .IP \(bu 2
 A backspace removes the character before it, so text overstruck for
 bold or underline, as in some formatted pages, shows as its last
@@ -230,9 +229,7 @@ Go to the match before the current one.
 Mark the first line shown.
 .I letter
 is a letter, A to Z or a to z.
-Fourteen marks can be set.
-After that, new marks replace the oldest, and some older marks are lost.
-Marking a letter again, while its first mark is kept, has no effect.
+Each letter has one mark, and marking it again moves the mark.
 A mark is a position in the displayed rows, and is not tied to a file.
 .TP
 .BI \(aq letter
@@ -286,8 +283,8 @@ Show the longer prompt of
 .B s
 Prompt for a file name, and write the input read so far to it,
 replacing the file if it exists.
-Each row is written as a line, so a wrapped line is broken where it
-wrapped.
+Each line is written whole, as it is kept for display: CRs and
+overstruck characters are removed, and a NUL byte becomes a newline.
 With
 .BR \-R ,
 SGR sequences are kept.
@@ -306,9 +303,6 @@ and
 Toggling
 .B \-N
 wraps the text again and clears the search.
-Toggling
-.B \-~
-changes nothing visible, as the rows past the end are chosen at startup.
 .TP
 .BR r ", " R
 Redraw the screen.
@@ -615,9 +609,9 @@ which quit as soon as the end of the input is displayed.
 A
 .I file
 that cannot be opened after paging has begun ends
-.B less
-without switching back, so its error message, and whatever runs next,
-appear on the alternate screen.
+.BR less ,
+which switches back first, so its error message appears on the normal
+screen.
 .PP
 The window size is read once, when
 .B less

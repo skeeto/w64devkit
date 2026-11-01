@@ -1,0 +1,23 @@
+Make toggling -~ in less change the rows past the end.
+The - command flipped FLAG_TILDE, but the marker for rows after the end
+of the input is chosen once at startup, so "-~" changed nothing that
+could be seen. Choose the marker again when the flag is toggled, and
+refill the screen, since the rows in buffer[] still point at the old
+marker and -N tells marker rows from text rows by that pointer.
+
+---
+ miscutils/less.c |    3 +++
+ 1 file changed, 3 insertions(+)
+
+--- a/miscutils/less.c
++++ b/miscutils/less.c
+@@ -1734,6 +1734,9 @@
+ 		break;
+ 	case '~':
+ 		option_mask32 ^= FLAG_TILDE;
++		empty_line_marker = (option_mask32 & FLAG_TILDE) ? "" : "~";
++		/* refill: buffer[] holds the old marker */
++		buffer_fill_and_print();
+ 		break;
+ #if ENABLE_FEATURE_LESS_TRUNCATE
+ 	case 'S':

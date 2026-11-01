@@ -1,0 +1,60 @@
+Restore the terminal when less cannot open the next file.
+less opened each file with xopen(), so when a file reached with :n, :p,
+:x or :d could not be opened, less died without restoring the terminal:
+it was left in raw mode with echo off, and on Windows the console also
+stayed on the alternate screen, which is where the error message went.
+Restore the terminal, and flush what that writes, before printing the
+error and exiting. The first file is opened before the terminal is set
+up, so nothing changes for it, and on Linux the cursor is not moved to
+the bottom line there.
+
+---
+ miscutils/less.c |   20 +++++++++++++++++---
+ 1 file changed, 17 insertions(+), 3 deletions(-)
+
+--- a/miscutils/less.c
++++ b/miscutils/less.c
+@@ -1222,11 +1222,24 @@
+ 	buffer_to_line(lineno, TRUE);
+ }
+ 
+-static void open_file_and_read_lines(void)
++/* paging: a file was shown, so the terminal is set up for less */
++static void open_file_and_read_lines(int paging)
+ {
+ 	G.ndelay_set = 0;
+ 	if (filename) {
+-		xmove_fd(xopen(filename, O_RDONLY), STDIN_FILENO);
++		int fd = open(filename, O_RDONLY);
++		if (fd < 0) {
++			int err = errno;
++			/* Leave raw mode (and on Windows the alternate
++			 * screen) first, so that the message is seen */
++			if (paging) {
++				restore_tty();
++				fflush_all();
++			}
++			errno = err;
++			bb_perror_msg_and_die("can't open '%s'", filename);
++		}
++		xmove_fd(fd, STDIN_FILENO);
+ 		ndelay_on(STDIN_FILENO);
+ 		G.ndelay_set = 1;
+ #if ENABLE_FEATURE_LESS_FLAGS
+@@ -1252,6 +1265,7 @@
+ static void reinitialize(void)
+ {
+ 	unsigned i;
++	int paging = (flines != NULL);
+ 
+ 	if (flines) {
+ 		for (i = 0; i <= max_fline; i++)
+@@ -1263,7 +1277,7 @@
+ 	max_fline = -1;
+ 	cur_fline = 0;
+ 	max_lineno = 0;
+-	open_file_and_read_lines();
++	open_file_and_read_lines(paging);
+ #if ENABLE_FEATURE_LESS_ASK_TERMINAL
+ 	if (G.winsize_err)
+ 		printf(ESC"[999;999H" ESC"[6n");
