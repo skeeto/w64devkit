@@ -350,3 +350,12 @@ spawn-empty-batch-nowait.patch
 spawn-close-process-handle.patch
 time-elapsed-wrap.patch
 time-ignore-ctrl-c.patch
+find-exec-plus-flush-all.patch
+find-exec-plus-status.patch
+find-empty-alternative.patch
+find-quit-status.patch
+find-quit-write-error.patch
+find-delete-status.patch
+find-empty-status.patch
+find-name-trailing-backslash.patch
+find-follow-last-option.patch

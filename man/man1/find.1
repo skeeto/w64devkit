@@ -126,6 +126,9 @@ If
 is true,
 .I expr2
 is not evaluated.
+A
+.B \-o
+with nothing after it is an error.
 .PP
 There is no
 .B ,
@@ -138,13 +141,8 @@ A
 before one applies to the next test instead.
 An alternative of
 .B \-o
-that holds only global options is empty, and an empty alternative ends
-the expression:
+that holds only global options is true, so
 .B "\-name a \-o \-xdev \-o \-name b"
-never tests
-.BR "\-name b" ,
-and
-.B "\-xdev \-o \-name b"
 is true for every file.
 The argument of
 .B \-maxdepth
@@ -210,22 +208,19 @@ The last component is the part after the last
 .BR \e ,
 or
 .BR : .
-When a path ends in one of these, trailing slashes are dropped and only a
-.B /
-counts, so
+Trailing slashes and backslashes are dropped first, so
 .B a/dir/
-is tested as
-.BR dir ,
 and
-.BR c:src/ ,
-.BR src\e ,
+.B c:src\e
+are tested as
+.B dir
 and
+.BR src .
+A drive alone, as in
 .B c:
-as
-.BR c:src ,
-.BR src\e ,
-and
-.BR c: .
+or
+.BR c:/ ,
+is tested as itself.
 In the pattern,
 .B *
 matches any string,
@@ -417,7 +412,7 @@ links.
 .B \-empty
 The file is a regular file of length 0, or a directory with no entries.
 A directory that cannot be opened is reported on standard error and is
-not empty, and the exit status is not affected.
+not empty, and the exit status is 1.
 .SS Actions
 .TP
 .B \-prune
@@ -471,21 +466,16 @@ must appear exactly once in the whole command, alone or within an argument.
 That argument is repeated for each saved file, with
 .B {}
 replaced by the file's name.
-The action saves the file's name and is true.
+The action saves the file's name and is always true.
 When the saved names, counting 9 more bytes for each (5 in the x86 kit),
-reach 30720 bytes, it runs the command on them and is true if the command
-succeeds.
+reach 30720 bytes, it runs the command on them.
 .IP
 After the search, the command runs once more on the names still saved, if
 any.
-If it exits with a nonzero status,
+If any of these commands, during or after the search, exits with a nonzero
+status or cannot be started,
 .B find
-runs no further
-.B "\-exec +"
-commands and exits with status 1.
-The names saved by an
-.B "\-exec +"
-inside parentheses are never run after the search.
+exits with status 1.
 .B \-quit
 discards the names still saved.
 Otherwise it is as above.
@@ -512,7 +502,7 @@ A command that reads standard input competes with the answers.
 .B \-delete
 Delete the file or directory.
 Always true, even when the deletion fails: the failure is reported on
-standard error and the exit status is not affected.
+standard error and the exit status is 1.
 A read-only file is deleted too, and a directory must be empty.
 The read-only attribute is cleared first, and set again when the
 deletion then fails.
@@ -524,8 +514,7 @@ Implies
 .TP
 .B \-quit
 Exit at once, without visiting any more files.
-The exit status is 1 only if a path before the current one had an error:
-errors below the current path are not counted.
+The exit status is 1 if there was already an error.
 .SH OPTIONS
 These options, if any, come before the paths.
 They may be grouped, as in
@@ -541,24 +530,18 @@ A link counts as what it points to, and a link to a directory is entered.
 A link whose target does not exist counts as the link itself, so
 .B "\-type l"
 matches only such links.
-With both
-.B \-H
-and
+Of
+.BR \-H ,
 .BR \-L ,
-.B \-L
-applies.
+and
+.BR \-P ,
+the last one given applies.
 .TP
 .B \-H
 Follow symbolic links named as paths, but no others.
 .TP
 .B \-P
-Ignored.
-Not following symbolic links is the default, and
-.B \-P
-does not cancel
-.B \-H
-or
-.BR \-L .
+Follow no symbolic links, which is the default.
 .TP
 .B \-\-help
 Print a usage message on standard output and exit with status 0.
@@ -619,12 +602,17 @@ opened, the expression or an option was invalid, a file named by
 .B \-newer
 or
 .B \-samefile
-could not be examined, or a command run by
+could not be examined, a command run by
 .B "\-exec +"
-after the search failed.
-See
-.B \-quit
-for an exception.
+failed, or
+.B \-delete
+failed.
+Also an error writing standard output other than a closed pipe, which is
+reported on standard error.
+.TP
+.B 141
+Standard output is a pipe whose reader has exited.
+No message is printed.
 .PP
 An unrecognized argument is reported with the usage on standard error:
 .PP
@@ -937,12 +925,6 @@ does not run the commands saved by
 .IP \(bu 2
 The global options are not tests that are always true; see
 .BR "Global options" .
-.IP \(bu 2
-.B \-P
-does not cancel an earlier
-.B \-H
-or
-.BR \-L .
 .SH SEE ALSO
 .BR busybox (1),
 .BR du (1),

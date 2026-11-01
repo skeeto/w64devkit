@@ -1,0 +1,30 @@
+Let the last of find's -H, -L and -P options take effect.
+find set the flags for -H and -L independently and ignored -P, so with
+both -H and -L the link-following of -L always won, whatever the order,
+and -P did not cancel an earlier -H or -L. POSIX says the last of -H and
+-L determines the behaviour, and GNU find treats -P the same way. Make
+each of the three options clear the other two.
+
+---
+ findutils/find.c |    6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+--- a/findutils/find.c
++++ b/findutils/find.c
+@@ -1730,13 +1730,13 @@
+ 			break;
+ 	}
+ 	*past_HLP = NULL;
+-	/* "+": stop on first non-option */
+-	i = getopt32(argv, "+""HLP");
++	/* "+": stop on first non-option.
++	 * The last of -H, -L and -P wins (-P is the default) */
++	i = getopt32(argv, "^+""HLP""\0""H-L:L-H:P-HL");
+ 	if (i & (1<<0))
+ 		G.recurse_flags |= ACTION_FOLLOWLINKS_L0 | ACTION_DANGLING_OK;
+ 	if (i & (1<<1))
+ 		G.recurse_flags |= ACTION_FOLLOWLINKS | ACTION_DANGLING_OK;
+-	/* -P is default and is ignored */
+ 	argv = past_HLP; /* same result as "argv += optind;" */
+ 	*past_HLP = saved;
+ 

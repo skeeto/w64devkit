@@ -1,0 +1,68 @@
+Run every pending -exec + batch at the end, not just the top-level ones.
+After the search, find ran the names still saved by -exec + only for the
+actions at the top level of the expression, so the names saved by an
+-exec + inside parentheses were silently dropped. It also stopped at the
+first of these final commands that failed, so later -exec + actions
+never ran their last batch, and it applied a "!" in front of the action
+to the command's status, so "! -exec true {} +" made find fail and
+"! -exec false {} +" did not. Now every final batch runs, including
+those inside parentheses, and any failing command gives exit status 1.
+
+---
+ findutils/find.c |   29 +++++++++++++++++------------
+ 1 file changed, 17 insertions(+), 12 deletions(-)
+
+--- a/findutils/find.c
++++ b/findutils/find.c
+@@ -864,27 +864,32 @@
+ 	return do_exec(ap, fileName);
+ }
+ # if ENABLE_FEATURE_FIND_EXEC_PLUS
+-static int flush_exec_plus(void)
++#  if ENABLE_FEATURE_FIND_PAREN
++ACTF(paren);
++#  endif
++static int flush_exec_plus(action ***appp)
+ {
+ 	action *ap;
+ 	action **app;
+-	action ***appp = G.actions;
++	int status = 0;
++
++	/* Run every pending "-exec +", also inside parentheses and after
++	 * one has failed. A failing command fails find even when negated */
+ 	while ((app = *appp++) != NULL) {
+ 		while ((ap = *app++) != NULL) {
+ 			if (ap->f == (action_fp)func_exec) {
+ 				action_exec *ae = (void*)ap;
+-				if (ae->filelist_idx != 0) {
+-					int rc = do_exec(ae, NULL);
+-#  if ENABLE_FEATURE_FIND_NOT
+-					if (ap->invert) rc = !rc;
+-#  endif
+-					if (rc == 0)
+-						return 1;
+-				}
++				if (ae->filelist_idx != 0 && !do_exec(ae, NULL))
++					status = 1;
+ 			}
++#  if ENABLE_FEATURE_FIND_PAREN
++			else if (ap->f == (action_fp)func_paren) {
++				status |= flush_exec_plus(((action_paren*)ap)->subexpr);
++			}
++#  endif
+ 		}
+ 	}
+-	return 0;
++	return status;
+ }
+ # endif
+ #endif
+@@ -1768,6 +1773,6 @@
+ 		}
+ 	}
+ 
+-	IF_FEATURE_FIND_EXEC_PLUS(G.exitstatus |= flush_exec_plus();)
++	IF_FEATURE_FIND_EXEC_PLUS(G.exitstatus |= flush_exec_plus(G.actions);)
+ 	return G.exitstatus;
+ }

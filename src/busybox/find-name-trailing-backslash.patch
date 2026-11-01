@@ -1,0 +1,90 @@
+Strip trailing backslashes and drive prefixes in find -name.
+-name drops the trailing slashes of a path given as "dir/" and matches
+the last component, but it looked only for '/'. A path ending in a
+backslash, such as "src\", was matched as a whole, "src\", and a path
+with a drive prefix, such as "c:src/", was matched as "c:src", so
+"find src\ c:src/ -name src" found neither. A drive root such as "c:/"
+was matched as "c:". Back over both kinds of slash, stop at a drive
+prefix as well, and treat "X:" followed only by slashes like "/", so
+these match "src", "src" and "c:/", and put back the separator that was
+cut off rather than a '/'.
+
+---
+ findutils/find.c |   37 +++++++++++++++++++++++--------------
+ 1 file changed, 23 insertions(+), 14 deletions(-)
+
+--- a/findutils/find.c
++++ b/findutils/find.c
+@@ -598,41 +598,50 @@
+ 	 * would also work (on non-directories), which is wrong.
+ 	 */
+ 	char *trunc_slash = NULL;
++	char trunc_char = '/';
++#if ENABLE_PLATFORM_MINGW32
++	/* bb_basename() splits at '/', '\' and ':' */
++# define is_slash(c) is_dir_sep(c)
++#else
++# define is_slash(c) ((c) == '/')
++#endif
+ 
+ 	if (*tmp == '\0') {
+ 		/* "foo/bar/[//...]" */
+-		while (tmp != fileName && tmp[-1] == '/')
++		while (tmp != fileName && is_slash(tmp[-1]))
+ 			tmp--;
+-		if (tmp == fileName) { /* entire fileName is "//.."? */
+-			/* yes, convert "//..." to "/"
++		/* entire fileName is "//.." (or "X:", "X:/..")? */
++		if (tmp == fileName IF_PLATFORM_MINGW32(|| tmp[-1] == ':')) {
++			/* yes, convert "//..." to "/" ("X://..." to "X:/")
+ 			 * Testcases:
+ 			 * find / -maxdepth 1 -name /: prints /
+ 			 * find // -maxdepth 1 -name /: prints //
+ 			 * find / -maxdepth 1 -name //: prints nothing
+ 			 * find // -maxdepth 1 -name //: prints nothing
+ 			 */
+-			if (tmp[1])
++			if (*tmp && tmp[1])
+ 				trunc_slash = (char*)tmp + 1;
++			IF_PLATFORM_MINGW32(tmp = fileName;)
+ 		} else {
+ 			/* no, it's "foo/bar/[//...]", go back to 'b' */
+ 			trunc_slash = (char*)tmp;
+-			while (tmp != fileName && tmp[-1] != '/')
++			while (tmp != fileName && !is_slash(tmp[-1])
++			 IF_PLATFORM_MINGW32(&& tmp[-1] != ':')
++			) {
+ 				tmp--;
++			}
+ 		}
+ 	}
++#undef is_slash
+ 
+ 	/* Was using FNM_PERIOD flag too,
+ 	 * but somewhere between 4.1.20 and 4.4.0 GNU find stopped using it.
+ 	 * find -name '*foo' should match .foo too:
+ 	 */
+-#if ENABLE_PLATFORM_MINGW32
+-	/* bb_basename() also splits at ':' and '\', so "X:" or "dir\" has
+-	 * an empty basename with no '/' to strip: don't put a '/' in place
+-	 * of the terminator, which turned "X:" into a path on the root */
+-	if (trunc_slash && *trunc_slash != '/')
+-		trunc_slash = NULL;
+-#endif
+-	if (trunc_slash) *trunc_slash = '\0';
++	if (trunc_slash) {
++		trunc_char = *trunc_slash;
++		*trunc_slash = '\0';
++	}
+ #if FNM_CASEFOLD
+ 	r = fnmatch(ap->pattern, tmp, (ap->iname ? FNM_CASEFOLD : 0));
+ #else
+@@ -640,7 +649,7 @@
+ 		tmp = strcpy_upcase(alloca(strlen(tmp) + 1), tmp);
+ 	r = fnmatch(ap->pattern, tmp, 0);
+ #endif
+-	if (trunc_slash) *trunc_slash = '/';
++	if (trunc_slash) *trunc_slash = trunc_char;
+ 	return r == 0;
+ }
+ 

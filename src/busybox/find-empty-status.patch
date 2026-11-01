@@ -1,0 +1,21 @@
+Make find -empty on a directory it cannot open set exit status 1.
+-empty reported a directory it could not open and treated it as not
+empty, but left the exit status alone. The search usually failed on the
+same directory anyway, but not when it was not entered, as with
+"-maxdepth 0" or after -prune, and then find exited 0 after printing an
+error. The failure now sets the exit status, as in GNU find.
+
+---
+ findutils/find.c |    1 +
+ 1 file changed, 1 insertion(+)
+
+--- a/findutils/find.c
++++ b/findutils/find.c
+@@ -980,6 +980,7 @@
+ 		dir = opendir(fileName);
+ 		if (!dir) {
+ 			bb_simple_perror_msg(fileName);
++			G.exitstatus = EXIT_FAILURE;
+ 			return FALSE;
+ 		}
+ 

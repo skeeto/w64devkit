@@ -1,0 +1,70 @@
+Make find -quit count the errors already met in the current path.
+-quit exits with find's saved status, but an error below a path (an
+entry that cannot be examined, a directory that cannot be opened) only
+reaches that status when recursive_action() returns for the whole path,
+so -quit exited 0 after reporting such errors in the path it was
+searching. recursive_action() now records in its state that it reported
+an error, and -quit adds that to the status.
+
+---
+ findutils/find.c         |    5 ++++-
+ include/libbb.h          |    1 +
+ libbb/recursive_action.c |    2 ++
+ 3 files changed, 7 insertions(+), 1 deletion(-)
+
+--- a/findutils/find.c
++++ b/findutils/find.c
+@@ -505,6 +505,7 @@
+ 	smalluint exitstatus;
+ 	recurse_flags_t recurse_flags;
+ 	IF_FEATURE_FIND_EXEC_PLUS(unsigned max_argv_len;)
++	IF_FEATURE_FIND_QUIT(struct recursive_state *state;)
+ } FIX_ALIASING;
+ #define G (*(struct globals*)bb_common_bufsiz1)
+ #define INIT_G() do { \
+@@ -946,7 +947,8 @@
+ #if ENABLE_FEATURE_FIND_QUIT
+ ACTF(quit)
+ {
+-	exit(G.exitstatus);
++	/* count the errors so far in the path being searched too */
++	exit(G.exitstatus | G.state->failed);
+ }
+ #endif
+ #if ENABLE_FEATURE_FIND_DELETE
+@@ -1050,6 +1052,7 @@
+ 		return SKIP; /* stop recursing */
+ #endif
+ 
++	IF_FEATURE_FIND_QUIT(G.state = state;)
+ 	r = exec_actions(G.actions, fileName, statbuf);
+ 	/* Had no explicit -print[0] or -exec? then print */
+ 	if ((r & TRUE) && G.need_print)
+--- a/include/libbb.h
++++ b/include/libbb.h
+@@ -593,6 +593,7 @@
+ 	unsigned flags;
+ 	unsigned depth;
+ 	void *userData;
++	smallint failed; /* set once an error was reported */
+ 	int FAST_FUNC (*fileAction)(struct recursive_state *state, const char *fileName, struct stat* statbuf);
+ 	int FAST_FUNC  (*dirAction)(struct recursive_state *state, const char *fileName, struct stat* statbuf);
+ } recursive_state_t;
+--- a/libbb/recursive_action.c
++++ b/libbb/recursive_action.c
+@@ -154,6 +154,7 @@
+ 	return status;
+ 
+  done_nak_warn:
++	state->failed = 1;
+ 	if (!(state->flags & ACTION_QUIET))
+ 		bb_simple_perror_msg(fileName);
+ 	return FALSE;
+@@ -174,6 +175,7 @@
+ 	state.flags = flags;
+ 	state.depth = 0;
+ 	state.userData = userData;
++	state.failed = 0;
+ 	state.fileAction = fileAction ? fileAction : true_action;
+ 	state.dirAction  =  dirAction ?  dirAction : true_action;
+ 

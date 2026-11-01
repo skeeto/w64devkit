@@ -1,0 +1,37 @@
+Treat an alternative of -o that holds no tests as true.
+An alternative made only of options such as -xdev or -maxdepth got no
+action group, and the NULL left in its place ended the list of groups,
+so evaluation stopped there: "-name a -o -xdev -o -name b" never tested
+"-name b" and matched only "a", "-name a -o -xdev" matched only "a",
+and the final -exec + batches after such a gap never ran. GNU find
+treats these options as true wherever they appear, so such an
+alternative matches every file. Give every alternative a group, empty
+when it has no actions, so it is true and the groups after it are kept.
+A -o with nothing after it, which GNU find rejects, is now an error
+rather than an empty alternative that would match every file.
+
+---
+ findutils/find.c |   10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+--- a/findutils/find.c
++++ b/findutils/find.c
+@@ -1336,10 +1336,16 @@
+ 		}
+ 		else if (parm == PARM_o IF_DESKTOP(|| parm == PARM_or)) {
+ 			dbg("%d", __LINE__);
+-			/* start new OR group */
++			if (!arg1) /* "find -name a -o" */
++				bb_error_msg_and_die(bb_msg_requires_arg, arg);
++			/* start new OR group. A group with no actions (only
++			 * options such as -xdev) is true: it must not be left
++			 * NULL, which would end the list of groups */
++			if (!appp[cur_group])
++				appp[cur_group] = xzalloc(sizeof(appp[0][0]));
+ 			cur_group++;
+ 			appp = xrealloc(appp, (cur_group+2) * sizeof(appp[0]));
+-			/*appp[cur_group] = NULL; - already NULL */
++			appp[cur_group] = xzalloc(sizeof(appp[0][0]));
+ 			appp[cur_group+1] = NULL;
+ 			cur_action = 0;
+ 		}

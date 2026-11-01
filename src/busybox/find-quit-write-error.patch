@@ -1,0 +1,22 @@
+Report a write error on standard output at find -quit.
+-quit called exit(), which flushes standard output without checking,
+so names printed before -quit were lost without a message or a failure
+status when they could not be written, as with "find . -print -quit
+>/dev/full", while the same find without -quit reported the error. Exit
+through fflush_stdout_and_exit(), as a normal return from find does.
+
+---
+ findutils/find.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/findutils/find.c
++++ b/findutils/find.c
+@@ -948,7 +948,7 @@
+ ACTF(quit)
+ {
+ 	/* count the errors so far in the path being searched too */
+-	exit(G.exitstatus | G.state->failed);
++	fflush_stdout_and_exit(G.exitstatus | G.state->failed);
+ }
+ #endif
+ #if ENABLE_FEATURE_FIND_DELETE

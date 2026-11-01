@@ -1,0 +1,24 @@
+Make a failed find -delete set exit status 1.
+When -delete could not remove a file or directory, such as a directory
+that is not empty, it reported the error but find still exited 0, so a
+script could not tell that files were left behind. The action stays
+true, but the failure now sets the exit status, as in GNU find.
+
+---
+ findutils/find.c |    4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+--- a/findutils/find.c
++++ b/findutils/find.c
+@@ -963,8 +963,10 @@
+ 	} else {
+ 		rc = unlink(fileName);
+ 	}
+-	if (rc < 0)
++	if (rc < 0) {
+ 		bb_simple_perror_msg(fileName);
++		G.exitstatus = EXIT_FAILURE;
++	}
+ 	return TRUE;
+ }
+ #endif

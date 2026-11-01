@@ -1,0 +1,37 @@
+Make a failing -exec + batch during the search fail find.
+When enough names had been saved, -exec + ran its command in the middle
+of the search, and a failure made only the action false for the one file
+that filled the batch: the exit status stayed 0, and that file alone
+took the other branch of a -o. POSIX says the action is always true and
+any failed invocation makes find exit nonzero, which is also what the
+final batch after the search already did. The action is now always true,
+and a failing batch sets exit status 1.
+
+---
+ findutils/find.c |   12 +++++-------
+ 1 file changed, 5 insertions(+), 7 deletions(-)
+
+--- a/findutils/find.c
++++ b/findutils/find.c
+@@ -849,16 +849,14 @@
+ {
+ # if ENABLE_FEATURE_FIND_EXEC_PLUS
+ 	if (ap->filelist) {
+-		int rc;
+-
+ 		ap->filelist = xrealloc_vector(ap->filelist, 8, ap->filelist_idx);
+ 		ap->filelist[ap->filelist_idx++] = xstrdup(fileName);
+ 		ap->file_len += strlen(fileName) + sizeof(char*) + 1;
+-		/* If we have lots of files already, exec the command */
+-		rc = 1;
+-		if (ap->file_len >= G.max_argv_len)
+-			rc = do_exec(ap, NULL);
+-		return rc;
++		/* If we have lots of files already, exec the command.
++		 * "-exec +" is always true, but a failing command fails find */
++		if (ap->file_len >= G.max_argv_len && !do_exec(ap, NULL))
++			G.exitstatus = EXIT_FAILURE;
++		return TRUE;
+ 	}
+ # endif
+ 	return do_exec(ap, fileName);
