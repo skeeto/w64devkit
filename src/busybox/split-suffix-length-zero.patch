@@ -1,0 +1,21 @@
+Treat split -a 0 as the default suffix length, as GNU split does.
+With a suffix length of 0, next_file() stepped the last character of
+the prefix instead, so the pieces were named x, y and z, and a prefix
+ending in a slash made the directory itself the name of the first
+piece.
+
+---
+ coreutils/split.c |    2 ++
+ 1 file changed, 2 insertions(+)
+
+--- a/coreutils/split.c
++++ b/coreutils/split.c
+@@ -119,6 +119,8 @@
+ 				IF_FEATURE_SPLIT_FANCY(split_suffixes)
+ 				IF_NOT_FEATURE_SPLIT_FANCY(km_suffixes)
+ 		);
++	if (suffix_len == 0) /* as in GNU, -a 0 is the default length */
++		suffix_len = 2;
+ 	sfx = "x";
+ 
+ 	argv += optind;

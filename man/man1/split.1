@@ -1,4 +1,4 @@
-.TH SPLIT 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH SPLIT 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 split \- split a file into pieces
 .SH SYNOPSIS
@@ -73,7 +73,7 @@ The
 .I prefix
 may include a directory, which must exist.
 The prefix and the suffix together must not be longer than 255 bytes,
-directory included.
+not counting the directory.
 Otherwise
 .B split
 reports
@@ -98,21 +98,9 @@ cannot have a suffix.
 .PP
 A count that is malformed or out of range is an error, reported before
 the input is opened.
-The largest count for
-.B \-l
-is 9223372036854775807.
-A
+A count must be from 1 to 9223372036854775807, for
 .B \-b
-count, after its suffix multiplies it, may be up to
-18446744073709551615, but one above 9223372036854775807 does not work:
-.B split
-writes empty or partial pieces, and may hang.
-.PP
-A count of 0 is accepted and is not useful.
-.B "\-b\ 0"
-creates empty pieces until the names run out, and then fails.
-.B "\-l\ 0"
-puts all the input in one piece.
+after its suffix multiplies it.
 .PP
 With
 .BR \-l ,
@@ -138,8 +126,12 @@ or be the next argument.
 .B \-\-
 ends the options.
 Long options are not accepted.
-An unknown option, a missing option argument, or more than two operands
-prints the usage message on standard error and exits with status 1.
+An unknown option, a missing option argument, both
+.B \-b
+and
+.BR \-l ,
+or more than two operands prints the usage message on standard error
+and exits with status 1.
 .TP
 .BI "\-b " count
 Split by bytes: each piece except the last holds
@@ -147,23 +139,6 @@ Split by bytes: each piece except the last holds
 bytes.
 The count may have a suffix; see
 .BR Counts .
-.IP
-If both
-.B \-b
-and
-.B \-l
-are given, the input is split by bytes, and the count is the argument of
-whichever came last.
-That argument is also checked as a line count, so it cannot have a
-suffix if
-.B \-l
-is given anywhere: in
-.BR "\-l\ 5\ \-b\ 1k" ,
-the
-.B 1k
-is an error, and
-.B "\-b\ 1k\ \-l\ 5"
-splits into 5-byte pieces.
 .TP
 .BI "\-l " count
 Split by lines: each piece except the last holds
@@ -183,18 +158,7 @@ The default is 2.
 It is a decimal number from 0 to 2147483647, and an error if the name
 would be too long; see
 .BR "Piece names" .
-A length of 0 is not rejected, but there is then no suffix: the first
-piece is named
-.I prefix
-itself, and each later one steps the last character of
-.I prefix
-up to
-.BR z .
-With the default prefix that gives at most three pieces, named
-.BR x ,
-.BR y ,
-and
-.BR z .
+A length of 0 means the default.
 .TP
 .B \-\-help
 Print a usage message on standard output and exit with status 0.
@@ -325,13 +289,12 @@ or
 Suffixes are always lowercase letters.
 Without
 .BR \-a ,
+or with
+.BR "\-a\ 0" ,
 GNU
 .B split
 lengthens them when the names run out, but this one fails after 676
 pieces.
-.IP \(bu 2
-.B "\-a\ 0"
-means no suffix, not the default length.
 .IP \(bu 2
 The only
 .B \-b
@@ -347,8 +310,6 @@ GNU suffixes such as
 and
 .B MB
 are errors.
-.IP \(bu 2
-Counts of 0 are not rejected.
 .PP
 Files and standard streams are binary, so CR LF line endings and Ctrl-Z
 characters are copied unchanged, and lines end only at LF.

@@ -1,0 +1,23 @@
+Report inotifyd's limit of 64 directories up front on Windows.
+WaitForMultipleObjects() waits for at most MAXIMUM_WAIT_OBJECTS handles,
+so with more directories every watch was set up and then the wait
+failed at once with "watch failed: Invalid argument". Check the count
+first and say what is wrong.
+
+---
+ miscutils/inotifyd.c |    4 ++++
+ 1 file changed, 4 insertions(+)
+
+--- a/miscutils/inotifyd.c
++++ b/miscutils/inotifyd.c
+@@ -333,6 +333,10 @@
+ 	argv++;
+ 	agent = *argv;
+ 	argc -= 2; // number of files we watch
++	// WaitForMultipleObjects() can't wait for any more
++	if (argc > MAXIMUM_WAIT_OBJECTS)
++		bb_error_msg_and_die("can't watch more than %d directories",
++								MAXIMUM_WAIT_OBJECTS);
+ 
+ 	watch = (struct watch *)xzalloc(argc * sizeof(struct watch));
+ 	hevent = (HANDLE *)xzalloc(argc * sizeof(HANDLE));

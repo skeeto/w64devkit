@@ -1,0 +1,24 @@
+Carry on after a checksum list that can't be opened.
+With -c, a list that couldn't be opened ended the command, so later
+lists were not checked. Report it, set the exit status to 1 and go on
+to the next operand, as GNU md5sum does.
+
+---
+ coreutils/md5_sha1_sum.c |    6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+--- a/coreutils/md5_sha1_sum.c
++++ b/coreutils/md5_sha1_sum.c
+@@ -327,7 +327,11 @@
+ 			int count_total = 0;
+ 			int count_failed = 0;
+ 
+-			pre_computed_stream = xfopen_stdin(*argv);
++			pre_computed_stream = fopen_or_warn_stdin(*argv);
++			if (!pre_computed_stream) {
++				return_value = EXIT_FAILURE;
++				continue;
++			}
+ 
+ 			while ((line = xmalloc_fgetline(pre_computed_stream)) != NULL) {
+ 				uint8_t *hash_value;

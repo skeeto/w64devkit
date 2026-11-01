@@ -142,21 +142,28 @@ ends the options.
 .TP
 .BR \-s ", " \-\-shared
 Take a shared lock.
-Incompatible with
+A later
 .B \-x
-and
-.BR \-u .
+or
+.B \-u
+overrides it.
 .TP
 .BR \-x ", " \-\-exclusive
 Take an exclusive lock.
 This is the default.
-Incompatible with
+A later
 .B \-s
-and
-.BR \-u .
+or
+.B \-u
+overrides it.
 .TP
 .BR \-u ", " \-\-unlock
 Release a lock instead of taking one.
+A later
+.B \-s
+or
+.B \-x
+overrides it.
 A lock belongs to the process that took it, and a new
 .B flock
 process holds none, so
@@ -260,21 +267,15 @@ Errors are reported on standard error as
 .RS 4
 .EX
 flock: can\(aqt open \(aq\fIfile\fR\(aq: \fIreason\fR
-flock: : \fIreason\fR
+flock: \fIreason\fR
 flock: invalid number \(aq\fIfd\fR\(aq
 flock: \-c takes only one argument
 flock: \fIprog\fR: \fIreason\fR
 .EE
 .RE
 .PP
-The second form, with an empty field before the reason, reports a
-failure to lock or unlock, such as
-.B Invalid argument
-for
-.B \-s
-with
-.BR \-x ,
-or
+The second form, with only a reason, reports a failure to lock or
+unlock, such as
 .B Bad file descriptor
 for an
 .I fd

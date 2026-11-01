@@ -1,0 +1,21 @@
+Let the last of flock's -s, -x and -u win.
+Given more than one of them, flock passed several lock operations to
+flock(2) at once, which failed with "Invalid argument" and status 1.
+util-linux flock uses the last one given; do the same.
+
+---
+ util-linux/flock.c |    3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+--- a/util-linux/flock.c
++++ b/util-linux/flock.c
+@@ -46,7 +46,8 @@
+ 		;
+ #endif
+ 
+-	opt = getopt32long(argv, "^+" "sxnu" "\0" "-1", flock_longopts);
++	/* The last of -s, -x and -u wins, as in util-linux */
++	opt = getopt32long(argv, "^+" "sxnu" "\0" "-1:s-xu:x-su:u-sx", flock_longopts);
+ 	argv += optind;
+ 
+ 	if (argv[1]) {

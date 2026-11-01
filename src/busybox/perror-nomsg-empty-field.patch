@@ -1,0 +1,33 @@
+Print "applet: error" rather than "applet: : error" for perror_nomsg.
+bb_perror_nomsg() and bb_perror_nomsg_and_die() pass an empty message
+to bb_simple_perror_msg(), which formats it with "%s". bb_verror_msg()
+leaves out the ": " separator only when the format itself is empty, so
+the separator appeared before the error, as in "yes: : Bad file
+descriptor" from yes, flock, mktemp, tail and dos2unix. Print the error
+string as the whole message instead.
+
+---
+ libbb/perror_nomsg.c         |    3 ++-
+ libbb/perror_nomsg_and_die.c |    3 ++-
+ 2 files changed, 4 insertions(+), 2 deletions(-)
+
+--- a/libbb/perror_nomsg.c
++++ b/libbb/perror_nomsg.c
+@@ -10,5 +10,6 @@
+ 
+ void FAST_FUNC bb_perror_nomsg(void)
+ {
+-	bb_simple_perror_msg("");
++	/* bb_simple_perror_msg("") would print "applet: : error" */
++	bb_simple_error_msg(strerror(errno));
+ }
+--- a/libbb/perror_nomsg_and_die.c
++++ b/libbb/perror_nomsg_and_die.c
+@@ -10,5 +10,6 @@
+ 
+ void FAST_FUNC bb_perror_nomsg_and_die(void)
+ {
+-	bb_simple_perror_msg_and_die("");
++	/* bb_simple_perror_msg_and_die("") would print "applet: : error" */
++	bb_simple_error_msg_and_die(strerror(errno));
+ }

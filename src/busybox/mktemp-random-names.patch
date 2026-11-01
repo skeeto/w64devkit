@@ -1,0 +1,104 @@
+Make random names for mkstemp and mktemp on Windows.
+Both used the C runtime's mktemp, which builds a name from a letter and
+a process or thread ID. The names were predictable, so anyone able to
+write the directory could make mkstemp fail with "File exists", and one
+process could try only 26 names. The names printed by mktemp -u were
+just as predictable. Replace all the trailing Xs, of which there must
+be at least six, with random letters and digits from RtlGenRandom, as
+the mkdtemp of recent mingw-w64 runtimes does, and try again, up to
+TMP_MAX times, while the name is taken.
+
+---
+ win32/mingw.c |   71 ++++++++++++++++++++++++++++++++++++++++++++++++++--------
+ 1 file changed, 62 insertions(+), 9 deletions(-)
+
+--- a/win32/mingw.c
++++ b/win32/mingw.c
+@@ -1139,25 +1139,78 @@
+ }
+ 
+ /*
+- * Windows' mktemp returns NULL on error whereas POSIX always returns the
+- * template and signals an error by making it an empty string.
++ * Windows' mktemp makes predictable names from a letter and an ID, and
++ * gives up after 26 of them.  Instead, replace all the trailing Xs, of
++ * which there must be at least six, with random letters and digits.
++ * Return the start of the Xs, or NULL.
+  */
+-#undef mktemp
+-char * FAST_FUNC mingw_mktemp(char *template)
++static char *temp_name_xs(char *template)
+ {
+-	if ( mktemp(template) == NULL ) {
+-		template[0] = '\0';
++	size_t len = strlen(template);
++	char *xs;
++
++	if (len < 6 || strcmp(template + len - 6, "XXXXXX") != 0) {
++		errno = EINVAL;
++		return NULL;
+ 	}
++	for (xs = template + len - 6; xs > template && xs[-1] == 'X'; xs--)
++		continue;
++	return xs;
++}
+ 
++static void fill_temp_name(char *xs)
++{
++	static const char letters[] =
++		"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
++	unsigned r;
++
++	for (; *xs; xs++) {
++		if (get_random_bytes(&r, sizeof(r)) != sizeof(r))
++			r = rand();
++		*xs = letters[r % 62];
++	}
++}
++
++/*
++ * POSIX mktemp always returns the template and signals an error by
++ * making it an empty string.
++ */
++char * FAST_FUNC mingw_mktemp(char *template)
++{
++	char *xs = temp_name_xs(template);
++	struct stat st;
++	int i;
++
++	if (xs) {
++		for (i = 0; i < TMP_MAX; i++) {
++			fill_temp_name(xs);
++			if (lstat(template, &st) != 0) {
++				if (errno == ENOENT)
++					return template;
++				break;
++			}
++		}
++		if (i == TMP_MAX)
++			errno = EEXIST;
++	}
++	template[0] = '\0';
+ 	return template;
+ }
+ 
+ int mkstemp(char *template)
+ {
+-	char *filename = mktemp(template);
+-	if (filename == NULL)
++	char *xs = temp_name_xs(template);
++	int i, fd;
++
++	if (xs == NULL)
+ 		return -1;
+-	return open(filename, O_RDWR | O_CREAT | O_EXCL, 0600);
++	for (i = 0; i < TMP_MAX; i++) {
++		fill_temp_name(xs);
++		fd = open(template, O_RDWR | O_CREAT | O_EXCL, 0600);
++		if (fd >= 0 || errno != EEXIST)
++			return fd;
++	}
++	return -1;
+ }
+ 
+ int gettimeofday(struct timeval *tv, void *tz UNUSED_PARAM)

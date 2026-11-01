@@ -1,0 +1,20 @@
+Check split's NAME_MAX limit against the file name, not the whole path.
+The prefix may include a directory, and its length counted toward the
+255-byte limit on the name of a piece, so a prefix in a deep directory
+failed with "suffix too long". Measure only the last component.
+
+---
+ coreutils/split.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/coreutils/split.c
++++ b/coreutils/split.c
+@@ -134,7 +134,7 @@
+ 		argv[0] = (char *) bb_msg_standard_input;
+ 	}
+ 
+-	if (NAME_MAX < strlen(sfx) + suffix_len)
++	if (NAME_MAX < strlen(bb_basename(sfx)) + suffix_len)
+ 		bb_simple_error_msg_and_die("suffix too long");
+ 
+ 	{

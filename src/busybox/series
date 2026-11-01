@@ -486,3 +486,16 @@ less-toggle-tilde.patch
 less-restore-tty-on-open-error.patch
 stty-size-error-status.patch
 stty-console-device-name.patch
+mktemp-random-names.patch
+perror-nomsg-empty-field.patch
+flock-last-lock-type-wins.patch
+split-count-range.patch
+split-suffix-length-zero.patch
+split-bytes-lines-exclusive.patch
+split-name-max-basename.patch
+inotifyd-mask-newline.patch
+inotifyd-x-only-mask.patch
+inotifyd-max-directories.patch
+inotifyd-follow-links.patch
+sha3sum-check-width-first.patch
+md5sum-check-missing-list.patch

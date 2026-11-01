@@ -44,9 +44,7 @@ in any order and with repeats allowed.
 It selects the events reported for that directory, and with no mask all
 of them are.
 Other characters in a mask are ignored.
-A mask with no event letter, or with only
-.BR x ,
-is an error.
+A mask with no event letter is an error.
 .PP
 The mask follows the last colon in the operand, except that a colon in
 the second position is a drive letter's.
@@ -228,8 +226,10 @@ Every watched directory was deleted, or the first argument was
 .BR \-\-help .
 .TP
 .B 1
-Fewer than two operands, with a usage message on standard error; a mask
-that selects no event; a
+Fewer than two operands, with a usage message on standard error; more
+than 64
+.I dir
+operands; a mask that selects no event; a
 .I dir
 that is not an existing directory; a directory that cannot be opened for
 watching; or a failure while waiting for changes.
@@ -238,16 +238,13 @@ These errors are reported on standard error as
 .PP
 .RS 4
 .EX
+inotifyd: can\(aqt watch more than 64 directories
 inotifyd: \fIdir\fR: invalid mask
 inotifyd: \fIdir\fR: not a directory
 inotifyd: add watch (\fIdir\fR) failed: \fIreason\fR
 inotifyd: watch failed: \fIreason\fR
 .EE
 .RE
-.PP
-The first of these is followed by an empty line.
-The last is reported when waiting for changes fails, as it does at once
-when there are more than 64 directories.
 .PP
 Otherwise
 .B inotifyd
@@ -380,8 +377,8 @@ in its manifest.
 A
 .I dir
 may use a drive letter and either kind of slash.
-One that is a symbolic link or a junction is rejected as not a directory
-unless it ends in a slash.
+One that is a symbolic link or a junction to a directory watches that
+directory.
 .SH SEE ALSO
 .BR busybox (1),
 .BR sh (1)

@@ -1,0 +1,52 @@
+Check sha3sum's -a value before opening any file.
+The width was validated in hash_file() after the file was opened, so a
+bad -a was not reported at all when no file could be opened, and was
+otherwise reported only after errors for the files before it. Validate
+it once, after parsing the options.
+
+---
+ coreutils/md5_sha1_sum.c |   26 +++++++++++++++-----------
+ 1 file changed, 15 insertions(+), 11 deletions(-)
+
+--- a/coreutils/md5_sha1_sum.c
++++ b/coreutils/md5_sha1_sum.c
+@@ -235,17 +235,7 @@
+ 		sha3_begin(&context.sha3);
+ 		update = (void*)sha3_hash;
+ 		final = (void*)sha3_end;
+-		/*
+-		 * Should support 224, 256, 384, 512.
+-		 * We allow any value which does not blow the algorithm up.
+-		 */
+-		if (sha3_width >= 1600/2 /* input block can't be <= 0 */
+-		 || sha3_width == 0      /* hash len can't be 0 */
+-		 || (sha3_width & 0x1f)  /* should be multiple of 32 */
+-		/* (because input uses up to 8 byte wide word XORs. 32/4=8) */
+-		) {
+-			bb_error_msg_and_die("bad -a%u", sha3_width);
+-		}
++		/* sha3_width was checked in main */
+ 		context.sha3.input_block_bytes = 1600/8 - sha3_width/4;
+ 	}
+ #endif
+@@ -305,6 +295,20 @@
+ #endif
+ 			getopt32(argv, "");
+ 	}
++#if ENABLE_SHA3SUM
++	/*
++	 * Should support 224, 256, 384, 512.
++	 * We allow any value which does not blow the algorithm up.
++	 * Check before any file is opened, so it is always reported.
++	 */
++	if (sha3_width >= 1600/2 /* input block can't be <= 0 */
++	 || sha3_width == 0      /* hash len can't be 0 */
++	 || (sha3_width & 0x1f)  /* should be multiple of 32 */
++	/* (because input uses up to 8 byte wide word XORs. 32/4=8) */
++	) {
++		bb_error_msg_and_die("bad -a%u", sha3_width);
++	}
++#endif
+ 	argv += optind;
+ 	//argc -= optind;
+ 	if (!*argv)

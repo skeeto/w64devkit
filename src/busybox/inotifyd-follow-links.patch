@@ -1,0 +1,21 @@
+Let inotifyd watch a directory through a symbolic link or junction.
+The directory check used lstat(), so a link to a directory was rejected
+as "not a directory" unless its name ended in a slash, although
+CreateFile() follows the link and the watch works. Follow links in the
+check too.
+
+---
+ miscutils/inotifyd.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/miscutils/inotifyd.c
++++ b/miscutils/inotifyd.c
+@@ -369,7 +369,7 @@
+ 		if (mask == 0)
+ 			bb_error_msg_and_die("%s: invalid mask", *argv);
+ 
+-		if (!is_directory(*argv, FALSE))
++		if (!is_directory(*argv, TRUE))
+ 			bb_error_msg_and_die("%s: not a directory", *argv);
+ 
+ 		watch[n].hdir = CreateFile(*argv, GENERIC_READ|FILE_LIST_DIRECTORY,

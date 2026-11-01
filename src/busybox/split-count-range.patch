@@ -1,0 +1,27 @@
+Reject split counts of 0, and -b counts too large for off_t.
+The -b count was parsed as unsigned long long and stored in an off_t,
+so one above the off_t maximum became negative: split then wrote empty
+or partial pieces and could loop forever. A count of 0, for -b or -l,
+was accepted: -b 0 created empty pieces until the names ran out, and
+-l 0 put all the input in one piece. Parse both counts in the range 1
+to the off_t maximum, which settles both problems in the same lines.
+
+---
+ coreutils/split.c |    6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+--- a/coreutils/split.c
++++ b/coreutils/split.c
+@@ -113,9 +113,9 @@
+ 	);
+ 
+ 	if (opt & SPLIT_OPT_l)
+-		cnt = XATOOFF(count_p);
+-	if (opt & SPLIT_OPT_b) // FIXME: also needs XATOOFF
+-		cnt = xatoull_sfx(count_p,
++		cnt = xatoull_range(count_p, 1, OFF_T_MAX);
++	if (opt & SPLIT_OPT_b)
++		cnt = xatoull_range_sfx(count_p, 1, OFF_T_MAX,
+ 				IF_FEATURE_SPLIT_FANCY(split_suffixes)
+ 				IF_NOT_FEATURE_SPLIT_FANCY(km_suffixes)
+ 		);

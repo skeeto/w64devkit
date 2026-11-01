@@ -25,9 +25,7 @@ characters replaced to make a name that is not in use.
 The template must end in at least six
 .B X
 characters, and nothing may follow them.
-In a file name, and in any name printed by
-.BR \-u ,
-only the last six are replaced; in a directory name, all of them are.
+Each of them is replaced by a random letter or digit.
 The rest of the path is left as it is, and its directory part must
 already exist, except with
 .BR \-u .
@@ -105,10 +103,6 @@ makes the template relative to the current directory.
 .BR \-u ", " \-\-dry\-run
 Create nothing.
 Print a name that did not exist when it was chosen.
-With
-.BR \-d ,
-the name is made as for a file; see
-.BR NOTES .
 .TP
 \fB\-\-tmpdir\fR[\fB=\fIdir\fR]
 Like
@@ -190,7 +184,7 @@ missing argument to
 or more than one template, a usage message is written on standard error.
 When no name can be made, or the file or directory cannot be created, a
 message of the form
-.RB \(dq "mktemp: : " \c
+.RB \(dq "mktemp: " \c
 .IR reason \(dq
 is written on standard error, unless
 .B \-q
@@ -203,8 +197,7 @@ when the template does not end in six
 .B X
 characters, and
 .B File exists
-when the C library runs out of file names, or another process takes
-the chosen name first; see
+when every name tried is in use; see
 .BR NOTES .
 .SH EXAMPLES
 Create a temporary file, and keep its name in a variable:
@@ -230,7 +223,7 @@ Make a file in another directory:
 .RS 4
 .EX
 $ mktemp \-p build cc.XXXXXX
-build/cc.a14280
+build/cc.Tq4mZ9
 .EE
 .RE
 .PP
@@ -274,37 +267,18 @@ or
 .B \-\-tmpdir=
 means the current directory, not the default base directory.
 .PP
-The C library, not
-.BR mktemp ,
-chooses the name.
-For a file, and for any name printed by
-.BR \-u ,
-including with
-.BR \-d ,
-it replaces the six
-.B X
-characters with a lowercase letter and five digits derived from the ID
-of the calling thread, so the names are predictable, not random.
-When that name exists, the letter advances through
-.BR z ,
-and then the attempt fails with
-.BR "File exists" .
-For a directory, each trailing
-.B X
-becomes a random letter or digit.
-.PP
+When the name chosen is in use, another is chosen at random, and the
+attempt fails with
+.B "File exists"
+only after 32767 names in use for a file or a
+.B \-u
+name, and after many more for a directory.
 A file is created only if its name is still unused, so when another
 process creates the same name after
 .B mktemp
 chooses it,
 .B mktemp
-fails with
-.B "File exists"
-rather than share that file.
-As the names are predictable, anyone who can write the directory can
-make
-.B mktemp
-fail this way.
+chooses again rather than share that file.
 Neither files nor directories are private: access follows the
 permissions of the containing directory.
 .PP
@@ -322,7 +296,7 @@ runs from
 .PP
 .RS 4
 .EX
-C:\eUsers\eme\eAppData\eLocal\eTemp/tmp.a01276
+C:\eUsers\eme\eAppData\eLocal\eTemp/tmp.Tq4mZ9
 .EE
 .RE
 .PP
@@ -342,10 +316,10 @@ cannot follow a base directory.
 A base directory that is a bare drive, such as
 .IR c: ,
 names the current directory of that drive and gets no slash, as in
-.IR c:tmp.a01276 .
+.IR c:tmp.Tq4mZ9 .
 A template that starts with a slash still gets one after a bare drive,
 so the name is in the root of the drive, as in
-.IR c:/tmp.a01276 .
+.IR c:/tmp.Tq4mZ9 .
 .PP
 The default base directory
 .I /tmp

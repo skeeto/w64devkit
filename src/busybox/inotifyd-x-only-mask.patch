@@ -1,0 +1,23 @@
+Accept an inotifyd mask of only x on Windows.
+The x event had no notification filter of its own, so a mask of only x
+gave an empty filter and was rejected as invalid, though watching only
+for the end of a directory is a reasonable request. The end of a watch
+is reported whatever the filter, so give x the directory name filter,
+which rarely fires; the changes it lets through are not reported, since
+x is the only event selected.
+
+---
+ miscutils/inotifyd.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/miscutils/inotifyd.c
++++ b/miscutils/inotifyd.c
+@@ -249,7 +249,7 @@
+ };
+ 
+ static const unsigned mask_values[] = {
+-	0x000,	// File is no longer watched (usually deleted)
++	0x002,	// File is no longer watched (any nonzero filter will do)
+ 	0x003,	// Subfile was created
+ 	0x003,	// Subfile was deleted
+ 	0x1fc,	// File was modified (everything except create/delete/move)

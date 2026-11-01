@@ -1,0 +1,22 @@
+Make split's -b and -l mutually exclusive.
+Both options stored their argument in the same variable, so with both
+given, the input was split by bytes using whichever argument came last,
+and that argument was also parsed as a line count: -l 5 -b 1k failed
+with "invalid number '1k'", while -b 1k -l 5 made 5-byte pieces. GNU
+split rejects the combination; show the usage message instead.
+
+---
+ coreutils/split.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/coreutils/split.c
++++ b/coreutils/split.c
+@@ -108,7 +108,7 @@
+ 
+ 	opt = getopt32(argv, "^"
+ 			"l:b:a:+" /* -a N */
+-			"\0" "?2"/*max 2 args*/,
++			"\0" "?2"/*max 2 args*/ ":l--b:b--l",
+ 			&count_p, &count_p, &suffix_len
+ 	);
+ 

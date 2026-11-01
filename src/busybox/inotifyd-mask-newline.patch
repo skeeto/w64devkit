@@ -1,0 +1,19 @@
+Drop the stray newline from inotifyd's "invalid mask" error.
+bb_error_msg_and_die() already ends the message with a newline, so an
+empty line followed it.
+
+---
+ miscutils/inotifyd.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/miscutils/inotifyd.c
++++ b/miscutils/inotifyd.c
+@@ -363,7 +363,7 @@
+ 		}
+ 
+ 		if (mask == 0)
+-			bb_error_msg_and_die("%s: invalid mask\n", *argv);
++			bb_error_msg_and_die("%s: invalid mask", *argv);
+ 
+ 		if (!is_directory(*argv, FALSE))
+ 			bb_error_msg_and_die("%s: not a directory", *argv);
