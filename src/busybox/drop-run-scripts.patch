@@ -1,0 +1,49 @@
+Let drop run shell scripts and scripts with a #! line.
+drop finds a command with the .sh suffix among others, but it passed
+whatever it found straight to CreateProcessAsUserA(), which can only
+start a binary. So a script, whether named with .sh or starting with
+#!, always failed with "can't execute" and status 126, as did a -s
+shell that was a script. When the program is a script, start the
+BusyBox shell instead and have it exec the script, so the usual
+interpreter handling applies to it. Give it a -s shell named without a
+directory as ./NAME, since the shell would search PATH for it.
+
+---
+ miscutils/drop.c |   18 +++++++++++++++++-
+ 1 file changed, 17 insertions(+), 1 deletion(-)
+
+--- a/miscutils/drop.c
++++ b/miscutils/drop.c
+@@ -118,6 +118,7 @@
+ 			char **a;
+ 			const char *opt, *arg;
+ 			char *exe, *cmd, *q;
++			interp_t interp;
+ 
+ 			a = argv + optind;
+ 			opt = "-c";
+@@ -176,8 +177,23 @@
+ 				bb_error_msg_and_die("can't find '%s'", arg);
+ 			}
+ 
++			cmd = NULL;
++			if (ENABLE_SH_IS_ASH && parse_interpreter(exe, &interp)) {
++				// CreateProcessAsUserA() can only run binaries:
++				// have the shell run a script.  Like a binary, a -s
++				// SHELL without a directory is in the current one.
++				cmd = xstrdup("sh -c");
++				q = quote_arg("exec \"$0\" \"$@\"");
++				cmd = xappendword(cmd, q);
++				free(q);
++				arg = has_path(exe) ? exe : xasprintf("./%s", exe);
++				exe = xstrdup(bb_busybox_exec_path);
++			}
++
+ 			slash_to_bs(exe);
+-			cmd = quote_arg(arg);
++			q = quote_arg(arg);
++			cmd = xappendword(cmd, q);
++			free(q);
+ 			if (opt_command) {
+ 				cmd = xappendword(cmd, opt);
+ 				q = quote_arg(opt_command);

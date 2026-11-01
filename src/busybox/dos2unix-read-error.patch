@@ -1,0 +1,39 @@
+Don't let an I/O error in dos2unix replace the file with part of it.
+When reading a file failed partway through, fgetc() returned EOF and
+the error was never checked: closing the input succeeds, so the part
+read so far silently replaced the file and the exit status was 0.
+Reading standard input had the same problem, ending the output early
+with status 0. A failed write to the temporary file has the same
+effect when the C library drops the block and the final fclose()
+succeeds. Check ferror() on both streams, and on an error keep the
+file and exit with a message. Also close the output before removing
+the temporary file on error, since it used to stay open when closing
+the input failed, and on Windows a file that is open can't be removed.
+
+---
+ coreutils/dos2unix.c |    8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+--- a/coreutils/dos2unix.c
++++ b/coreutils/dos2unix.c
+@@ -95,13 +95,19 @@
+ 	}
+ 
+ 	if (fn != NULL) {
+-		if (fclose(in) < 0 || fclose(out) < 0) {
++		int bad = ferror(in) | ferror(out);
++
++		bad |= fclose(in);
++		bad |= fclose(out);
++		if (bad) {
+ 			unlink(temp_fn);
+ 			bb_perror_nomsg_and_die();
+ 		}
+ 		xrename(temp_fn, resolved_fn);
+ 		free(temp_fn);
+ 		free(resolved_fn);
++	} else if (ferror(in)) {
++		bb_simple_perror_msg_and_die(bb_msg_read_error);
+ 	}
+ }
+ 

@@ -1,4 +1,4 @@
-.TH PIPE_PROGRESS 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH PIPE_PROGRESS 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 pipe_progress \- pass data through a pipe, showing activity with dots
 .SH SYNOPSIS
@@ -34,11 +34,35 @@ At end of input,
 writes a newline to standard error, even when it wrote no dots, so that
 the next prompt starts on a fresh line.
 .PP
-An error reading standard input ends the copy as if at end of input.
-An error writing standard output is ignored, and the rest of that block
-is lost, unless standard output is a pipe whose reader has exited (see
-.BR "EXIT STATUS" ).
-Neither is reported.
+An error reading standard input ends the copy, and after the newline
+.B pipe_progress
+writes
+.PP
+.RS 4
+.EX
+pipe_progress: read error: \fIreason\fR
+.EE
+.RE
+.PP
+to standard error.
+An error writing standard output stops the copy at once, unless
+standard output is a pipe whose reader has exited (see
+.BR "EXIT STATUS" ),
+with
+.PP
+.RS 4
+.EX
+pipe_progress: write error: \fIreason\fR
+.EE
+.RE
+.PP
+on standard error, following any dots on the same line, and no final
+newline.
+The message says
+.B short write
+instead of
+.B write error
+when part of the block was written.
 .SH OPTIONS
 No option is examined.
 Any argument other than a first argument of
@@ -65,8 +89,10 @@ for console output, are described in
 .TP
 .B 0
 Success.
-This includes the case where standard input could not be read or
-standard output could not be written, other than as below.
+.TP
+.B 1
+Standard input could not be read, or standard output could not be
+written, other than as below.
 .TP
 .B 141
 Standard output or standard error is a pipe whose reader has exited.
@@ -113,9 +139,6 @@ Escape sequences, such as those for color, take effect, and busybox
 emulates them on consoles without virtual terminal support.
 Where busybox emulates them, an escape sequence split between two blocks
 is not recognized, and is written as text.
-A block that contains a NUL byte is written as is, with no conversion
-or emulation.
-This is decided for each block, so other blocks are still converted.
 .SH SEE ALSO
 .BR busybox (1),
 .BR bzip2 (1),

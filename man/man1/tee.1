@@ -158,33 +158,20 @@ tee: \fIfile\fR: \fIreason\fR
 .PP
 and skipped.
 A failed write to a
-.IR file ,
-other than to a closed pipe, does not stop
-.BR tee ,
-which keeps copying to every destination.
-It is noticed only when the input ends, and is then reported as
+.I file
+or to standard output, other than to a closed pipe, is reported at
+once in the same form, with standard output named
+.BR "standard output" .
+.B tee
+then writes nothing more to that destination and keeps copying to the
+others.
+A read error on standard input ends the input, and is reported as
 .PP
 .RS 4
 .EX
-tee: \fIfile\fR: I/O error
+tee: read error: \fIreason\fR
 .EE
 .RE
-.PP
-for the first failing
-.I file
-only.
-A failed write to standard output, other than to a closed pipe, is
-treated the same way, and reported, if no write to a
-.I file
-failed, as
-.PP
-.RS 4
-.EX
-tee: standard output: I/O error
-.EE
-.RE
-.PP
-A read error on standard input ends the input without a message.
 .SH EXAMPLES
 Save the output of a build and watch it at the same time:
 .PP
@@ -241,11 +228,6 @@ named
 is standard output, where GNU
 .B tee
 creates a file of that name.
-.IP \(bu 2
-A failed write is reported only when the input ends, and
-.B tee
-keeps writing to that
-.IR file .
 .PP
 Standard input and output and the files are binary, so CR LF line
 endings and Ctrl-Z characters are copied unchanged.

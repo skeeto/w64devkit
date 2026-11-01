@@ -1,0 +1,67 @@
+Report drop's failures to build the token or to get the exit status.
+If Windows refused to create the restricted token or to set its
+integrity level, which always happens on Windows XP, or if the
+command's exit code could not be read, drop, cdrop and pdrop exited
+with status 1 and no message. The options were only parsed after the
+token was built, so in those cases a usage error wasn't reported
+either. Parse the options first and report each failure with the
+reason Windows gave.
+
+---
+ miscutils/drop.c |   20 +++++++++++++-------
+ 1 file changed, 13 insertions(+), 7 deletions(-)
+
+--- a/miscutils/drop.c
++++ b/miscutils/drop.c
+@@ -85,12 +85,19 @@
+ 		0x00, 0x20, 0x00, 0x00
+ 	};
+ 	DWORD code;
++	char *opt_command = NULL;
++	char *opt_shell = NULL;
+ 	// This shouldn't be necessary but without it the binary complains
+ 	// it can't find CreateProcessAsUserA on older versions of Windows.
+ 	DECLARE_PROC_ADDR(BOOL, CreateProcessAsUserA, HANDLE, LPCSTR, LPSTR,
+ 			LPSECURITY_ATTRIBUTES, LPSECURITY_ATTRIBUTES, BOOL, DWORD,
+ 			LPVOID, LPCSTR, LPSTARTUPINFOA, LPPROCESS_INFORMATION);
+ 
++	if (*applet_name == 'd')
++		getopt32(argv, "c:s:", &opt_command, &opt_shell);
++	else
++		getopt32(argv, "c:", &opt_command);
++
+ 	if (!INIT_PROC_ADDR(advapi32.dll, CreateProcessAsUserA))
+ 		bb_simple_error_msg_and_die("not supported");
+ 
+@@ -108,16 +115,10 @@
+ 		TIL.Label.Attributes = SE_GROUP_INTEGRITY;
+ 		if (SetTokenInformation(token, TokenIntegrityLevel, &TIL,
+ 						sizeof(TOKEN_MANDATORY_LABEL))) {
+-			char *opt_command = NULL;
+-			char *opt_shell = NULL;
+ 			char **a;
+ 			const char *opt, *arg;
+ 			char *exe, *cmd, *q;
+ 
+-			if (*applet_name == 'd')
+-				getopt32(argv, "c:s:", &opt_command, &opt_shell);
+-			else
+-				getopt32(argv, "c:", &opt_command);
+ 			a = argv + optind;
+ 			opt = "-c";
+ 
+@@ -213,8 +214,13 @@
+ 			if (GetExitCodeProcess(pi.hProcess, &code)) {
+ 				return exit_code_to_posix(code);
+ 			}
++			errno = err_win_to_posix();
++			bb_simple_perror_msg_and_die("can't get exit status");
+ 		}
++		errno = err_win_to_posix();
++		bb_simple_perror_msg_and_die("can't set integrity level");
+ 	}
+ 
+-	return EXIT_FAILURE;
++	errno = err_win_to_posix();
++	bb_simple_perror_msg_and_die("can't create token");
+ }

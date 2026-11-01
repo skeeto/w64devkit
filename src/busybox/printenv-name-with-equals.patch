@@ -1,0 +1,22 @@
+Don't let printenv find a name that contains '='.
+getenv() compares the name with the start of each environment entry,
+so with FOO set to "a=b", "printenv FOO=a" matched it and printed the
+value, or what followed the extra '=', and exited 0. No variable name
+contains '=', so treat such a name as not set, as coreutils does.
+
+---
+ coreutils/printenv.c |    3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+--- a/coreutils/printenv.c
++++ b/coreutils/printenv.c
+@@ -47,7 +47,8 @@
+ 		char *arg, *env;
+ 
+ 		while ((arg = *++argv) != NULL) {
+-			env = getenv(arg);
++			/* getenv("A=b") can match the variable A=b=c */
++			env = strchr(arg, '=') ? NULL : getenv(arg);
+ 			if (env)
+ 				puts(env);
+ 			else

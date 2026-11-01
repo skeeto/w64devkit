@@ -1,0 +1,29 @@
+Report a command path that isn't executable as EACCES, not ENOENT.
+When a command given with a path named a file or directory that exists
+but isn't executable, mingw_spawnvp() failed with ENOENT. So env,
+timeout, xargs and the other applets that run commands said "No such
+file or directory" and exited with 127, as if the file wasn't there,
+where execvp() gives EACCES and the shell reports "Permission denied"
+with 126. Fail with EACCES when the path exists.
+
+---
+ win32/process.c |    7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+--- a/win32/process.c
++++ b/win32/process.c
+@@ -419,8 +419,13 @@
+ 			free(path);
+ 			return ret;
+ 		}
+-		if (unix_path(cmd))
++		if (unix_path(cmd)) {
+ 			cmd = bb_basename(cmd);
++		} else if (access(cmd, F_OK) == 0) {
++			/* it exists but isn't executable */
++			errno = EACCES;
++			return -1;
++		}
+ 	}
+ 
+ 	if (!has_path(cmd) && (path = find_first_executable(cmd)) != NULL) {

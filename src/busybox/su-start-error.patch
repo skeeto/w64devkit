@@ -1,0 +1,26 @@
+Report su's failure to start the shell.
+When ShellExecuteEx() failed, su exited with status 1 without a word,
+so a declined UAC prompt, or a shell that Windows could not run, looked
+the same as a shell that exited with status 1. Say that the user
+cancelled the prompt, or that the program could not be executed and
+why.
+
+---
+ loginutils/suw32.c |    6 ++++++
+ 1 file changed, 6 insertions(+)
+
+--- a/loginutils/suw32.c
++++ b/loginutils/suw32.c
+@@ -138,6 +138,12 @@
+ 	info.nShow = SW_SHOWNORMAL;
+ 
+ 	if (!mingw_shell_execute(&info)) {
++		if (GetLastError() == ERROR_CANCELLED) {
++			bb_simple_error_msg("cancelled by user");
++		} else {
++			errno = err_win_to_posix();
++			bb_perror_msg("can't execute '%s'", bb_path);
++		}
+ 		ret = 1;
+ 		goto end;
+ 	}

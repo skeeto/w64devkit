@@ -1,0 +1,28 @@
+Report pipe_progress's read and write errors.
+A read error on standard input ended the copy as if the input had
+ended, and a failed write to standard output was ignored, losing that
+block, while the copy went on. Either way nothing was reported and the
+exit status was 0, so a broken copy looked like a good one. Exit with
+an error message and status 1 on a write error, and on a read error
+after the final newline.
+
+---
+ debianutils/pipe_progress.c |    4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+--- a/debianutils/pipe_progress.c
++++ b/debianutils/pipe_progress.c
+@@ -42,10 +42,12 @@
+ 			t = new_time;
+ 			bb_putchar_stderr('.');
+ 		}
+-		full_write(STDOUT_FILENO, buf, len);
++		xwrite(STDOUT_FILENO, buf, len);
+ 	}
+ 
+ 	bb_putchar_stderr('\n');
++	if (len < 0)
++		bb_simple_perror_msg_and_die(bb_msg_read_error);
+ 
+ 	return 0;
+ }

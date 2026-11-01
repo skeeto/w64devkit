@@ -1,0 +1,29 @@
+Make the HOME and TMPDIR fallbacks of getenv() case-insensitive.
+Environment variable names are case-insensitive on Windows, and
+getenv("home") finds HOME when it is set. But the fallbacks used when
+HOME or TMPDIR is unset compared the name case-sensitively, so
+"printenv home" printed nothing where "printenv HOME" printed the
+profile directory. Compare the names without regard to case.
+
+---
+ win32/env.c |    5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+--- a/win32/env.c
++++ b/win32/env.c
+@@ -7,12 +7,13 @@
+ {
+ 	char *result = getenv(name);
+ 	if (!result) {
+-		if (!strcmp(name, "TMPDIR")) {
++		/* names are case-insensitive on Windows */
++		if (!strcasecmp(name, "TMPDIR")) {
+ 			/* on Windows it is TMP and TEMP */
+ 			result = getenv("TMP");
+ 			if (!result)
+ 				result = getenv("TEMP");
+-		} else if (!strcmp(name, "HOME")) {
++		} else if (!strcasecmp(name, "HOME")) {
+ 			struct passwd *p = getpwuid(getuid());
+ 			if (p)
+ 				result = p->pw_dir;

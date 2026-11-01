@@ -121,8 +121,9 @@ Success.
 .B 1
 Invalid usage, a
 .I file
-could not be opened, written, or replaced, or standard output could not
-be written for a reason other than a closed pipe.
+could not be opened, read, written, or replaced, standard input could
+not be read, or standard output could not be written for a reason other
+than a closed pipe.
 .TP
 .B 141
 Standard output is a pipe that was closed before all output was written.
@@ -189,12 +190,10 @@ is converted anyway.
 If
 .I file
 cannot be replaced, for example because another program has it open,
-the command fails and leaves the temporary file behind.
-A read error partway through a
-.I file
-is taken as its end, so the part read before it replaces
-.I file
-and no error is reported.
+the command fails and removes the temporary file.
+So does a read or write error partway through a
+.IR file ,
+which is left unchanged.
 .PP
 File names may use drive letters and backslashes.
 They may contain any Unicode characters on Windows 10 version 1903 and

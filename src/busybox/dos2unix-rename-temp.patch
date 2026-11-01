@@ -1,0 +1,27 @@
+Remove dos2unix's temporary file when it can't replace the file.
+The converted text is written to a temporary file that is then renamed
+over the original. If the rename failed, as when another program has
+the file open on Windows, xrename() exited at once and the temporary
+file was left behind next to the original. Report the error, remove
+the temporary file and then exit.
+
+---
+ coreutils/dos2unix.c |    7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+--- a/coreutils/dos2unix.c
++++ b/coreutils/dos2unix.c
+@@ -103,7 +103,12 @@
+ 			unlink(temp_fn);
+ 			bb_perror_nomsg_and_die();
+ 		}
+-		xrename(temp_fn, resolved_fn);
++		if (rename(temp_fn, resolved_fn) != 0) {
++			bb_perror_msg("can't move '%s' to '%s'",
++					temp_fn, resolved_fn);
++			unlink(temp_fn);
++			xfunc_die();
++		}
+ 		free(temp_fn);
+ 		free(resolved_fn);
+ 	} else if (ferror(in)) {

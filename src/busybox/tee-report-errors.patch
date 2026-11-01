@@ -1,0 +1,88 @@
+Report each of tee's write errors with its reason, and read errors.
+tee ignored write errors while copying and only checked ferror() on
+each output once the input ended. So a failed write was reported late,
+as "FILE: I/O error" without the reason, only the first failing output
+was named before tee exited, and a write error on standard output was
+not reported at all. A read error on standard input made the exit
+status 1 without a message. Check each write, report the first failure
+on each output with its reason and then skip that output while copying
+to the others, and report a read error.
+
+---
+ coreutils/tee.c |   49 ++++++++++++++++++++++++++-----------------------
+ 1 file changed, 26 insertions(+), 23 deletions(-)
+
+--- a/coreutils/tee.c
++++ b/coreutils/tee.c
+@@ -109,45 +109,48 @@
+ 		fp++;
+ 		np++;
+ 	} while (*argv);
+-	/* names[0] will be filled later */
++	names[0] = (char *) bb_msg_standard_output;
+ 
++	/* An output that fails is reported once, and then skipped,
++	 * while copying to the others goes on. */
+ #if ENABLE_FEATURE_TEE_USE_BLOCK_IO
+ 	while ((c = safe_read(STDIN_FILENO, buf, COMMON_BUFSIZE)) > 0) {
+ 		fp = files;
+-		do
+-			fwrite(buf, 1, c, *fp);
++		np = names;
++		do {
++			if (!ferror(*fp) && fwrite(buf, 1, c, *fp) != c) {
++				bb_simple_perror_msg(*np);
++				retval = EXIT_FAILURE;
++			}
+ 			/* if (opt_p && fwrite() != c && !EPIPE) bb_error_msg("..."); */
+-		while (*++fp);
++			np++;
++		} while (*++fp);
+ 	}
+ 	if (c < 0) {		/* Make sure read errors are signaled. */
++		bb_simple_perror_msg(bb_msg_read_error);
+ 		retval = EXIT_FAILURE;
+ 	}
+ #else
+ 	setvbuf(stdout, NULL, _IONBF, 0);
+ 	while ((c = getchar()) != EOF) {
+ 		fp = files;
+-		do
+-			putc(c, *fp);
++		np = names;
++		do {
++			if (!ferror(*fp) && putc(c, *fp) == EOF) {
++				bb_simple_perror_msg(*np);
++				retval = EXIT_FAILURE;
++			}
+ 			/* if (opt_p && putc() == EOF && !EPIPE) bb_error_msg("..."); */
+-		while (*++fp);
++			np++;
++		} while (*++fp);
+ 	}
++	if (ferror(stdin)) {
++		bb_simple_perror_msg(bb_msg_read_error);
++		retval = EXIT_FAILURE;
++	}
+ #endif
+ 
+-	/* Now we need to check for i/o errors on stdin and the various
+-	 * output files.  Since we know that the first entry in the output
+-	 * file table is stdout, we can save one "if ferror" test by
+-	 * setting the first entry to stdin and checking stdout error
+-	 * status with fflush_stdout_and_exit()... although fflush()ing
+-	 * is unnecessary here. */
+-	np = names;
+-	fp = files;
+-	names[0] = (char *) bb_msg_standard_input;
+-	files[0] = stdin;
+-	do {	/* Now check for input and output errors. */
+-		/* Checking ferror should be sufficient, but we may want to fclose.
+-		 * If we do, remember not to close stdin! */
+-		die_if_ferror(*fp++, *np++);
+-	} while (*fp);
+-
++	/* A write error on stdout was reported above */
++	clearerr(stdout);
+ 	fflush_stdout_and_exit(retval);
+ }

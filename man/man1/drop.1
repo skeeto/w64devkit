@@ -1,4 +1,4 @@
-.TH DROP 1 2026-10-22 "w64devkit" "w64devkit Manual"
+.TH DROP 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 drop, cdrop, pdrop \- run a command without administrator privileges
 .SH SYNOPSIS
@@ -91,6 +91,17 @@ and
 .B .cmd
 are tried in that order, unless the name already ends with one of them
 or with a period.
+A program found this way, or named by
+.BR \-s ,
+that is a script, one that begins with
+.B #!\&
+or whose name ends in
+.BR .sh ,
+is started through the kit's
+.BR sh (1),
+which runs it with the interpreter its
+.B #!\&
+line names, or runs it itself.
 .PP
 With no
 .I command
@@ -278,12 +289,14 @@ The other errors are reported as
 .EX
 drop: can\(aqt find \(aq\fIname\fR\(aq
 drop: can\(aqt execute \(aq\fIpath\fR\(aq
+drop: can\(aqt create token: \fIreason\fR
+drop: can\(aqt set integrity level: \fIreason\fR
+drop: can\(aqt get exit status: \fIreason\fR
 .EE
 .RE
 .PP
 with the name of the program in place of
 .BR drop .
-A failure to build the new token has no message.
 .SH EXAMPLES
 From an elevated shell, open a shell without administrator rights in the
 same console:
@@ -342,7 +355,7 @@ When the program is not elevated it works the same way.
 The command then runs with no more rights than the program has, at
 medium integrity.
 If Windows refuses to build the new token or to set its integrity
-level, the program exits with status 1 without a message.
+level, the program reports it and exits with status 1.
 Integrity levels exist only on Windows Vista and later, so on Windows XP
 the programs always fail this way.
 .PP

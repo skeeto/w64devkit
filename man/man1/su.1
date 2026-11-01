@@ -1,4 +1,4 @@
-.TH SU 1 2026-10-22 "w64devkit" "w64devkit Manual"
+.TH SU 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 su \- run a shell with elevated privileges
 .SH SYNOPSIS
@@ -242,12 +242,20 @@ Errors are reported on standard error as
 su: unknown user \(aq\fIname\fR\(aq
 su: \fIshell\fR: Not found
 su: unable to restore privilege
+su: cancelled by user
+su: can\(aqt execute \(aq\fIpath\fR\(aq: \fIreason\fR
 .EE
 .RE
 .PP
-A failure to start the shell has no message from
-.BR su ,
-as when the UAC prompt is declined, although Windows may show its own.
+The last two are failures to start the shell: the UAC prompt was
+declined, or Windows could not run the program at
+.IR path ,
+which is the running
+.I busybox.exe
+unless
+.B \-s
+names another.
+For the latter Windows may also show a message of its own.
 .PP
 With
 .B \-W

@@ -499,3 +499,14 @@ inotifyd-max-directories.patch
 inotifyd-follow-links.patch
 sha3sum-check-width-first.patch
 md5sum-check-missing-list.patch
+dos2unix-read-error.patch
+dos2unix-rename-temp.patch
+su-start-error.patch
+drop-token-error.patch
+drop-run-scripts.patch
+spawnvp-not-executable.patch
+printenv-name-with-equals.patch
+getenv-fallback-case.patch
+pipe-progress-errors.patch
+tee-report-errors.patch
+getlogin-errno.patch

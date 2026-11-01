@@ -21,16 +21,8 @@ the name.
 A name that is not set writes nothing and makes the exit status 1, and
 the remaining names are still looked up.
 A name may be repeated, and its value is written each time.
-An empty name is never found.
-A name that contains
-.B =
-is matched against a variable's name and value together: with
-.B FOO
-set to
-.BR a=b ,
-.B printenv FOO=a
-writes
-.BR b .
+An empty name is never found, nor is a name that contains
+.BR = .
 .PP
 Values are written as they are, without quoting, so a value that
 contains newlines spans several lines.
@@ -95,9 +87,8 @@ When it is unset,
 .B printenv HOME
 writes the user's profile directory, with forward slashes, though the
 listing does not include it.
-The name must be in capitals:
-.B printenv home
-writes nothing.
+The name may be in any case, as in
+.BR "printenv home" .
 .TP
 .BR LC_ALL ", " LC_CTYPE ", " LANG
 If the first of these that is set has the value
@@ -116,7 +107,7 @@ or else of
 though the listing does not include it.
 As with
 .BR HOME ,
-the name must be in capitals.
+the name may be in any case.
 .PP
 Variables that affect every busybox applet are described in
 .BR busybox (1).

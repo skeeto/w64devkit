@@ -94,9 +94,8 @@ is
 .B "Result too large"
 for a name that is too long, as described in
 .BR NOTES .
-When Windows does not supply the name at all, busybox records no
-reason, so the message shows an unrelated reason or ends at
-.BR getlogin .
+When Windows does not supply the name at all, the reason is translated
+from the error Windows reports.
 .SH EXAMPLES
 Print the name of the current user:
 .PP

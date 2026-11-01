@@ -1,0 +1,19 @@
+Set errno when getlogin_r() can't get the user name.
+If GetUserName() failed, getlogin_r() returned -1 without setting
+errno, so logname's "getlogin" message showed whatever errno an earlier
+call had left, or no reason at all. Set errno from the Windows error.
+
+---
+ win32/mingw.c |    1 +
+ 1 file changed, 1 insertion(+)
+
+--- a/win32/mingw.c
++++ b/win32/mingw.c
+@@ -1575,6 +1575,7 @@
+ 	char *name;
+ 
+ 	if ( (name=get_user_name()) == NULL ) {
++		errno = err_win_to_posix();
+ 		return -1;
+ 	}
+ 
