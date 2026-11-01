@@ -1,0 +1,78 @@
+Compute the -v percentage of compressors from the input size.
+bbunpack() printed 100 minus input size * 100 / output size, which is
+the space saved when decompressing. When compressing, the output is the
+smaller file, so the unsigned subtraction wrapped and bzip2 -v printed
+numbers like 4294967164%. Take the uncompressed size from the input
+when compressing, telling compressors by their use of append_ext(), and
+print the result signed so that data that grew shows as negative, as in
+gzip. lzop now passes append_ext() when compressing for the same reason.
+
+---
+ archival/bbunzip.c |   18 +++++++++++++-----
+ archival/lzop.c    |   20 +++++++++++---------
+ 2 files changed, 24 insertions(+), 14 deletions(-)
+
+--- a/archival/bbunzip.c
++++ b/archival/bbunzip.c
+@@ -177,12 +177,20 @@
+ 				/* Extreme bloat for gunzip compat */
+ 				/* Some users do want this info... */
+ 				if (ENABLE_DESKTOP && (option_mask32 & BBUNPK_OPT_VERBOSE)) {
+-					unsigned percent = status
+-						? ((uoff_t)stat_buf.st_size * 100u / (unsigned long long)status)
+-						: 0;
+-					fprintf(stderr, "%s: %u%% - replaced with %.*s\n",
++					uoff_t packed = stat_buf.st_size;
++					uoff_t unpacked = status;
++					unsigned percent;
++
++					/* Only compressors use append_ext() */
++					if (make_new_name == append_ext) {
++						packed = status;
++						unpacked = stat_buf.st_size;
++					}
++					/* Space saved, relative to the uncompressed size */
++					percent = unpacked ? packed * 100u / unpacked : 100;
++					fprintf(stderr, "%s: %d%% - replaced with %.*s\n",
+ 						filename,
+-						100u - percent,
++						100 - (int)percent,
+ 						new_name_len, new_name
+ 					);
+ 				}
+--- a/archival/lzop.c
++++ b/archival/lzop.c
+@@ -1109,16 +1109,14 @@
+ 	return 1;
+ }
+ 
++/* Decompression only: compression uses append_ext() */
+ static char* FAST_FUNC make_new_name_lzop(char *filename, const char *expected_ext UNUSED_PARAM)
+ {
+-	if (option_mask32 & OPT_DECOMPRESS) {
+-		char *extension = strrchr(filename, '.');
+-		if (!extension || strcmp(extension + 1, "lzo") != 0)
+-			return xasprintf("%s.out", filename);
+-		*extension = '\0';
+-		return filename;
+-	}
+-	return xasprintf("%s.lzo", filename);
++	char *extension = strrchr(filename, '.');
++	if (!extension || strcmp(extension + 1, "lzo") != 0)
++		return xasprintf("%s.out", filename);
++	*extension = '\0';
++	return filename;
+ }
+ 
+ static IF_DESKTOP(long long) int FAST_FUNC pack_lzop(transformer_state_t *xstate UNUSED_PARAM)
+@@ -1157,5 +1155,9 @@
+ 	}
+ 
+ 	global_crc32_new_table_le();
+-	return bbunpack(argv, pack_lzop, make_new_name_lzop, /*unused:*/ NULL);
++	/* bbunpack() tells compression by append_ext() */
++	return bbunpack(argv, pack_lzop,
++		(option_mask32 & OPT_DECOMPRESS) ? make_new_name_lzop : append_ext,
++		"lzo"
++	);
+ }

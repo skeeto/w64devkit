@@ -31,12 +31,9 @@ followed by a space.
 The first form introduces uuencoded data, and the second base64 data.
 The
 .I mode
-is not checked, so any line that starts with
-.B begin
-and a space is a header, even ordinary text such as
-.BR "begin the work now" ,
-which names the file
-.IR "work now" .
+must be an octal number right after the space, so ordinary text such as
+.B "begin the work now"
+is not a header.
 Text before the header, such as the headers of a mail message, is
 ignored, and so is everything after the end of the data.
 Only the first file in the input is decoded.
@@ -161,8 +158,8 @@ Success.
 .B 1
 Invalid command line,
 .I infile
-or the output file could not be opened, no usable header was found, or
-the data is malformed or truncated.
+or the output file could not be opened, no usable header was found,
+the data is malformed or truncated, or the output could not be written.
 A usage error prints the usage on standard error, and any other failure
 prints a message there.
 .TP
@@ -237,8 +234,9 @@ for input that you do not trust.
 The output file is created before any data is decoded, and it is not
 removed on failure.
 After an error it holds what was decoded before the error.
-Errors writing the output are not detected, except that a pipe whose
-reader has exited ends the program with status 141.
+An error writing the output, such as a full disk, is reported with the
+output name, and a pipe whose reader has exited ends the program with
+status 141.
 .PP
 Input and output are binary: there is no newline translation, and the
 CR of a CR LF line end is removed from the header and from uuencoded

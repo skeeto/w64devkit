@@ -50,6 +50,8 @@ skips a name that does not end in
 .BR .bz2 ,
 reporting
 .BR "unknown suffix \- ignored" .
+The suffix may be in any letter case, as in
+.IR FILE.BZ2 .
 An existing output file is an error unless
 .B \-f
 is given.
@@ -101,7 +103,6 @@ The input does not begin with
 .TP
 .B CRC error
 The checksum of a block or of the whole stream does not match.
-For a stream with no data, the file still counts as a success.
 .TP
 .BI "bunzip error " n
 .I n
@@ -147,7 +148,7 @@ is given.
 Compress with a block size of the given multiple of 100,000 bytes.
 The default is
 .BR \-9 .
-When several are given, the lowest wins.
+When several are given, the last wins.
 .TP
 .B \-d
 Decompress.
@@ -185,18 +186,25 @@ Overrides
 Accepted and ignored.
 .TP
 .B \-s
-The same as
-.BR \-2 .
+Use the block size of
+.BR \-2 ,
+even when a higher level is also given, before or after it.
 .TP
 .B \-v
 After converting each
 .I file
 to an output file, print its name, a percentage, and the output name
-on standard error, even with
-.BR \-k .
-When decompressing, the percentage is the space saved by compression,
-or a huge number if the compressed file is the larger.
-When compressing, it is computed wrongly and is usually a huge number.
+on standard error, as in
+.BR "notes.txt: 71% \- replaced with notes.txt.bz2" .
+With
+.BR \-k ,
+the line says
+.B created
+instead of
+.BR "replaced with" .
+The percentage is the space saved by compression, relative to the
+uncompressed size and rounded up, and is negative if the compressed
+file is the larger.
 Nothing is printed for standard input, or with
 .B \-c
 or
@@ -320,8 +328,6 @@ or
 selects 200,000-byte blocks when compressing, and is rejected when
 decompressing, rather than reducing the memory used to decompress.
 .IP \(bu 2
-Of several level options, the lowest wins, not the last.
-.IP \(bu 2
 .B \-q
 has no effect, and
 .B \-v
@@ -331,9 +337,7 @@ file.
 .B bunzip2
 recognizes only the
 .B .bz2
-suffix, compared case-sensitively, so
-.I FILE.BZ2
-is skipped.
+suffix.
 It does not handle the
 .BR .bz ,
 .BR .tbz ,

@@ -1,0 +1,27 @@
+Check for write errors on the uudecode output.
+The decoded data was written with fwrite() and the output stream was
+never flushed or checked, so a full disk or another write error went
+unnoticed and uudecode exited 0 with a truncated file. Flush the output
+and check its error flag before exiting.
+
+---
+ coreutils/uudecode.c |    6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+--- a/coreutils/uudecode.c
++++ b/coreutils/uudecode.c
+@@ -174,9 +174,13 @@
+ 			dst_stream = xfopen_for_write(outname);
+ 			fchmod(fileno(dst_stream), mode & (S_IRWXU | S_IRWXG | S_IRWXO));
+ 		}
+-		free(line);
+ 		decode_fn_ptr(src_stream, dst_stream, /*flags:*/ BASE64_FLAG_UU_STOP + BASE64_FLAG_NO_STOP_CHAR);
+ 		/* fclose_if_not_stdin(src_stream); - redundant */
++		/* outname may point into line: free it only now */
++		if (fflush(dst_stream) != 0)
++			bb_simple_perror_msg_and_die(outname);
++		die_if_ferror(dst_stream, outname);
++		free(line);
+ 		return EXIT_SUCCESS;
+ 	}
+ 	bb_simple_error_msg_and_die("no 'begin' line");

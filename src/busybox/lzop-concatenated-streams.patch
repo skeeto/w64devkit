@@ -1,0 +1,41 @@
+Decompress every lzop stream in a file, not just the first.
+lzop -d stopped after the end-of-data marker of the first stream and
+silently ignored the rest of the input. Concatenated .lzo files, such as
+the output of "lzop -c a b", expanded to the first file only, and with
+-U the input was then deleted, losing the rest of its data. After each
+stream, check for the lzop magic and decode the next stream when it is
+there. Other trailing data is still ignored, as gunzip and bunzip2 do.
+
+---
+ archival/lzop.c |   18 ++++++++++++++----
+ 1 file changed, 14 insertions(+), 4 deletions(-)
+
+--- a/archival/lzop.c
++++ b/archival/lzop.c
+@@ -1091,12 +1091,22 @@
+ {
+ 	int r;
+ 	header_t header;
++	unsigned char magic[sizeof(lzop_magic)];
+ 
+ 	check_magic();
+-	r = read_header(&header);
+-	if (r != 0)
+-		bb_error_msg_and_die("header_error %d", r);
+-	return lzo_decompress(header.flags32);
++	for (;;) {
++		r = read_header(&header);
++		if (r != 0)
++			bb_error_msg_and_die("header_error %d", r);
++		lzo_decompress(header.flags32);
++		/* Another stream may follow, as in "cat 1.lzo 2.lzo" */
++		r = full_read(0, magic, sizeof(magic));
++		if (r < 0)
++			bb_simple_perror_msg_and_die(bb_msg_read_error);
++		if (r != sizeof(magic) || memcmp(magic, lzop_magic, sizeof(magic)) != 0)
++			break;
++	}
++	return 1;
+ }
+ 
+ static char* FAST_FUNC make_new_name_lzop(char *filename, const char *expected_ext UNUSED_PARAM)

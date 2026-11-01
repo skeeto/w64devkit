@@ -1,0 +1,29 @@
+Require an octal mode in a uudecode "begin" line.
+The mode was parsed with bb_strtou() but its error was ignored, so any
+line starting with "begin " was taken for a header: text such as "begin
+the work now" before the real header created a file named "work now"
+and failed with "short file". Skip such lines and keep looking for the
+header, as other uudecode implementations do.
+
+---
+ coreutils/uudecode.c |    8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+--- a/coreutils/uudecode.c
++++ b/coreutils/uudecode.c
+@@ -143,8 +143,14 @@
+ 			continue;
+ 		}
+ 
+-		/* begin line found. decode and exit */
++		/* Without an octal mode, it is text such as "begin the work" */
+ 		mode = bb_strtou(line_ptr, NULL, 8);
++		if (errno == ERANGE) {
++			free(line);
++			continue;
++		}
++
++		/* begin line found. decode and exit */
+ 		if (outname == NULL) {
+ 			outname = strchr(line_ptr, ' ');
+ 			if (!outname)

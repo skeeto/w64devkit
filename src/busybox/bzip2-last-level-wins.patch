@@ -1,0 +1,41 @@
+Use the last of several bzip2 block size options.
+compressStream() picks the lowest set bit among -1 to -9, so of several
+levels the lowest won: "bzip2 -9 -1" and "bzip2 -1 -9" both used -1.
+bzip2 and gzip use the last one given, which is what lets a level in an
+alias or script be overridden on the command line. Have each level
+option switch off the others. Under the lowest-wins rule, -s, which
+sets the -2 bit, capped the block size at 200k wherever it appeared,
+as bzip2's -s does when compressing. Keep that by setting the -2 bit
+for -s after the levels have been parsed.
+
+---
+ archival/bzip2.c |   10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+--- a/archival/bzip2.c
++++ b/archival/bzip2.c
+@@ -211,7 +211,7 @@
+ int bzip2_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
+ int bzip2_main(int argc UNUSED_PARAM, char **argv)
+ {
+-	unsigned opt;
++	unsigned opt, opt_s;
+ 
+ 	/* standard bzip2 flags
+ 	 * -d --decompress force decompression
+@@ -231,8 +231,14 @@
+ 	opt = getopt32(argv, "^"
+ 		/* Must match BBUNPK_foo constants! */
+ 		BBUNPK_OPTSTR IF_FEATURE_BZIP2_DECOMPRESS("dt") "zs123456789"
+-		"\0" "s2" /* -s means -2 (compatibility) */
++		/* the last level given wins */
++		"\0" "1-23456789:2-13456789:3-12456789:4-12356789:5-12346789"
++		":6-12345789:7-12345689:8-12345679:9-12345678"
+ 	);
++	/* -s means at most -2 (compatibility), wherever it is given:
++	 * copy the -s bit to the -2 bit, two places up */
++	opt_s = 1 << (BBUNPK_OPTSTRLEN IF_FEATURE_BZIP2_DECOMPRESS(+ 2) + 1);
++	option_mask32 = opt |= (opt & opt_s) << 2;
+ #if ENABLE_FEATURE_BZIP2_DECOMPRESS /* bunzip2_main may not be visible... */
+ 	if (opt & (BBUNPK_OPT_DECOMPRESS|BBUNPK_OPT_TEST)) /* -d and/or -t */
+ 		return bunzip2_main(argc, argv);

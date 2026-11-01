@@ -1,0 +1,24 @@
+Say "created", not "replaced with", in -v output when the input is kept.
+With -k, and always for lzop unless -U is given, the input file is not
+deleted, yet the -v line said it had been replaced. Print "created" in
+that case, as gzip does.
+
+---
+ archival/bbunzip.c |    4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+--- a/archival/bbunzip.c
++++ b/archival/bbunzip.c
+@@ -188,9 +188,11 @@
+ 					}
+ 					/* Space saved, relative to the uncompressed size */
+ 					percent = unpacked ? packed * 100u / unpacked : 100;
+-					fprintf(stderr, "%s: %d%% - replaced with %.*s\n",
++					/* gzip says "created" if -k keeps the input */
++					fprintf(stderr, "%s: %d%% - %s %.*s\n",
+ 						filename,
+ 						100 - (int)percent,
++						(option_mask32 & BBUNPK_OPT_KEEP) ? "created" : "replaced with",
+ 						new_name_len, new_name
+ 					);
+ 				}

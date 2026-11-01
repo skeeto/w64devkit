@@ -1,0 +1,58 @@
+Do not report an lzma write error as corrupted data.
+When the decoded output could not be written, unlzma, lzcat and
+"lzma -d" reported the failure from transformer_write() and then went
+on to the bad data path, which added a second, false "corrupted data"
+message. Keep write failures apart from bad input.
+
+---
+ archival/libarchive/decompress_unlzma.c |   16 +++++++++++++---
+ 1 file changed, 13 insertions(+), 3 deletions(-)
+
+--- a/archival/libarchive/decompress_unlzma.c
++++ b/archival/libarchive/decompress_unlzma.c
+@@ -330,8 +330,10 @@
+ 			if (buffer_pos == header.dict_size) {
+ 				buffer_pos = 0;
+ 				global_pos += header.dict_size;
+-				if (rc->eof || transformer_write(xstate, buffer, header.dict_size) != (ssize_t)header.dict_size)
++				if (rc->eof)
+ 					goto bad;
++				if (transformer_write(xstate, buffer, header.dict_size) != (ssize_t)header.dict_size)
++					goto bad_write;
+ 				IF_DESKTOP(total_written += header.dict_size;)
+ 			}
+ #else
+@@ -502,8 +504,10 @@
+ 				if (buffer_pos == header.dict_size) {
+ 					buffer_pos = 0;
+ 					global_pos += header.dict_size;
+-					if (rc->eof || transformer_write(xstate, buffer, header.dict_size) != (ssize_t)header.dict_size)
++					if (rc->eof)
+ 						goto bad;
++					if (transformer_write(xstate, buffer, header.dict_size) != (ssize_t)header.dict_size)
++						goto bad_write;
+ 					IF_DESKTOP(total_written += header.dict_size;)
+ 				}
+ 				len--;
+@@ -520,7 +524,11 @@
+ 	{
+ 		IF_NOT_DESKTOP(int total_written = 0; /* success */)
+ 		IF_DESKTOP(total_written += buffer_pos;)
+-		if (rc->eof || transformer_write(xstate, buffer, buffer_pos) != (ssize_t)buffer_pos) {
++		if (rc->eof)
++			goto bad;
++		if (transformer_write(xstate, buffer, buffer_pos) != (ssize_t)buffer_pos)
++			goto bad_write;
++		if (0) {
+  bad:
+ 			/* One of our users, bbunpack(), expects _us_ to emit
+ 			 * the error message (since it's the best place to give
+@@ -528,6 +536,8 @@
+ 			 * Do not fail silently.
+ 			 */
+ 			bb_simple_error_msg(rc->eof ? "unexpected EOF" : "corrupted data");
++ bad_write:
++			/* transformer_write() has reported its own error */
+ 			total_written = -1; /* failure */
+ 		}
+ 		rc_free(rc);

@@ -1,0 +1,92 @@
+Return the output size from lzop to bbunpack().
+pack_lzop() returned 1 rather than the number of bytes written, which
+bbunpack() uses for the -v percentage, so lzop -v always printed a
+meaningless number. Count the bytes written and return the count.
+
+---
+ archival/lzop.c |   28 +++++++++++++++++++---------
+ 1 file changed, 19 insertions(+), 9 deletions(-)
+
+--- a/archival/lzop.c
++++ b/archival/lzop.c
+@@ -458,6 +458,7 @@
+ struct globals {
+ 	/*const uint32_t *lzo_crc32_table;*/
+ 	chksum_t chksum;
++	off_t bytes_out; /* for bbunpack() */
+ } FIX_ALIASING;
+ #define G (*(struct globals*)bb_common_bufsiz1)
+ //#define G (*ptr_to_globals)
+@@ -596,14 +597,19 @@
+ 	return ntohl(v);
+ }
+ 
++static void write_out(const void *buf, unsigned cnt)
++{
++	xwrite(1, buf, cnt);
++	G.bytes_out += cnt;
++}
+ static void write32(uint32_t v)
+ {
+ 	v = htonl(v);
+-	xwrite(1, &v, 4);
++	write_out(&v, 4);
+ }
+ static void f_write(const void* buf, int cnt)
+ {
+-	xwrite(1, buf, cnt);
++	write_out(buf, cnt);
+ 	add_bytes_to_chksum(buf, cnt);
+ }
+ //static void f_write8(uint8_t v)
+@@ -723,13 +729,13 @@
+ 			if (h->flags32 & F_CRC32_C)
+ 				*wordptr++ = htonl(lzo_crc32(CRC32_INIT_VALUE, b2, dst_len));
+ 		}
+-		xwrite(1, wordbuf, ((char*)wordptr) - ((char*)wordbuf));
++		write_out(wordbuf, ((char*)wordptr) - ((char*)wordbuf));
+ 		if (dst_len < src_len) {
+ 			/* write compressed block data */
+-			xwrite(1, b2, dst_len);
++			write_out(b2, dst_len);
+ 		} else {
+ 			/* write uncompressed block data */
+-			xwrite(1, b1, src_len);
++			write_out(b1, src_len);
+ 		}
+ 		// /* if full_read() was nevertheless "short", it was EOF */
+ 		// if (src_len < block_size)
+@@ -869,7 +875,7 @@
+ 		}
+ 
+ 		/* write uncompressed block data */
+-		xwrite(1, dst, dst_len);
++		write_out(dst, dst_len);
+ 	}
+ 
+ 	free(b2);
+@@ -925,7 +931,7 @@
+ {
+ 	char *end;
+ 
+-	xwrite(1, lzop_magic, sizeof(lzop_magic));
++	write_out(lzop_magic, sizeof(lzop_magic));
+ 
+ 	init_chksum();
+ 
+@@ -1121,9 +1127,13 @@
+ 
+ static IF_DESKTOP(long long) int FAST_FUNC pack_lzop(transformer_state_t *xstate UNUSED_PARAM)
+ {
++	G.bytes_out = 0;
+ 	if (option_mask32 & OPT_DECOMPRESS)
+-		return do_lzo_decompress();
+-	return do_lzo_compress();
++		do_lzo_decompress();
++	else
++		do_lzo_compress();
++	/* bbunpack() wants the output size (>= 0 is success) */
++	return 0 IF_DESKTOP(+ G.bytes_out);
+ }
+ 
+ int lzop_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;

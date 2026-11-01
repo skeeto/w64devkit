@@ -1,0 +1,26 @@
+Do not crash in ar tv when ctime() fails.
+header_verbose_list_ar() edits the string from ctime() without checking
+for NULL, which ctime() returns when the time is out of range. That
+happens on Windows for times after the year 3000, so a damaged or
+crafted archive member crashed "ar tv". Print question marks instead.
+
+---
+ archival/ar.c |    3 +++
+ 1 file changed, 3 insertions(+)
+
+--- a/archival/ar.c
++++ b/archival/ar.c
+@@ -215,10 +215,13 @@
+ {
+ 	const file_header_t *file_header = archive_handle->file_header;
+ 	char mode[12];
++	char bad_mtime[] = "??? ??? ?? ??:??:?? ????\n";
+ 	char *mtime;
+ 
+ 	bb_mode_string(mode, file_header->mode);
+ 	mtime = ctime(&file_header->mtime);
++	if (!mtime) /* out of range */
++		mtime = bad_mtime;
+ 	mtime[16] = ' ';
+ 	memmove(&mtime[17], &mtime[20], 4);
+ 	mtime[21] = '\0';

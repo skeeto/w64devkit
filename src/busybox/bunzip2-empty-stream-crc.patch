@@ -1,0 +1,20 @@
+Fail on a CRC error in a bzip2 stream with no data.
+After a stream holding no blocks, the status is still RETVAL_OK when
+the stream CRC is checked. A mismatch printed "CRC error" but then broke
+out of the loop with that status, so unpack_bz2_stream() returned
+success: bunzip2 exited 0 and deleted the input. Return a data error.
+
+---
+ archival/libarchive/decompress_bunzip2.c |    1 +
+ 1 file changed, 1 insertion(+)
+
+--- a/archival/libarchive/decompress_bunzip2.c
++++ b/archival/libarchive/decompress_bunzip2.c
+@@ -817,6 +817,7 @@
+ 		}
+ 		if (bd->headerCRC != bd->totalCRC) {
+ 			bb_simple_error_msg("CRC error");
++			i = RETVAL_DATA_ERROR; /* i may be RETVAL_OK here */
+ 			break;
+ 		}
+ 

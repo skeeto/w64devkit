@@ -1,0 +1,27 @@
+Fail, not die, when the .lzma dictionary does not fit in memory.
+The dictionary size comes from the header, up to 4 GiB, and was
+allocated with xmalloc(). When that failed, unlzma died, leaving an
+empty output file and skipping the remaining operands. On a 32-bit
+system any file with a large dictionary did this. Use malloc() and
+return -1 with "out of memory" so that the caller can clean up.
+
+---
+ archival/libarchive/decompress_unlzma.c |    7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+--- a/archival/libarchive/decompress_unlzma.c
++++ b/archival/libarchive/decompress_unlzma.c
+@@ -261,7 +261,12 @@
+ 		header.dict_size++;
+ 
+ 	buffer_size = MIN(header.dst_size, header.dict_size);
+-	buffer = xmalloc(buffer_size);
++	/* The header may ask for up to 4 GiB: fail instead of dying */
++	buffer = malloc(buffer_size);
++	if (!buffer && buffer_size != 0) {
++		bb_simple_error_msg(bb_msg_memory_exhausted);
++		return -1;
++	}
+ 
+ 	{
+ 		int num_probs;

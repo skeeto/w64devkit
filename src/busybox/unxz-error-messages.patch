@@ -1,0 +1,32 @@
+Report why xz decoding failed instead of always "corrupted data".
+Every decoder error, including valid files that use an unsupported
+filter (such as a BCJ or delta filter) or a dictionary larger than the
+64 MiB limit, and input that is not xz at all, was reported as
+"corrupted data", suggesting that the file was damaged. Print "invalid
+magic", "unsupported options", "dictionary too large" or "out of memory"
+for the corresponding xz_dec_run() results.
+
+---
+ archival/libarchive/decompress_unxz.c |   11 ++++++++++-
+ 1 file changed, 10 insertions(+), 1 deletion(-)
+
+--- a/archival/libarchive/decompress_unxz.c
++++ b/archival/libarchive/decompress_unxz.c
+@@ -143,7 +143,16 @@
+ 			continue;
+ 		}
+ 		if (xz_result != XZ_OK && xz_result != XZ_UNSUPPORTED_CHECK) {
+-			bb_simple_error_msg("corrupted data");
++			const char *msg = "corrupted data";
++			if (xz_result == XZ_MEM_ERROR)
++				msg = bb_msg_memory_exhausted;
++			if (xz_result == XZ_MEMLIMIT_ERROR)
++				msg = "dictionary too large";
++			if (xz_result == XZ_FORMAT_ERROR)
++				msg = "invalid magic";
++			if (xz_result == XZ_OPTIONS_ERROR)
++				msg = "unsupported options";
++			bb_simple_error_msg(msg);
+ 			total = -1;
+ 			break;
+ 		}

@@ -1,0 +1,21 @@
+Fail on a read error in read_base64() instead of taking it as EOF.
+fgetc() returns EOF for a read error as well as for end of file, and
+read_base64() did not check ferror(). base32 -d, base64 -d and uudecode
+of base64 data then decoded what they had read so far and exited 0.
+Report the error and exit.
+
+---
+ libbb/uuencode.c |    2 ++
+ 1 file changed, 2 insertions(+)
+
+--- a/libbb/uuencode.c
++++ b/libbb/uuencode.c
+@@ -238,6 +238,8 @@
+ 
+ 		while (!term_seen && in_count < BUFFER_SIZE) {
+ 			int ch = fgetc(src_stream);
++			if (ch == EOF && ferror(src_stream))
++				bb_simple_perror_msg_and_die(bb_msg_read_error);
+ 			if (ch == exit_char) {
+ 				if (in_count == 0)
+ 					return;

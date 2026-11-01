@@ -1,0 +1,48 @@
+Reject -7, -8 and -9 before creating any output file.
+Without LZOP_COMPR_HIGH, lzop reported "high compression not compiled
+in" only when it started to compress, after bbunpack() had created the
+output file, and with -f after it had deleted an existing one. The old
+output was lost and an empty .lzo file was left behind. Check the levels
+in lzop_main() instead. They still have no effect when decompressing.
+
+---
+ archival/lzop.c |   13 +++++++++----
+ 1 file changed, 9 insertions(+), 4 deletions(-)
+
+--- a/archival/lzop.c
++++ b/archival/lzop.c
+@@ -1040,18 +1040,16 @@
+ 		h->method = M_LZO1X_1_15;
+ 		level = 1;
+ 	}
+-	if (option_mask32 & OPT_789) {
+ #if ENABLE_LZOP_COMPR_HIGH
++	if (option_mask32 & OPT_789) {
+ 		h->method = M_LZO1X_999;
+ 		level = 9;
+ 		if (option_mask32 & OPT_7)
+ 			level = 7;
+ 		else if (option_mask32 & OPT_8)
+ 			level = 8;
+-#else
+-		bb_simple_error_msg_and_die("high compression not compiled in");
+-#endif
+ 	}
++#endif
+ 
+ 	h->level = level;
+ }
+@@ -1149,6 +1147,13 @@
+ 	if (ENABLE_UNLZOP && applet_name[4] == 'o')
+ 		option_mask32 |= OPT_DECOMPRESS;
+ 
++	/* Fail before bbunpack() creates (or with -f, deletes) any output */
++	if (!ENABLE_LZOP_COMPR_HIGH
++	 && (option_mask32 & OPT_789) && !(option_mask32 & OPT_DECOMPRESS)
++	) {
++		bb_simple_error_msg_and_die("high compression not compiled in");
++	}
++
+ 	global_crc32_new_table_le();
+ 	return bbunpack(argv, pack_lzop, make_new_name_lzop, /*unused:*/ NULL);
+ }

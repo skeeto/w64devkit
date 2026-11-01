@@ -36,7 +36,8 @@ with
 appended, even when it already ends in
 .BR .lzo .
 When decompressing, a final
-.B .lzo
+.BR .lzo ,
+in any letter case,
 is removed, and any other name gets
 .B .out
 appended.
@@ -70,16 +71,12 @@ are ignored in files from other lzop programs.
 Decompression accepts files compressed at any level, and also verifies
 CRC-32 checksums.
 .PP
-Only the first compressed stream in a file is read, and anything after
-it is silently ignored.
-A concatenation of
-.B .lzo
-files, such as the output of
+A file may hold several concatenated compressed streams, such as the
+output of
 .B "lzop \-c"
-with several files, expands to the first file only.
-With
-.BR \-U ,
-the input file is still deleted, and the rest of its data is lost.
+with several files, and they are decompressed in turn.
+Data after the last stream is silently ignored unless it begins with
+the lzop signature.
 .SS Diagnostics
 Invalid input is reported with one of these messages:
 .TP
@@ -122,11 +119,8 @@ These levels are identical.
 .TP
 .BR \-7 ", " \-8 ", " \-9
 Fail with the message
-.BR "high compression not compiled in" .
-The output file, if any, has already been created, and is left empty.
-With
-.BR \-f ,
-an existing output file has already been deleted.
+.BR "high compression not compiled in" ,
+before any file is processed.
 .TP
 .B \-d
 Decompress.
@@ -167,10 +161,17 @@ compresses and discards the result.
 .TP
 .B \-v
 After writing each output file, print
-\fIfile\fB: \fIN\fB% \- replaced with \fIoutput\fR
-on standard error.
-The percentage is meaningless, and the message appears even when the
-input is kept.
+\fIfile\fB: \fIN\fB% \- created \fIoutput\fR
+on standard error, or
+.B replaced with
+instead of
+.B created
+when
+.B \-U
+deletes the input.
+The percentage is the space saved by compression, relative to the
+uncompressed size and rounded up, and is negative if the compressed
+data is the larger.
 Nothing is printed with
 .B \-c
 or
@@ -232,16 +233,12 @@ An invalid option, or an error with any file.
 .PP
 A file that cannot be opened, or whose output file cannot be created,
 is reported and skipped, and the remaining files are still processed.
-Any other error, such as invalid input, a level from 7 to 9, or a write
+Any other error, such as invalid input, a read error, or a write
 error, stops
 .B lzop
 at once.
 The incomplete output file is left in place, and the input file is not
 deleted.
-When compressing, a read error is taken as the end of the input, and is
-not reported: the output is cut short, the status is 0, and with
-.B \-U
-the input file is deleted.
 .SH EXAMPLES
 Compress a file, keeping the original:
 .PP
@@ -286,12 +283,6 @@ permissions, or times.
 Data is read and written in binary mode, with no newline translation.
 Compressed data is written to a console without complaint.
 .PP
-The
-.B .lzo
-suffix is case-sensitive, so
-.I DATA.LZO
-expands to
-.IR DATA.LZO.out .
 The output of a read-only file is read-only.
 .PP
 When decompressing, blocks larger than 64 MiB are rejected as corrupted

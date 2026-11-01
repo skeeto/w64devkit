@@ -1,0 +1,24 @@
+Fail on a read error while compressing with lzop.
+lzo_compress() took a negative return from full_read() as end of input.
+A read error ended the output early with a valid end marker, so the
+truncated .lzo file decompressed without complaint, lzop exited 0, and
+-U deleted the input. Report the error and exit instead, which leaves
+the input in place, as for other lzop errors.
+
+---
+ archival/lzop.c |    4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+--- a/archival/lzop.c
++++ b/archival/lzop.c
+@@ -664,7 +664,9 @@
+ 
+ 		/* read a block */
+ 		l = full_read(0, b1, block_size);
+-		src_len = (l > 0 ? l : 0);
++		if (l < 0)
++			bb_simple_perror_msg_and_die(bb_msg_read_error);
++		src_len = l;
+ 
+ 		/* write uncompressed block size */
+ 		/* exit if last block */

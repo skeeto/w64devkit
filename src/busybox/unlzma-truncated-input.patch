@@ -1,0 +1,87 @@
+Fail, not die, when .lzma input ends early.
+rc_read() died with "unexpected EOF" when the input ran out, as the TODO
+there noted. unlzma left the partial output file in place and skipped
+the remaining operands, and other callers could not clean up either.
+Set a flag instead and let decoding run on over stale buffer contents:
+the main loop stops at the flag, and nothing decoded after the end is
+written. unpack_lzma_stream() then reports "unexpected EOF" and returns
+-1, so the partial output is removed and the next file is processed.
+
+---
+ archival/libarchive/decompress_unlzma.c |   24 +++++++++++++++---------
+ 1 file changed, 15 insertions(+), 9 deletions(-)
+
+--- a/archival/libarchive/decompress_unlzma.c
++++ b/archival/libarchive/decompress_unlzma.c
+@@ -45,6 +45,7 @@
+ 	uint32_t code;
+ 	uint32_t range;
+ 	uint32_t bound;
++	smallint eof;
+ } rc_t;
+ 
+ #define RC_TOP_BITS 24
+@@ -56,10 +57,15 @@
+ static void rc_read(rc_t *rc)
+ {
+ 	int buffer_size = safe_read(rc->fd, RC_BUFFER, RC_BUFFER_SIZE);
+-//TODO: return -1 instead
+-//This will make unlzma delete broken unpacked file on unpack errors
+-	if (buffer_size <= 0)
+-		bb_simple_error_msg_and_die("unexpected EOF");
++	if (buffer_size <= 0) {
++		/* Don't die: unpack_lzma_stream() fails and its caller
++		 * can clean up (e.g. bbunpack() deletes partial output).
++		 * Meanwhile, decode stale buffer contents: ->eof is checked
++		 * before anything decoded from them is written.
++		 */
++		rc->eof = 1;
++		buffer_size = RC_BUFFER_SIZE;
++	}
+ 	rc->buffer_end = RC_BUFFER + buffer_size;
+ 	rc->ptr = RC_BUFFER;
+ }
+@@ -269,7 +275,7 @@
+ 
+ 	rc = rc_init(xstate->src_fd); /*, RC_BUFFER_SIZE); */
+ 
+-	while (global_pos + buffer_pos < header.dst_size) {
++	while (global_pos + buffer_pos < header.dst_size && !rc->eof) {
+ 		int pos_state = (buffer_pos + global_pos) & pos_state_mask;
+ 		uint16_t *prob = p + LZMA_IS_MATCH + (state << LZMA_NUM_POS_BITS_MAX) + pos_state;
+ 
+@@ -319,7 +325,7 @@
+ 			if (buffer_pos == header.dict_size) {
+ 				buffer_pos = 0;
+ 				global_pos += header.dict_size;
+-				if (transformer_write(xstate, buffer, header.dict_size) != (ssize_t)header.dict_size)
++				if (rc->eof || transformer_write(xstate, buffer, header.dict_size) != (ssize_t)header.dict_size)
+ 					goto bad;
+ 				IF_DESKTOP(total_written += header.dict_size;)
+ 			}
+@@ -491,7 +497,7 @@
+ 				if (buffer_pos == header.dict_size) {
+ 					buffer_pos = 0;
+ 					global_pos += header.dict_size;
+-					if (transformer_write(xstate, buffer, header.dict_size) != (ssize_t)header.dict_size)
++					if (rc->eof || transformer_write(xstate, buffer, header.dict_size) != (ssize_t)header.dict_size)
+ 						goto bad;
+ 					IF_DESKTOP(total_written += header.dict_size;)
+ 				}
+@@ -509,14 +515,14 @@
+ 	{
+ 		IF_NOT_DESKTOP(int total_written = 0; /* success */)
+ 		IF_DESKTOP(total_written += buffer_pos;)
+-		if (transformer_write(xstate, buffer, buffer_pos) != (ssize_t)buffer_pos) {
++		if (rc->eof || transformer_write(xstate, buffer, buffer_pos) != (ssize_t)buffer_pos) {
+  bad:
+ 			/* One of our users, bbunpack(), expects _us_ to emit
+ 			 * the error message (since it's the best place to give
+ 			 * potentially more detailed information).
+ 			 * Do not fail silently.
+ 			 */
+-			bb_simple_error_msg("corrupted data");
++			bb_simple_error_msg(rc->eof ? "unexpected EOF" : "corrupted data");
+ 			total_written = -1; /* failure */
+ 		}
+ 		rc_free(rc);

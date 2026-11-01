@@ -1,0 +1,41 @@
+Match compressed file suffixes case-insensitively on Windows.
+make_new_name_generic() and make_new_name_lzop() compared the suffix
+with strcmp(), so NOTES.XZ, FILE.LZMA, DATA.BZ2 and similar names were
+rejected as "unknown suffix" (and unlzop wrote FILE.LZO.out), although
+Windows file names ignore case. Use strcasecmp() there on Windows.
+
+---
+ archival/bbunzip.c |    5 +++++
+ archival/lzop.c    |    5 +++++
+ 2 files changed, 10 insertions(+)
+
+--- a/archival/bbunzip.c
++++ b/archival/bbunzip.c
+@@ -225,7 +225,12 @@
+ char* FAST_FUNC make_new_name_generic(char *filename, const char *expected_ext)
+ {
+ 	char *extension = strrchr(filename, '.');
++#if ENABLE_PLATFORM_MINGW32
++	/* Windows file names are case-insensitive: accept NOTES.XZ */
++	if (!extension || strcasecmp(extension + 1, expected_ext) != 0) {
++#else
+ 	if (!extension || strcmp(extension + 1, expected_ext) != 0) {
++#endif
+ 		/* Mimic GNU gunzip - "real" bunzip2 tries to */
+ 		/* unpack file anyway, to file.out */
+ 		return NULL;
+--- a/archival/lzop.c
++++ b/archival/lzop.c
+@@ -1119,7 +1119,12 @@
+ static char* FAST_FUNC make_new_name_lzop(char *filename, const char *expected_ext UNUSED_PARAM)
+ {
+ 	char *extension = strrchr(filename, '.');
++#if ENABLE_PLATFORM_MINGW32
++	/* Windows file names are case-insensitive */
++	if (!extension || strcasecmp(extension + 1, "lzo") != 0)
++#else
+ 	if (!extension || strcmp(extension + 1, "lzo") != 0)
++#endif
+ 		return xasprintf("%s.out", filename);
+ 	*extension = '\0';
+ 	return filename;

@@ -130,13 +130,16 @@ Accepted and ignored.
 .B \-v
 After decompressing a file to a new file, print a line such as
 .B "notes.txt.xz: 71% \- replaced with notes.txt"
-on standard error, even with
-.BR \-k .
+on standard error, or with
+.BR \-k ,
+.B created
+instead of
+.BR "replaced with" .
 The percentage is the size reduction relative to the decompressed size,
 rounded up.
 When the
 .B .xz
-file is larger than its contents, it wraps around to a huge number.
+file is larger than its contents, it is negative.
 Nothing is printed with
 .B \-c
 or
@@ -233,19 +236,23 @@ detects damage to such a file only where it breaks decoding.
 Only LZMA2 data without other filters decodes.
 A file made with a BCJ or delta filter, such as with the XZ Utils option
 .BR \-\-x86 ,
-fails as corrupted data, as does one with a dictionary larger than
-64 MiB.
+fails with
+.BR "unsupported options" ,
+and one with a dictionary larger than
+64 MiB fails with
+.BR "dictionary too large" .
 The XZ Utils presets, including
 .BR \-9 ,
 use at most 64 MiB.
-Every decoding failure is reported as
-.BR "corrupted data" ,
-without the file name.
+Damaged data is reported as
+.BR "corrupted data" .
+These messages do not include the file name.
 .PP
 Input must begin with an
 .B .xz
-stream, so empty input, or a file in another format such as gzip, fails
-as corrupted data.
+stream, so a file in another format such as gzip fails with
+.BR "invalid magic" ,
+and empty input fails as corrupted data.
 After a stream, zero bytes are skipped as stream padding, even when
 their count is not the multiple of four that the format requires, and
 any byte other than
@@ -259,10 +266,9 @@ is
 .PP
 Only the suffix
 .B .xz
-is recognized, not
-.BR .txz ,
-and it must be lowercase, though Windows file names are otherwise not
-case sensitive.
+is recognized, in any letter case;
+.B .txz
+is not.
 Use
 .B \-c
 to decompress files with other names.

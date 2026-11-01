@@ -29,7 +29,7 @@ A name that does not end in
 .B .Z
 is an error and is skipped, with the message
 .BR "unknown suffix \- ignored" .
-The comparison is case-sensitive, and the suffix is never added to a name.
+The comparison ignores letter case, and the suffix is never added to a name.
 An existing output file is an error unless
 .B \-f
 is given.
@@ -59,8 +59,7 @@ Some failures end the command at once instead, and leave any partial
 output file in place.
 They are reading standard input from a console without
 .BR \-f ,
-a read or write error, failing to delete a file, and some kinds of
-damaged data, such as a first code that is not a literal octet.
+a write error, and failing to delete a file.
 .SS Diagnostics
 Messages on standard error begin with the command name and a colon.
 .TP

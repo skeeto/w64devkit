@@ -1,0 +1,53 @@
+Return an error, not die, on corrupted .Z data and read errors.
+unpack_Z_stream() returns -1 for most errors so that its caller can
+clean up, but a first code that is not a literal, an overrun of the
+decoding stack, and a read error called bb_simple_error_msg_and_die().
+uncompress then left the partial output file in place and skipped the
+remaining operands. Report these errors and return -1 like the others,
+so the partial file is removed and the next file is processed.
+
+---
+ archival/libarchive/decompress_uncompress.c |   18 ++++++++++++------
+ 1 file changed, 12 insertions(+), 6 deletions(-)
+
+--- a/archival/libarchive/decompress_uncompress.c
++++ b/archival/libarchive/decompress_uncompress.c
+@@ -165,8 +165,10 @@
+ 
+ 		if (insize < (int) (IBUFSIZ + 64) - IBUFSIZ) {
+ 			rsize = safe_read(xstate->src_fd, inbuf + insize, IBUFSIZ);
+-			if (rsize < 0)
+-				bb_simple_error_msg_and_die(bb_msg_read_error);
++			if (rsize < 0) {
++				bb_simple_error_msg(bb_msg_read_error);
++				goto err;
++			}
+ 			insize += rsize;
+ 		}
+ 
+@@ -199,8 +201,10 @@
+ 			posbits += n_bits;
+ 
+ 			if (oldcode == -1) {
+-				if (code >= 256)
+-					bb_simple_error_msg_and_die("corrupted data"); /* %ld", code); */
++				if (code >= 256) {
++					bb_simple_error_msg("corrupted data"); /* %ld", code); */
++					goto err;
++				}
+ 				oldcode = code;
+ 				finchar = (int) oldcode;
+ 				outbuf[outpos++] = (unsigned char) finchar;
+@@ -246,8 +250,10 @@
+ 
+ 			/* Generate output characters in reverse order */
+ 			while (code >= 256) {
+-				if (stackp <= &htabof(0))
+-					bb_simple_error_msg_and_die("corrupted data");
++				if (stackp <= &htabof(0)) {
++					bb_simple_error_msg("corrupted data");
++					goto err;
++				}
+ 				*--stackp = tab_suffixof(code);
+ 				code = tab_prefixof(code);
+ 			}

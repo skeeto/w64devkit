@@ -75,7 +75,8 @@ is deleted, unless
 or
 .B \-t
 is given.
-If the data is invalid or the output cannot be written, the partial
+If the data is invalid or ends early, the dictionary does not fit in
+memory, or the output cannot be written, the partial
 output file is deleted,
 .I file
 is kept, and the next
@@ -84,11 +85,6 @@ is processed.
 With
 .BR \-c ,
 data decoded before the failure may already have been written.
-A
-.I file
-that ends early after its header, or whose dictionary does not fit in
-memory, instead ends the program at once, leaving its partial output
-file in place.
 .PP
 A
 .B .lzma
@@ -160,11 +156,13 @@ notes.txt.lzma: 53% \- replaced with notes.txt
 .EE
 .RE
 .IP
-The line is the same with
+With
 .BR \-k ,
-although nothing is replaced.
-When the compressed file is the larger, the percentage is a meaningless
-large number.
+the line says
+.B created
+instead of
+.BR "replaced with" .
+When the compressed file is the larger, the percentage is negative.
 .TP
 .B \-\-help
 Print a usage message on standard output and exit with status 0.
@@ -294,9 +292,9 @@ and
 .B \-q
 has no effect.
 .PP
-The suffix is matched case-sensitively, so
+The suffix is matched in any letter case, so
 .I NOTES.LZMA
-is rejected although Windows file names ignore case.
+is accepted, as Windows file names ignore case.
 A read-only input file is deleted after decompression like any other,
 and
 .B \-f
