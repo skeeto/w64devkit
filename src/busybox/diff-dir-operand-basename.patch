@@ -1,0 +1,24 @@
+Make diff find the file in a directory operand by its Windows base name.
+When one operand is a directory, diff compares the other operand with
+the file of the same name in that directory, taking the name after the
+last '/'. On Windows a path such as sub\f.txt or c:f.txt has no '/', so
+diff looked for dir/sub\f.txt or dir/c:f.txt and failed. Use
+bb_basename(), which also splits at '\' and ':' on Windows and is the
+same strrchr() on other platforms.
+
+---
+ editors/diff.c |    3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+--- a/editors/diff.c
++++ b/editors/diff.c
+@@ -1108,8 +1108,7 @@
+ 		bool dirfile = S_ISDIR(stb[0].st_mode) || S_ISDIR(stb[1].st_mode);
+ 		bool dir = S_ISDIR(stb[1].st_mode);
+ 		if (dirfile) {
+-			const char *slash = strrchr(file[!dir], '/');
+-			file[dir] = concat_path_file(file[dir], slash ? slash + 1 : file[!dir]);
++			file[dir] = concat_path_file(file[dir], bb_basename(file[!dir]));
+ 			xstat(file[dir], &stb[dir]);
+ 		}
+ 		/* diffreg can get non-regular files here */

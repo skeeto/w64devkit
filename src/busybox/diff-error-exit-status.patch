@@ -1,0 +1,41 @@
+Make diff exit with status 2 on every error, not only a missing operand.
+diff set its error status to 2 only while it checked that the operands
+exist, and to 1 before and after. So an invalid option or number, a
+file missing from the directory when one operand is a directory, stdin
+compared with a directory, or a temporary file that couldn't be created
+all gave status 1, the status for "files differ", and a script couldn't
+tell an error from a difference. diffutils exits with 2 for all of
+these. Set the error status to 2 at the start and leave it there.
+
+---
+ editors/diff.c |    5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+--- a/editors/diff.c
++++ b/editors/diff.c
+@@ -1028,6 +1028,8 @@
+ 	char *file[2], *s_start = NULL;
+ 	llist_t *L_arg = NULL;
+ 
++	/* Like diffutils, exit with 2 on any error, as 1 means "differ" */
++	xfunc_error_retval = 2;
+ 	INIT_G();
+ 
+ 	/* exactly 2 params; collect multiple -L <label>; -U N */
+@@ -1038,8 +1040,6 @@
+ 	while (L_arg)
+ 		label[!!label[0]] = llist_pop(&L_arg);
+ 
+-	/* Compat: "diff file name_which_doesnt_exist" exits with 2 */
+-	xfunc_error_retval = 2;
+ 	for (i = 0; i < 2; i++) {
+ 		file[i] = argv[i];
+ 		if (LONE_DASH(file[i])) {
+@@ -1052,7 +1052,6 @@
+ 			xstat(file[i], &stb[i]);
+ 		}
+ 	}
+-	xfunc_error_retval = 1;
+ 
+ 	if (gotstdin && (S_ISDIR(stb[0].st_mode) || S_ISDIR(stb[1].st_mode)))
+ 		bb_simple_error_msg_and_die("can't compare stdin to a directory");

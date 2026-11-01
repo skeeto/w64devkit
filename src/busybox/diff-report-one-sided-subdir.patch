@@ -1,0 +1,38 @@
+Make diff -r report a subdirectory that exists in only one tree.
+With -r and without -N, skip_dir() doesn't descend into a subdirectory
+that the other tree lacks, and sets status 1. But with -r only files are
+listed, so nothing named the subdirectory or its files: diff printed
+nothing at all and still exited with 1. When the other tree has no entry
+of that name, add the skipped subdirectory itself to the listing, as
+skip_dir() already does without -r, so that diff prints "Only in DIR:
+SUB" as diffutils does. A non-directory of that name in the other tree
+is already listed there and reported, so leave that case alone.
+
+---
+ editors/diff.c |    8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+--- a/editors/diff.c
++++ b/editors/diff.c
+@@ -882,16 +882,18 @@
+ 		 * Testcase: diff -r /tmp /
+ 		 * (it would recurse deep into /proc without this code) */
+ 		struct dlist *const l = state->userData;
+-		filename += l->len;
+-		if (filename[0]) {
++		const char *name = filename + l->len;
++		if (name[0]) {
+ 			struct stat osb;
+-			char *othername = concat_path_file(G.other_dir, filename);
++			char *othername = concat_path_file(G.other_dir, name);
+ 			int r = stat(othername, &osb);
+ 			free(othername);
+ 			if (r != 0 || !S_ISDIR(osb.st_mode)) {
+ 				/* other dir doesn't have similarly named
+ 				 * directory, don't recurse; return 1 upon
+ 				 * exit, just like diffutils' diff */
++				if (r != 0) /* report it as "Only in" */
++					add_to_dirlist(state, filename, sb);
+ 				exit_status |= 1;
+ 				return SKIP;
+ 			}

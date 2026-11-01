@@ -1,0 +1,44 @@
+Make diff report a file it can't open as an error, not as the same.
+When a file couldn't be opened, diffreg() printed a warning and returned
+"same" without touching the exit status. A diff of a single pair thus
+exited with 0, as if the files were equal, and -s even reported them as
+identical; in a directory comparison the pair did not count toward
+the status at all. Return a new "trouble" status that print_status()
+ignores, record error status 2, and let an error take precedence over
+a difference at exit, as diffutils does.
+
+---
+ editors/diff.c |    9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
+
+--- a/editors/diff.c
++++ b/editors/diff.c
+@@ -139,6 +139,7 @@
+ 	STATUS_SAME,    /* files are the same */
+ 	STATUS_DIFFER,  /* files differ */
+ 	STATUS_BINARY,  /* binary files differ */
++	STATUS_TROUBLE, /* a file couldn't be opened */
+ };
+ 
+ enum {                  /* Commandline flags */
+@@ -744,8 +745,11 @@
+ 		if (!LONE_DASH(file[i])) {
+ 			if (!(option_mask32 & FLAG(N))) {
+ 				fd = open_or_warn(file[i], O_RDONLY);
+-				if (fd == -1)
++				if (fd == -1) {
++					exit_status |= 2;
++					status = STATUS_TROUBLE;
+ 					goto out;
++				}
+ 			} else {
+ 				/* -N: if some file does not exist compare it like empty */
+ 				fd = open(file[i], O_RDONLY);
+@@ -1109,5 +1113,6 @@
+ 
+ 	/* A write error is trouble, not a difference */
+ 	xfunc_error_retval = 2;
+-	fflush_stdout_and_exit(exit_status);
++	/* An error (2) takes precedence over a difference (1) */
++	fflush_stdout_and_exit(exit_status & 2 ? 2 : exit_status);
+ }

@@ -1,0 +1,41 @@
+Make diff -B count a line of only CR LF as empty.
+Unless --binary is given, diff ignores a CR before an LF when it
+compares lines, so a CR LF file and the same text with LF endings are
+equal. But -B decided that a changed line was empty by its length
+alone, one octet, so an inserted or deleted blank line in a CR LF file
+still made a hunk, and -B was useless on such files. When -B and the
+CR handling are in effect, also treat a two-octet line that is CR LF
+as empty.
+
+---
+ editors/diff.c |   19 +++++++++++++++++--
+ 1 file changed, 17 insertions(+), 2 deletions(-)
+
+--- a/editors/diff.c
++++ b/editors/diff.c
+@@ -668,8 +668,23 @@
+ 				}
+ 
+ 				for (j = 0; j < 2; j++)
+-					for (k = v[j].a; k <= v[j].b; k++)
+-						nonempty |= (ix[j][k] - ix[j][k - 1] != 1);
++					for (k = v[j].a; k <= v[j].b; k++) {
++						off_t len = ix[j][k] - ix[j][k - 1];
++#if ENABLE_PLATFORM_MINGW32 && ENABLE_FEATURE_DIFF_LONG_OPTIONS
++						/* -B: a lone CR LF is an empty line too */
++						if (len == 2 && (option_mask32 & FLAG(B))
++						 && !(option_mask32 & FLAG(binary))
++						) {
++							seek_ft(&ft[j], ix[j][k - 1]);
++							if (fgetc(ft[j].ft_fp) == '\r'
++							 && fgetc(ft[j].ft_fp) == '\n'
++							)
++								len = 1;
++							ft[j].ft_pos = -1; /* force the next seek */
++						}
++#endif
++						nonempty |= (len != 1);
++					}
+ 
+ 				vec = xrealloc_vector(vec, 6, ++idx);
+ 				memcpy(vec[idx], v, sizeof(v));

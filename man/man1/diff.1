@@ -162,21 +162,25 @@ With
 every subdirectory is entered, through symbolic links too unless
 .B \-\-no\-dereference
 is given, and files are matched by path relative to the operands.
-A subdirectory that is missing from the other operand, or is not a
-directory there, is not entered and is not reported, but sets exit
-status 1.
+A subdirectory that is missing from the other operand is not entered,
+and is reported with an
+.B "Only in"
+line.
+One that is not a directory in the other operand is not entered either,
+and the other operand's entry is reported with an
+.B "Only in"
+line instead.
 With
 .BR \-N ,
-it is entered, and its files are compared with empty files.
+a missing subdirectory is entered, and its files are compared with empty files.
 An entry that cannot be examined, such as a broken symbolic link, is
-reported on standard error and left out, and the exit status does not
-change.
+reported on standard error and left out, and the exit status is 2.
 .PP
 If only one operand is a directory,
 .B diff
 compares the other operand with the file in that directory that has its
-name: the part after the last forward slash, or all of the operand if it
-has none.
+name: the part after the last slash, backslash, or drive colon, or all
+of the operand if it has none.
 That file must exist, even with
 .BR \-N .
 Standard input cannot be compared with a directory.
@@ -209,8 +213,10 @@ White space is space, tab, CR, LF, VT, and FF.
 .TP
 .BR \-B ", " \-\-ignore\-blank\-lines
 Omit a hunk whose changed lines, in both files, are all empty.
-A line is empty when it contains only its newline.
-A line of white space, or one ending in CR LF, is not empty.
+A line is empty when it contains only its newline, or only CR LF unless
+.B \-\-binary
+is given.
+A line of white space is not empty.
 If every hunk is omitted, the files count as the same.
 .TP
 .BR \-d ", " \-\-minimal
@@ -313,7 +319,6 @@ as the number of lines of context around each change.
 The default is 3.
 .I lines
 is a decimal number from 0 to 2147483647, and anything else is an error.
-Values of 1073741824 or more overflow and give wrong hunks.
 .TP
 .BR \-w ", " \-\-ignore\-all\-space
 Ignore white space: compare lines with all white space removed, so that
@@ -384,25 +389,24 @@ The files differ, including binary files, an
 .B Only in
 line, and a subdirectory skipped under
 .BR \-r .
-Also an invalid command line, with a message on standard error, and any
-error other than a missing operand, such as a temporary file that cannot
-be created, a file missing from the directory when only one operand is a
-directory, or standard input compared with a directory.
 .TP
 .B 2
-An operand does not exist, and
+An error, with a message on standard error: an invalid command line, an
+operand that does not exist when
 .B \-N
-was not given.
-Also an error writing standard output other than a closed pipe, which is
-reported on standard error.
+was not given, a file that cannot be opened, a directory entry that
+cannot be examined, a temporary file that cannot be created, a file
+missing from the directory when only one operand is a directory,
+standard input compared with a directory, or an error writing standard
+output other than a closed pipe.
+An error takes precedence over differences found in other files.
 .TP
 .B 141
 Standard output is a pipe whose reader has exited.
 .PP
 Messages about common subdirectories, files of different kinds, and
 skipped files do not change the status.
-Nor does a file that cannot be opened, which is reported on standard
-error as
+A file that cannot be opened is reported on standard error as
 .PP
 .RS 4
 .EX
@@ -410,7 +414,7 @@ diff: can't open '\fIfile\fR': \fIreason\fR
 .EE
 .RE
 .PP
-The pair of files then counts as the same.
+and the pair of files is not compared.
 .SH EXAMPLES
 Compare two files:
 .PP
@@ -505,12 +509,10 @@ not
 .IP \(bu 2
 With
 .BR \-r ,
-a file in only one tree is reported as
+a file or subdirectory in only one tree is reported as
 .BI "Only in " dir ": " sub/name
 with the subdirectory in the file part, where GNU diff puts it in the
-directory part, and a subdirectory in only one tree is not reported.
-.IP \(bu 2
-Status 2 is for a missing operand only, and other errors give status 1.
+directory part.
 .PP
 Files and standard input are read in binary mode.
 Unless
@@ -531,13 +533,6 @@ is accepted as an operand, but the Windows name
 is not.
 When directories are compared, names are joined to the directory operand
 with a forward slash, which is added even after a trailing backslash.
-When only one operand is a directory, only a forward slash ends the
-directory part of the other operand, so
-.B diff
-appends all of an operand such as
-.I sub\ef.txt
-to the directory, and looks for
-.IR dir/sub\ef.txt .
 A bare drive such as
 .I c:
 names the current directory of that drive, and names are joined to it
@@ -562,10 +557,14 @@ and
 .B TEMP
 is set,
 .B diff
-does not compare the pair of files, writes no message, and counts them
-as the same: the exit status is 0, and
-.B \-s
-reports them as identical.
+uses
+.IR /tmp ,
+which is
+.I \etmp
+at the root of the current drive.
+If the temporary file cannot be created,
+.B diff
+writes a message and exits with status 2.
 .PP
 If both operands name the same file, such as one path spelled two ways,
 .B diff

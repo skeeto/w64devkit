@@ -1,0 +1,32 @@
+Make diff fall back to /tmp when no temporary directory is set.
+An input that can't seek, such as a pipe, is copied to a temporary file
+in TMPDIR, or in TMP or TEMP, which getenv() supplies for it on Windows.
+If none of them was set, diffreg() gave up on the pair without a message
+and returned "same", so diff exited with 0 and -s reported the inputs
+as identical however they differed. Use /tmp instead, as the POSIX
+build and mktemp do; if that fails, xmkstemp() reports the error.
+
+---
+ editors/diff.c |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+--- a/editors/diff.c
++++ b/editors/diff.c
+@@ -735,7 +735,7 @@
+ 	int status = STATUS_SAME, i;
+ #if ENABLE_PLATFORM_MINGW32
+ 	char *tmpfile[2] = { NULL, NULL };
+-	char *tmpdir;
++	const char *tmpdir;
+ #endif
+ 
+ 	fp[0] = stdin;
+@@ -770,7 +770,7 @@
+ 			int fd_tmp;
+ 
+ 			if (!(tmpdir=getenv("TMPDIR")))
+-				goto out;
++				tmpdir = "/tmp";
+ 			tmpfile[i] = xasprintf("%s/difXXXXXX", tmpdir);
+ 			fd_tmp = xmkstemp(tmpfile[i]);
+ #endif

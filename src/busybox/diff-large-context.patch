@@ -1,0 +1,25 @@
+Stop a large diff -U from overflowing the hunk arithmetic.
+diff() computes 2 * context + 1 to decide whether two changes share a
+hunk, and adds the context to line numbers for the hunk ranges, all in
+int. A context of 2^30 or more overflowed: every change got a hunk of
+its own, so the hunks overlapped and repeated lines, and near 2^31 the
+ranges in the @@ lines went negative. A context larger than the number
+of lines changes nothing, so clamp it to INT_MAX / 4 after parsing.
+
+---
+ editors/diff.c |    4 ++++
+ 1 file changed, 4 insertions(+)
+
+--- a/editors/diff.c
++++ b/editors/diff.c
+@@ -1043,6 +1043,10 @@
+ 			LONGOPTS,
+ 			&L_arg, &s_start, &opt_U_context);
+ 	argv += optind;
++	/* More context than lines changes nothing; keep line + 2 * context
++	 * from overflowing in diff() */
++	if (opt_U_context > INT_MAX / 4)
++		opt_U_context = INT_MAX / 4;
+ 	while (L_arg)
+ 		label[!!label[0]] = llist_pop(&L_arg);
+ 

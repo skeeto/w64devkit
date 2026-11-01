@@ -1,0 +1,28 @@
+Make diff exit with status 2 when a directory entry can't be examined.
+When diff lists a directory, recursive_action() warns about an entry it
+can't stat, such as a broken symbolic link, or a subdirectory it can't
+open, and leaves it out of the listing. diff ignored the failure, so
+apart from the warning the entry was as good as absent, and the exit
+status could be 0. Record error status 2 when recursive_action()
+reports a failure, as diffutils does for a file it can't examine.
+
+---
+ editors/diff.c |    6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+--- a/editors/diff.c
++++ b/editors/diff.c
+@@ -915,9 +915,11 @@
+ 		 * Using list.len to specify its length,
+ 		 * add_to_dirlist will remove it. */
+ 		list[i].len = strlen(p[i]);
+-		recursive_action(p[i], ACTION_RECURSE |
++		/* An entry that can't be examined was reported and left out */
++		if (!recursive_action(p[i], ACTION_RECURSE |
+ 			((option_mask32 & FLAG(no_deref)) ? 0 : ACTION_FOLLOWLINKS),
+-				add_to_dirlist, skip_dir, &list[i]);
++				add_to_dirlist, skip_dir, &list[i]))
++			exit_status |= 2;
+ 		/* Sort dl alphabetically.
+ 		 * GNU diff does this ignoring any number of trailing dots.
+ 		 * We don't, so for us dotted files almost always are
