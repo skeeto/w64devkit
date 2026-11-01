@@ -15,14 +15,14 @@ Operands are ignored.
 .PP
 The count is the number of bits set in the process affinity mask, which
 is the set of processors the process may run on.
-An unrestricted mask holds every processor in the system, within the
-limits given in NOTES.
+If the mask is unrestricted, that is, the same as the system affinity
+mask, the count is instead the number of active processors in all
+processor groups, which is every processor in the system.
 A process inherits its mask from its parent, so it can be restricted, for
 example by
 .B start /affinity
 in
 .BR cmd.exe .
-Only the affinity mask is consulted.
 .SH OPTIONS
 There are no short options.
 Long options may be abbreviated to any unique prefix, so
@@ -42,7 +42,7 @@ ends the options.
 .B \-\-all
 Count the processors in the system instead of those available to the
 process.
-This uses the system affinity mask in place of the process mask, so a
+This is the number of active processors in all processor groups, so a
 restricted process still counts every processor.
 .B \-\-ignore
 still applies.
@@ -125,12 +125,13 @@ variables are not read, and extra operands are ignored rather than
 rejected.
 .PP
 The affinity mask is one machine word and covers one processor group, so
-a 64-bit build counts at most 64 processors, and a 32-bit build at most
-32.
-On a system with more than 64 processors, Windows reports the mask of a
-single processor group, or an empty mask when the process has threads in
-several groups.
-If the mask is empty or cannot be read, the count is 1.
+a restricted process counts at most 64 processors in a 64-bit build, and
+at most 32 in a 32-bit build.
+Windows reports an empty mask when the process has threads in several
+groups; a mask that is empty or cannot be read counts as unrestricted.
+The count of processors in all groups needs Windows 7 or later.
+On older versions the masks are counted instead, and the count is 1 if
+the mask is empty or cannot be read.
 .SH SEE ALSO
 .BR busybox (1),
 .BR make (1)

@@ -1,0 +1,38 @@
+Report memory in pages from sysinfo() so 32-bit builds do not overflow.
+sysinfo() multiplied each page count from GetPerformanceInfo() by the
+page size in SIZE_T before dividing by 4096. SIZE_T is 32 bits on x86,
+so any quantity of 4 GiB or more wrapped: free showed 3702848 KiB of
+total memory on a machine with 20 GiB, and the used, free, cache and
+swap figures were wrong too. Return the page counts unchanged and set
+mem_unit to the page size, so that nothing is multiplied until callers
+such as free do it in 64 bits.
+
+---
+ win32/mingw.c |   15 +++++++++------
+ 1 file changed, 9 insertions(+), 6 deletions(-)
+
+--- a/win32/mingw.c
++++ b/win32/mingw.c
+@@ -2081,13 +2081,16 @@
+ 		EnumPageFilesA((PENUM_PAGE_FILE_CALLBACK)pagefile_cb, (LPVOID)&pfinfo);
+ 	}
+ 
+-	info->totalram = perf.PhysicalTotal * perf.PageSize / 4096;
+-	info->bufferram = perf.SystemCache * perf.PageSize / 4096;
++	/* Report counts of pages: converting them to bytes would overflow
++	 * SIZE_T on 32-bit systems. */
++	if (perf.PageSize)
++		info->mem_unit = perf.PageSize;
++	info->totalram = perf.PhysicalTotal;
++	info->bufferram = perf.SystemCache;
+ 	if (perf.PhysicalAvailable > perf.SystemCache)
+-		info->freeram = perf.PhysicalAvailable * perf.PageSize / 4096 -
+-							info->bufferram;
+-	info->totalswap = pfinfo.total * perf.PageSize / 4096;
+-	info->freeswap = (pfinfo.total - pfinfo.in_use) * perf.PageSize / 4096;
++		info->freeram = perf.PhysicalAvailable - perf.SystemCache;
++	info->totalswap = pfinfo.total;
++	info->freeswap = pfinfo.total - pfinfo.in_use;
+ 
+ 	info->uptime = monotonic_sec();
+ 	info->procs = perf.ProcessCount;

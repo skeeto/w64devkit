@@ -116,3 +116,7 @@ iconv-alias-before-number.patch
 iconv-ignore-incomplete.patch
 iconv-temp-file-cleanup.patch
 iconv-write-error.patch
+sysinfo-page-units.patch
+free-available-memory.patch
+nproc-processor-groups.patch
+uptime-usage-since.patch

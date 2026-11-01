@@ -1,0 +1,23 @@
+Document uptime -s in the usage text.
+uptime has accepted -s to print the boot time since it was added, but
+the usage text showed no options at all.
+
+---
+ procps/uptime.c |    5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+--- a/procps/uptime.c
++++ b/procps/uptime.c
+@@ -31,9 +31,10 @@
+ //kbuild:lib-$(CONFIG_UPTIME) += uptime.o
+ 
+ //usage:#define uptime_trivial_usage
+-//usage:       ""
++//usage:       "[-s]"
+ //usage:#define uptime_full_usage "\n\n"
+-//usage:       "Display the time since the last boot"
++//usage:       "Display the time since the last boot\n"
++//usage:     "\n	-s	Show the time of the last boot"
+ //usage:
+ //usage:#define uptime_example_usage
+ //usage:       "$ uptime\n"

@@ -1,0 +1,56 @@
+Count processors in all groups when nproc is not restricted.
+The affinity masks from GetProcessAffinityMask() cover only the
+process's primary processor group, and are empty when it has threads
+in several groups. On a system with more than 64 processors nproc and
+nproc --all therefore printed the size of one group, or 1. When the
+process mask equals the system mask (or both are empty), and for
+--all, use GetActiveProcessorCount(ALL_PROCESSOR_GROUPS) where it
+exists (Windows 7 and later). A process restricted to part of its group
+still counts the bits of its mask.
+
+---
+ coreutils/nproc.c |   21 ++++++++++++++++++++-
+ 1 file changed, 20 insertions(+), 1 deletion(-)
+
+--- a/coreutils/nproc.c
++++ b/coreutils/nproc.c
+@@ -24,12 +24,19 @@
+ //usage:	)
+ 
+ #include "libbb.h"
++#if ENABLE_PLATFORM_MINGW32
++# include "lazyload.h"
++# ifndef ALL_PROCESSOR_GROUPS
++#  define ALL_PROCESSOR_GROUPS 0xffff
++# endif
++#endif
+ 
+ int nproc_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
+ int nproc_main(int argc UNUSED_PARAM, char **argv UNUSED_PARAM)
+ {
+ #if ENABLE_PLATFORM_MINGW32
+-	DWORD_PTR affinity, process_affinity, system_affinity;
++	DWORD_PTR affinity, process_affinity = 0, system_affinity = 0;
++	DECLARE_PROC_ADDR(DWORD, GetActiveProcessorCount, WORD);
+ #endif
+ 	int count = 0;
+ #if ENABLE_LONG_OPTS
+@@ -77,6 +84,18 @@
+ 			affinity >>= 1;
+ 		}
+ 	}
++	/* The masks only cover one processor group, and are empty if the
++	 * process has threads in several groups.  Unless the process is
++	 * restricted to part of its group, count the processors in all
++	 * groups. */
++	if (IF_LONG_OPTS((opts & (1 << 1)) ||)
++			process_affinity == system_affinity) {
++		if (INIT_PROC_ADDR(kernel32.dll, GetActiveProcessorCount)) {
++			DWORD n = GetActiveProcessorCount(ALL_PROCESSOR_GROUPS);
++			if (n)
++				count = n;
++		}
++	}
+ #endif /* ENABLE_PLATFORM_MINGW32 */
+ 
+ 	IF_LONG_OPTS(count -= ignore;)

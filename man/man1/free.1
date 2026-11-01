@@ -65,8 +65,10 @@ Always 0.
 The size of the system cache.
 .TP
 .B available
-Always 0.
-This port has no value for it.
+The physical memory that Windows reports as available.
+It is read separately from the other columns, so it can differ slightly
+from the available memory used for
+.BR free .
 .PP
 The columns of the
 .B Swap:
@@ -101,9 +103,9 @@ or
 .BR T .
 For example, 33271988 KiB is written
 .BR 31.7G .
-The decimal digit is rounded, so a size just below the next unit, such
-as 1048572 KiB, is written as
-.BR 1024.0M .
+The decimal digit is rounded, and a size that rounds up to 1024 of one
+unit is written in the next, so 1048572 KiB is written as
+.BR 1.0G .
 A size of 0 is written as a plain
 .BR 0 ,
 with no suffix.
@@ -166,6 +168,12 @@ was given.
 .TP
 .B 1
 Invalid option.
+Also an error writing standard output other than a closed pipe, which is
+reported on standard error.
+.TP
+.B 141
+Standard output is a pipe whose reader has exited.
+No message is printed.
 .PP
 Failure to read a statistic is not an error.
 A value that the system does not supply is shown as 0.
@@ -206,6 +214,10 @@ both in
 which busybox loads when
 .B free
 runs.
+The
+.B available
+column comes from
+.BR GlobalMemoryStatusEx .
 It does not read
 .IR /proc/meminfo .
 .PP
@@ -227,11 +239,7 @@ and no other long option.
 .IP \(bu 2
 The
 .B shared
-and
-.B available
-columns are always 0, so a script that reads
-.B available
-gets 0.
+column is always 0.
 .IP \(bu 2
 The extra
 .B \-/+ buffers/cache
@@ -243,13 +251,6 @@ is never printed.
 .PP
 Output lines end in LF.
 The output has no escape sequences, on a console or not.
-.PP
-In the x86 kit,
-.B free
-multiplies page counts by the page size in 32 bits, so a quantity of
-4 GiB or more wraps around modulo 4 GiB.
-On a machine with 4 GiB or more of memory, or of paging file space, the
-figures are wrong.
 .SH SEE ALSO
 .BR busybox (1),
 .BR df (1),
