@@ -1,0 +1,39 @@
+Check the address of a, i and c before reading their text.
+The insertion point of a and i was checked only by insertLine, once the
+first line of text had been read. An out-of-range address was reported
+only after that line, which was lost, and the lines typed after it were
+taken as commands, so text such as "1d" or "w" was executed. c had the
+same problem and worse: deleteLines rejected a bad range, but c went on
+to read the text and insert it before the first address. Check the
+insertion point in addLines before reading anything, and the range of c
+before deleting, so that the command fails at once in command mode, as
+it does in other implementations of ed.
+
+---
+ editors/ed.c |    8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+--- a/editors/ed.c
++++ b/editors/ed.c
+@@ -363,6 +363,12 @@
+ 	int len;
+ 	char buf[USERSIZE + 1];
+ 
++	/* Check before reading any text, so that the error shows at once */
++	if ((num < 1) || (num > lastNum + 1)) {
++		bb_simple_error_msg("inserting at bad line number");
++		return;
++	}
++
+ 	while (1) {
+ 		/* Returns:
+ 		 * -1 on read errors or EOF, or on bare Ctrl-D.
+@@ -848,6 +854,8 @@
+ 			break;
+ 
+ 		case 'c':
++			if (bad_nums(num1, num2, "change"))
++				break;
+ 			deleteLines(num1, num2);
+ 			addLines(num1);
+ 			break;

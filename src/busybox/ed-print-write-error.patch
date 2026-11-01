@@ -1,0 +1,32 @@
+Report a write error on standard output for ed's p command.
+p wrote each line with an unchecked write(), so its output was lost
+without a message or a failure status when it could not be written,
+while l, = and the byte counts, which use stdio, had their errors
+reported at exit. Write p's lines through stdio too, and flush them at
+the end of the command, so they still come out ahead of any message
+that a later command writes to standard error.
+
+---
+ editors/ed.c |    4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+--- a/editors/ed.c
++++ b/editors/ed.c
+@@ -582,7 +582,7 @@
+ 
+ 	while (num1 <= num2) {
+ 		if (!expandFlag) {
+-			write(STDOUT_FILENO, lp->data, lp->len);
++			fwrite(lp->data, 1, lp->len, stdout);
+ 			setCurNum(num1++);
+ 			lp = lp->next;
+ 			continue;
+@@ -608,6 +608,8 @@
+ 		setCurNum(num1++);
+ 		lp = lp->next;
+ 	}
++	/* keep the lines ahead of any later message on stderr */
++	fflush(stdout);
+ 
+ 	return TRUE;
+ }

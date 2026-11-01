@@ -1,0 +1,45 @@
+Make z use its address and stop at the ends of the buffer.
+z always worked from the current line, ignoring any address, and passed
+a fixed 22-line window to printLines, which rejects a range that leaves
+the buffer. So "5z" printed the wrong lines, and near either end of the
+buffer z printed nothing but "bad line range for print". Take the window
+from the addressed line, which defaults to the current line, and print
+the part of it that lies inside the buffer.
+
+---
+ editors/ed.c |   16 +++++++++++++---
+ 1 file changed, 13 insertions(+), 3 deletions(-)
+
+--- a/editors/ed.c
++++ b/editors/ed.c
+@@ -977,17 +977,27 @@
+ 			break;
+ 
+ 		case 'z':
++			if (bad_nums(num1, num1, "print"))
++				break;
+ 			switch (*cp) {
+ 			case '-':
+-				printLines(curNum - 21, curNum, FALSE);
++				num2 = num1;
++				num1 -= 21;
+ 				break;
+ 			case '.':
+-				printLines(curNum - 11, curNum + 10, FALSE);
++				num2 = num1 + 10;
++				num1 -= 11;
+ 				break;
+ 			default:
+-				printLines(curNum, curNum + 21, FALSE);
++				num2 = num1 + 21;
+ 				break;
+ 			}
++			/* Print the part of the window inside the buffer */
++			if (num1 < 1)
++				num1 = 1;
++			if (num2 > lastNum)
++				num2 = lastNum;
++			printLines(num1, num2, FALSE);
+ 			break;
+ 
+ 		case '.':

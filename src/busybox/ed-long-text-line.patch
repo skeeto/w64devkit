@@ -1,0 +1,64 @@
+Join a long line of text input that fgets split into pieces.
+When standard input is not a console, read_line_input reads with fgets,
+which splits a line that does not fit in the buffer. a, c and i stored
+each piece as a separate line, so the line numbers of the buffer no
+longer matched the file, s could not match across the split, and a
+piece that was just "." ended text input early, so the lines of text
+after it ran as commands. Collect the pieces of a line that fills
+the buffer without its newline and insert them as one line.
+
+---
+ editors/ed.c |   25 +++++++++++++++++++------
+ 1 file changed, 19 insertions(+), 6 deletions(-)
+
+--- a/editors/ed.c
++++ b/editors/ed.c
+@@ -360,8 +360,9 @@
+  */
+ static void addLines(int num)
+ {
+-	int len;
++	int len, have;
+ 	char buf[USERSIZE + 1];
++	char *line;
+ 
+ 	/* Check before reading any text, so that the error shows at once */
+ 	if ((num < 1) || (num > lastNum + 1)) {
+@@ -369,6 +370,8 @@
+ 		return;
+ 	}
+ 
++	line = NULL;
++	have = 0;
+ 	while (1) {
+ 		/* Returns:
+ 		 * -1 on read errors or EOF, or on bare Ctrl-D.
+@@ -379,13 +382,23 @@
+ 		if (len <= 0) {
+ 			/* Previously, ctrl-C was exiting to shell.
+ 			 * Now we exit to ed prompt. Is in important? */
+-			return;
++			if (have)
++				insertLine(num, line, have);
++			break;
+ 		}
+-		if (buf[0] == '.' && buf[1] == '\n' && buf[2] == '\0')
+-			return;
+-		if (!insertLine(num++, buf, len))
+-			return;
++		if (!have && buf[0] == '.' && buf[1] == '\n' && buf[2] == '\0')
++			break;
++		line = xrealloc(line, have + len);
++		memcpy(line + have, buf, len);
++		have += len;
++		/* From a pipe or a file, a long line comes in pieces */
++		if (len == sizeof(buf) - 1 && buf[len - 1] != '\n')
++			continue;
++		if (!insertLine(num++, line, have))
++			break;
++		have = 0;
+ 	}
++	free(line);
+ }
+ 
+ /*

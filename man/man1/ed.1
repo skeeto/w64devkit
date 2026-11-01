@@ -29,13 +29,10 @@ and
 The last line becomes the current line.
 If the file cannot be read,
 .B ed
-reports the error and exits with status 0 without reading any command,
-so it cannot start a new file.
-Start
-.B ed
-with no operand and name the file with
+reports the error and starts with an empty buffer that remembers the
+name, so
 .B w
-instead.
+creates the file.
 Operands after the first are ignored.
 With no
 .IR file ,
@@ -110,7 +107,21 @@ A leading
 .B +
 or
 .B \-
-is not an address.
+counts from the current line, and a sign with no number after it
+counts 1, so
+.B \-3
+is
+.BR .\-3 ,
+.B \-
+is
+.BR .\-1 ,
+.B ++
+is
+.BR .+2 ,
+and
+.B $\-
+is
+.BR $\-1 .
 Whether the result lies in the buffer is checked by the command that
 uses it.
 .PP
@@ -137,13 +148,12 @@ line or at Ctrl\-C, which discards the line being typed.
 The last line added becomes the current line.
 The prompt is not shown in this mode.
 .PP
-The insertion point is checked only when the first line of text
-arrives.
-If it is out of range,
+If the insertion point is out of range,
 .B ed
 reports
-.BR "inserting at bad line number" ,
-discards that line, and reads the lines after it as commands.
+.B inserting at bad line number
+and stays in command mode, so in a script the lines of text that
+follow are read as commands.
 .SS Commands
 In the forms below, omitting an address in brackets uses the current line
 unless noted.
@@ -162,7 +172,7 @@ The commands
 .BR r ,
 and
 .B w
-need a space, not a tab, before their argument.
+need a space or tab before their argument.
 Any other command letter is reported as
 .BR "unimplemented command" .
 .TP
@@ -173,9 +183,10 @@ With a range, the first address is used.
 .TP
 \fR[\fIrange\fR]\fBc\fR
 Delete the lines, then read text and insert it where they were.
-If the range is invalid, nothing is deleted, but
+If the range is invalid,
 .B ed
-still reads text and inserts it before the first address.
+reports it and stays in command mode, as for an insertion point out of
+range.
 .TP
 \fR[\fIrange\fR]\fBd\fR
 Delete the lines.
@@ -267,8 +278,13 @@ The commands
 and a
 .B s
 that replaces something change the buffer.
-End of input or Ctrl\-C at the ordinary command prompt exits without the
-check, losing any changes.
+End of input at the ordinary command prompt acts as
+.BR q ,
+so a script that changes the buffer and ends without
+.B w
+prints
+.B Really quit?\&
+and quits.
 .TP
 \fR[\fIaddr\fR]\fBr \fIfile\fR
 Read
@@ -284,6 +300,9 @@ The last line read becomes current.
 The file name is the rest of the line after the blanks.
 It is required: the remembered file name is not used, and there is no
 form that runs a command.
+If there is no remembered file name, a successful
+.B r
+sets it.
 .TP
 \fR[\fIrange\fR]\fBs/\fIold\fB/\fInew\fB/\fR[\fIflags\fR]
 Replace the first occurrence of
@@ -323,8 +342,8 @@ Write the lines to
 .IR file ,
 or when it is omitted to the remembered file name, replacing the
 contents of the file.
-With no address, the whole buffer is written and counts as saved, even if
-the write fails, so a following
+With no address, the whole buffer is written and, if the write
+succeeds, counts as saved, so a following
 .B q
 quits without asking.
 With an address, only those lines are written and the saved state is
@@ -333,44 +352,43 @@ The name given does not become the remembered name.
 The byte count is printed unless
 .B \-s
 is given.
-An empty buffer cannot be written.
+An empty buffer is written as an empty file.
 There is no
 .B wq
 command.
 .TP
-\fBz\fR[\fB.\fR|\fB\-\fR]
-Print 22 lines: with no argument, from the current line;
+\fR[\fIaddr\fR]\fBz\fR[\fB.\fR|\fB\-\fR]
+Print 22 lines: with no argument, from line
+.IR addr ;
 with
 .BR . ,
 from 11 lines before it to 10 after;
 with
 .BR \- ,
 ending at it.
+The lines that would lie outside the buffer are left out.
 The last line printed becomes current.
-An address, and any other text after
-.BR z ,
+Any other text after
+.B z
 is ignored.
-All 22 lines must lie inside the buffer, or the command fails.
 .TP
 \fR[\fIaddr\fR]\fB=\fR
 Print the line number that
 .I addr
-gives, which is the first address of a range and defaults to the current
-line.
-.B $=
+gives, which is the first address of a range and defaults to
+.BR $ ,
+so a bare
+.B =
 prints the number of lines.
-.TP
-.B \-
-Make the previous line current and print it.
-Text after it is ignored, so
-.B \-3
-also goes back one line.
 .TP
 \fR[\fIrange\fR]
 A line with no command letter prints the last line of the range, which
 becomes current.
 With no address, it prints the line after the current line, which
 becomes current.
+So a line holding only
+.B \-
+prints the previous line and makes it current.
 .SH OPTIONS
 .B ed
 accepts options before or after the file operand, unless
@@ -396,15 +414,13 @@ such as
 .B \eu
 for the user name,
 .B \e$
-for a dollar sign, or a number sign when elevated, and
+for a dollar sign, or a number sign when elevated,
 .B \et
-for the time.
+for the time, and
 .B \ew
 and
-.BR \eW ,
-the current directory, work only when standard input is not a console:
-in a console they crash
-.BR ed .
+.B \eW
+for the current directory.
 Parameters and commands in it are not expanded.
 The default is no prompt.
 .TP
@@ -487,14 +503,19 @@ for console output, are described in
 .B 0
 Every normal end: the
 .B q
-command, end of input, Ctrl\-C or Ctrl\-D at the command prompt, or
+command, end of input or Ctrl\-D at the command prompt, or
 .BR \-\-help .
 Errors in commands, and a file operand that cannot be read, do not change
 the status.
 .TP
 .B 1
 An invalid option or a missing option argument, with a usage message on
-standard error, or out of memory.
+standard error; an error writing standard output other than a closed
+pipe, reported as
+.B "ed: standard output: I/O error"
+when
+.B ed
+exits; or out of memory.
 .TP
 .B 141
 Lines were printed to a pipe whose reader has exited, as in
@@ -584,24 +605,16 @@ or
 after a command other than
 .BR s .
 .IP \(bu 2
-Errors are messages on standard error, and the exit status does not
-report them.
+Errors are messages on standard error, and the exit status reports only
+a failed write to standard output.
 .IP \(bu 2
 Commands that take one address accept a range and use its first address,
 except
 .BR k ,
 which uses the last.
-.B =
-without an address prints the current line number rather than the number
-of lines.
 .IP \(bu 2
-A successful
-.B r
-does not set the remembered file name, but a failed
-.B r
-sets it when there is none.
 .B w
-never sets it.
+never sets the remembered file name.
 .PP
 The whole buffer is held in memory.
 Files are read and written in binary mode, so
@@ -626,33 +639,28 @@ In a console, lines are edited with the line editor of
 .BR sh (1),
 using the keys in its Line editing section, but with no history, no
 completion, and no vi mode.
-Up, Down, and Tab do nothing, so a tab cannot be typed.
-Typing into the history search that Ctrl\-R starts crashes
-.BR ed ,
-losing the buffer.
+Up, Down, Tab, and Ctrl\-R do nothing, so a tab cannot be typed.
 Ctrl\-Z changes backslashes in the line to slashes.
-Ctrl\-C, or Ctrl\-D on an empty line, at the command prompt exits
-.BR ed ,
-discarding unsaved changes.
+At the command prompt, Ctrl\-C discards the line being typed, and
+Ctrl\-D on an empty line acts as
+.BR q .
 .PP
-A command holds at most 1021 characters, and a line of text 1022, not
-counting the newline.
-A console ignores further typing.
-From a pipe or file, the excess is read as a separate command or line of
-text, and pieces of text rejoin when written.
+In a console, a command holds at most 1021 characters and a line of
+text 1022, not counting the newline, and further typing is ignored.
+From a pipe or file, a command longer than 1022 characters is rejected
+whole as
+.BR "command too long" ,
+and a line of text may have any length.
 .PP
 File names may use drive letters and either kind of slash.
-The file operand and
-.B r
+The file operand,
+.BR r ,
+and
+.B w
 also accept the device names listed in
 .BR busybox (1),
 such as
-.IR /dev/null ,
-but
-.B w
-does not: it treats
-.I /dev/null
-as an ordinary path, which usually fails.
+.IR /dev/null .
 .PP
 On a console, escape sequences in the text of a line take effect when
 .B p

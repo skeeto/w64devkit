@@ -1,0 +1,48 @@
+Do not read line_input_t fields when read_line_input got no state.
+When the caller passes no line_input_t, as ed, fdisk and hexedit do,
+read_line_input points state at the int const_int_0 so that state->flags
+reads as zero, on the promise that no other field is then used. Two
+paths broke that promise in a console. The \w and \W prompt escapes
+(and get_homedir_or_NULL, which they call) tested state->sh_get_var,
+which lies past the int, and called through whatever was there, so
+"ed -p '\w> '" crashed before showing its prompt. Ctrl-R entered the
+history search, which read state->cur_history and state->history[], so
+typing a character there crashed ed and lost the buffer. Check the flags
+before sh_get_var, and ignore Ctrl-R without DO_HISTORY. A shell's state
+always has flags set, so the shells are unaffected.
+
+---
+ libbb/lineedit.c |    8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+--- a/libbb/lineedit.c
++++ b/libbb/lineedit.c
+@@ -254,7 +254,9 @@
+ 	const char *home;
+ 
+ # if ENABLE_SHELL_ASH || ENABLE_SHELL_HUSH
+-	home = state && state->sh_get_var ? state->sh_get_var("HOME") : getenv("HOME");
++	/* Zeroed flags mean no line_input_t: see read_line_input() */
++	home = state && state->flags && state->sh_get_var
++		? state->sh_get_var("HOME") : getenv("HOME");
+ # else
+ 	home = getenv("HOME");
+ # endif
+@@ -2261,7 +2263,7 @@
+ 					if (!cwd_buf) {
+ 						const char *home;
+ # if EDITING_HAS_sh_get_var
+-						cwd_buf = state && state->sh_get_var
++						cwd_buf = state && state->flags && state->sh_get_var
+ 							? xstrdup(state->sh_get_var("PWD"))
+ 							: xrealloc_getcwd_or_warn(NULL);
+ # else
+@@ -2954,6 +2956,8 @@
+ 		}
+ #if ENABLE_FEATURE_REVERSE_SEARCH
+ 		case CTRL('R'):
++			if (!(state->flags & DO_HISTORY))
++				break;
+ 			ic = ic_raw = reverse_i_search(timeout);
+ 			goto again;
+ #endif

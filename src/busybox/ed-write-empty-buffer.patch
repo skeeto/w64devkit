@@ -1,0 +1,36 @@
+Allow w to write an empty buffer.
+w with no address writes lines 1 through $, which in an empty buffer is
+the range 1,0, and writeLines rejected it as a bad line range. So an
+empty file could not be created, and after deleting every line the
+result could not be saved: the old contents stayed on disk and q kept
+asking. Accept 1,0 when the buffer is empty and write an empty file.
+
+---
+ editors/ed.c |    8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+--- a/editors/ed.c
++++ b/editors/ed.c
+@@ -486,8 +486,12 @@
+ 	int fd;
+ 	unsigned charCount;
+ 
+-	if (bad_nums(num1, num2, "write"))
++	/* An empty buffer can be written whole, as an empty file */
++	if ((lastNum != 0 || num1 != 1 || num2 != 0)
++	 && bad_nums(num1, num2, "write")
++	) {
+ 		return FALSE;
++	}
+ 
+ 	charCount = 0;
+ 
+@@ -497,7 +501,7 @@
+ 		return FALSE;
+ 	}
+ 
+-	lp = findLine(num1);
++	lp = lastNum ? findLine(num1) : &lines;
+ 	if (lp == NULL) {
+ 		close(fd);
+ 		return FALSE;

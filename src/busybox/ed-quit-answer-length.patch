@@ -1,0 +1,23 @@
+Read the whole answer to "Really quit?".
+The answer was read into 16 bytes of the command buffer. A console
+simply stopped accepting input there, but from a pipe or file fgets
+returned the first 15 characters and left the rest of the line to be
+read as the next command, so a long answer ran its tail as an ed
+command. Read the answer with the full size of the buffer, like a
+command.
+
+---
+ editors/ed.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/editors/ed.c
++++ b/editors/ed.c
+@@ -924,7 +924,7 @@
+ 			}
+ 			if (!dirty)
+ 				return;
+-			len = read_line_input(NULL, "Really quit? ", buf, 16);
++			len = read_line_input(NULL, "Really quit? ", buf, sizeof(buf));
+ 			/* read error/EOF - no way to continue */
+ 			if (len < 0)
+ 				return;

@@ -1,0 +1,53 @@
+Treat addresses with a leading + or - as relative to the current line.
+POSIX makes "+n" and "-n" mean ".+n" and ".-n", and a sign with no
+number after it count 1, so "-" is ".-1", "--" is ".-2" and "$-" is
+"$-1". getNum accepted a sign only after a number, so a leading sign
+ended the address: "-3p" and "+2p" were "unimplemented command", "-3"
+was taken as the - command and went back one line, and "$-p" printed
+the last line. Parse a leading sign as an offset from the current line
+and give a sign without a number the value 1. The - command, which
+only did what the address "-" now does, can no longer be reached and
+is removed.
+
+---
+ editors/ed.c |   20 +++++++++++++++-----
+ 1 file changed, 15 insertions(+), 5 deletions(-)
+
+--- a/editors/ed.c
++++ b/editors/ed.c
+@@ -257,8 +257,23 @@
+ 				haveNum = TRUE;
+ 				break;
+ 
++			case '-':
++			case '+':
++				/* A leading sign is relative to the current
++				 * line, and a sign with no number after it
++				 * counts 1, so "-" is ".-1" and "--" is ".-2".
++				 * Leave the sign to be read as the operator. */
++				num = haveNum ? 1 : curNum;
++				haveNum = TRUE;
++				break;
++
+ 			default:
+ 				if (!isdigit(*cp)) {
++					if (haveNum) {
++						/* A final sign counts 1: "$-" */
++						num = 1;
++						break;
++					}
+ 					*retHaveNum = haveNum;
+ 					*retNum = value;
+ 					return cp;
+@@ -1042,11 +1057,6 @@
+ 			printLines(curNum, curNum, FALSE);
+ 			break;
+ 
+-		case '-':
+-			if (setCurNum(curNum - 1))
+-				printLines(curNum, curNum, FALSE);
+-			break;
+-
+ 		case '=':
+ 			/* The default address is "$" */
+ 			printf("%d\n", have1 ? num1 : lastNum);

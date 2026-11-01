@@ -1,0 +1,24 @@
+Mark the buffer saved only when w succeeds.
+A w of the whole buffer cleared the modified flag before writing and
+ignored the result, so after a write that failed (a missing directory, a
+read-only file, a full disk) q quit without asking and the changes were
+lost. Clear the flag only when writeLines reports success.
+
+---
+ editors/ed.c |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+--- a/editors/ed.c
++++ b/editors/ed.c
+@@ -967,9 +967,9 @@
+ 			if (!have1) {
+ 				num1 = 1;
+ 				num2 = lastNum;
+-				dirty = FALSE;
+ 			}
+-			writeLines(cp, num1, num2);
++			if (writeLines(cp, num1, num2) && !have1)
++				dirty = FALSE;
+ 			break;
+ 
+ 		case 'z':

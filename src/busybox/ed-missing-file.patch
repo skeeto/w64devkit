@@ -1,0 +1,27 @@
+Keep editing when the file operand cannot be read.
+When the file named on the command line could not be read, ed printed
+the error and exited at once without reading any command, so "ed
+newfile" could not be used to create a file, and a script fed to it
+was silently ignored. Report the error and continue with an empty
+buffer that remembers the name, as other implementations of ed do, so
+that w creates the file.
+
+---
+ editors/ed.c |    6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+--- a/editors/ed.c
++++ b/editors/ed.c
+@@ -1019,9 +1019,9 @@
+ 
+ 	if (argv[0]) {
+ 		fileName = xstrdup(argv[0]);
+-		if (!readLines(fileName, 1)) {
+-			return EXIT_SUCCESS;
+-		}
++		/* If it can't be read, start with an empty buffer
++		 * under that name, so that a new file can be created */
++		readLines(fileName, 1);
+ 		dirty = FALSE;
+ 	}
+ 

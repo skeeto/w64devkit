@@ -1,0 +1,33 @@
+Ask before discarding changes at end of input, and survive Ctrl-C.
+At the command prompt, end of input (Ctrl-D on an empty line in a
+console) and Ctrl-C both made ed return at once, skipping the check
+that q makes for unsaved changes, so a stray keypress lost all edits.
+Treat end of input as q, which asks "Really quit?" when the buffer has
+changed (a second end of input then quits), and treat Ctrl-C as it is
+treated in text input: discard the line and read the next command.
+
+---
+ editors/ed.c |   12 ++++++++++--
+ 1 file changed, 10 insertions(+), 2 deletions(-)
+
+--- a/editors/ed.c
++++ b/editors/ed.c
+@@ -808,8 +808,16 @@
+ 		 * >0 length of input string, including terminating '\n'
+ 		 */
+ 		len = read_line_input(NULL, prompt, buf, sizeof(buf));
+-		if (len <= 0)
+-			return;
++		if (len == 0) {
++			/* ctrl-C: discard the line, as in text input */
++			bb_putchar_stderr('\n');
++			continue;
++		}
++		if (len < 0) {
++			/* Act as "q", which asks first if there are changes */
++			strcpy(buf, "q");
++			len = 1;
++		}
+ 		while (len && isspace(buf[--len]))
+ 			buf[len] = '\0';
+ 

@@ -1,0 +1,24 @@
+Remember the file name of a successful r, not of a failed one.
+The test after readLines was inverted: a successful r left the
+remembered file name unset, while an r that failed set it to the file
+that could not be read, so a later w with no name wrote the buffer to
+that name. Set the name, when there is none yet, only after a
+successful read, as POSIX describes.
+
+---
+ editors/ed.c |    4 +---
+ 1 file changed, 1 insertion(+), 3 deletions(-)
+
+--- a/editors/ed.c
++++ b/editors/ed.c
+@@ -945,9 +945,7 @@
+ 			}
+ 			if (!have1)
+ 				num1 = lastNum;
+-			if (readLines(cp, num1 + 1))
+-				break;
+-			if (fileName == NULL)
++			if (readLines(cp, num1 + 1) && fileName == NULL)
+ 				fileName = xstrdup(cp);
+ 			break;
+ 

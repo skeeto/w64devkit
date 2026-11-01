@@ -1,0 +1,23 @@
+Open the file for w with open() rather than creat().
+writeLines created its output file with creat(). On Windows that is the
+C runtime's own function, which knows nothing of the device names that
+mingw_open handles, so "w /dev/null" tried to create a file named null
+in a directory \dev and usually failed, although the file operand and r
+accepted the same names. Use the equivalent open() call, which goes
+through mingw_open there and is unchanged elsewhere.
+
+---
+ editors/ed.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/editors/ed.c
++++ b/editors/ed.c
+@@ -508,7 +508,7 @@
+ 
+ 	charCount = 0;
+ 
+-	fd = creat(file, 0666);
++	fd = open(file, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+ 	if (fd < 0) {
+ 		bb_simple_perror_msg(file);
+ 		return FALSE;

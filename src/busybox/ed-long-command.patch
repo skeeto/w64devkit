@@ -1,0 +1,60 @@
+Reject an overlong command instead of running its tail as a command.
+When standard input is not a console, read_line_input reads with fgets,
+which splits a line that does not fit in the USERSIZE buffer. The rest
+of the line came back as the next command, so the tail of a long s
+command in a script, for example, was parsed and executed as a separate
+command. When a command line fills the buffer without its newline,
+discard the rest of the line and report the error, unless only blanks
+remained, such as the CR of a CR LF line ending, which would have been
+dropped anyway. Do the same for the answer to "Really quit?".
+
+---
+ editors/ed.c |   23 +++++++++++++++++++++++
+ 1 file changed, 23 insertions(+)
+
+--- a/editors/ed.c
++++ b/editors/ed.c
+@@ -795,6 +795,24 @@
+ }
+ 
+ /*
++ * From a pipe or a file, read_line_input() splits a line that does
++ * not fit in the buffer. Discard the rest of such a line, so that it
++ * is not taken as another command. Returns TRUE if anything but
++ * trailing blanks, which would be dropped anyway, was lost.
++ */
++static int discardLongLine(const char *buf, int len, int size)
++{
++	int c, lost = FALSE;
++
++	if (len != size - 1 || buf[len - 1] == '\n')
++		return FALSE;
++	while ((c = getchar()) != EOF && c != '\n')
++		if (!isspace(c))
++			lost = TRUE;
++	return lost;
++}
++
++/*
+  * Read commands until we are told to stop.
+  */
+ static void doCommands(void)
+@@ -822,6 +840,10 @@
+ 			strcpy(buf, "q");
+ 			len = 1;
+ 		}
++		if (discardLongLine(buf, len, sizeof(buf))) {
++			bb_simple_error_msg("command too long");
++			continue;
++		}
+ 		while (len && isspace(buf[--len]))
+ 			buf[len] = '\0';
+ 
+@@ -928,6 +950,7 @@
+ 			/* read error/EOF - no way to continue */
+ 			if (len < 0)
+ 				return;
++			discardLongLine(buf, len, sizeof(buf));
+ 			cp = skip_whitespace(buf);
+ 			if ((*cp | 0x20) == 'y') /* Y or y */
+ 				return;

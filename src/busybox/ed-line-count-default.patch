@@ -1,0 +1,23 @@
+Make = without an address print the number of the last line.
+POSIX gives = the default address $, so a bare = prints the number of
+lines in the buffer, as in other implementations of ed. This ed used the
+current line instead, so "=" printed the current line number and scripts
+written for other eds got the wrong count. Use $ when no address is
+given.
+
+---
+ editors/ed.c |    3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+--- a/editors/ed.c
++++ b/editors/ed.c
+@@ -1014,7 +1014,8 @@
+ 			break;
+ 
+ 		case '=':
+-			printf("%d\n", num1);
++			/* The default address is "$" */
++			printf("%d\n", have1 ? num1 : lastNum);
+ 			break;
+ 		case '\0':
+ 			if (have1) {

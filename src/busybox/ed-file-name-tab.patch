@@ -1,0 +1,39 @@
+Accept a tab between f, r or w and the file name.
+f, r and w checked that the command letter was followed by a space,
+then skipped any blanks before the name. A tab in that position was
+rejected as "bad file command" (or read, or write), although the rest
+of ed treats tabs and spaces alike. Accept any blank there.
+
+---
+ editors/ed.c |    6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+--- a/editors/ed.c
++++ b/editors/ed.c
+@@ -912,7 +912,7 @@
+ 			break;
+ 
+ 		case 'f':
+-			if (*cp != '\0' && *cp != ' ') {
++			if (*cp != '\0' && !isblank(*cp)) {
+ 				bb_simple_error_msg("bad file command");
+ 				break;
+ 			}
+@@ -970,7 +970,7 @@
+ 			break;
+ 
+ 		case 'r':
+-			if (*cp != '\0' && *cp != ' ') {
++			if (*cp != '\0' && !isblank(*cp)) {
+ 				bb_simple_error_msg("bad read command");
+ 				break;
+ 			}
+@@ -990,7 +990,7 @@
+ 			break;
+ 
+ 		case 'w':
+-			if (*cp != '\0' && *cp != ' ') {
++			if (*cp != '\0' && !isblank(*cp)) {
+ 				bb_simple_error_msg("bad write command");
+ 				break;
+ 			}
