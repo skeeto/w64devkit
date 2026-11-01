@@ -75,10 +75,7 @@ Unless
 is given, a block identical to the one before it is not written, and
 each run of such blocks is replaced by a line holding a single
 .BR * .
-A partial last block is always written, but when it matches the start of
-the block before it, a
-.B *
-line comes first even if no block was left out.
+A partial last block is always written.
 .SS Format strings
 A format string, the argument of
 .B \-e
@@ -152,36 +149,22 @@ Integer conversions also accept the length modifiers
 .B l
 and
 .BR ll ,
-but
+which set the type the value is written as, not the number of bytes it
+converts, so an 8-byte value needs
 .B ll
-is correct only in an 8-byte
-.B %d
-or
-.BR %i .
-Only the first conversion in each quoted format works: the format is
-cut off before its second
-.BR % ,
-but the block size still counts the input of the dropped conversions,
-so that much input is never shown.
+to be written in full.
 With a byte count, a format with two conversions other than offsets is
 rejected.
-Put each conversion in a quoted format of its own.
 .TP
 .B %c
 One byte as a character.
 .TP
 .BR %d ", " %i
-A signed decimal integer of 1, 2, 4, or 8 bytes, with
+A signed decimal integer of 1, 2, 4, or 8 bytes, by default 4, with
 .B %lld
 or
 .B %lli
 for 8.
-Always give a byte count: without one,
-.B %d
-prints 4 bytes but advances 8, so a later conversion in the same format
-string prints garbage, and
-.B %lld
-counts as no input, so alone it writes nothing.
 .TP
 .BR %o ", " %u ", " %x ", " %X
 An unsigned integer of 1, 2, or 4 bytes, by default 4, in octal,
@@ -197,8 +180,7 @@ bytes.
 Without a byte count, a precision, as in
 .BR %.8s ,
 is required and gives the length.
-The string stops at a NUL byte, and without a precision it runs on past
-its bytes to the next NUL byte in memory, so always give one.
+The string stops at a NUL byte.
 .TP
 .BR %_ad ", " %_ao ", " %_ax
 The offset of the next byte, in decimal, octal, or hexadecimal.
@@ -233,7 +215,7 @@ and other bytes in hexadecimal.
 .PP
 Conversions of one byte accept only a byte count of 1.
 .B %%
-is rejected, so a format cannot write a literal percent sign.
+writes a percent sign.
 .SH OPTIONS
 Options may be grouped, as in
 .BR \-bc ,
@@ -335,9 +317,9 @@ A file that ends before or where the skip does is not read.
 The offsets written include the skipped bytes.
 When the skip reaches or passes the end of the input, the built-in
 formats write only the final offset.
-See
-.B NOTES
-for limits.
+A file is skipped by seeking; a pipe or device such as
+.I /dev/zero
+is read and the skipped bytes discarded.
 .TP
 .B \-\-help
 As the first argument, print a usage message on standard output and
@@ -353,13 +335,22 @@ For those that affect every busybox applet, see
 Success.
 .TP
 .B 1
-An input file could not be opened, or there was an invalid option,
+An input file could not be opened or read, or there was an invalid option,
 number, or format string, an unreadable
 .B \-f
 file, or a failed seek.
+Also an error writing standard output other than a closed pipe, which is
+reported on standard error.
+.TP
+.B 141
+Standard output is a pipe whose reader has exited.
+No message is printed.
 .PP
-An input file that cannot be opened is skipped, and the others are still
-dumped.
+An input file that cannot be opened or read is skipped, and the others
+are still dumped.
+A write error is reported when
+.B hexdump
+exits.
 The other errors stop
 .B hexdump
 at once.
@@ -435,18 +426,6 @@ There are no long options, and no
 .B \-L
 or
 .BR \-X .
-.IP \(bu 2
-Each quoted format writes only its first conversion.
-.IP \(bu 2
-.B %d
-and
-.B %i
-need a byte count.
-.PP
-.B \-s
-seeks past the skipped bytes rather than reading them.
-On a pipe, the seek does nothing, so the dump starts at the beginning of
-the input while its offsets include the skip.
 .PP
 Floating-point conversions use the Microsoft C runtime: exponents have
 three digits, as in

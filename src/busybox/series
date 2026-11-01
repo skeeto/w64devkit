@@ -126,3 +126,14 @@ mingw-fseeko-64bit.patch
 od-type-size-suffix.patch
 od-traditional-offset-syntax.patch
 od-traditional-label-without-address.patch
+dump-skip-close-file.patch
+dump-skip-unseekable.patch
+dump-chain-print-units.patch
+dump-int-default-size.patch
+dump-int-length-modifier.patch
+dump-pad-length-modifier.patch
+dump-string-byte-count.patch
+dump-partial-block-no-star.patch
+dump-trailing-percent.patch
+dump-percent-literal.patch
+dump-read-error-status.patch

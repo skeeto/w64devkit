@@ -1,0 +1,47 @@
+Skip by reading when the hexdump -s input is a pipe or a device.
+do_skip() moved past the skipped bytes with fseeko() on anything but a
+whole regular file, which cannot work on a pipe. On Linux `cat file |
+hexdump -s 4` died with "Illegal seek". On Windows the seek failed with
+"Invalid argument" or reported success without moving, so the dump
+started at the beginning of the input while its offsets included the
+skip, and /dev/zero and /dev/urandom, which are pipes there, behaved
+the same. As od does, read and discard the skipped bytes from input
+that is neither a regular file nor a block device, carrying the rest of
+the skip into the next file if it ends first.
+
+---
+ libbb/dump.c |   22 ++++++++++++++++++++++
+ 1 file changed, 22 insertions(+)
+
+--- a/libbb/dump.c
++++ b/libbb/dump.c
+@@ -354,7 +354,29 @@
+ 		dumper->pub.address += sbuf.st_size;
+ 		return;
+ 	}
++	if (!S_ISREG(sbuf.st_mode) && !S_ISBLK(sbuf.st_mode)) {
++		/* Pipe or character device: skip by reading */
++		char buf[1024];
++		size_t n;
++
++		while (dumper->pub.dump_skip) {
+ #if ENABLE_PLATFORM_MINGW32
++			n = fread(buf, 1, MIN(dumper->pub.dump_skip, sizeof(buf)), dumper->fd);
++			if (n == 0 && ferror(dumper->fd))
++#else
++			n = fread(buf, 1, MIN(dumper->pub.dump_skip, sizeof(buf)), stdin);
++			if (n == 0 && ferror(stdin))
++#endif
++				bb_simple_perror_msg_and_die(fname);
++			if (n == 0)
++				return; /* EOF: skip the rest in the next file */
++			dumper->pub.dump_skip -= n;
++			dumper->pub.address += n;
++		}
++		dumper->savaddress = dumper->pub.address;
++		return;
++	}
++#if ENABLE_PLATFORM_MINGW32
+ 	if (fseeko(dumper->fd, dumper->pub.dump_skip, SEEK_SET)) {
+ #else
+ 	if (fseeko(stdin, dumper->pub.dump_skip, SEEK_SET)) {

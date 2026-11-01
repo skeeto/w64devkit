@@ -1,0 +1,30 @@
+Do not print a hexdump "*" line before a partial last block.
+When the input ended in a partial block whose bytes matched the start
+of the block before it, get() printed a "*" line, which stands for
+omitted duplicate blocks, and then returned the partial block to be
+printed anyway. A 20-byte file of one repeated byte showed a "*" line
+between its two lines although no block was left out. A partial block
+is always printed, so drop the "*" for it.
+
+---
+ libbb/dump.c |    9 +--------
+ 1 file changed, 1 insertion(+), 8 deletions(-)
+
+--- a/libbb/dump.c
++++ b/libbb/dump.c
+@@ -464,14 +464,7 @@
+ 			if (need == blocksize) {
+ 				return NULL;
+ 			}
+-			if (dumper->pub.dump_vflag != ALL   /* not "show all"? */
+-			 && dumper->pub.dump_vflag != FIRST /* not first line? */
+-			 && memcmp(dumper->get__curp, dumper->get__savp, nread) == 0 /* same data? */
+-			) {
+-				if (dumper->pub.dump_vflag != DUP) {
+-					puts("*");
+-				}
+-			}
++			/* a partial block is always shown, so no "*" for it */
+ 			memset(dumper->get__curp + nread, 0, need);
+ 			dumper->eaddress = dumper->pub.address + nread;
+ 			return dumper->get__curp;

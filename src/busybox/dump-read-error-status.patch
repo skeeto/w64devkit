@@ -1,0 +1,43 @@
+Report hexdump read errors under the right name and exit with 1.
+On a read error, get() printed argv[-1] as the file name, which for
+standard input without a "-" operand is whatever precedes the file
+operands, such as "-C", and it did not set the exit status, so
+`hexdump -C 0>file` reported "hexdump: -C: Bad file descriptor" and
+exited with 0. Remember the name of the current input in next() and
+set the exit status to 1.
+
+---
+ libbb/dump.c |    7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+--- a/libbb/dump.c
++++ b/libbb/dump.c
+@@ -31,6 +31,7 @@
+ 	dumper_t pub;
+ 
+ 	char **argv;
++	const char *fname;       /* current input file */
+ 	FU *endfu;
+ 	off_t savaddress;        /* saved address/offset in stream */
+ 	off_t eaddress;          /* end address */
+@@ -433,8 +434,9 @@
+ 				return 0; /* no next file */
+ 		}
+ 		dumper->next__done = 1;
++		dumper->fname = fname ? fname : "stdin";
+ 		if (dumper->pub.dump_skip)
+-			do_skip(dumper, fname ? fname : "stdin");
++			do_skip(dumper, dumper->fname);
+ 		if (dumper->pub.dump_skip == 0)
+ 			return 1;
+ #if ENABLE_PLATFORM_MINGW32
+@@ -493,7 +495,8 @@
+ #else
+ 			if (ferror(stdin)) {
+ #endif
+-				bb_simple_perror_msg(dumper->argv[-1]);
++				bb_simple_perror_msg(dumper->fname);
++				dumper->exitval = 1;
+ 			}
+ 			dumper->get__ateof = 1;
+ #if ENABLE_PLATFORM_MINGW32

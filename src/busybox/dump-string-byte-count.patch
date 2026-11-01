@@ -1,0 +1,30 @@
+Stop hexdump %s at its byte count when the bytes hold no NUL.
+display() passed the block buffer straight to printf() for %s, which
+stops only at a NUL byte or at the precision. With a byte count and no
+precision, or a precision larger than the byte count as in '/4 "%.8s"',
+it ran on into the following bytes and past the end of the buffer,
+printing whatever was there. Copy at most the byte count into a
+terminated string first.
+
+---
+ libbb/dump.c |    8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+--- a/libbb/dump.c
++++ b/libbb/dump.c
+@@ -754,9 +754,13 @@
+ 						case F_P:
+ 							printf(pr->fmt, isprint_asciionly(*bp) ? *bp : '.');
+ 							break;
+-						case F_STR:
+-							printf(pr->fmt, (char *) bp);
++						case F_STR: {
++							/* the bytes need not end in NUL */
++							char *s = xstrndup((char *) bp, pr->bcnt);
++							printf(pr->fmt, s);
++							free(s);
+ 							break;
++						}
+ 						case F_TEXT:
+ 							fputs_stdout(pr->fmt);
+ 							break;

@@ -1,0 +1,27 @@
+Close each file that the hexdump -s skip passes over entirely.
+When the skip covered a whole regular file, do_skip() passed over it
+without reading, and next() then opened the following file over the
+FILE pointer of the skipped one without closing it. Every wholly
+skipped file leaked a stream, so with a few hundred files ahead of the
+skip point the C runtime ran out of streams: the later files failed to
+open, were reported as errors and were not dumped. Close the skipped
+file before opening the next one.
+
+---
+ libbb/dump.c |    5 +++++
+ 1 file changed, 5 insertions(+)
+
+--- a/libbb/dump.c
++++ b/libbb/dump.c
+@@ -400,6 +400,11 @@
+ 			do_skip(dumper, fname ? fname : "stdin");
+ 		if (dumper->pub.dump_skip == 0)
+ 			return 1;
++#if ENABLE_PLATFORM_MINGW32
++		/* skipped the whole file */
++		if (dumper->fd != stdin)
++			fclose(dumper->fd);
++#endif
+ 	}
+ 	/* NOTREACHED */
+ }

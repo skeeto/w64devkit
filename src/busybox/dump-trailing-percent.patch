@@ -1,0 +1,64 @@
+Reject a hexdump format that ends in % instead of reading past it.
+The loops in bb_dump_size() and rewrite() that skip a conversion's
+flags, width and precision used strchr(), which also matches the
+terminating NUL, so a format ending in "%", "%5" or "%l" was scanned
+past its end: the error message showed stray bytes, and "%l" was even
+accepted as an integer conversion. Stop the scans at the end of the
+string and report a missing conversion character as a bad one.
+
+---
+ libbb/dump.c |   13 +++++++------
+ 1 file changed, 7 insertions(+), 6 deletions(-)
+
+--- a/libbb/dump.c
++++ b/libbb/dump.c
+@@ -89,7 +89,7 @@
+ 			 * skip any special chars -- save precision in
+ 			 * case it's a %s format.
+ 			 */
+-			while (strchr(dot_flags_width_chars + 1, *++fmt))
++			while (*++fmt && strchr(dot_flags_width_chars + 1, *fmt))
+ 				continue;
+ 			if (*fmt == '.' && isdigit(*++fmt)) {
+ 				prec = atoi(fmt);
+@@ -98,14 +98,15 @@
+ 			}
+ 			while (*fmt == 'l') /* %ld, %lld: size as %d */
+ 				fmt++;
++			if (!*fmt) /* trailing '%': rewrite() reports it */
++				break;
+ 			p = strchr(size_conv_str + SCS_OFS, *fmt);
+ 			if (!p) {
+ 				if (*fmt == 's') {
+ 					bcnt += prec;
+ 				}
+ 				if (*fmt == '_') {
+-					++fmt;
+-					if ((*fmt == 'c') || (*fmt == 'p') || (*fmt == 'u')) {
++					if ((fmt[1] == 'c') || (fmt[1] == 'p') || (fmt[1] == 'u')) {
+ 						bcnt += 1;
+ 					}
+ 				}
+@@ -157,11 +158,11 @@
+ 			prec = NULL;
+ 			if (fu->bcnt) {
+ 				/* skip to conversion character */
+-				while (strchr(dot_flags_width_chars, *++p1))
++				while (*++p1 && strchr(dot_flags_width_chars, *p1))
+ 					continue;
+ 			} else {
+ 				/* skip any special chars, field width */
+-				while (strchr(dot_flags_width_chars + 1, *++p1))
++				while (*++p1 && strchr(dot_flags_width_chars + 1, *p1))
+ 					continue;
+ 				if (*p1 == '.' && isdigit(*++p1)) {
+ 					prec = p1;
+@@ -204,7 +205,7 @@
+ 				}
+  DO_INT_CONV:
+ 				e = strchr(int_convs, *p1); /* "diouxX"? */
+-				if (!e)
++				if (!e || !*p1)
+ 					goto DO_BAD_CONV_CHAR;
+ 				pr->flags = F_INT;
+ 				/* the first is the default, as in bb_dump_size */

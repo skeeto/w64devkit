@@ -1,0 +1,58 @@
+Accept %% in hexdump formats as a literal percent sign.
+rewrite() took every % as the start of a conversion, so %% was rejected
+as a bad conversion character and a format had no way to print a
+percent sign. Skip %% pairs when looking for the next conversion and
+for the end of the text after one, where printf() turns them into %,
+and turn them into % in place in a format without conversions, which
+is printed with fputs(). bpad() now finds the conversion by searching
+back from the conversion character, since the first % in the format
+may belong to a %%.
+
+---
+ libbb/dump.c |   18 ++++++++++++++----
+ 1 file changed, 14 insertions(+), 4 deletions(-)
+
+--- a/libbb/dump.c
++++ b/libbb/dump.c
+@@ -144,10 +144,19 @@
+ 			nextpr = &pr->nextpr;
+ 
+ 			/* skip preceding text and up to the next % sign */
+-			p1 = strchr(fmtp, '%');
++			p1 = fmtp;
++			while ((p1 = strchr(p1, '%')) != NULL && p1[1] == '%')
++				p1 += 2; /* "%%" is text */
+ 			if (!p1) { /* only text in the string */
+ 				pr->fmt = fmtp;
+ 				pr->flags = F_TEXT;
++				/* it is not printf'ed: turn "%%" into "%" */
++				for (p1 = p3 = fmtp; *p1; p1++) {
++					if (*p1 == '%')
++						p1++;
++					*p3++ = *p1;
++				}
++				*p3 = '\0';
+ 				break;
+ 			}
+ 
+@@ -280,8 +289,9 @@
+ 			 * additional text onto fmt: eg. if fmt is "%x is a HEX number",
+ 			 * we lose the " is a HEX number" part of fmt.
+ 			 */
+-			for (p3 = p2; *p3 && *p3 != '%'; p3++)
+-				continue;
++			for (p3 = p2; *p3 && (*p3 != '%' || p3[1] == '%'); p3++)
++				if (*p3 == '%') /* "%%" */
++					p3++;
+ 			if ((p3 - p2) != 0) {
+ 				char *d;
+ 				pr->fmt = d = xrealloc(pr->fmt, len + (p3 - p2) + 1);
+@@ -536,7 +546,7 @@
+ 			pr->nospace--;
+ 	overlapping_strcpy(p1, pr->cchar);
+ 	pr->cchar = p1;
+-	for (p1 = pr->fmt; *p1 != '%'; ++p1)
++	for (p1 = pr->cchar; *p1 != '%'; --p1) /* not a "%%" before it */
+ 		continue;
+ 	for (p2 = ++p1; *p1 && strchr(" -0+#", *p1); ++p1)
+ 		if (pr->nospace)

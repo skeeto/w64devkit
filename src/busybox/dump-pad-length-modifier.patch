@@ -1,0 +1,28 @@
+Drop the length modifier when hexdump pads a conversion with spaces.
+Past the end of the input, bpad() turns a conversion into %s and prints
+an empty string to fill its field width, but it left any length
+modifier in place, so %lld, and every %_a offset, which rewrite() turns
+into %lld, %llo or %llx, became %lls. That is not a valid conversion,
+and a C library may take it as a wide string, as it does %ls, and read
+past the empty string. Remove the l characters before the conversion
+character as well.
+
+---
+ libbb/dump.c |    6 ++++++
+ 1 file changed, 6 insertions(+)
+
+--- a/libbb/dump.c
++++ b/libbb/dump.c
+@@ -536,6 +536,12 @@
+ 	 */
+ 	pr->flags = F_BPAD;
+ 	*pr->cchar = 's';
++	/* and any length modifier: "%lls" is not a plain string */
++	for (p1 = pr->cchar; p1[-1] == 'l'; p1--)
++		if (pr->nospace)
++			pr->nospace--;
++	overlapping_strcpy(p1, pr->cchar);
++	pr->cchar = p1;
+ 	for (p1 = pr->fmt; *p1 != '%'; ++p1)
+ 		continue;
+ 	for (p2 = ++p1; *p1 && strchr(" -0+#", *p1); ++p1)

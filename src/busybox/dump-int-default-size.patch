@@ -1,0 +1,29 @@
+Default hexdump %d and %i without a byte count to 4 bytes.
+bb_dump_size() sizes a %d or %i conversion without a byte count as 4
+bytes, but rewrite() took the first entry of its list of valid sizes,
+8, as the default. The block was sized for 4 bytes while display() read
+8, which read past the end of the block buffer, and in a format such as
+'"%d " "%d\n"' each value advanced 8 bytes, so the second one printed
+the wrong bytes. Put 4 first in the list, as for the unsigned
+conversions, so that both agree.
+
+---
+ libbb/dump.c |    5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+--- a/libbb/dump.c
++++ b/libbb/dump.c
+@@ -205,10 +205,11 @@
+ 				if (!e)
+ 					goto DO_BAD_CONV_CHAR;
+ 				pr->flags = F_INT;
+-				byte_count_str = "\010\004\002\001";
++				/* the first is the default, as in bb_dump_size */
++				byte_count_str = "\004\002\001\010";
+ 				if (e > int_convs + 1) { /* not d or i? */
+ 					pr->flags = F_UINT;
+-					byte_count_str++;
++					byte_count_str = "\004\002\001";
+ 				}
+ 				goto DO_BYTE_COUNT;
+ 			} else

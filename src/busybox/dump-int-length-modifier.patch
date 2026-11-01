@@ -1,0 +1,77 @@
+Pass hexdump integers as the type named by the l or ll modifier.
+bb_dump_size() did not know the l and ll length modifiers, so %ld and
+%lld without a byte count were sized as no input at all, and a format
+of only "%lld" printed nothing. display() passed an int for values of
+1, 2 or 4 bytes and a long long for 8 bytes whatever the modifier, so
+'/4 "%lld"' printed garbage on 32-bit systems and negative values as
+large positive ones on 64-bit systems, and '/8 "%d"' passed a long long
+to %d. Skip the modifiers when sizing, as rewrite() does, and convert
+each value to the type the modifier names before printing it.
+
+---
+ libbb/dump.c |   25 ++++++++++++++++++-------
+ 1 file changed, 18 insertions(+), 7 deletions(-)
+
+--- a/libbb/dump.c
++++ b/libbb/dump.c
+@@ -96,6 +96,8 @@
+ 				while (isdigit(*++fmt))
+ 					continue;
+ 			}
++			while (*fmt == 'l') /* %ld, %lld: size as %d */
++				fmt++;
+ 			p = strchr(size_conv_str + SCS_OFS, *fmt);
+ 			if (!p) {
+ 				if (*fmt == 's') {
+@@ -621,6 +623,17 @@
+ 	}
+ }
+ 
++/* Pass the type named by the length modifier, whatever the byte count */
++static void print_int(PR *pr, unsigned long long value)
++{
++	if (pr->cchar[-1] != 'l')
++		printf(pr->fmt, (unsigned)value);
++	else if (pr->cchar[-2] != 'l')
++		printf(pr->fmt, (unsigned long)value);
++	else
++		printf(pr->fmt, value);
++}
++
+ static NOINLINE void display(priv_dumper_t* dumper)
+ {
+ 	unsigned char *bp;
+@@ -711,7 +724,7 @@
+ 								int32_t ival32;
+ 								int64_t ival64;
+ 							} u;
+-							int value = (signed char)*bp;
++							long long value = (signed char)*bp;
+ 
+ 							switch (pr->bcnt) {
+ 							case 1:
+@@ -726,12 +739,10 @@
+ 								break;
+ 							case 8:
+ 								move_from_unaligned64(u.ival64, bp);
+-//A hack. Users _must_ use %llX formats to not truncate high bits
+-								printf(pr->fmt, (long long)u.ival64);
+-								goto skip;
++								value = u.ival64;
++								break;
+ 							}
+-							printf(pr->fmt, value);
+- skip:
++							print_int(pr, value);
+ 							break;
+ 						}
+ 						case F_P:
+@@ -765,7 +776,7 @@
+ 								break;
+ 							/* case 8: no users yet */
+ 							}
+-							printf(pr->fmt, value);
++							print_int(pr, value);
+ 							break;
+ 						}
+ 						}

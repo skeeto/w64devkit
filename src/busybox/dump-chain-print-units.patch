@@ -1,0 +1,33 @@
+Print every conversion in a hexdump format, not just the first.
+rewrite() splits each quoted format into one print unit per conversion,
+but it only stored the first unit in the format unit and never linked
+the others to it, so they were leaked and never printed. A format such
+as "%c%c\n" printed one character per block, dropped the newline and
+still consumed two bytes per block, so half the input was never shown.
+Link each new print unit to the end of the list.
+
+---
+ libbb/dump.c |    5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+--- a/libbb/dump.c
++++ b/libbb/dump.c
+@@ -122,6 +122,7 @@
+ 
+ 	for (fu = fs->nextfu; fu; fu = fu->nextfu) {
+ 		PR *pr;
++		PR **nextpr = &fu->nextpr;
+ 		char *p1, *p2, *p3;
+ 		char *fmtp;
+ 		int nconv = 0;
+@@ -136,8 +137,8 @@
+ 
+ 			/* DBU:[dvae@cray.com] zalloc so that forward ptrs start out NULL */
+ 			pr = xzalloc(sizeof(*pr));
+-			if (!fu->nextpr)
+-				fu->nextpr = pr;
++			*nextpr = pr;
++			nextpr = &pr->nextpr;
+ 
+ 			/* skip preceding text and up to the next % sign */
+ 			p1 = strchr(fmtp, '%');
