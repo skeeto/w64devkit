@@ -190,12 +190,13 @@ This is the same as
 .B \-x
 Skip any entry on a different volume from the operand it is below: it
 is not counted and gets no line.
-Volumes are told apart by serial number, and a link is on the volume
-that holds the link, not the one that holds its target.
+Volumes are told apart by serial number.
+A link that is followed is on the volume that holds its target, and one
+that is not is on the volume that holds the link.
 So with
 .BR \-L ,
-a link to a directory on another volume gets a line, but nothing in
-that directory is counted, even when the link is an operand.
+a link operand to a directory on another volume is counted in full,
+and a link below an operand that leads to another volume is skipped.
 .TP
 .B \-h
 Print sizes as a number with one decimal place and the suffix
@@ -208,9 +209,9 @@ or
 .B E
 for the largest power of 1024 that fits, as in
 .BR 1.4M .
-The number is rounded after the suffix is chosen, so a size just under a
-power of 1024 can print as
-.BR 1024.0K .
+A size that rounds up to 1024 of one unit is printed in the next, so a
+size just under 1048576 bytes prints as
+.BR 1.0M .
 A size under 1024 bytes, possible only with
 .BR \-b ,
 is a plain number of bytes, and a size of 0 is
@@ -361,15 +362,15 @@ is given.
 Paths may use
 .B /
 or
-.BR \e ,
-but
-.B du
-adds
+.BR \e .
+Entries are named by adding
 .B /
-after a name that ends in a backslash, so the entries of
+and the entry's name, with no
+.B /
+after a name that already ends in a separator, so the entries of
 .B dir\e
 are named
-.BR dir\e/sub .
+.BR dir\esub .
 A drive-relative path such as
 .B c:dir
 works, and its entries are named

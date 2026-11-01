@@ -78,26 +78,25 @@ becomes
 .PP
 The file must exist, with one exception.
 If only its last component is missing, the rest of the path is
-canonicalized, and the component is appended as typed, along with the
-separator typed before it, so a backslash there is kept.
+canonicalized, and the component is appended as typed after a slash.
 The rest must exist, but need not be a directory.
 A missing name with no directory part, such as
 .BR new.o ,
-fails: write
-.B ./new.o
-instead.
+is in the current directory, as if it were
+.BR ./new.o .
 A missing name directly in a root directory, such as
 .B c:/new.o
 or
 .BR /new.o ,
-is printed exactly as typed, whether or not the drive exists.
+is in that root, canonicalized like any other directory, so the drive
+must exist.
 .PP
 If
 .I file
 is a link whose target is missing, the target is canonicalized by the
 same rules.
-A relative target is made absolute with the current directory, not the
-directory that holds the link.
+A relative target is taken relative to the directory that holds the
+link.
 .SS Output
 The path ends with a line feed, never a carriage return and line feed.
 When
@@ -121,8 +120,17 @@ is a system message.
 It is
 .B No such file or directory
 for a missing file, and
-.B Function not implemented
+.B not a symlink
 for a file or directory that is not a link.
+A failure with
+.B \-f
+is reported as
+.PP
+.RS 4
+.EX
+readlink: \fIfile\fR: \fIreason\fR
+.EE
+.RE
 .SH OPTIONS
 Options may be grouped, as in
 .BR \-fn ,
@@ -146,11 +154,6 @@ instead of the target of a link; see
 Report a failure on standard error; see
 .BR Output .
 Failures are silent otherwise, and the exit status is the only sign.
-Even with
-.BR \-v ,
-a failure of
-.B \-f
-is silent.
 .TP
 .BR \-q ", " \-s
 Accepted and ignored.
@@ -227,7 +230,7 @@ Say why a file is not a link:
 .RS 4
 .EX
 $ readlink \-v main.c
-readlink: main.c: cannot read link: Function not implemented
+readlink: main.c: cannot read link: not a symlink
 .EE
 .RE
 .PP
@@ -244,14 +247,11 @@ C:/src/app/build/new.o
 .EE
 .RE
 .PP
-A bare name that does not exist fails, and the same name with a
-directory part does not:
+A bare name that does not exist is in the current directory:
 .PP
 .RS 4
 .EX
-$ readlink \-f new.o; echo $?
-1
-$ readlink \-f ./new.o
+$ readlink \-f new.o
 C:/src/app/new.o
 .EE
 .RE
@@ -283,17 +283,10 @@ and the long options are invalid.
 .IP \(bu 2
 Exactly one operand is allowed.
 .IP \(bu 2
-A file that is not a link fails with
-.B Function not implemented
+A file that is not a link is reported as
+.B not a symlink
 rather than
 .BR "Invalid argument" .
-.IP \(bu 2
-.B \-f
-fails on a missing name with no directory part, where GNU
-.B readlink
-prints the absolute path.
-It reports no reason for a failure, even with
-.BR \-v .
 .IP \(bu 2
 .B \-f
 removes a dot-dot before following the link that precedes it, where GNU
@@ -328,9 +321,10 @@ as if its last component were missing: the component is appended as
 typed without being checked, and if the rest is too long as well,
 .B \-f
 fails.
-When the canonical path would have 256 to 259 characters, the path is
-only made absolute: names keep the case and form typed, and a link
-before the last component is not followed.
+When the canonical path of an existing file would have 260 or more
+characters,
+.B \-f
+fails.
 .PP
 From
 .BR cmd.exe ,

@@ -1,0 +1,43 @@
+Fail with EINVAL when readlink() is given a file that is not a link.
+xmalloc_readlink() set errno from the failure of
+FSCTL_GET_REPARSE_POINT, and ERROR_NOT_A_REPARSE_POINT has no entry in
+err_win_to_posix(), so it became ENOSYS: "readlink -v file" on an
+ordinary file or directory said "Function not implemented". A reparse
+point of a kind that isn't read took errno from a stale error code.
+Report EINVAL in these cases, as readlink(2) does, so readlink says
+"not a symlink". ERROR_INVALID_FUNCTION, which a file system without
+reparse points returns, is treated the same way.
+
+---
+ win32/mingw.c |    7 +++++++
+ 1 file changed, 7 insertions(+)
+
+--- a/win32/mingw.c
++++ b/win32/mingw.c
+@@ -1913,12 +1913,14 @@
+ 		PREPARSE_DATA_BUFFER rptr = (PREPARSE_DATA_BUFFER)rbuf;
+ 		APPEXECLINK_BUFFER *aptr = (APPEXECLINK_BUFFER *)rptr;
+ 		BOOL status;
++		DWORD err;
+ 		size_t len;
+ 		WCHAR *name = NULL, *str[4], *s;
+ 		int i;
+ 
+ 		status = DeviceIoControl(h, FSCTL_GET_REPARSE_POINT, NULL, 0,
+ 					rptr, sizeof(rbuf), &nbytes, NULL);
++		err = GetLastError();
+ 		CloseHandle(h);
+ 
+ 		if (status && rptr->ReparseTag == IO_REPARSE_TAG_SYMLINK) {
+@@ -1966,6 +1968,11 @@
+ 					return buf;
+ 				free(buf);
+ 			}
++		} else if (status || err == ERROR_NOT_A_REPARSE_POINT ||
++				err == ERROR_INVALID_FUNCTION) {
++			/* not a link, or not a kind we can read */
++			errno = EINVAL;
++			return NULL;
+ 		}
+ 	}
+ 	errno = err_win_to_posix();

@@ -85,14 +85,15 @@ both give
 If
 .I suffix
 is given, and the result ends with it and is longer than it, the suffix
-is removed from the end, even from a root, so
+is removed from the end, unless the result is a root or a bare drive,
+so
 .B C:/
 with a
 .I suffix
 of
 .B /
 gives
-.BR C: .
+.BR C:/ .
 The comparison is exact, so it is case-sensitive.
 A result equal to the suffix is left whole, and an empty suffix removes
 nothing.
@@ -193,7 +194,8 @@ without an argument.
 .IP
 It is also the status when standard output cannot be written, as when
 it is closed.
-No message is printed, and any remaining operands are skipped.
+The error is reported on standard error, and any remaining operands are
+skipped.
 .TP
 .B 141
 Standard output is a pipe whose reader has exited.
@@ -257,8 +259,6 @@ so
 is an error.
 .IP \(bu 2
 Options are not recognized after the first operand.
-.IP \(bu 2
-A write error gives no message.
 .PP
 .I suffix
 is compared case-sensitively although Windows file names are not, so

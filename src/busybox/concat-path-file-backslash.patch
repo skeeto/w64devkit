@@ -1,0 +1,22 @@
+Treat a trailing backslash as a separator when joining a path and name.
+concat_path_file() added a slash unless the directory already ended in
+one, so on Windows a directory written with a trailing backslash gave
+doubled separators: du, find and ls -R named the entries of "dir\" as
+"dir\/sub". Don't add a separator after a backslash either.
+
+---
+ libbb/concat_path_file.c |    3 +++
+ 1 file changed, 3 insertions(+)
+
+--- a/libbb/concat_path_file.c
++++ b/libbb/concat_path_file.c
+@@ -58,6 +58,9 @@
+ 	n1 = strlen(path);
+ 	n2 = (path[n1 - 1] != '/'); /* 1: "path has no trailing slash" */
+ #if ENABLE_PLATFORM_MINGW32
++	/* A trailing backslash is a separator too: "dir\" + "f" is "dir\f". */
++	if (path[n1 - 1] == '\\')
++		n2 = 0;
+ 	/* A bare drive is the drive's current directory: "X:" + "f" is
+ 	 * "X:f".  A rooted filename still gives "X:" + "/f" = "X:/f". */
+ 	if (n1 == 2 && has_dos_drive_prefix(path) && filename == unrooted)

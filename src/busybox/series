@@ -463,3 +463,15 @@ lsattr-unopenable-directory.patch
 lsattr-exit-status.patch
 chattr-keep-other-attributes.patch
 chattr-unopenable-directory.patch
+concat-path-file-backslash.patch
+human-readable-round-unit.patch
+du-one-fs-followed-link.patch
+readlink-not-a-link-einval.patch
+realpath-final-path-length.patch
+readlink-f-verbose.patch
+realpath-missing-no-dir.patch
+realpath-missing-root-parent.patch
+realpath-missing-in-root.patch
+realpath-missing-slash.patch
+realpath-missing-link-target.patch
+basename-root-suffix.patch

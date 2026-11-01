@@ -1,0 +1,25 @@
+Don't remove a suffix from a root in basename on Windows.
+POSIX basename leaves a path of slashes as "/" and skips the suffix
+step for it. On Windows the result can also be a drive root or a UNC
+root, which basename printed whole but then stripped of a matching
+suffix: "basename C:/ /" printed "C:" and "basename //host/share re"
+printed "//host/sha". Leave the suffix on a result that is a root,
+which is the only kind of result to contain a separator or a drive.
+
+---
+ coreutils/basename.c |    4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+--- a/coreutils/basename.c
++++ b/coreutils/basename.c
+@@ -74,7 +74,9 @@
+ 					bb_show_usage();
+ 			}
+ 		}
+-		if (suffix) {
++		/* a root such as C:/ or //host/share keeps its suffix, as / does */
++		if (suffix IF_PLATFORM_MINGW32(&& !has_dos_drive_prefix(s)
++				&& !strpbrk(s, "/\\"))) {
+ 			size_t n = strlen(suffix);
+ 			if ((m > n) && (strcmp(s + m - n, suffix) == 0)) {
+ 				m -= n;

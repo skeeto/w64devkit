@@ -1,0 +1,49 @@
+Give GetFinalPathNameByHandleA() room for its prefix in realpath().
+resolve_symlinks() passed a MAX_PATH buffer, but the final path comes
+back with a "\\?\" prefix, or "\\?\UNC\" on a network share, which is
+removed afterwards. A final path of 256 to 259 characters (254 to 259
+on a share) didn't fit, and since the failure set no error code, the
+stale code mapped to ENOSYS and realpath() quietly returned the
+unresolved _fullpath() name: links were not followed and names kept the
+case and short form typed. Use a buffer large enough for the prefix,
+and fail with ENAMETOOLONG when the final path is too long instead of
+falling back.
+
+---
+ win32/mingw.c |   17 ++++++++++++++---
+ 1 file changed, 14 insertions(+), 3 deletions(-)
+
+--- a/win32/mingw.c
++++ b/win32/mingw.c
+@@ -1784,6 +1784,8 @@
+ 	DECLARE_PROC_ADDR(DWORD, GetFinalPathNameByHandleA, HANDLE,
+ 						LPSTR, DWORD, DWORD);
+ 	char *resolve = NULL;
++	/* room for a MAX_PATH name plus a "\\?\UNC\" prefix */
++	char buf[MAX_PATH + 6];
+ 
+ 	if (GetFileAttributesA(path) & FILE_ATTRIBUTE_REPARSE_POINT) {
+ 		resolve = xmalloc_follow_symlinks(path);
+@@ -1803,10 +1805,19 @@
+ 		}
+ 
+ 		/* normalize the path and return it on success */
+-		status = GetFinalPathNameByHandleA(h, path, MAX_PATH,
++		status = GetFinalPathNameByHandleA(h, buf, sizeof(buf),
+ 							FILE_NAME_NORMALIZED|VOLUME_NAME_DOS);
+-		if (status != 0 && status < MAX_PATH) {
+-			ptr = normalize_ntpathA(path);
++		if (status != 0 && status < sizeof(buf)) {
++			ptr = normalize_ntpathA(buf);
++			if (strlen(ptr) < MAX_PATH) {
++				ptr = strcpy(path, ptr);
++				goto end;
++			}
++		}
++		if (status != 0) {
++			/* the final path is too long */
++			ptr = NULL;
++			errno = ENAMETOOLONG;
+ 			goto end;
+ 		} else if (err_win_to_posix() == ENOSYS) {
+ 			if (resolve)

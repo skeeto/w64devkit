@@ -1,0 +1,34 @@
+Don't double the slash when a missing name's directory is a root.
+When the last component was missing, xmalloc_realpath_coreutils()
+appended a slash and the name to the resolved directory even when that
+directory was the root and already ended in a slash. "realpath
+/tmp/../new" printed "//new", and on Windows "realpath ./new" in C:/
+printed "C://new". Add the slash only when the directory doesn't end
+in one.
+
+---
+ libbb/xreadlink.c |    6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+--- a/libbb/xreadlink.c
++++ b/libbb/xreadlink.c
+@@ -217,7 +217,8 @@
+ 			if (buf) {
+ 				unsigned len = strlen(buf);
+ 				buf = xrealloc(buf, len + strlen(last_slash) + 2);
+-				buf[len++] = c2;
++				if (buf[len - 1] != '/') /* not a root such as C:/ */
++					buf[len++] = c2;
+ 				strcpy(buf + len, last_slash);
+ 			}
+ 		}
+@@ -247,7 +248,8 @@
+ 			if (buf) {
+ 				unsigned len = strlen(buf);
+ 				buf = xrealloc(buf, len + strlen(last_slash) + 2);
+-				buf[len++] = '/';
++				if (buf[len - 1] != '/') /* not the root directory */
++					buf[len++] = '/';
+ 				strcpy(buf + len, last_slash);
+ 			}
+ 		}

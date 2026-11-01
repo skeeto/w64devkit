@@ -1,0 +1,46 @@
+Check du -x against the target of a followed link.
+du compared device numbers from lstat() before following a link for -H
+or -L, so the filesystem of a link operand was that of the link, not of
+the directory it names. "du -x -L link" with the link pointing to
+another filesystem then skipped everything in that directory and
+counted nothing, and a link below the operand that led to another
+filesystem still got a line. Do the -x check after the link is followed,
+as GNU du does.
+
+---
+ coreutils/du.c |   17 +++++++++--------
+ 1 file changed, 9 insertions(+), 8 deletions(-)
+
+--- a/coreutils/du.c
++++ b/coreutils/du.c
+@@ -153,14 +153,6 @@
+ 		return 0;
+ 	}
+ 
+-	if (option_mask32 & OPT_x_one_FS) {
+-		if (G.du_depth == 0) {
+-			G.dir_dev = statbuf.st_dev;
+-		} else if (G.dir_dev != statbuf.st_dev) {
+-			return 0;
+-		}
+-	}
+-
+ 	sum = ((option_mask32 & OPT_b) ? statbuf.st_size : statbuf.st_blocks);
+ 
+ 	if (S_ISLNK(statbuf.st_mode)) {
+@@ -178,6 +170,15 @@
+ 		}
+ 	}
+ 
++	/* A followed link is on the filesystem of its target */
++	if (option_mask32 & OPT_x_one_FS) {
++		if (G.du_depth == 0) {
++			G.dir_dev = statbuf.st_dev;
++		} else if (G.dir_dev != statbuf.st_dev) {
++			return 0;
++		}
++	}
++
+ 	if (!(option_mask32 & OPT_l_hardlinks)
+ 	 && statbuf.st_nlink > 1
+ 	) {

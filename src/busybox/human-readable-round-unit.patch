@@ -1,0 +1,24 @@
+Move to the next unit when human-readable rounding reaches 1024.
+make_human_readable_str() picks the unit while the value is at least
+1024 and rounds the tenths afterwards, so a value just under a power of
+1024 rounded up to 1024 of the smaller unit: 1048575 bytes printed as
+1024.0K instead of 1.0M in du -h, ls -h, df -h and free -h. Carry a
+rounded result of 1024 into the next unit.
+
+---
+ libbb/human_readable.c |    4 ++++
+ 1 file changed, 4 insertions(+)
+
+--- a/libbb/human_readable.c
++++ b/libbb/human_readable.c
+@@ -71,6 +71,10 @@
+ 			frac = 1;
+ 		}
+ #endif
++		if (val == 1024) { /* rounded up to 1024: use the next unit */
++			val = 1;
++			u++;
++		}
+ 	}
+ 
+ 	return auto_string(xasprintf(fmt, val, frac, *u));

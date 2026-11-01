@@ -1,0 +1,21 @@
+Report the reason when readlink -v -f fails.
+Only the failure to read a link was reported with -v. When -f could not
+canonicalize the path, readlink exited with status 1 without a message,
+even with -v. Print the error, as GNU readlink does. Without -v it is
+still suppressed.
+
+---
+ coreutils/readlink.c |    2 ++
+ 1 file changed, 2 insertions(+)
+
+--- a/coreutils/readlink.c
++++ b/coreutils/readlink.c
+@@ -81,6 +81,8 @@
+ 	/* NOFORK: only one alloc is allowed; must free */
+ 	if (opt & 2) { /* -f */
+ 		buf = xmalloc_realpath_coreutils(argv[optind]);
++		if (!buf)
++			bb_simple_perror_msg(argv[optind]);
+ 	} else {
+ 		buf = xmalloc_readlink_or_warn(argv[optind]);
+ 	}

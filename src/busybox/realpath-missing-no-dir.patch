@@ -1,0 +1,65 @@
+Resolve a missing name without a directory part in realpath.
+xmalloc_realpath_coreutils() allows the last component to be missing by
+resolving the part before the last slash, but a name without a slash
+had no such part and failed: "readlink -f new.o" and "realpath new.o"
+reported an error where "./new.o" worked. Resolve such a name against
+the current directory, as GNU readlink and realpath do. On Windows a
+drive-relative "X:name" is resolved against the current directory of
+drive X. An empty path still fails.
+
+---
+ libbb/xreadlink.c |   36 +++++++++++++++++++++++++++---------
+ 1 file changed, 27 insertions(+), 9 deletions(-)
+
+--- a/libbb/xreadlink.c
++++ b/libbb/xreadlink.c
+@@ -197,11 +197,23 @@
+ 		last_slash = get_last_slash(path);
+ 		if (last_slash == path + root_len(path))
+ 			buf = xstrdup(path);
+-		else if (last_slash) {
+-			char c2 = *last_slash;
+-			*last_slash = '\0';
+-			buf = xmalloc_realpath(path);
+-			*last_slash++ = c2;
++		else if (last_slash || *path) {
++			char c2 = '/';
++			if (last_slash) {
++				c2 = *last_slash;
++				*last_slash = '\0';
++				buf = xmalloc_realpath(path);
++				*last_slash++ = c2;
++			} else {
++				/* no directory part: "name" is in the current
++				 * directory, "X:name" in that of drive X */
++				int len = root_len(path);
++				char c3 = path[len];
++				path[len] = '\0';
++				buf = xmalloc_realpath(len ? path : ".");
++				path[len] = c3;
++				last_slash = path + len;
++			}
+ 			if (buf) {
+ 				unsigned len = strlen(buf);
+ 				buf = xrealloc(buf, len + strlen(last_slash) + 2);
+@@ -222,10 +234,16 @@
+ 		last_slash = strrchr(path, '/');
+ 		if (last_slash == path)
+ 			buf = xstrdup(path);
+-		else if (last_slash) {
+-			*last_slash = '\0';
+-			buf = xmalloc_realpath(path);
+-			*last_slash++ = '/';
++		else if (last_slash || *path) {
++			if (last_slash) {
++				*last_slash = '\0';
++				buf = xmalloc_realpath(path);
++				*last_slash++ = '/';
++			} else {
++				/* no directory part: it is in the current directory */
++				buf = xmalloc_realpath(".");
++				last_slash = path;
++			}
+ 			if (buf) {
+ 				unsigned len = strlen(buf);
+ 				buf = xrealloc(buf, len + strlen(last_slash) + 2);

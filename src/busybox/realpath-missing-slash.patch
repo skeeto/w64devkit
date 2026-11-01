@@ -1,0 +1,51 @@
+Join a missing name to its directory with a slash on Windows.
+When the last component was missing, the MinGW branch of
+xmalloc_realpath_coreutils() joined it to the resolved directory with
+the separator that preceded it in the operand. The directory comes back
+with forward slashes, so "realpath dir\new" printed "C:/work/dir\new",
+mixing separators. Always use a slash, as for an existing file.
+
+---
+ libbb/xreadlink.c |   12 +++++-------
+ 1 file changed, 5 insertions(+), 7 deletions(-)
+
+--- a/libbb/xreadlink.c
++++ b/libbb/xreadlink.c
+@@ -196,32 +196,30 @@
+ 
+ 		last_slash = get_last_slash(path);
+ 		if (last_slash || *path) {
+-			char c2 = '/';
+ 			if (last_slash) {
+ 				/* keep the separator that ends a root, as in C:/ */
+ 				char *end = last_slash +
+ 						(last_slash == path + root_len(path));
+-				char c3 = *end;
+-				c2 = *last_slash;
++				char c2 = *end;
+ 				*end = '\0';
+ 				buf = xmalloc_realpath(path);
+-				*end = c3;
++				*end = c2;
+ 				last_slash++;
+ 			} else {
+ 				/* no directory part: "name" is in the current
+ 				 * directory, "X:name" in that of drive X */
+ 				int len = root_len(path);
+-				char c3 = path[len];
++				char c2 = path[len];
+ 				path[len] = '\0';
+ 				buf = xmalloc_realpath(len ? path : ".");
+-				path[len] = c3;
++				path[len] = c2;
+ 				last_slash = path + len;
+ 			}
+ 			if (buf) {
+ 				unsigned len = strlen(buf);
+ 				buf = xrealloc(buf, len + strlen(last_slash) + 2);
+ 				if (buf[len - 1] != '/') /* not a root such as C:/ */
+-					buf[len++] = c2;
++					buf[len++] = '/';
+ 				strcpy(buf + len, last_slash);
+ 			}
+ 		}

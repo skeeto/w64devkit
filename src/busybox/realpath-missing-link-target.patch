@@ -1,0 +1,43 @@
+Resolve a dangling link's relative target from the link's directory.
+When a link's target didn't exist, xmalloc_realpath_coreutils() made a
+relative target absolute by prefixing the current directory, but the
+system resolves it from the directory that holds the link. For a link
+outside the current directory, as in "ln -s missing dir/link",
+"readlink -f dir/link" and "realpath dir/link" printed /CURDIR/missing
+instead of /CURDIR/dir/missing. Prefix the link's directory instead.
+For a link with no directory part the target is left as it is, and a
+bare name is resolved against the current directory, which the earlier
+change for names without a directory part provides.
+
+---
+ libbb/xreadlink.c |   18 ++++++++++--------
+ 1 file changed, 10 insertions(+), 8 deletions(-)
+
+--- a/libbb/xreadlink.c
++++ b/libbb/xreadlink.c
+@@ -164,15 +164,17 @@
+ 			if (target[0] != '/') {
+ #endif
+ 				/*
+-				 * $ ln -s target_does_not_exist symlink
+-				 * $ readlink -f symlink
+-				 * /CURDIR/target_does_not_exist
+-				 * $ realpath symlink
+-				 * /CURDIR/target_does_not_exist
++				 * $ ln -s target_does_not_exist dir/symlink
++				 * $ readlink -f dir/symlink
++				 * /CURDIR/dir/target_does_not_exist
++				 * $ realpath dir/symlink
++				 * /CURDIR/dir/target_does_not_exist
+ 				 */
+-				char *cwd = xrealloc_getcwd_or_warn(NULL);
+-				char *tmp = concat_path_file(cwd, target);
+-				free(cwd);
++				char *dir = xstrdup(path);
++				char *tmp;
++				*bb_get_last_path_component_strip(dir) = '\0';
++				tmp = concat_path_file(dir, target);
++				free(dir);
+ 				free(target);
+ 				target = tmp;
+ 			}

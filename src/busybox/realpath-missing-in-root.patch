@@ -1,0 +1,40 @@
+Make a missing name in a root directory absolute on Windows.
+When the last component was missing and its separator was the one that
+ends the root, the MinGW branch of xmalloc_realpath_coreutils() returned
+the path unchanged, as the Linux branch does for "/name". On Windows
+that path need not be absolute or canonical: "realpath /new" printed
+"/new" rather than naming the current drive, "c:/new" kept its lower
+case drive, and a name on a drive that doesn't exist was printed as if
+it could be created. Resolve the root, separator included, like any
+other directory part.
+
+---
+ libbb/xreadlink.c |   13 ++++++++-----
+ 1 file changed, 8 insertions(+), 5 deletions(-)
+
+--- a/libbb/xreadlink.c
++++ b/libbb/xreadlink.c
+@@ -195,15 +195,18 @@
+ 		path[i + 1] = '\0';
+ 
+ 		last_slash = get_last_slash(path);
+-		if (last_slash == path + root_len(path))
+-			buf = xstrdup(path);
+-		else if (last_slash || *path) {
++		if (last_slash || *path) {
+ 			char c2 = '/';
+ 			if (last_slash) {
++				/* keep the separator that ends a root, as in C:/ */
++				char *end = last_slash +
++						(last_slash == path + root_len(path));
++				char c3 = *end;
+ 				c2 = *last_slash;
+-				*last_slash = '\0';
++				*end = '\0';
+ 				buf = xmalloc_realpath(path);
+-				*last_slash++ = c2;
++				*end = c3;
++				last_slash++;
+ 			} else {
+ 				/* no directory part: "name" is in the current
+ 				 * directory, "X:name" in that of drive X */

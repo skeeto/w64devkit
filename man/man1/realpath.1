@@ -15,8 +15,7 @@ or
 .B ..\&
 components, no repeated separators, and no symbolic links or junctions.
 It is written with slashes, as in
-.BR C:/Users/me/src ,
-except where noted below.
+.BR C:/Users/me/src .
 .PP
 There must be at least one
 .IR file .
@@ -81,46 +80,45 @@ is missing, so that the name of a file to be created can be resolved.
 The operand is split at its last separator, after trailing separators
 are removed.
 The part before it is resolved as above, and the last component is
-appended as written, in its own case, after the separator that
-was in the operand.
-That separator may be a backslash, so in
+appended as written, in its own case, after a slash, even if the
+separator in the operand was a backslash, so in
 .IR C:/work ,
 .B dir\enew
 prints as
-.BR C:/work/dir\enew .
+.BR C:/work/dir/new .
 .PP
-It is an error if the part before the separator does not exist, or if
-the operand has no separator.
-So
+It is an error if the part before the separator does not exist.
+An operand with no separator is in the current directory, so
 .B new
-fails, and
-.B ./new
-does not.
+prints the same as
+.BR ./new ,
+and
+.B C:new
+is in the current directory of drive
+.BR C: .
 The part before the separator need not be a directory.
 .PP
-Two cases differ.
 When the last separator is the one that ends the root of the operand, as
 in
 .BR C:/new ,
 .BR /new ,
 or
 .BR //host/share/new ,
-there is nothing to resolve, and the operand is printed as written,
-without being made absolute.
+the part before it is that root, which is resolved like any other.
 So
 .B /new
-prints
-.BR /new ,
+names
+.B new
+in the root of the current drive, as in
+.BR C:/new ,
 as does
-.BR ///new .
-And when the part before the separator resolves to a drive root, the
-result has two separators after the drive, as in
-.BR C://new .
+.BR ///new ,
+and a drive or share that does not exist is an error.
 .PP
 A symbolic link or junction whose target does not exist is replaced by
 its target, and the rules above apply to that.
-A relative target is taken relative to the current directory, not to the
-directory that holds the link.
+A relative target is taken relative to the directory that holds the
+link.
 .SH OPTIONS
 .B realpath
 takes no options, so an operand that begins with a dash, such as
@@ -254,15 +252,12 @@ or
 .IP \(bu 2
 A missing last component is allowed, as with GNU
 .BR realpath ,
-but only when the operand has a separator.
+but the part before it need not be a directory.
 .IP \(bu 2
 The empty operand is the current directory, not an error.
 .IP \(bu 2
 .B ..\&
 is resolved before links, not after.
-.IP \(bu 2
-Results are not made absolute in every case, and may mix separators; see
-.BR "Files that do not exist" .
 .PP
 A name containing
 .BR * ,
@@ -286,10 +281,8 @@ the last separator is too long as well,
 .B realpath
 fails with
 .BR "No such file or directory" .
-When the final name of an existing file would have 256 or more
-characters, or 254 on a network share, the second step only follows a
-link in the last component:
-names keep the case and form typed, and other links are not followed.
+An existing file whose final name would have 260 or more characters, as
+a link or a short name can give, fails because the name is too long.
 .PP
 On Windows XP, which lacks the API for finding a final name, the second
 step only checks that the file exists and follows a link in the last
