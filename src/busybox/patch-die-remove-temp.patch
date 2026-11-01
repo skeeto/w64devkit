@@ -1,0 +1,76 @@
+patch: delete the temporary file on a fatal error.
+A fatal error while a file was being patched, such as a later hunk
+header with both ranges empty ("Really?"), made patch exit with the
+temporary copy of the file left beside it. Install a die_func that
+closes and deletes the temporary file, as sed -i does for its own,
+once it is open: when mkstemp() fails, the name it leaves may be that
+of another file.
+
+---
+ editors/patch.c       |   12 ++++++++++++
+ testsuite/patch.tests |   26 ++++++++++++++++++++++++++
+ 2 files changed, 38 insertions(+)
+
+--- a/editors/patch.c
++++ b/editors/patch.c
+@@ -197,6 +197,17 @@
+ 	TT.fileout = TT.filein = -1;
+ }
+ 
++// On a fatal error, delete the temporary file of the file being patched.
++static void remove_tempfile(void)
++{
++	// (Not before the temporary file is open: its name could be
++	// another file's when mkstemp() fails.)
++	if (TT.tempname && TT.tempname[0] && TT.fileout >= 0) {
++		close(TT.fileout);
++		unlink(TT.tempname);
++	}
++}
++
+ static void fail_hunk(void)
+ {
+ 	fdprintf(2, "Hunk %d FAILED %ld/%ld.\n", TT.hunknum, TT.oldline, TT.newline);
+@@ -526,6 +537,7 @@
+ #endif
+ 
+ 	INIT_TT();
++	die_func = remove_tempfile;
+ 
+ #if ENABLE_LONG_OPTS
+ 	opts = getopt32long(argv, FLAG_STR, patch_longopts, &opt_p, &opt_i, NULL);
+--- a/testsuite/patch.tests
++++ b/testsuite/patch.tests
+@@ -566,6 +566,32 @@
+ +six
+ " \
+ 
++testing "patch removes its temporary file on a fatal error" \
++	'patch 2>&1; echo $?; ls input?* 2>/dev/null; cat input' \
++"\
++patching file input
++patch: Really? @@ -0,0 +0,0 @@
++1
++1
++2
++3
++" \
++"\
++1
++2
++3
++" \
++"\
++--- input
+++++ input
++@@ -1,3 +1,3 @@
++ 1
++-2
+++two
++ 3
++@@ -0,0 +0,0 @@
++" \
++
+ rm input.orig 2>/dev/null
+ 
+ exit $FAILCOUNT

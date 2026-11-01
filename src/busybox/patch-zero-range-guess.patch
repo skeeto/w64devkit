@@ -1,0 +1,144 @@
+patch: don't take an empty first range to mean creation or removal.
+When the diff does not name /dev/null, patch guessed that a file is
+created when the old range of its first hunk is empty (-0,0), and
+removed when the new range is empty (+0,0), because svn diffs mark new
+and deleted files only that way. But "diff -U0" writes the same ranges
+for lines added at, or removed from, the top of a file. Adding lines
+at the top failed with "File exists", and removing lines from the top
+truncated the whole file, or removed it with -E, without even looking
+at its contents: the rest of the file was lost.
+
+Create a file for an empty old range only when the file is missing,
+and otherwise patch it as usual, which adds the lines at the top. Drop
+the guess for an empty new range: the hunk is applied as usual, which
+leaves the file empty if it held only the removed lines, and make -E
+remove any file that patching leaves empty, as it is documented to,
+so that -E still removes such a file.
+
+---
+ editors/patch.c       |   31 +++++++++++++++++++------------
+ testsuite/patch.tests |   38 ++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 57 insertions(+), 12 deletions(-)
+
+--- a/editors/patch.c
++++ b/editors/patch.c
+@@ -155,17 +155,22 @@
+ 	if (TT.tempname) {
+ 		// Copy the rest of the data and replace the original with the copy.
+ 		char *temp;
++		int empty;
+ 
+ 		if (TT.filein != -1) {
+ 			bb_copyfd_eof(TT.filein, TT.fileout);
+ 			xclose(TT.filein);
+ 		}
++		empty = lseek(TT.fileout, 0, SEEK_CUR) == 0;
+ 		xclose(TT.fileout);
+ 
+ 		if (!ENABLE_LONG_OPTS || TT.tempname[0]) { /* not --dry-run? */
+ 			temp = xstrdup(TT.tempname);
+ 			temp[strlen(temp) - 6] = '\0';
+ 			rename(TT.tempname, temp);
++			// With -E, remove a file that is left empty.
++			if (empty && (option_mask32 & FLAG_RMEMPTY))
++				xunlink(temp);
+ 			free(temp);
+ 			free(TT.tempname);
+ 		}
+@@ -578,28 +583,21 @@
+ 
+ 			// If this is the first hunk, open the file.
+ 			if (TT.filein == -1) {
+-				int oldsum, newsum, create = 0, empty = 0;
++				int oldsum, create = 0, empty = 0;
+ 				char *name;
+ 
+-				oldsum = TT.oldline + oldlen;
+-				newsum = TT.newline + newlen;
+ 				// With -R, oldname and newname were swapped when they
+-				// were read, so swap the sums to match.
+-				if (reverse) {
+-					i = oldsum;
+-					oldsum = newsum;
+-					newsum = i;
+-				}
++				// were read, so take the sum of the range to match.
++				oldsum = reverse ? TT.newline + newlen : TT.oldline + oldlen;
+ 
+ 				name = reverse ? oldname : newname;
+ 
+ 				// We're deleting oldname if new file is /dev/null (before -p)
+-				// or if new hunk is empty (zero context) after patching
+-				if (strcmp(newname, "/dev/null") == 0 || !newsum) {
++				if (strcmp(newname, "/dev/null") == 0) {
+ 					name = oldname;
+ 					empty = 1;
+ 				// If the old file was null, we're creating a new one.
+-				} else if (strcmp(oldname, "/dev/null") == 0 || !oldsum) {
++				} else if (strcmp(oldname, "/dev/null") == 0) {
+ 					name = newname;
+ 					create = 1;
+ 				}
+@@ -619,6 +617,15 @@
+ 				if (argv[0])
+ 					name = argv[0];
+ 
++				// A first hunk that replaces nothing (zero context) also
++				// creates a missing file, as svn diffs don't name /dev/null,
++				// but adds lines at the top of an existing one, as with
++				// "diff -U0". An empty new range is no sign of removal
++				// either: it removes lines from the top, and -E removes a
++				// file that is left empty.
++				if (!empty && !oldsum && access(name, F_OK) != 0)
++					create = 1;
++
+ 				if (empty) {
+ 					// File is empty after the patches have been applied
+ 					state = 0;
+--- a/testsuite/patch.tests
++++ b/testsuite/patch.tests
+@@ -410,6 +410,44 @@
+ -qwerty
+ " \
+ 
++testing "patch adds lines at the top with -0,0" \
++	'patch 2>&1; echo $?; cat input' \
++"\
++patching file input
++0
++new
++1
++2
++" \
++"\
++1
++2
++" \
++"\
++--- input
+++++ input
++@@ -0,0 +1 @@
+++new
++" \
++
++testing "patch removes lines from the top with +0,0" \
++	'patch -E 2>&1; echo $?; cat input' \
++"\
++patching file input
++0
++2
++" \
++"\
++1
++2
++" \
++"\
++--- input
+++++ input
++@@ -1 +0,0 @@
++-1
++" \
++
+ rm input.orig 2>/dev/null
+ 
+ exit $FAILCOUNT

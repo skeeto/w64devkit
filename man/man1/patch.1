@@ -55,8 +55,7 @@ If a line that does not start with a space,
 .BR \- ,
 or
 .B \e
-comes first, the hunk fails, and if the diff ends first, the hunk is
-ignored.
+comes first, or the diff ends first, the hunk fails.
 A line that starts with
 .B \e
 marks the line before it, as described in
@@ -86,7 +85,8 @@ the diff are not used, not even to recognize
 .IR /dev/null .
 .SS "Applying hunks"
 .B patch
-ignores the line numbers in hunk headers.
+ignores the line numbers in hunk headers, except in a hunk with no
+context lines, described below.
 It copies the file to a temporary file in the same directory.
 For each hunk, in order, it searches forward from the end of the
 previous hunk for a place where the hunk's context lines and removed
@@ -97,9 +97,13 @@ There are no offsets, no fuzz, and no leniency about white space.
 Hunks therefore must be in the same order in the diff as in the file.
 A hunk with no trailing context lines, or with fewer trailing than
 leading context lines, matches only at the end of the file.
-Every hunk that
+The exception is a hunk with no context lines at either end, such as
+every hunk that
 .B "diff \-U0"
-writes is such a hunk.
+writes.
+It has nothing to search for, so it applies only where the line numbers
+in its header put it, counting the lines of the file before it is
+patched, and fails if its removed lines are not there.
 .PP
 When all the hunks of a file have applied, the temporary file replaces
 the file.
@@ -117,34 +121,34 @@ line names
 or when the old range of its first hunk is exactly
 .BR \-0,0 ,
 as in
-.BR "@@ \-0,0 +1,3 @@" .
+.BR "@@ \-0,0 +1,3 @@" ,
+and the file does not exist.
 .B patch
-creates any missing directories above it, and the file must not already
-exist, even as an empty file.
-.B "diff \-U0"
-also writes
+creates any missing directories above it.
+When the
+.B \-\-\-
+line names
+.IR /dev/null ,
+the file must not already exist, even as an empty file.
+Otherwise a first hunk with the old range
 .B \-0,0
-for lines added at the top of a file, and
-.B patch
-then stops with an error because the file exists.
+adds its lines at the top of a file that exists, as
+.B "diff \-U0"
+means it to.
 .PP
 The diff empties a file when the
 .B +++
 line names
-.IR /dev/null ,
-or when the new range of its first hunk is exactly
-.BR +0,0 .
+.IR /dev/null .
 .B patch
 truncates the file to zero length, or with
 .B \-E
 removes it.
 It does not compare the file with the hunks, so any file with that name
 is emptied or removed, and it ignores the rest of the file's hunks.
-.B "diff \-U0"
-also writes
+A hunk with the new range
 .B +0,0
-for lines removed from the top of a file, so such a diff empties the
-whole file.
+is applied like any other: it removes lines from the top of the file.
 .SS Messages
 .B patch
 prints one line on standard output for each file it processes, with the
@@ -159,7 +163,11 @@ The file is created.
 .TP
 .BI "removing " name
 The file is removed because of
-.BR \-E .
+.B \-E
+and a
+.B +++
+line that names
+.IR /dev/null .
 .PP
 The other messages go to standard error:
 .TP
@@ -169,7 +177,7 @@ Hunk
 of the file, counting from 1, cannot be applied, and a line that it adds
 was found in the file where it would add it.
 .I line
-is one more than the number of lines in the file.
+is the number of that line in the file.
 .TP
 .BI "Hunk " n " FAILED " old / new .\&
 Hunk
@@ -188,7 +196,7 @@ An error.
 .B patch
 ends at once.
 Files that are already finished stay changed, and a file in progress is
-left unchanged, with its temporary file beside it.
+left unchanged, with its temporary file deleted.
 .SH OPTIONS
 Options may be grouped, as in
 .BR \-Np0 .
@@ -267,20 +275,24 @@ a
 line), and the next line of the file equals that line,
 .B patch
 takes the hunk as applied: it skips the hunk if the rest of the file
-matches the patched text, and fails it otherwise.
+matches the patched text, and otherwise applies the hunk as usual.
 .BR diff (1)
 writes the removed lines of a change first, so a hunk whose first change
 replaces lines is recognized only with
 .BR \-R .
-A hunk that adds a line equal to the one after it, such as a second
-.BR } ,
-fails, although it applies without
-.BR \-N .
+A hunk with no context lines at either end is never recognized.
 .TP
 .BR \-E ", " \-\-remove\-empty\-files
-Remove a file that the diff empties, instead of leaving it empty, and
-print
-.BR removing .
+Remove a file that the diff empties, instead of leaving it empty.
+A file whose
+.B +++
+line names
+.I /dev/null
+is removed with the message
+.BR removing ,
+and any other file that is empty once patched is removed after its
+.B patching file
+message.
 .TP
 .B \-\-dry\-run
 Change nothing: create, truncate, remove, and replace no files, and
@@ -297,13 +309,7 @@ Accepted and ignored.
 .B patch
 never asks a question.
 .TP
-.B \-g
-Accepted and ignored.
-It takes no argument, so the
-.B \-g0
-form that other implementations accept is an error.
-.TP
-.BI "\-\-get " n
+\fB\-g\fR \fIn\fR, \fB\-\-get=\fIn\fR
 Accepted and ignored, with its argument.
 .TP
 .B \-\-backup\-if\-mismatch
@@ -337,7 +343,8 @@ When it includes the owner write bit,
 .BR 200 ,
 the files that
 .B patch
-patches or creates are read-only.
+creates are read-only.
+A file that it patches is read-only if the old file was.
 .TP
 .B POSIXLY_CORRECT
 If set, the first operand ends the options.
@@ -350,15 +357,17 @@ Variables that affect every busybox applet are described in
 Every hunk applied or was skipped by
 .BR \-N ,
 or the diff had none.
-A hunk that the end of the diff cuts short is ignored.
 .TP
 .B 1
-A hunk failed, or an error ended the program: an invalid command line,
+A hunk failed, a file could not be replaced, or an error ended the
+program: an invalid command line,
 with a usage message on standard error, an argument of
 .B \-p
 that is not a number or is negative, a hunk header whose old and new
 ranges are both empty, a file that cannot be opened, or one that cannot
 be created because it exists.
+Also an error writing standard output other than a closed pipe, which is
+reported on standard error; the files are patched all the same.
 .SH EXAMPLES
 Apply a diff made from a source tree, from the top of the tree:
 .PP
@@ -394,15 +403,6 @@ $ diff \-u hello.c.orig hello.c >hello.diff
 $ patch hello.c.new hello.diff
 .EE
 .RE
-.PP
-Patch a file that has CR LF line endings, and restore them:
-.PP
-.RS 4
-.EX
-$ patch dos.txt dos.diff
-$ unix2dos dos.txt
-.EE
-.RE
 .SH NOTES
 Differences from GNU
 .BR patch :
@@ -436,43 +436,34 @@ are errors.
 .PP
 With
 .BR \-R ,
-no file is ever created, and the file named on the
+the two header lines trade places for creating and removing files, and
+so do the two ranges of a hunk: a diff whose
 .B \-\-\-
-line is emptied, or removed with
+line names
+.I /dev/null
+empties the file named on the
+.B +++
+line, or removes it with
 .BR \-E ,
-when the
+and a diff whose
 .B +++
 line names
 .I /dev/null
-or the old range of the first hunk is
-.BR \-0,0 .
-So
-.B \-R
-cannot undo a diff that creates or removes a file.
-Reversing a creation empties or removes a file named like
-.I /dev/null
-after
-.B \-p
-is applied, such as
-.I null
-without
-.BR \-p ,
-and fails when there is no such file.
-Reversing a removal empties or removes the file that it should restore,
-and fails when there is none.
+creates the file named on the
+.B \-\-\-
+line, as described above.
 .PP
 Files are read and written in binary mode.
 A CR before an LF is ignored in the diff and in the file when lines are
 compared, so a diff with CR LF line endings applies to a file with LF
 endings, and the reverse.
-Every line that
+The lines that
 .B patch
-writes itself ends with LF, though.
-The part of a file after the last hunk is copied unchanged, so a file
-with CR LF line endings comes out with LF endings up to the end of the
-last hunk and CR LF endings after it.
-.BR unix2dos (1)
-makes them the same again.
+copies from the file keep their line endings, and the context and added
+lines that it writes from the diff end with CR LF if the first line of
+the file does, and with LF otherwise.
+So a file whose lines all end the same way keeps its line endings,
+whatever those of the diff.
 .PP
 A line in a hunk that is followed by the marker
 .B \e No newline at end of file
@@ -499,16 +490,17 @@ to the system code page on earlier versions.
 .PP
 The temporary file is named after the file with six more characters.
 It replaces the file by a rename, so the result is a new file: it is
-not read-only, even if the old one was, and other hard links to the old
-file keep the old content.
-If the rename fails, as when another program has the file open, the file
-stays unchanged and the result stays in the temporary file, with no
-message and exit status 0.
+read-only only if the old one was, and other hard links to the old file
+keep the old content.
+If the rename fails, as when another program has the file open,
+.B patch
+reports it and deletes the temporary file, the file stays unchanged, and
+the exit status is 1.
 .PP
 The file is read one octet at a time up to the end of the last hunk,
 which is slow for a large file: a hunk near the end of a file of 7 MB
-takes several seconds, and a failed hunk always reads the rest of the
-file.
+takes several seconds, and a failed hunk with context lines reads the
+rest of the file.
 .SH SEE ALSO
 .BR busybox (1),
 .BR diff (1),

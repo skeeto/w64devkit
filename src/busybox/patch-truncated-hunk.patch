@@ -1,0 +1,74 @@
+patch: fail a hunk that the end of the diff cuts short.
+When the diff ended before a hunk had all the lines its header counts,
+patch ignored the hunk, kept the hunks before it and exited with status
+0, so a truncated diff left the file partly patched with no sign of a
+problem. Fail the hunk instead, as for a hunk cut short by an invalid
+line: report it, leave the file unchanged and exit with status 1.
+
+---
+ editors/patch.c       |    4 ++++
+ testsuite/patch.tests |   40 ++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 44 insertions(+)
+
+--- a/editors/patch.c
++++ b/editors/patch.c
+@@ -769,6 +769,10 @@
+ 		free(patchline);
+ 	}
+ 
++	// The diff ended in the middle of a hunk.
++	if (state >= 2)
++		fail_hunk();
++
+ 	finish_oldfile();
+ 
+ 	if (ENABLE_FEATURE_CLEAN_UP) {
+--- a/testsuite/patch.tests
++++ b/testsuite/patch.tests
+@@ -526,6 +526,46 @@
+ +b
+ " \
+ 
++testing "patch fails a truncated hunk" \
++	'patch 2>&1; echo $?; cat input' \
++"\
++patching file input
++Hunk 2 FAILED 5/5.
++ 5
++-6
+++six
++1
++1
++2
++3
++4
++5
++6
++7
++" \
++"\
++1
++2
++3
++4
++5
++6
++7
++" \
++"\
++--- input
+++++ input
++@@ -1,3 +1,3 @@
++ 1
++-2
+++two
++ 3
++@@ -5,3 +5,3 @@
++ 5
++-6
+++six
++" \
++
+ rm input.orig 2>/dev/null
+ 
+ exit $FAILCOUNT

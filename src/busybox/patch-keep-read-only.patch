@@ -1,0 +1,45 @@
+patch: keep the read-only attribute of a patched file on Windows.
+patch gives its temporary file the mode of the file it patches with
+fchmod(), but on Windows fchmod() does nothing. So the patched file,
+which replaces the old one by a rename, was writable even when the old
+file was read-only, and read-only whenever the umask (BB_UMASK) denied
+write access, even when the old file was writable.
+
+Remember the mode, and set it by name with chmod() once the rename has
+replaced the file.
+
+---
+ editors/patch.c |    8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+--- a/editors/patch.c
++++ b/editors/patch.c
+@@ -115,6 +115,7 @@
+ #if ENABLE_PLATFORM_MINGW32
+ 	int cr;   // the last line read from the file ended with CR LF
+ 	int crlf; // so did its first line
++	mode_t mode; // to give the patched file
+ #endif
+ };
+ #define TT (*ptr_to_globals)
+@@ -202,6 +203,10 @@
+ 			// With -E, remove a file that is left empty.
+ 			} else if (empty && (option_mask32 & FLAG_RMEMPTY))
+ 				xunlink(temp);
++#if ENABLE_PLATFORM_MINGW32
++			else	// fchmod() does nothing: set the mode by name
++				chmod(temp, TT.mode);
++#endif
+ 			free(temp);
+ 			free(TT.tempname);
+ 		}
+@@ -806,6 +811,9 @@
+ 						// Set permissions of output file
+ 						fstat(TT.filein, &statbuf);
+ 						fchmod(TT.fileout, statbuf.st_mode);
++#if ENABLE_PLATFORM_MINGW32
++						TT.mode = statbuf.st_mode;
++#endif
+ 					} else {
+ 						TT.tempname = (char*)"";
+ 						TT.fileout = xopen("/dev/null", O_WRONLY);

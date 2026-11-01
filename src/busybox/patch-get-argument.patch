@@ -1,0 +1,61 @@
+patch: let -g take an argument.
+-g is accepted and ignored for compatibility, as --get is, but unlike
+--get it was declared without an argument, so the common form -g0
+failed with "unknown option -- 0", and "-g 0" took 0 as the file to
+patch. Declare it with an argument, which is ignored.
+
+---
+ editors/patch.c       |    6 +++---
+ testsuite/patch.tests |   18 ++++++++++++++++++
+ 2 files changed, 21 insertions(+), 3 deletions(-)
+
+--- a/editors/patch.c
++++ b/editors/patch.c
+@@ -116,7 +116,7 @@
+ } while (0)
+ 
+ 
+-#define FLAG_STR "Rup:i:NEfg"
++#define FLAG_STR "Rup:i:NEfg:"
+ /* FLAG_REVERSE must be == 1! Code uses this fact. */
+ #define FLAG_REVERSE  (1 << 0)
+ #define FLAG_u        (1 << 1)
+@@ -528,9 +528,9 @@
+ 	INIT_TT();
+ 
+ #if ENABLE_LONG_OPTS
+-	opts = getopt32long(argv, FLAG_STR, patch_longopts, &opt_p, &opt_i);
++	opts = getopt32long(argv, FLAG_STR, patch_longopts, &opt_p, &opt_i, NULL);
+ #else
+-	opts = getopt32(argv, FLAG_STR, &opt_p, &opt_i);
++	opts = getopt32(argv, FLAG_STR, &opt_p, &opt_i, NULL);
+ #endif
+ 	//bb_error_msg_and_die("opts:%x", opts);
+ 
+--- a/testsuite/patch.tests
++++ b/testsuite/patch.tests
+@@ -508,6 +508,24 @@
+  r
+ " \
+ 
++testing "patch -g0" \
++	'patch -g0 2>&1; echo $?; cat input' \
++"\
++patching file input
++0
++b
++" \
++"\
++a
++" \
++"\
++--- input
+++++ input
++@@ -1 +1 @@
++-a
+++b
++" \
++
+ rm input.orig 2>/dev/null
+ 
+ exit $FAILCOUNT

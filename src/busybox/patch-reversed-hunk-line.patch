@@ -1,0 +1,46 @@
+patch: report the line of a possibly reversed hunk.
+When a hunk fails and one of its added lines was found in the file
+where it would be added, patch prints "Possibly reversed hunk N at L".
+L was the current line number, which by then is always one past the end
+of the file, since the search fails only at the end of the file. Print
+the line where the added line was found, which apply_one_hunk() records
+in backwarn for this purpose.
+
+---
+ editors/patch.c       |    4 ++--
+ testsuite/patch.tests |    4 ++--
+ 2 files changed, 4 insertions(+), 4 deletions(-)
+
+--- a/editors/patch.c
++++ b/editors/patch.c
+@@ -312,8 +312,8 @@
+ 			if (!plist && matcheof) break;
+ 
+ 			if (backwarn)
+-				fdprintf(2, "Possibly reversed hunk %d at %ld\n",
+-					TT.hunknum, TT.linenum);
++				fdprintf(2, "Possibly reversed hunk %d at %d\n",
++					TT.hunknum, backwarn);
+ 
+ 			// File ended before we found a place for this hunk.
+ 			goto fail;
+--- a/testsuite/patch.tests
++++ b/testsuite/patch.tests
+@@ -76,7 +76,7 @@
+ 	'patch 2>&1; echo $?; cat input' \
+ "\
+ patching file input
+-Possibly reversed hunk 1 at 4
++Possibly reversed hunk 1 at 2
+ Hunk 1 FAILED 1/1.
+  abc
+ +def
+@@ -104,7 +104,7 @@
+ 	'patch 2>&1; echo $?; cat input' \
+ "\
+ patching file input
+-Possibly reversed hunk 1 at 4
++Possibly reversed hunk 1 at 3
+ Hunk 1 FAILED 1/1.
+  abc
+  123

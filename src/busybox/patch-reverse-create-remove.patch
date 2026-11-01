@@ -1,0 +1,105 @@
+patch: make -R create and remove the right files.
+With -R, patch swaps the old and new file names as it reads them, so
+that oldname is the file before patching and newname the file after.
+The code that decides whether to create or remove a file then swapped
+the names back, and tested the line ranges of the hunk unswapped.
+Reversing a diff that creates a file therefore emptied, or with -E
+removed, whatever file /dev/null named once -p had stripped it, such as
+"null", and failed if there was none, while the created file stayed.
+Reversing a diff that removes a file emptied the file it should have
+restored, or failed when that file was missing.
+
+Swap the ranges along with the names, and use the names as they are:
+remove oldname when newname is /dev/null or its range is empty, and
+create newname when oldname is /dev/null or its range is empty.
+
+---
+ editors/patch.c       |   20 +++++++++++++++-----
+ testsuite/patch.tests |   30 ++++++++++++++++++++++++++++++
+ 2 files changed, 45 insertions(+), 5 deletions(-)
+
+--- a/editors/patch.c
++++ b/editors/patch.c
+@@ -578,19 +578,30 @@
+ 
+ 			// If this is the first hunk, open the file.
+ 			if (TT.filein == -1) {
+-				int oldsum, newsum, empty = 0;
++				int oldsum, newsum, create = 0, empty = 0;
+ 				char *name;
+ 
+ 				oldsum = TT.oldline + oldlen;
+ 				newsum = TT.newline + newlen;
++				// With -R, oldname and newname were swapped when they
++				// were read, so swap the sums to match.
++				if (reverse) {
++					i = oldsum;
++					oldsum = newsum;
++					newsum = i;
++				}
+ 
+ 				name = reverse ? oldname : newname;
+ 
+ 				// We're deleting oldname if new file is /dev/null (before -p)
+ 				// or if new hunk is empty (zero context) after patching
+-				if (strcmp(name, "/dev/null") == 0 || !(reverse ? oldsum : newsum)) {
+-					name = reverse ? newname : oldname;
++				if (strcmp(newname, "/dev/null") == 0 || !newsum) {
++					name = oldname;
+ 					empty = 1;
++				// If the old file was null, we're creating a new one.
++				} else if (strcmp(oldname, "/dev/null") == 0 || !oldsum) {
++					name = newname;
++					create = 1;
+ 				}
+ 
+ 				// Handle -p path truncation.
+@@ -625,8 +636,7 @@
+ 				} else if (!(option_mask32 & FLAG_PATHLEN) || i <= TT.prefix) {
+ 					struct stat statbuf;
+ 
+-					// If the old file was null, we're creating a new one.
+-					if (strcmp(oldname, "/dev/null") == 0 || !oldsum) {
++					if (create) {
+ 						printf("creating %s\n", name);
+ 						if (!(opts & FLAG_dry_run)) {
+ 							s = strrchr(name, '/');
+--- a/testsuite/patch.tests
++++ b/testsuite/patch.tests
+@@ -380,6 +380,36 @@
+ +five
+ " \
+ 
++testing "patch -R removes a created file" \
++	'echo qwerty >testfile; patch -R -E 2>&1; echo $?; test -e testfile || echo gone' \
++"\
++removing testfile
++0
++gone
++" \
++"" \
++"\
++--- /dev/null
+++++ testfile
++@@ -0,0 +1 @@
+++qwerty
++" \
++
++testing "patch -R restores a removed file" \
++	'patch -R 2>&1; echo $?; cat testfile; rm testfile' \
++"\
++creating testfile
++0
++qwerty
++" \
++"" \
++"\
++--- testfile
+++++ /dev/null
++@@ -1 +0,0 @@
++-qwerty
++" \
++
+ rm input.orig 2>/dev/null
+ 
+ exit $FAILCOUNT

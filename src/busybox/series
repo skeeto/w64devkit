@@ -389,3 +389,14 @@ diff-large-context.patch
 diff-report-one-sided-subdir.patch
 diff-dir-operand-basename.patch
 diff-blank-crlf-line.patch
+patch-no-context-line-number.patch
+patch-reverse-create-remove.patch
+patch-zero-range-guess.patch
+patch-rename-error.patch
+patch-reversed-hunk-line.patch
+patch-forward-retry.patch
+patch-get-argument.patch
+patch-truncated-hunk.patch
+patch-die-remove-temp.patch
+patch-keep-crlf.patch
+patch-keep-read-only.patch

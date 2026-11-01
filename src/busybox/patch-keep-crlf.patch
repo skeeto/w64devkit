@@ -1,0 +1,143 @@
+patch: keep the line endings of files with CR LF.
+On Windows, xmalloc_reads() dropped the CR before the LF of each line
+it read, so that patch could compare a line of a file with CR LF line
+endings with a line of the diff, which xmalloc_fgetline() reads without
+its CR. But patch writes out every line before the end of the last hunk
+itself, with LF alone, so the lines that it copied unchanged lost their
+CR, and a file with CR LF line endings came out with LF endings up to
+the end of the last hunk and CR LF endings after it.
+
+Leave the CR to patch, the only applet that relied on dropping it in
+xmalloc_reads(): drop it from the line for comparison, but note it, so
+that a line copied from the file is written with it. Write the context
+and added lines of a hunk, which come from the diff, with CR LF when
+the first line of the file has it, so that a file with CR LF line
+endings keeps them, whatever the line endings of the diff.
+
+---
+ editors/patch.c     |   52 ++++++++++++++++++++++++++++++++++++++++++++++++----
+ libbb/read_printf.c |    5 -----
+ 2 files changed, 48 insertions(+), 9 deletions(-)
+
+--- a/editors/patch.c
++++ b/editors/patch.c
+@@ -58,6 +58,9 @@
+ 	struct double_list *prev;
+ 	char *data;
+ 	int no_newline;
++#if ENABLE_PLATFORM_MINGW32
++	int cr;
++#endif
+ };
+ 
+ // Free all the elements of a linked list
+@@ -109,6 +112,10 @@
+ 	char *tempname;
+ 
+ 	int exitval;
++#if ENABLE_PLATFORM_MINGW32
++	int cr;   // the last line read from the file ended with CR LF
++	int crlf; // so did its first line
++#endif
+ };
+ #define TT (*ptr_to_globals)
+ #define INIT_TT() do { \
+@@ -140,10 +147,17 @@
+ {
+ 	struct double_list *dlist = data;
+ 
+-	if (TT.state > 1 && *dlist->data != TT.state)
+-		fdprintf(TT.state == 2 ? 2 : TT.fileout,
+-			dlist->no_newline && TT.state != 2 ? "%s" : "%s\n",
++	if (TT.state > 1 && *dlist->data != TT.state) {
++		const char *fmt = dlist->no_newline && TT.state != 2 ? "%s" : "%s\n";
++#if ENABLE_PLATFORM_MINGW32
++		// A line of the file keeps its CR, and a line of the hunk
++		// ends with CR LF when the first line of the file does.
++		if (fmt[2] && (TT.state == 3 ? dlist->cr : TT.state > 3 && TT.crlf))
++			fmt = "%s\r\n";
++#endif
++		fdprintf(TT.state == 2 ? 2 : TT.fileout, fmt,
+ 			dlist->data + (TT.state > 3 ? 1 : 0));
++	}
+ 
+ 	if (PATCH_DEBUG) fdprintf(2, "DO %d: %s\n", TT.state, dlist->data);
+ 
+@@ -253,11 +267,27 @@
+ 			line->prev->next = TT.unread;
+ 		}
+ 		data = line->data;
++#if ENABLE_PLATFORM_MINGW32
++		TT.cr = line->cr;
++#endif
+ 		free(line);
+ 		return data;
+ 	}
+ //FIXME: this performs 1-byte reads:
+-	return xmalloc_reads(TT.filein, NULL);
++	data = xmalloc_reads(TT.filein, NULL);
++#if ENABLE_PLATFORM_MINGW32
++	// Compare the line without a CR before its LF, but note the CR
++	// so that the line keeps it when it is copied.
++	TT.cr = 0;
++	if (data) {
++		char *end = data + strlen(data);
++		if (end != data && end[-1] == '\r') {
++			end[-1] = '\0';
++			TT.cr = 1;
++		}
++	}
++#endif
++	return data;
+ }
+ 
+ // Put back the buffered lines after "last" to read them again.
+@@ -322,6 +352,11 @@
+ 			data = read_line();
+ 			if (!data)
+ 				goto fail;
++#if ENABLE_PLATFORM_MINGW32
++			if (TT.cr)
++				fdprintf(TT.fileout, "%s\r\n", data);
++			else
++#endif
+ 			fdprintf(TT.fileout, "%s\n", data);
+ 			free(data);
+ 		}
+@@ -393,6 +428,9 @@
+ 
+ 		if (PATCH_DEBUG) fdprintf(2, "IN: %s\n", data);
+ 		check = dlist_add(&buf, data);
++#if ENABLE_PLATFORM_MINGW32
++		check->cr = TT.cr;
++#endif
+ 
+ 		// Compare this line with next expected line of hunk.
+ 		// todo: teach the strcmp() to ignore whitespace.
+@@ -755,6 +793,12 @@
+ 						printf("patching file %s\n", name);
+ 						TT.filein = xopen(name, O_RDONLY);
+ 					}
++#if ENABLE_PLATFORM_MINGW32
++					// Peek at the first line of the file for its line ending.
++					free(read_line());
++					TT.crlf = TT.cr;
++					lseek(TT.filein, 0, SEEK_SET);
++#endif
+ 
+ 					if (!(opts & FLAG_dry_run)) {
+ 						TT.tempname = xasprintf("%sXXXXXX", name);
+--- a/libbb/read_printf.c
++++ b/libbb/read_printf.c
+@@ -93,11 +93,6 @@
+ 			break;
+ 		p++;
+ 	}
+-#if ENABLE_PLATFORM_MINGW32
+-	if ( p != buf && *(p-1) == '\r' ) {
+-		--p;
+-	}
+-#endif
+ 	*p = '\0';
+ 	if (maxsz_p)
+ 		*maxsz_p  = p - buf;

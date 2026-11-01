@@ -1,0 +1,247 @@
+patch: with -N, apply a hunk that only looks already applied.
+To implement -N, apply_one_hunk() takes a hunk as already applied when
+a line of the file equals an added line of the hunk where it would be
+added, and from there matches the hunk in reverse. If that reverse
+match failed, it kept searching in reverse and never tried the hunk
+forward, so a hunk that adds a line equal to the line after it, such as
+a second "}", failed with -N although it applies without. When the
+check happened while rechecking buffered lines, it also skipped the
+added line it had just matched.
+
+When the reverse match fails, go back to the line where the match
+started and retry the hunk forward; the check is still made only once
+per hunk. The forward match can end before the last line read for the
+reverse one, so put the lines after it back, to be read again for the
+rest of the file. In the recheck loop, don't skip the matched line when
+switching direction, as the main loop already doesn't.
+
+---
+ editors/patch.c       |   81 +++++++++++++++++++++++++++++++++++++++++++++++++-
+ testsuite/patch.tests |   60 +++++++++++++++++++++++++++++++++++++
+ 2 files changed, 140 insertions(+), 1 deletion(-)
+
+--- a/editors/patch.c
++++ b/editors/patch.c
+@@ -100,6 +100,7 @@
+ 	long prefix;
+ 
+ 	struct double_list *current_hunk;
++	struct double_list *unread; // lines of the file to read again
+ 
+ 	long oldline, oldlen, newline, newlen;
+ 	long linenum;
+@@ -150,6 +151,17 @@
+ 	free(dlist);
+ }
+ 
++// Write (state 3) or discard (state 0) the lines put back to read again.
++static void flush_unread(int state)
++{
++	if (TT.unread) {
++		TT.state = state;
++		TT.unread->prev->next = NULL;
++		dlist_free(TT.unread, do_line);
++		TT.unread = NULL;
++	}
++}
++
+ static void finish_oldfile(void)
+ {
+ 	if (TT.tempname) {
+@@ -158,6 +170,7 @@
+ 		int empty;
+ 
+ 		if (TT.filein != -1) {
++			flush_unread(3);
+ 			bb_copyfd_eof(TT.filein, TT.fileout);
+ 			xclose(TT.filein);
+ 		}
+@@ -210,16 +223,53 @@
+ 	TT.tempname = NULL;
+ 
+ 	TT.state = 0;
++	flush_unread(0);
+ }
+ 
+ // Read the next line of the file being patched.
+ static char *read_line(void)
+ {
++	struct double_list *line = TT.unread;
++	char *data;
++
+ 	TT.linenum++;
++	if (line) {
++		TT.unread = line->next;
++		if (TT.unread == line)
++			TT.unread = NULL;
++		else {
++			TT.unread->prev = line->prev;
++			line->prev->next = TT.unread;
++		}
++		data = line->data;
++		free(line);
++		return data;
++	}
+ //FIXME: this performs 1-byte reads:
+ 	return xmalloc_reads(TT.filein, NULL);
+ }
+ 
++// Put back the buffered lines after "last" to read them again.
++static void unread_after(struct double_list *buf, struct double_list *last)
++{
++	struct double_list *first = last->next, *end = buf->prev, *line;
++
++	for (line = first; line != buf; line = line->next)
++		TT.linenum--;
++	last->next = buf;
++	buf->prev = last;
++	if (TT.unread) {
++		end->next = TT.unread;
++		first->prev = TT.unread->prev;
++		TT.unread->prev->next = first;
++		TT.unread->prev = end;
++	} else {
++		end->next = first;
++		first->prev = end;
++	}
++	TT.unread = first;
++}
++
+ // Given a hunk of a unified diff, make the appropriate change to the file.
+ // This does not use the location information (except for a hunk with no
+ // context lines), but instead treats a hunk as a sort of regex.  Copies
+@@ -311,6 +361,17 @@
+ 			// Does this hunk need to match EOF?
+ 			if (!plist && matcheof) break;
+ 
++			// With -N, the hunk is not applied after all:
++			// retry it forward from the same line.
++			if (dummy_revert) {
++				dummy_revert = 0;
++				reverse ^= 1;
++				plist = TT.current_hunk;
++				check = buf;
++				TT.linenum--; // the end of the file is read again
++				goto recheck;
++			}
++
+ 			if (backwarn)
+ 				fdprintf(2, "Possibly reversed hunk %d at %d\n",
+ 					TT.hunknum, backwarn);
+@@ -332,6 +393,7 @@
+ 		// recheck buffered data for a new match until we find one or run
+ 		// out of buffer.
+ 
++recheck:
+ 		for (;;) {
+ 			while (plist && *plist->data == "+-"[reverse]) {
+ 				if (strcmp(check->data, plist->data+1) == 0
+@@ -341,6 +403,7 @@
+ 					if (option_mask32 & FLAG_IGNORE) {
+ 						dummy_revert = 1;
+ 						reverse ^= 1;
++						continue;
+ 					}
+ 				}
+ 				plist = plist->next;
+@@ -352,6 +415,16 @@
+ 				if (PATCH_DEBUG)
+ 					fdprintf(2, "NOT: %s\n", plist ? plist->data : "EOF");
+ 
++				// With -N, the hunk is not applied after all:
++				// retry it forward from the same line.
++				if (dummy_revert) {
++					dummy_revert = 0;
++					reverse ^= 1;
++					plist = TT.current_hunk;
++					check = buf;
++					continue;
++				}
++
+ 				TT.state = 3;
+ 				check = buf;
+ 				buf = buf->next;
+@@ -372,7 +445,13 @@
+ 					fdprintf(2, "MAYBE: %s\n", plist->data);
+ 				// This line matches.  Advance plist, detect successful match.
+ 				plist = plist->next;
+-				if (!plist && !matcheof) goto out;
++				if (!plist && !matcheof) {
++					// A retry forward can match fewer lines than
++					// were read: put back the rest.
++					if (check->next != buf)
++						unread_after(buf, check);
++					goto out;
++				}
+ 				check = check->next;
+ 				if (check == buf) break;
+ 			}
+--- a/testsuite/patch.tests
++++ b/testsuite/patch.tests
+@@ -448,6 +448,66 @@
+ -1
+ " \
+ 
++testing "patch -N applies a hunk that adds a copy of the next line" \
++	'patch -N 2>&1; echo $?; cat input' \
++"\
++patching file input
++0
++a
++}
++}
++z
++" \
++"\
++a
++}
++z
++" \
++"\
++--- input
+++++ input
++@@ -1,3 +1,4 @@
++ a
+++}
++ }
++ z
++" \
++
++testing "patch -N rereads the lines after a hunk applied on a retry" \
++	'patch -N 2>&1; echo $?; cat input' \
++"\
++patching file input
++0
++a
++}
++}
++}
++z
++Q
++r
++" \
++"\
++a
++}
++z
++q
++r
++" \
++"\
++--- input
+++++ input
++@@ -1,2 +1,4 @@
++ a
+++}
+++}
++ }
++@@ -3,3 +5,3 @@
++ z
++-q
+++Q
++ r
++" \
++
+ rm input.orig 2>/dev/null
+ 
+ exit $FAILCOUNT

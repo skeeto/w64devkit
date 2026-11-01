@@ -1,0 +1,33 @@
+patch: report a failure to replace the file.
+patch writes the patched file to a temporary file beside it and renames
+that over the original when the file is done, but it ignored the result
+of rename(). When the rename failed, as on Windows when another program
+has the file open, the file stayed unchanged and the result stayed in
+the temporary file, while patch printed no message and exited with
+status 0, as if the file had been patched.
+
+Check rename(): on failure, print an error, delete the temporary file
+and set exit status 1, leaving the file unchanged as for a failed hunk.
+
+---
+ editors/patch.c |    8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+--- a/editors/patch.c
++++ b/editors/patch.c
+@@ -167,9 +167,13 @@
+ 		if (!ENABLE_LONG_OPTS || TT.tempname[0]) { /* not --dry-run? */
+ 			temp = xstrdup(TT.tempname);
+ 			temp[strlen(temp) - 6] = '\0';
+-			rename(TT.tempname, temp);
++			if (rename(TT.tempname, temp) != 0) {
++				// Leave the file unchanged, as for a failed hunk.
++				bb_perror_msg("can't rename '%s' to '%s'", TT.tempname, temp);
++				unlink(TT.tempname);
++				TT.exitval = 1;
+ 			// With -E, remove a file that is left empty.
+-			if (empty && (option_mask32 & FLAG_RMEMPTY))
++			} else if (empty && (option_mask32 & FLAG_RMEMPTY))
+ 				xunlink(temp);
+ 			free(temp);
+ 			free(TT.tempname);
