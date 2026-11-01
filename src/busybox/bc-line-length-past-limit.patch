@@ -1,0 +1,24 @@
+Break a long number even when the line is already past the line length.
+bc and dc insert a backslash and newline when the count of characters
+on the line reaches one less than the line length, but the test was
+for equality. A string printed earlier can move the count past that
+point in one step, as bc's print "..." and bare strings do, and from
+then on the test never matched again, so a number printed after a
+string longer than the line length ran on unbroken for any length.
+Break whenever the count has reached the limit.
+
+---
+ miscutils/bc.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/miscutils/bc.c
++++ b/miscutils/bc.c
+@@ -5555,7 +5555,7 @@
+ 
+ static void bc_num_printNewline(void)
+ {
+-	if (G.prog.nchars == G.prog.len - 1) {
++	if (G.prog.nchars >= G.prog.len - 1) {
+ 		bb_putchar('\\');
+ 		bb_putchar('\n');
+ 		G.prog.nchars = 0;

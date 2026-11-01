@@ -1,0 +1,41 @@
+Make dc's P command pop, and print only the integer part of a number.
+In GNU and FreeBSD dc, P pops the top value; a string is printed as
+it is, and a number as the base 256 digits of the integer part of its
+absolute value. This dc left the value on the stack, so that, for
+example, "65P z p" printed "A1" instead of "A0", and for a number it
+went on to write the fractional part as further base 256 digits
+("65.9P" wrote a byte 0xE6 after the A) and failed with "negative
+number" on a negative value. Print the integer part of the absolute
+value and pop the value once it is printed.
+
+---
+ miscutils/bc.c |   11 ++++++++++-
+ 1 file changed, 10 insertions(+), 1 deletion(-)
+
+--- a/miscutils/bc.c
++++ b/miscutils/bc.c
+@@ -6520,7 +6520,14 @@
+ 	if (s) RETURN_STATUS(s);
+ 
+ 	if (BC_PROG_NUM(r, n)) {
+-		s = zxc_num_printNum(n, 0x100, 1, dc_num_printChar);
++		// Print the integer part of the absolute value
++		BcNum intp;
++
++		bc_num_init_and_copy(&intp, n);
++		bc_num_truncate(&intp, intp.rdx);
++		intp.neg = false;
++		s = zxc_num_printNum(&intp, 0x100, 1, dc_num_printChar);
++		bc_num_free(&intp);
+ 	} else {
+ 		char *str, *nl;
+ 		idx = (r->t == XC_RESULT_STR) ? r->d.id.idx : n->rdx;
+@@ -6532,6 +6539,8 @@
+ 			G.prog.nchars = strlen(nl + 1);
+ 	}
+ 
++	if (!s)
++		bc_vec_pop(&G.prog.results);
+ 	RETURN_STATUS(s);
+ }
+ #define zdc_program_printStream(...) (zdc_program_printStream(__VA_ARGS__) COMMA_SUCCESS)

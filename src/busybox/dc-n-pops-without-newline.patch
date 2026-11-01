@@ -1,0 +1,22 @@
+Make dc's n command pop and print without a newline.
+The table that maps dc commands to instructions gave n the
+instruction of p, so n printed a newline and left the value on the
+stack, where GNU and FreeBSD dc, and this dc's own help text, have it
+pop the value and print it with no newline. Map n to the existing
+print-and-pop instruction that bc's print statement uses.
+
+---
+ miscutils/bc.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/miscutils/bc.c
++++ b/miscutils/bc.c
+@@ -747,7 +747,7 @@
+ 	DC_INST_INVALID,     DC_INST_INVALID,           // DC_LEX_STORE_IBASE DC_LEX_STORE_OBASE
+ 	DC_INST_INVALID,     DC_INST_INVALID,           // DC_LEX_STORE_SCALE DC_LEX_LOAD
+ 	DC_INST_INVALID,     DC_INST_INVALID,           // DC_LEX_LOAD_POP    DC_LEX_STORE_PUSH
+-	XC_INST_PRINT,       DC_INST_NQUIT,             // DC_LEX_PRINT_POP   DC_LEX_NQUIT
++	XC_INST_PRINT_POP,   DC_INST_NQUIT,             // DC_LEX_PRINT_POP   DC_LEX_NQUIT
+ 	XC_INST_SCALE_FUNC,                             // DC_LEX_SCALE_FACTOR
+ 	// DC_INST_INVALID in this table either means that corresponding LEX
+ 	// is not possible for dc, or that it does not compile one-to-one

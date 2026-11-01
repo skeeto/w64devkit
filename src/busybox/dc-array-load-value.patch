@@ -1,0 +1,53 @@
+Make dc's ;r push the value of the array element.
+;r and :r both compiled to the instruction that pushes a reference to
+an array element, which :r needs as the target of its store, but ;r
+left that reference on the stack, to be read only when the value was
+used. A later store to the same element therefore changed a value
+already fetched: "1 0:a 0;a 2 0:a p" printed 2 instead of 1. Give ;r
+its own instruction, which pushes the reference and replaces it at
+once with a copy of the element's value.
+
+---
+ miscutils/bc.c |   17 ++++++++++++++++-
+ 1 file changed, 16 insertions(+), 1 deletion(-)
+
+--- a/miscutils/bc.c
++++ b/miscutils/bc.c
+@@ -368,6 +368,7 @@
+ 	DC_INST_LOAD,
+ 	DC_INST_PUSH_VAR,
+ 	DC_INST_PUSH_TO_VAR,
++	DC_INST_LOAD_ELEM,
+ 
+ 	DC_INST_QUIT,
+ 	DC_INST_NQUIT,
+@@ -5132,7 +5133,8 @@
+ 	case DC_LEX_SCOLON:
+ 	case DC_LEX_COLON:
+ 		dbg_lex("%s:%d LEX_[S]COLON", __func__, __LINE__);
+-		s = zdc_parse_mem(XC_INST_ARRAY_ELEM, true, t == DC_LEX_COLON);
++		s = zdc_parse_mem(t == DC_LEX_COLON ? XC_INST_ARRAY_ELEM : DC_INST_LOAD_ELEM,
++				true, t == DC_LEX_COLON);
+ 		break;
+ 	case XC_LEX_STR:
+ 		dbg_lex("%s:%d LEX_STR", __func__, __LINE__);
+@@ -6946,6 +6948,19 @@
+ 			free(name);
+ 			break;
+ 		}
++		case DC_INST_LOAD_ELEM: {
++			BcNum *num;
++			dbg_exec("DC_INST_LOAD_ELEM:");
++			// Push the value of the element, not a reference to it
++			// which would follow later stores to the element
++			s = zbc_program_pushArray(code, &ip->inst_idx, XC_INST_ARRAY_ELEM);
++			if (s) break;
++			s = zxc_program_prep(&ptr, &num);
++			if (s) break;
++			bc_num_init_and_copy(&r.d.n, num);
++			xc_program_retire(&r, XC_RESULT_TEMP);
++			break;
++		}
+ 		case DC_INST_QUIT:
+ 			dbg_exec("DC_INST_QUIT:");
+ 			if (G.prog.exestack.len <= 2)

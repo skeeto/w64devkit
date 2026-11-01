@@ -1,0 +1,31 @@
+Pop a string that dc's S command pushes on a register.
+zdc_program_assignStr() serves both s and S. For s it pops the
+register's top and the value, and then replaces the register name on
+the stack with the string as the result of the assignment, which the
+following instruction pops. For S there is no register name on the
+stack, so the same replacement put the string back in place of
+itself, and it stayed on the main stack as well as on the register:
+"[abc]Sa z p" printed 1. A number given to S was popped as it should
+be. For S, just pop the string.
+
+---
+ miscutils/bc.c |    6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+--- a/miscutils/bc.c
++++ b/miscutils/bc.c
+@@ -5886,9 +5886,13 @@
+ 			RETURN_STATUS(bc_error_stack_has_too_few_elements());
+ 		bc_vec_pop(v);
+ 		bc_vec_pop(&G.prog.results);
++		// the string replaces the variable as the assignment's result
++		bc_result_pop_and_push(&res);
++	} else {
++		// "Sr": the string moves from the stack to the register
++		bc_vec_pop(&G.prog.results);
+ 	}
+ 
+-	bc_result_pop_and_push(&res);
+ 	bc_vec_push(v, &n2);
+ 
+ 	RETURN_STATUS(BC_STATUS_SUCCESS);

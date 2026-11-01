@@ -1,0 +1,32 @@
+Accept a backslash continuation at the end of a CRLF line in bc and dc.
+A carriage return is white space to both lexers, so scripts with CRLF
+line endings otherwise work, but a backslash that continues a line had
+to be followed directly by the newline. In a CRLF script a continued
+statement in bc, or a long number split over lines in bc or dc, was
+rejected with "bad character '\'". Skip a carriage return between the
+backslash and the newline.
+
+---
+ miscutils/bc.c |    4 ++++
+ 1 file changed, 4 insertions(+)
+
+--- a/miscutils/bc.c
++++ b/miscutils/bc.c
+@@ -2967,6 +2967,8 @@
+  check_c:
+ 		if (c == '\0')
+ 			break;
++		if (c == '\\' && p->lex_inbuf[1] == '\r' && p->lex_inbuf[2] == '\n')
++			p->lex_inbuf++; // CRLF line ending: skip the CR
+ 		if (c == '\\' && p->lex_inbuf[1] == '\n') {
+ 			p->lex_inbuf += 2;
+ 			p->lex_line++;
+@@ -3364,6 +3366,8 @@
+ 		p->lex = (BcLexType)(c - '[' + BC_LEX_LBRACKET);
+ 		break;
+ 	case '\\':
++		if (p->lex_inbuf[0] == '\r' && p->lex_inbuf[1] == '\n')
++			p->lex_inbuf++; // CRLF line ending: skip the CR
+ 		if (*p->lex_inbuf == '\n') {
+ 			p->lex = XC_LEX_WHITESPACE;
+ 			p->lex_inbuf++;

@@ -1,0 +1,38 @@
+Convert a number with the input base in effect when it is pushed.
+A numeric constant was pushed as a reference to its digits and only
+converted the first time an operation used it, with whatever ibase
+was current then. In dc, which runs each command as it is parsed, a
+change of input base therefore changed numbers pushed before it:
+"FF 16 i p" printed 255 rather than 99, and "11 2 i p" printed 3
+rather than 11. In bc the same happened to an operand already pushed
+when an assignment to ibase later in the expression ran. Convert the
+constant when it is pushed, as GNU bc and dc do.
+
+---
+ miscutils/bc.c |   11 +++++++++--
+ 1 file changed, 9 insertions(+), 2 deletions(-)
+
+--- a/miscutils/bc.c
++++ b/miscutils/bc.c
+@@ -6789,12 +6789,19 @@
+ 			dbg_exec("BC_INST_builtin:");
+ 			s = zxc_program_builtin(inst);
+ 			break;
+-		case XC_INST_NUM:
++		case XC_INST_NUM: {
++			BcNum *num;
+ 			dbg_exec("XC_INST_NUM:");
+ 			r.t = XC_RESULT_CONSTANT;
+ 			r.d.id.idx = xc_program_index(code, &ip->inst_idx);
+-			bc_vec_push(&G.prog.results, &r);
++			// Convert it now, with the current ibase: a later change
++			// of ibase must not change a number already pushed
++			// (dc: "FF 16 i p")
++			s = zxc_program_num(&r, &num);
++			if (!s)
++				bc_vec_push(&G.prog.results, &r);
+ 			break;
++		}
+ 		case XC_INST_POP:
+ 			dbg_exec("XC_INST_POP:");
+ 			if (!STACK_HAS_MORE_THAN(&G.prog.results, 0))

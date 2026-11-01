@@ -1,0 +1,74 @@
+Keep the line length count right after the newlines bc and dc print.
+Long numbers are broken to fit the line length using a count of the
+characters already on the line, but several newlines did not reset
+it: the one dc's p and f print after a string, a newline written
+literally in a string printed by bc's print or dc's p, a newline byte
+written by dc's P for a number (10P), and a newline in a string
+written by dc's P, which did not count the string's characters at
+all. The count then included characters from earlier lines, so the
+next long number was broken too early, after "[abc]p" three digits
+short, or not at all once the count had passed the line length, as
+after a loop printing many lines with 10P. Reset the count after each
+of these newlines, and count a string written by P as bc's print
+does.
+
+---
+ miscutils/bc.c |   16 ++++++++++++----
+ 1 file changed, 12 insertions(+), 4 deletions(-)
+
+--- a/miscutils/bc.c
++++ b/miscutils/bc.c
+@@ -5542,14 +5542,14 @@
+ 				// But if we're at the end of the string, stop
+ 				if (!c) break;
+ 			} else {
+-				if (n - esc == 0) // "\n" ?
+-					G.prog.nchars = SIZE_MAX;
+ 				c = "\n\a\b\f\r\t""\\\\""\\"[n - esc];
+ 				//   n a b f r t   e \   \<end of line>
+ 			}
+ 		}
+ 		putchar(c);
+ 		++G.prog.nchars;
++		if (c == '\n')
++			G.prog.nchars = 0;
+ 	}
+ }
+ 
+@@ -5568,6 +5568,8 @@
+ 	(void) radix;
+ 	bb_putchar((char) num);
+ 	G.prog.nchars += width;
++	if ((char) num == '\n')
++		G.prog.nchars = 0;
+ }
+ #endif
+ 
+@@ -5789,8 +5791,10 @@
+ 				G.prog.nchars = strlen(nl + 1);
+ 		} else {
+ 			xc_program_printString(str);
+-			if (inst == XC_INST_PRINT)
++			if (inst == XC_INST_PRINT) {
+ 				bb_putchar('\n');
++				G.prog.nchars = 0;
++			}
+ 		}
+ 	}
+ 
+@@ -6518,10 +6522,14 @@
+ 	if (BC_PROG_NUM(r, n)) {
+ 		s = zxc_num_printNum(n, 0x100, 1, dc_num_printChar);
+ 	} else {
+-		char *str;
++		char *str, *nl;
+ 		idx = (r->t == XC_RESULT_STR) ? r->d.id.idx : n->rdx;
+ 		str = *xc_program_str(idx);
+ 		fputs_stdout(str);
++		G.prog.nchars += strlen(str);
++		nl = strrchr(str, '\n');
++		if (nl)
++			G.prog.nchars = strlen(nl + 1);
+ 	}
+ 
+ 	RETURN_STATUS(s);

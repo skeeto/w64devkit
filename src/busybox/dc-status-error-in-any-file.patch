@@ -1,0 +1,28 @@
+Keep an error in any file operand in dc's exit status.
+When standard input is a terminal, an error in a file operand does
+not end dc: the rest of that file is skipped and the next file runs.
+But zxc_vm_exec() stored the status of each file over that of the one
+before, so the exit status reflected only the last file, and
+"dc bad.dc good.dc" exited with status 0 after reporting the error.
+Keep the error status once any file has failed. bc is unchanged, since
+it reads standard input after its files, and that status still
+decides.
+
+---
+ miscutils/bc.c |    5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+--- a/miscutils/bc.c
++++ b/miscutils/bc.c
+@@ -7400,7 +7400,10 @@
+ 	s = BC_STATUS_SUCCESS;
+ 	fname = (void*)G.files.v;
+ 	for (i = 0; i < G.files.len; i++) {
+-		s = zxc_vm_file(*fname++);
++		// An error in any file, not just the last, is the exit status
++		BcStatus st = zxc_vm_file(*fname++);
++		if (st)
++			s = st;
+ 		if (ENABLE_FEATURE_CLEAN_UP && !G_ttyin && s) {
+ 			// Debug config, non-interactive mode:
+ 			// return all the way back to main.

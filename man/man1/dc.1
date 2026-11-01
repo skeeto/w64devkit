@@ -144,13 +144,6 @@ less than the base, so with input base 10,
 .B FF
 is 99.
 .PP
-A number is converted from its digits the first time a command uses it,
-not when it is pushed.
-A change of input base therefore changes the value of numbers pushed
-earlier that no command has used yet, so
-.B FF 16 i p
-prints 255, not 99.
-.PP
 A string is the text between
 .B [
 and
@@ -329,7 +322,6 @@ top value.
 Pop a value and push it on register
 .IR r 's
 own stack.
-A string is pushed there but also stays on the main stack.
 .TP
 .BI L r
 Pop the top value of register
@@ -358,8 +350,6 @@ and push element
 of array
 .IR r .
 Elements that were never stored are 0.
-What is pushed refers to the element instead of holding its value, so
-a later store to that element changes it.
 .PP
 An index is a non-negative integer no greater than 2147483647.
 Any fractional part is dropped.
@@ -490,8 +480,9 @@ A backslash before any other character is printed with it.
 An empty string prints a NUL byte before the LF.
 .TP
 .B n
-The same as
-.BR p .
+Pop the top value and print it as
+.B p
+does, but with no LF.
 .TP
 .B f
 Print every value from the top down, as
@@ -499,13 +490,12 @@ Print every value from the top down, as
 does.
 .TP
 .B P
-Print the top value with no LF, without popping it.
+Pop the top value and print it with no LF.
 A string is written as it is, without translating backslashes, and an
 empty string writes nothing.
-A number is written as the bytes of its integer part in base 256, most
-significant first, followed by its fractional part as further base 256
-digits; 0 is one NUL byte.
-A negative number is an error.
+A number is written as the bytes of the integer part of its absolute
+value in base 256, most significant first; an integer part of 0 is one
+NUL byte.
 .TP
 .B a
 Pop a value and push a one-byte string: for a number, the remainder of
@@ -733,10 +723,8 @@ of memory.
 Standard output is a pipe whose reader has exited.
 No message is printed.
 .PP
-With a console on standard input, errors in the commands of typed lines,
-or of a
-.I file
-operand other than the last, do not change the status.
+With a console on standard input, errors in the commands of typed lines
+do not change the status.
 .SH EXAMPLES
 Evaluate an expression:
 .PP
@@ -842,12 +830,6 @@ hello, world
 .SH NOTES
 Behavior that may surprise a user of another dc:
 .IP \(bu 2
-.B n
-is the same as
-.BR p :
-it prints a newline and leaves the value on the stack, where the usual
-command pops the value and prints no newline.
-.IP \(bu 2
 .B p
 and
 .B f
@@ -856,16 +838,7 @@ a NUL byte.
 .B P
 does neither.
 .IP \(bu 2
-.B P
-does not pop the value, rejects a negative number, and writes the
-fractional part of a number.
-.IP \(bu 2
-.B S
-leaves a string on the main stack as well.
-.IP \(bu 2
-Arrays hold numbers only, and the value that
-.B ;
-pushes follows later stores to its element.
+Arrays hold numbers only.
 .IP \(bu 2
 A register's stack never becomes empty, and
 .B L
@@ -907,23 +880,20 @@ bytes are ignored.
 A script given with
 .B \-e
 is not checked.
-A carriage return is whitespace, so CRLF line endings work, except after
+A carriage return is whitespace, so CRLF line endings work, even after
 a backslash that continues a number.
 A carriage return inside a string stays in it.
 Output lines end with LF, and
 .B P
 writes bytes unchanged to a file or pipe.
 .PP
-The characters that
-.B p
-prints for strings count toward the line length of the next number
-printed, because the LF that
-.B p
-adds after a string does not restart the count.
-That number is therefore broken early, or not at all once the count
-reaches the line length.
+Whatever is already on the line, such as a string or number that
+.B n
+or
 .B P
-does not count the characters of a string.
+printed, counts toward the line length of the next number printed.
+That number is therefore broken early, or before its first character
+once the count reaches the line length.
 .PP
 Interactive mode requires a Windows console.
 In a terminal that connects programs through pipes, such as mintty,

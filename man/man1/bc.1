@@ -527,7 +527,7 @@ line length, 69 by default.
 The count includes whatever
 .B print
 wrote earlier on the line, and a number that starts past the limit is
-not broken at all.
+broken before its first character.
 See
 .BR BC_LINE_LENGTH .
 .SS Math library
@@ -800,9 +800,8 @@ even in a comment or a string.
 The whole line is rejected before any of its statements run.
 .PP
 Files and standard input are read in binary mode, so scripts with LF or
-CRLF line ends both work, since a carriage return is white space.
-But a backslash must be followed directly by the LF, so a continued line
-in a CRLF script is an error.
+CRLF line ends both work, since a carriage return is white space, and a
+backslash may be followed by either line end to continue a line.
 A carriage return in a string stays in the output, and Ctrl-Z does not
 end a file.
 Output lines end with LF.
