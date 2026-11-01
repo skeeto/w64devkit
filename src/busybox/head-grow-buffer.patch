@@ -1,0 +1,84 @@
+Grow the head -n -N and -c -N buffers as input arrives.
+To print all but the last N lines or bytes, head allocated room for
+N + 1 entries before reading any input, so a large N such as
+"head -c -1500m" failed with "out of memory" on 32-bit hosts even for
+a short file, and on others committed memory the input never needed.
+
+Start with at most 1024 entries and double the buffer while filling it,
+up to N + 1. When the input ends while filling, free only the lines
+read so far.
+
+---
+ coreutils/head.c |   36 +++++++++++++++++++++++++++---------
+ 1 file changed, 27 insertions(+), 9 deletions(-)
+
+--- a/coreutils/head.c
++++ b/coreutils/head.c
+@@ -74,13 +74,23 @@
+ static void
+ print_except_N_last_bytes(FILE *fp, unsigned count)
+ {
+-	unsigned char *circle = xmalloc(++count);
++	unsigned char *circle;
+ 	unsigned head = 0;
++	unsigned size;
++
++	count++;
++	size = MIN(count, 1024);
++	circle = xmalloc(size);
+ 	for (;;) {
+ 		int c;
+ 		c = getc(fp);
+ 		if (c == EOF)
+ 			goto ret;
++		if (head == size) {
++			/* grow as input arrives, up to count */
++			size = (size < count / 2) ? size * 2 : count;
++			circle = xrealloc(circle, size);
++		}
+ 		circle[head++] = c;
+ 		if (head == count)
+ 			break;
+@@ -103,13 +113,25 @@
+ static void
+ print_except_N_last_lines(FILE *fp, unsigned count)
+ {
+-	char **circle = xzalloc((++count) * sizeof(circle[0]));
++	char **circle;
+ 	unsigned head = 0;
++	unsigned size;
++
++	count++;
++	size = MIN(count, 1024);
++	circle = xmalloc(size * sizeof(circle[0]));
+ 	for (;;) {
+ 		char *c;
+ 		c = xmalloc_fgets(fp);
+-		if (!c)
++		if (!c) {
++			count = head; /* only these are filled */
+ 			goto ret;
++		}
++		if (head == size) {
++			/* grow as input arrives, up to count */
++			size = (size < count / 2) ? size * 2 : count;
++			circle = xrealloc(circle, size * sizeof(circle[0]));
++		}
+ 		circle[head++] = c;
+ 		if (head == count)
+ 			break;
+@@ -126,12 +148,8 @@
+ 		circle[head++] = c;
+ 	}
+  ret:
+-	head = 0;
+-	for (;;) {
+-		free(circle[head++]);
+-		if (head == count)
+-			break;
+-	}
++	while (count)
++		free(circle[--count]);
+ 	free(circle);
+ }
+ #else

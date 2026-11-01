@@ -98,13 +98,7 @@ If both
 .B \-c
 and
 .B \-n
-are given, in either order,
-.B tail
-counts bytes, using the count of
-.BR \-n ,
-and a leading
-.B +
-on either count selects counting from the start.
+are given, the last one is used.
 .SS Headers
 With more than one
 .I file
@@ -177,16 +171,15 @@ It reports on standard error
 .PP
 .RS 4
 .EX
-tail: \fIname\fR has appeared; following end of new file
-tail: \fIname\fR has been replaced; following end of new file
+tail: \fIname\fR has appeared; following new file
+tail: \fIname\fR has been replaced; following new file
 tail: \fIname\fR has been renamed or deleted: \fIreason\fR
 .EE
 .RE
 .PP
 for a name that now opens but did not before, a name that now refers to
 a different file, and a name that no longer opens.
-Despite the wording, a file that has appeared or been replaced is read
-from its start.
+A file that has appeared or been replaced is read from its start.
 A replaced file is read only after the open file runs out of data.
 After a name is reported renamed or deleted,
 .B tail
@@ -194,7 +187,9 @@ keeps following the file it has open, and repeats the message at each
 poll.
 Standard input has no name to check, so
 .B \-F
-reports it as renamed or deleted at each poll.
+follows it as
+.B \-f
+does.
 .SH OPTIONS
 Options may be grouped, as in
 .BR \-qn5 ,
@@ -291,13 +286,7 @@ A later
 .B \-c
 or
 .B \-n
-replaces the number, but not the
-.B +
-of
-.BI + count ,
-so
-.B tail +2 \-n 3
-writes everything from line 3 on.
+replaces it.
 .TP
 .B \-\-help
 Print a usage message on standard output and exit with status 0.
@@ -342,10 +331,6 @@ An invalid option or count, a
 that could not be opened (except with
 .BR \-F ),
 a read error, a write error, or memory ran out.
-With
-.B \-c
-on a seekable file, a read error, or a write error other than a closed
-pipe, is reported but does not change the status.
 .TP
 .B 141
 Standard output is a pipe that was closed before all output was written.
@@ -474,16 +459,6 @@ Given
 .B \-
 as an operand, it keeps polling the pipe forever, even after the writer
 exits.
-.IP \(bu 2
-When both
-.B \-c
-and
-.B \-n
-are given, GNU
-.B tail
-uses the last one.
-This one counts bytes, with the count of
-.BR \-n .
 .PP
 On input that can seek, such as a regular file,
 .B tail
@@ -495,10 +470,8 @@ With
 it starts reading about 64 KiB before the end for each requested line,
 but at least 960 KiB and at most 2 GiB before the end, so that it does
 not read all of a very large file.
-That assumes the last lines are shorter than that on average.
-If they are longer, it writes fewer than
-.I count
-lines, and the first may be partial.
+If the last lines are longer than that, it backs up twice as far and
+reads again, as often as needed.
 A count that begins with
 .B +
 reads from the start of the input.
@@ -508,18 +481,14 @@ On input that cannot seek, such as a pipe, and on an empty file,
 reads all of the input.
 It holds the last
 .I count
-lines in memory, or with
-.B \-c
-allocates
-.I count
-bytes in advance, so a large count can fail with
-.B out of memory
-even for short input.
+lines or bytes in memory.
 A
 .B \-c
 count of 2147483136 or more without a leading
 .B +
-always fails that way on such input.
+fails with
+.B out of memory
+once 1 GiB of such input has been read.
 .PP
 Files and standard input and output are binary, so CR LF line endings
 are copied unchanged, and lines end only at LF.

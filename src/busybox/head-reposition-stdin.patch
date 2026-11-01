@@ -1,0 +1,37 @@
+Leave a seekable standard input after the last byte head used.
+POSIX requires a utility that stops before end-of-file on seekable
+input to leave the offset just past the last byte processed. head reads
+standard input through stdio, which reads ahead in blocks. glibc and
+musl move the descriptor back to the stream position when they close
+stdin at exit, but the Windows C runtime does not, so after "head -n 2"
+the shared file offset was at the end of the block rather than after
+line 2, and "(head -n 2; cat) <file" lost the lines in between.
+
+On Windows, before exiting, if standard input is not at EOF, seek its
+descriptor to the stream position. For a pipe the seek simply fails.
+Other systems are left alone, since there the C library's adjustment
+at exit would move the offset a second time.
+
+---
+ coreutils/head.c |   11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+--- a/coreutils/head.c
++++ b/coreutils/head.c
+@@ -268,5 +268,16 @@
+ 		fmt = header_fmt_str;
+ 	} while (*++argv);
+ 
++#if ENABLE_PLATFORM_MINGW32
++	/* POSIX: leave a seekable stdin just past the last byte used.
++	 * The C library does this when it closes stdin at exit, but
++	 * the Windows C runtime doesn't. */
++	if (!feof(stdin)) {
++		off_t pos = ftello(stdin);
++		if (pos >= 0)
++			lseek(STDIN_FILENO, pos, SEEK_SET);
++	}
++#endif
++
+ 	fflush_stdout_and_exit(retval);
+ }

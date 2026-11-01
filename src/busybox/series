@@ -423,3 +423,13 @@ paste-read-error.patch
 comm-read-error.patch
 grep-read-error.patch
 rev-read-error.patch
+tail-count-last-option.patch
+tail-plus-not-sticky.patch
+tail-follow-retry-stdin.patch
+tail-new-file-message.patch
+tail-copy-error-status.patch
+tail-long-lines.patch
+tail-grow-byte-buffer.patch
+head-long-long-count.patch
+head-reposition-stdin.patch
+head-grow-buffer.patch

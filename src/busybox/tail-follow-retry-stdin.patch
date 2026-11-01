@@ -1,0 +1,28 @@
+Do not retry standard input by name with tail -F.
+With -F, each poll stats the file name to detect rotation. For
+standard input that name is the "standard input" label or "-", which
+does not exist, so tail tried to open it and printed "standard input
+has been renamed or deleted" (or "- has been ...") at every poll.
+
+Skip the name check for standard input, which is then followed as with
+-f.
+
+---
+ coreutils/tail.c |    6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+--- a/coreutils/tail.c
++++ b/coreutils/tail.c
+@@ -354,7 +354,11 @@
+ 			int new_fd = -1;
+ 			struct stat sbuf;
+ 
+-			if (FOLLOW_RETRY) {
++			/* Standard input has no name to retry */
++			if (FOLLOW_RETRY
++			 && filename != bb_msg_standard_input
++			 && NOT_LONE_DASH(filename)
++			) {
+ 				struct stat fsbuf;
+ 
+ 				if (fd < 0

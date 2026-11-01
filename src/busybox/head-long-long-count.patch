@@ -1,0 +1,58 @@
+Accept head counts beyond 32 bits where long is 32 bits.
+head parsed counts with xatoul_sfx into an unsigned long, which is 32
+bits on Windows and on 32-bit hosts, so "head -c 5000m" or
+"head -n 5000000000" failed with "invalid number" there.
+
+Use unsigned long long and xatoull_sfx, as split and cmp do.
+
+---
+ coreutils/head.c |   10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+--- a/coreutils/head.c
++++ b/coreutils/head.c
+@@ -55,7 +55,7 @@
+ # define print_first_N(fp,count,bytes) print_first_N(fp,count)
+ #endif
+ static void
+-print_first_N(FILE *fp, unsigned long count, bool count_bytes)
++print_first_N(FILE *fp, unsigned long long count, bool count_bytes)
+ {
+ #if !ENABLE_FEATURE_FANCY_HEAD
+ 	const int count_bytes = 0;
+@@ -143,7 +143,7 @@
+ #if !ENABLE_FEATURE_FANCY_HEAD
+ # define eat_num(negative_N,p) eat_num(p)
+ #endif
+-static unsigned long
++static unsigned long long
+ eat_num(bool *negative_N, const char *p)
+ {
+ #if ENABLE_FEATURE_FANCY_HEAD
+@@ -152,7 +152,7 @@
+ 		p++;
+ 	}
+ #endif
+-	return xatoul_sfx(p, bkm_suffixes);
++	return xatoull_sfx(p, bkm_suffixes);
+ }
+ 
+ static const char head_opts[] ALIGN1 =
+@@ -167,7 +167,7 @@
+ int head_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
+ int head_main(int argc, char **argv)
+ {
+-	unsigned long count = 10;
++	unsigned long long count = 10;
+ #if ENABLE_FEATURE_FANCY_HEAD
+ 	int header_threshhold = 1;
+ 	bool count_bytes = 0;
+@@ -236,7 +236,7 @@
+ 	}
+ 	if (negative_N) {
+ 		if (count >= (count_bytes ? INT_MAX : INT_MAX / sizeof(char*)))
+-			bb_error_msg_and_die("count is too big: %lu", count);
++			bb_error_msg_and_die("count is too big: %llu", count);
+ 	}
+ 
+ 	do {

@@ -1,0 +1,24 @@
+Report tail -c errors on seekable files in the exit status.
+For -c on a seekable file tail copies the bytes with bb_copyfd_size and
+ignored its result, so a read error or a write error (for example to a
+full disk) was printed but tail still exited 0.
+
+Set the failure exit status when the copy fails, as tail_read does for
+other read errors.
+
+---
+ coreutils/tail.c |    3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+--- a/coreutils/tail.c
++++ b/coreutils/tail.c
+@@ -234,7 +234,8 @@
+ 					if (current < 0)
+ 						current = 0;
+ 					xlseek(fd, current, SEEK_SET);
+-					bb_copyfd_size(fd, STDOUT_FILENO, count);
++					if (bb_copyfd_size(fd, STDOUT_FILENO, count) < 0)
++						G.exitcode = EXIT_FAILURE;
+ 					continue;
+ 				}
+ #if 1 /* This is technically incorrect for *LONG* strings, but very useful */

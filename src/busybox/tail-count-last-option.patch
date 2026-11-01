@@ -1,0 +1,30 @@
+Make the last of tail -c and -n win.
+With both -c and -n on the command line, tail took the count from -n
+but counted bytes because -c was set, whatever the order, so
+"tail -c 5 -n 2" printed the last 2 bytes and "tail -n 2 -c 5" did the
+same. A leading + on the ignored option also switched to counting from
+the start. GNU tail uses the last of the two.
+
+Declare -c and -n as overriding each other, so getopt32 keeps only the
+last one given.
+
+---
+ coreutils/tail.c |    6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+--- a/coreutils/tail.c
++++ b/coreutils/tail.c
+@@ -140,10 +140,10 @@
+ 	}
+ #endif
+ 
+-	/* -s NUM, -F imlies -f */
+-	opt = getopt32(argv, IF_FEATURE_FANCY_TAIL("^")
++	/* -s NUM, -F imlies -f, the last of -c and -n wins */
++	opt = getopt32(argv, "^"
+ 			"fc:n:"IF_FEATURE_FANCY_TAIL("qs:+vF")
+-			IF_FEATURE_FANCY_TAIL("\0" "Ff"),
++			"\0" "c-n:n-c" IF_FEATURE_FANCY_TAIL(":Ff"),
+ 			&str_c, &str_n IF_FEATURE_FANCY_TAIL(,&sleep_period)
+ 	);
+ #define FOLLOW (opt & 0x1)

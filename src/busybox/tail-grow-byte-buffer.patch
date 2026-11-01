@@ -1,0 +1,73 @@
+Grow the tail -c buffer as input arrives instead of preallocating it.
+For -c N on input that cannot seek, tail allocated N plus BUFSIZ bytes
+before reading anything, so "tail -c 1500m" on a pipe failed with "out
+of memory" on 32-bit hosts however short the input was, and any count
+above INT_MAX - BUFSIZ was refused outright.
+
+Start with BUFSIZ and double the buffer when it fills, up to N plus
+BUFSIZ, so memory follows the input. A buffer that would exceed INT_MAX,
+which the int length cannot index, still fails with "out of memory",
+but only once that much input has arrived. Compare the length with the
+count as unsigned, since the count may now exceed INT_MAX.
+
+---
+ coreutils/tail.c |   29 ++++++++++++++++-------------
+ 1 file changed, 16 insertions(+), 13 deletions(-)
+
+--- a/coreutils/tail.c
++++ b/coreutils/tail.c
+@@ -188,15 +188,9 @@
+ 
+ 	/* prepare the buffer */
+ 	tailbufsize = BUFSIZ;
+-	if (!G.from_top && COUNT_BYTES) {
+-		/* taillen is an int, the buffer can't be larger */
+-		if (count > INT_MAX - BUFSIZ)
+-			tailbufsize = 0; /* too big, fail if it's needed */
+-		else if (tailbufsize < count + BUFSIZ)
+-			tailbufsize = count + BUFSIZ;
+-	}
+ 	/* tail -c1024m REGULAR_FILE doesn't really need 1G mem block.
+-	 * (In fact, it doesn't need ANY memory). So delay allocation.
++	 * (In fact, it doesn't need ANY memory). So delay allocation,
++	 * and on a pipe grow the buffer as data arrives.
+ 	 */
+ 	tailbuf = NULL;
+ 
+@@ -259,11 +253,8 @@
+ 			}
+ 		}
+ 
+-		if (!tailbuf) {
+-			if (!tailbufsize)
+-				bb_die_memory_exhausted();
++		if (!tailbuf)
+ 			tailbuf = xmalloc(tailbufsize);
+-		}
+ 
+  read_again:
+ 		buf = tailbuf;
+@@ -298,10 +289,22 @@
+ 			} else if (count) {
+ 				if (COUNT_BYTES) {
+ 					taillen += nread;
+-					if (taillen > (int)count) {
++					if ((unsigned)taillen > count) {
+ 						memmove(tailbuf, tailbuf + taillen - count, count);
+ 						taillen = count;
+ 					}
++					if (tailbufsize - taillen < BUFSIZ
++					 && tailbufsize - BUFSIZ < count
++					) {
++						/* Grow up to count + BUFSIZ,
++						 * taillen is an int */
++						tailbufsize *= 2;
++						if (tailbufsize - BUFSIZ > count)
++							tailbufsize = count + BUFSIZ;
++						if (tailbufsize > INT_MAX)
++							bb_die_memory_exhausted();
++						tailbuf = xrealloc(tailbuf, tailbufsize);
++					}
+ 				} else {
+ 					int k = nread;
+ 					int newlines_in_buf = 0;

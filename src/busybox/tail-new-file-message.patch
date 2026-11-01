@@ -1,0 +1,21 @@
+Fix the tail -F message for a new or replaced file.
+When a followed name appears or is replaced, tail said "following end
+of new file" but reads the new file from its start, as it should since
+all of its contents are new. Say "following new file", as GNU tail
+does.
+
+---
+ coreutils/tail.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/coreutils/tail.c
++++ b/coreutils/tail.c
+@@ -370,7 +370,7 @@
+ 					/* Looks like file has been created/renamed/deleted */
+ 					new_fd = open(filename, O_RDONLY);
+ 					if (new_fd >= 0) {
+-						bb_error_msg("%s has %s; following end of new file",
++						bb_error_msg("%s has %s; following new file",
+ 							filename, (fd < 0) ? "appeared" : "been replaced"
+ 						);
+ 						if (fd < 0) {

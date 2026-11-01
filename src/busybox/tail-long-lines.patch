@@ -1,0 +1,91 @@
+Back up further when tail -n meets long lines in a seekable file.
+To avoid reading all of a large file, tail -n N starts reading about
+64 KiB per requested line before the end, but at least 960 KiB. When
+the last lines were longer than that, it printed what it had found: the
+first line was cut at the starting point, and lines were missing, so
+"tail -n 3" on a file whose last lines were 2 MB long printed 2 lines,
+the first of them partial.
+
+Note when the first, possibly partial, line in the buffer is dropped.
+If the input ends before that happens, back up twice as far and read
+again, until the line is dropped or the start of the file is reached.
+Short lines keep the single pass.
+
+---
+ coreutils/tail.c |   30 ++++++++++++++++++++++++++----
+ 1 file changed, 26 insertions(+), 4 deletions(-)
+
+--- a/coreutils/tail.c
++++ b/coreutils/tail.c
+@@ -211,6 +211,7 @@
+ 		unsigned seen;
+ 		int nread;
+ 		int fd = fds[i];
++		off_t back = 0;
+ 
+ 		if (ENABLE_FEATURE_FANCY_TAIL && fd < 0)
+ 			continue; /* may happen with -F */
+@@ -238,17 +239,21 @@
+ 						G.exitcode = EXIT_FAILURE;
+ 					continue;
+ 				}
+-#if 1 /* This is technically incorrect for *LONG* strings, but very useful */
++#if 1 /* Not needed for correctness, but very useful */
+ 				/* Optimizing count-lines case if the file is seekable.
+-				 * We assume the lines are <64k.
++				 * We assume the lines are <64k, and back up
++				 * further below if they are not.
+ 				 * (Users complain that tail takes too long
+ 				 * on multi-gigabyte files) */
+ 				off = (count | 0xf); /* for small counts, be more paranoid */
+ 				if (off > (INT_MAX / (64*1024)))
+ 					off = (INT_MAX / (64*1024));
+-				current -= off * (64*1024);
+-				if (current < 0)
++				back = off * (64*1024);
++				current -= back;
++				if (current <= 0) {
+ 					current = 0;
++					back = 0;
++				}
+ 				xlseek(fd, current, SEEK_SET);
+ #endif
+ 			}
+@@ -260,6 +265,7 @@
+ 			tailbuf = xmalloc(tailbufsize);
+ 		}
+ 
++ read_again:
+ 		buf = tailbuf;
+ 		taillen = 0;
+ 		/* "We saw 1st line/byte".
+@@ -315,6 +321,8 @@
+ 						char *s;
+ 
+ 						k = newlines_seen + newlines_in_buf + extra - count;
++						if (k) /* the line we backed up into is dropped */
++							back = 0;
+ 						s = tailbuf;
+ 						while (k) {
+ 							if (*s == '\n') {
+@@ -334,6 +342,20 @@
+ 				buf = tailbuf + taillen;
+ 			}
+ 		} /* while (tail_read() > 0) */
++		if (nread == 0 && back && count) {
++			/* The lines are longer than we assumed: the first one
++			 * may be partial, and lines may be missing. Back up
++			 * twice as far and read again. */
++			off_t current = lseek(fd, 0, SEEK_CUR);
++			back *= 2;
++			current -= back;
++			if (current <= 0) {
++				current = 0;
++				back = 0;
++			}
++			xlseek(fd, current, SEEK_SET);
++			goto read_again;
++		}
+ 		if (!G.from_top) {
+ 			xwrite(STDOUT_FILENO, tailbuf, taillen);
+ 		}

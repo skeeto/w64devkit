@@ -1,0 +1,29 @@
+Let a later tail count replace a leading + count.
+eat_num set the count-from-start flag for a count beginning with + and
+never cleared it, so after a legacy +N first argument a later -n or -c
+count was still taken from the start: "tail +2 -n 3" printed everything
+from line 3 on instead of the last 3 lines.
+
+Set the flag from each count parsed, so the last count decides.
+
+---
+ coreutils/tail.c |    7 ++-----
+ 1 file changed, 2 insertions(+), 5 deletions(-)
+
+--- a/coreutils/tail.c
++++ b/coreutils/tail.c
+@@ -101,12 +101,9 @@
+ 
+ static unsigned eat_num(const char *p)
+ {
+-	if (*p == '-')
++	G.from_top = (*p == '+');
++	if (*p == '-' || *p == '+')
+ 		p++;
+-	else if (*p == '+') {
+-		p++;
+-		G.from_top = 1;
+-	}
+ 	return xatou_sfx(p, bkm_suffixes);
+ }
+ 

@@ -43,7 +43,7 @@ or
 .BR m ,
 which multiply it by 512, 1024, or 1048576.
 Suffixes are lowercase.
-The result must be from 0 to 4294967295.
+The result must be from 0 to 18446744073709551615.
 Hexadecimal, a leading
 .BR + ,
 and white space are not accepted.
@@ -298,26 +298,19 @@ and
 and a leading
 .BR + ,
 are errors.
-.IP \(bu 2
-Counts are limited to 4294967295, in the 64-bit kit too.
 .PP
 With a leading
 .BR \- ,
-.B head
-allocates memory in proportion to
-.I count
-before it reads any input, so a large count can fail with
-.B out of memory
-even for short input.
-A line count of 268435455 or more (536870911 or more in the 32-bit
+a line count of 268435455 or more (536870911 or more in the 32-bit
 kit), or a byte count of 2147483647 or more, is refused with
 .B count is too big
 before any file is read.
 .PP
+When
 .B head
-reads its input in blocks, and leaves a seekable standard input at the
-end of the last block it read, not after the last byte it used.
-A command that shares the redirected standard input with
+stops before the end of a seekable standard input, it leaves it just
+after the last byte it used, so a command that shares the redirected
+standard input with
 .B head
 continues from there.
 .PP
