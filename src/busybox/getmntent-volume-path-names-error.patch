@@ -1,0 +1,30 @@
+Handle GetVolumePathNamesForVolumeName() failure in getmntent().
+getmntent() calls GetVolumePathNamesForVolumeName() once to size the
+list of a volume's mount points and again to fill it, and checked
+neither call. If the first failed with anything but ERROR_MORE_DATA,
+for instance because the volume went away, the size stayed 0, and
+getmntent() read the first byte of a zero-sized allocation (or, if
+malloc(0) returned NULL, dereferenced NULL); if the second failed, it
+walked an uninitialised buffer. Allocate one spare byte, and treat a
+failed call as an empty list, so the volume is skipped.
+
+---
+ win32/mntent.c |    7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+--- a/win32/mntent.c
++++ b/win32/mntent.c
+@@ -129,9 +129,10 @@
+ 		/* Mount point list is a single string array which may contain
+ 		 * many items separated by NUL, terminated by two NULs */
+ 		GetVolumePathNamesForVolumeName(state->vol_name, NULL, 0, &need);
+-		state->mount_list = state->mount_ptr = xmalloc(need);
+-		GetVolumePathNamesForVolumeName(state->vol_name, state->mount_list,
+-											need, &need);
++		state->mount_list = state->mount_ptr = xmalloc(need + 1);
++		if (!GetVolumePathNamesForVolumeName(state->vol_name,
++					state->mount_list, need, &need))
++			state->mount_ptr[0] = '\0';
+ 		if (state->mount_ptr[0] == '\0')
+ 			goto next_vol;
+ 	}

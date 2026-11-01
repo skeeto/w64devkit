@@ -449,3 +449,17 @@ dc-P-pops-integer-part.patch
 dc-S-pops-string.patch
 dc-array-load-value.patch
 dc-status-error-in-any-file.patch
+stat-format-buffer-size.patch
+stat-mingw-no-i-flag.patch
+stat-usage-follow-option.patch
+stat-format-trailing-percent.patch
+find-mount-point-unknown-device.patch
+find-mount-point-errno.patch
+getmntent-skip-unreadable-volume.patch
+getmntent-volume-path-names-error.patch
+getmntent-skip-every-drive-root.patch
+lsattr-mingw-stat-errors.patch
+lsattr-unopenable-directory.patch
+lsattr-exit-status.patch
+chattr-keep-other-attributes.patch
+chattr-unopenable-directory.patch

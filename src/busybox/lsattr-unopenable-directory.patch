@@ -1,0 +1,33 @@
+Report directories that lsattr cannot open.
+lsattr ignored the result of iterate_on_dir(), so a directory operand,
+or with -R a subdirectory, that could not be opened was skipped
+without a message: "lsattr DIR" printed nothing at all, and -R printed
+the subdirectory's heading followed by no entries, as for an empty
+directory. Report the failure as "can't open 'DIR'" with the reason.
+
+---
+ e2fsprogs/lsattr.c |    6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+--- a/e2fsprogs/lsattr.c
++++ b/e2fsprogs/lsattr.c
+@@ -163,7 +163,8 @@
+ 		 && !DOT_OR_DOTDOT(de->d_name)
+ 		) {
+ 			printf("\n%s:\n", path);
+-			iterate_on_dir(path, lsattr_dir_proc, NULL);
++			if (iterate_on_dir(path, lsattr_dir_proc, NULL) != 0)
++				bb_perror_msg("can't open '%s'", path);
+ 			bb_putchar('\n');
+ 		}
+ 	}
+@@ -179,7 +180,8 @@
+ 	if (lstat(name, &st) == -1) {
+ 		bb_perror_msg("can't stat '%s'", name);
+ 	} else if (S_ISDIR(st.st_mode) && !(option_mask32 & OPT_DIRS_OPT)) {
+-		iterate_on_dir(name, lsattr_dir_proc, NULL);
++		if (iterate_on_dir(name, lsattr_dir_proc, NULL) != 0)
++			bb_perror_msg("can't open '%s'", name);
+ 	} else {
+ 		list_attributes(name);
+ 	}

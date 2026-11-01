@@ -25,8 +25,7 @@ read, such as one with no disk in it, are left out.
 Then it reports each folder where a volume is mounted, other than the
 root of a drive, taking the volumes in the order Windows lists them.
 A volume mounted in several folders gets a line for each.
-If the volume information of such a folder cannot be read, the list ends
-there.
+A folder whose volume information cannot be read is left out.
 Any of these whose size is 0 is left out, unless
 .B \-a
 is given.
@@ -48,8 +47,11 @@ leads to, and a UNC path such as
 selects a network drive mapped to the same volume of that server.
 A file on a volume that is not in the list, such as one on a RAM disk or
 on a network share with no drive letter, is an error.
-So, normally, is a file whose serial number busybox cannot read, such as
+So is a file whose serial number busybox cannot read, such as
 a cloud file not yet downloaded.
+Such a file cannot be told apart from one on a volume whose serial
+number is 0, so a file on that volume is an error too, unless it is the
+drive name itself.
 A drive or folder selected this way is reported even when its size is 0.
 .SS Output format
 The header names the fields of each line:

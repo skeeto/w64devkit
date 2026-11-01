@@ -1,0 +1,20 @@
+Show stat's -L option, not a nonexistent -l, in the usage synopsis.
+The synopsis read "[-ltf]", but stat has no -l option, and passing one
+is an error; the option it meant is -L (follow links), which the
+option list below already describes.
+
+---
+ coreutils/stat.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/coreutils/stat.c
++++ b/coreutils/stat.c
+@@ -40,7 +40,7 @@
+ //kbuild:lib-$(CONFIG_STAT) += stat.o
+ 
+ //usage:#define stat_trivial_usage
+-//usage:       "[-lt"IF_FEATURE_STAT_FILESYSTEM("f")"] "IF_FEATURE_STAT_FORMAT("[-c FMT] ")"FILE..."
++//usage:       "[-Lt"IF_FEATURE_STAT_FILESYSTEM("f")"] "IF_FEATURE_STAT_FORMAT("[-c FMT] ")"FILE..."
+ //usage:#define stat_full_usage "\n\n"
+ //usage:       "Display file"
+ //usage:            IF_FEATURE_STAT_FILESYSTEM(" (default) or filesystem")

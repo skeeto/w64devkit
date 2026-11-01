@@ -1,0 +1,48 @@
+Don't end the Windows mount table at a folder that can't be read.
+After the drive letters, getmntent() goes through the folders where
+volumes are mounted. When GetVolumeInformation() failed for one of
+them, getmntent() returned NULL, which callers take as the end of the
+table, so df listed no later mounted folders, and find_mount_point()
+could not match a file on any of them (df FILE: "can't find mount
+point", and stat -f failed). Skip such a folder and go on to the next
+one, as is already done for drive letters.
+
+---
+ win32/mntent.c |    9 ++++-----
+ 1 file changed, 4 insertions(+), 5 deletions(-)
+
+--- a/win32/mntent.c
++++ b/win32/mntent.c
+@@ -89,7 +89,6 @@
+ struct mntent *getmntent(FILE *stream)
+ {
+ 	struct mntstate *state = (struct mntstate *)stream;
+-	struct mntent *entry = NULL;
+ 
+ 	/* First we query each drive letter */
+ 	while (++state->index < 26) {
+@@ -112,6 +111,7 @@
+ 			return NULL;
+ 	}
+ 
++ next_point:
+ 	/* If we're at the end of a mount point list we need the next volume */
+ 	if (state->mount_list && state->mount_ptr[0] == '\0') {
+  next_vol:
+@@ -161,13 +161,12 @@
+ 	strcpy(state->data.mnt_volname, state->vol_name);
+ 	strcpy(state->data.mnt_dir, state->mount_ptr);
+ 	bs_to_slash(state->data.mnt_dir);
+-	if (fill_mntdata(&state->data, state->index)) {
+-		entry = &state->data.me;
+-	}
+ 	/* move to next item in mount point list */
+ 	state->mount_ptr += strlen(state->mount_ptr) + 1;
++	if (!fill_mntdata(&state->data, state->index))
++		goto next_point;	/* skip a mount point we can't read */
+ 
+-	return entry;
++	return &state->data.me;
+ }
+ 
+ int endmntent(FILE *stream)

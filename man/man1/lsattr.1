@@ -51,12 +51,13 @@ The name of a
 is printed as given.
 The name of an entry in a directory is the name of the directory, a
 slash, and the name of the entry, with the slash omitted if the
-directory's name already ends in one or is a bare drive, as in
-.IR C:main.c .
-A trailing backslash does not count: the entries of
+directory's name already ends in a slash or backslash or is a bare
+drive, as in
+.IR C:main.c ,
+so the entries of
 .I proj\e
 are named like
-.IR proj\e/main.c .
+.IR proj\emain.c .
 Names are never converted, so backslashes and drive letters stay as
 typed.
 Entries are listed in the order the file system returns them;
@@ -84,13 +85,19 @@ has no attributes and is reported as
 .PP
 .RS 4
 .EX
-lsattr: reading \fIfile\fR
+lsattr: reading \fIfile\fR: Inappropriate I/O control operation
 .EE
 .RE
 .PP
-This message may end with a reason left over from an earlier failure,
-which does not apply.
-A directory that cannot be opened is skipped without a message.
+and a directory that cannot be opened is reported as
+.PP
+.RS 4
+.EX
+lsattr: can\(aqt open \(aq\fIdirectory\fR\(aq: \fIreason\fR
+.EE
+.RE
+.PP
+Every error above makes the exit status 1.
 .SS Attribute field
 The field has one position for each attribute shown, in the order below.
 A position holds the attribute's letter if the file has the attribute and
@@ -173,7 +180,7 @@ subdirectory whose name begins with a dot is entered only with
 .BR \-a .
 A volume mount point is entered.
 The heading of a subdirectory that cannot be opened is still printed,
-followed by no entries.
+followed by no entries, and the failure is reported as described above.
 With
 .BR \-d ,
 nothing is entered.
@@ -247,10 +254,14 @@ control console output, are described in
 .TP
 .B 0
 Success.
-Files that could not be found or listed do not affect the status.
 .TP
 .B 1
-An invalid option, with a usage message on standard error.
+An invalid option, with a usage message on standard error, or some
+file could not be found or listed, or some directory could not be
+opened, which is reported as described above; the remaining files are
+still processed.
+Also an error writing standard output other than a closed pipe, which is
+reported on standard error.
 .TP
 .B 141
 Standard output is a pipe that was closed before all output was written.
@@ -321,8 +332,6 @@ There is no
 or
 .BR \-v ;
 both are invalid options.
-.IP \(bu 2
-Errors on individual files do not change the exit status.
 .PP
 Of the attributes that
 .B lsattr

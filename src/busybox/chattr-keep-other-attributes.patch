@@ -1,0 +1,43 @@
+Keep the attributes chattr doesn't manage when it changes a file.
+On Windows chattr passed SetFileAttributes() only the six attributes
+it can change (read-only, hidden, system, archive, temporary and not
+indexed), so every change also cleared any other attribute that call
+sets, such as offline, pinned or unpinned, even when no mode named it.
+"chattr +h FILE" on a OneDrive file kept on the device, for example,
+dropped its pinned attribute. Pass the file's attributes with only the
+requested changes, as the C runtime's chmod() does: SetFileAttributes()
+ignores the ones it cannot set, such as directory or compressed.
+
+---
+ e2fsprogs/chattr.c   |    5 ++++-
+ e2fsprogs/e2fs_lib.h |    5 -----
+ 2 files changed, 4 insertions(+), 6 deletions(-)
+
+--- a/e2fsprogs/chattr.c
++++ b/e2fsprogs/chattr.c
+@@ -276,7 +276,10 @@
+ 		st.st_attr &= ~gp->rf;
+ 	/*if (gp->flags & OPT_ADD) - not needed, af is zero otherwise */
+ 		st.st_attr |= gp->af;
+-	if (!SetFileAttributes(name, st.st_attr & CHATTR_MASK)) {
++	/* SetFileAttributes() ignores attributes it can't set, such as
++	 * directory or compressed, so passing them all keeps the ones it
++	 * can set but chattr doesn't know, such as offline or pinned. */
++	if (!SetFileAttributes(name, st.st_attr)) {
+ 		errno = err_win_to_posix();
+ 		bb_perror_msg("setting flags on %s", name);
+ 		gp->exitcode = EXIT_FAILURE;
+--- a/e2fsprogs/e2fs_lib.h
++++ b/e2fsprogs/e2fs_lib.h
+@@ -12,11 +12,6 @@
+ PUSH_AND_SET_FUNCTION_VISIBILITY_TO_HIDDEN
+ 
+ #if ENABLE_PLATFORM_MINGW32
+-/* Only certain attributes can be set using SetFileAttributes() */
+-#define CHATTR_MASK (FILE_ATTRIBUTE_READONLY | FILE_ATTRIBUTE_HIDDEN | \
+-			FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_ARCHIVE | \
+-			FILE_ATTRIBUTE_TEMPORARY | FILE_ATTRIBUTE_NOT_CONTENT_INDEXED)
+-
+ /* Print file attributes on an NTFS file system */
+ void print_e2flags_long(struct stat *sb);
+ void print_e2flags(struct stat *sb);

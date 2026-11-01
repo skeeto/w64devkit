@@ -1,0 +1,32 @@
+Report lsattr's errors on Windows with a valid errno.
+On Windows, list_attributes() lstat()s the file to get its attributes.
+For a device such as /dev/null it reported "reading FILE" with
+whatever reason an earlier failure had left in errno, if any.
+And if lstat() itself failed, which can happen when the file goes away
+after lsattr_args() or the directory walk examined it, it went on to
+print the attributes of an uninitialised struct stat. Report a failed
+lstat() with its own errno, and a device with ENOTTY, the error that
+the attribute ioctl gives for a device on Linux.
+
+---
+ e2fsprogs/lsattr.c |    8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+--- a/e2fsprogs/lsattr.c
++++ b/e2fsprogs/lsattr.c
+@@ -114,9 +114,13 @@
+ #else /* ENABLE_PLATFORM_MINGW32 */
+ 	struct stat st;
+ 
+-	if (lstat(name, &st) == 0 && !(S_ISREG(st.st_mode) ||
+-				S_ISDIR(st.st_mode) || S_ISLNK(st.st_mode)))
++	if (lstat(name, &st) != 0)
+ 		goto read_err;
++	if (!(S_ISREG(st.st_mode) ||
++				S_ISDIR(st.st_mode) || S_ISLNK(st.st_mode))) {
++		errno = ENOTTY; /* as the ioctl gives on Linux */
++		goto read_err;
++	}
+ 
+ #define fsflags &st
+ #endif

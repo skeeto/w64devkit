@@ -1,0 +1,31 @@
+Don't match a mount point by an unknown device number on Windows.
+find_mount_point() picks the first drive or mounted folder whose
+st_dev, the volume serial number, equals the file's. stat() gives a
+device of 0 when it cannot read the serial number, for instance for a
+file it cannot open or a cloud file that has not been downloaded, so
+such a file matched the first mount point whose serial number also
+could not be read, and "df FILE" and "stat -f FILE" silently reported
+an unrelated volume. Don't match on a device of 0; a file named by its
+drive or mount point still matches by name. Builds without
+FEATURE_EXTRA_FILE_DATA, where every device is 0, are unchanged.
+
+---
+ libbb/find_mount_point.c |    7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+--- a/libbb/find_mount_point.c
++++ b/libbb/find_mount_point.c
+@@ -94,8 +94,11 @@
+ 			break;
+ 		}
+ 
+-		/* Match the directory's mount point. */
+-		if (stat(mountEntry->mnt_dir, &s) == 0
++		/* Match the directory's mount point.  A device of 0 means
++		 * the volume serial number couldn't be read: it matches
++		 * nothing, unless device numbers aren't read at all. */
++		if ((devno_of_name != 0 || !ENABLE_FEATURE_EXTRA_FILE_DATA)
++		 && stat(mountEntry->mnt_dir, &s) == 0
+ 		 && s.st_dev == devno_of_name
+ 		) {
+ 			break;

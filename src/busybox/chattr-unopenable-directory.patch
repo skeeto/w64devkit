@@ -1,0 +1,27 @@
+Report directories that chattr -R cannot open.
+chattr ignored the result of iterate_on_dir(), so with -R a directory
+whose entries could not be read was skipped without a message and did
+not affect the exit status, as if it were empty. Report the failure
+as "can't open 'DIR'" with the reason, and exit with status 1.
+
+---
+ e2fsprogs/chattr.c |    8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+--- a/e2fsprogs/chattr.c
++++ b/e2fsprogs/chattr.c
+@@ -286,8 +286,12 @@
+ 	}
+ #endif
+ 
+-	if (gp->recursive && S_ISDIR(st.st_mode))
+-		iterate_on_dir(name, chattr_dir_proc, gp);
++	if (gp->recursive && S_ISDIR(st.st_mode)
++	 && iterate_on_dir(name, chattr_dir_proc, gp) != 0
++	) {
++		bb_perror_msg("can't open '%s'", name);
++		gp->exitcode = EXIT_FAILURE;
++	}
+ }
+ 
+ int chattr_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;

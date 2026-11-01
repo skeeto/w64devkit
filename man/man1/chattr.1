@@ -64,13 +64,16 @@ or
 Files are changed in order.
 A
 .I file
-that cannot be found, or whose attributes cannot be set, is reported on
+that cannot be found, or whose attributes cannot be set, or, with
+.BR \-R ,
+a directory whose entries cannot be read, is reported on
 standard error as
 .PP
 .RS 4
 .EX
 chattr: can\(aqt stat \(aq\fIfile\fR\(aq: \fIreason\fR
 chattr: setting flags on \fIfile\fR: \fIreason\fR
+chattr: can\(aqt open \(aq\fIfile\fR\(aq: \fIreason\fR
 .EE
 .RE
 .PP
@@ -116,8 +119,8 @@ subdirectories.
 Symbolic links and junctions are changed but not descended into.
 A volume mount point is a directory, so the files of the volume mounted
 there are changed too.
-The entries of a directory that cannot be read are skipped without a
-message, and do not affect the exit status.
+The entries of a directory that cannot be read are skipped, and this is
+reported as described above.
 .TP
 .B \-\-help
 As the first argument, print a usage message on standard output and
@@ -153,7 +156,9 @@ A usage or error message is printed on standard error, and no file is
 changed.
 The status is also 1 when some
 .I file
-could not be found or changed, which is reported as described above;
+could not be found or changed, or, with
+.BR \-R ,
+some directory could not be read, which is reported as described above;
 the remaining files are still processed.
 .SH EXAMPLES
 Make a file read-only, and show the result:
@@ -208,18 +213,10 @@ or
 .BR \-v ;
 each is an unknown attribute letter.
 .PP
+Attributes that
 .B chattr
-passes
-.B SetFileAttributes
-only the six attributes above, so any other attribute that call can
-set, such as offline, pinned, or unpinned, is cleared from every file
-.B chattr
-changes, even when no mode names it.
-A mode of
-.B +
-alone adds nothing, so
-.BI "chattr + " file
-only clears those attributes.
+has no letter for, such as offline, pinned, and unpinned, are left
+unchanged.
 Pinned and unpinned record whether cloud storage such as OneDrive keeps
 a file on the device.
 Other attributes that

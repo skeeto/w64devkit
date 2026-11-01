@@ -1,0 +1,24 @@
+Keep the trailing newline when a stat format ends in a lone '%'.
+stat prints a newline after each -c format, but when the format ended
+in a '%' with no directive letter after it, print_it() printed the '%'
+and stopped, so "stat -c 'abc%' FILE" printed "abc%" with no newline
+and ran the output for the next file onto the same line. Print the '%'
+and then go on to the end of the format as usual, which prints the
+newline, as coreutils stat does.
+
+---
+ coreutils/stat.c |    3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+--- a/coreutils/stat.c
++++ b/coreutils/stat.c
+@@ -476,7 +476,8 @@
+ 		b = p + 1;
+ 		switch (*p) {
+ 		case '\0':
+-			b = NULL;
++			/* format ends in '%': print it, then the newline */
++			b = p;
+ 			/* fall through */
+ 		case '%':
+ 			bb_putchar('%');

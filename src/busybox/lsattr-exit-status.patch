@@ -1,0 +1,122 @@
+Make lsattr exit with status 1 when a file could not be listed.
+lsattr reported each file it could not stat, open or read, and each
+directory it could not open, and went on with the rest, but always
+exited with status 0, so a caller could not tell that anything had
+failed. Record such errors and exit with status 1, as chattr does.
+
+---
+ e2fsprogs/lsattr.c |   38 ++++++++++++++++++++++++--------------
+ 1 file changed, 24 insertions(+), 14 deletions(-)
+
+--- a/e2fsprogs/lsattr.c
++++ b/e2fsprogs/lsattr.c
+@@ -74,7 +74,7 @@
+ 	OPT_PROJID     = 1 << 5,
+ };
+ 
+-static void list_attributes(const char *name)
++static int list_attributes(const char *name)
+ {
+ #if !ENABLE_PLATFORM_MINGW32
+ 	unsigned fsflags;
+@@ -87,7 +87,7 @@
+ 	 */
+ 	fd = open_or_warn(name, O_RDONLY | O_NONBLOCK | O_NOCTTY | O_NOFOLLOW);
+ 	if (fd < 0)
+-		return;
++		return EXIT_FAILURE;
+ 
+ 	if (option_mask32 & OPT_PROJID) {
+ 		struct ext2_fsxattr fsxattr;
+@@ -134,37 +134,40 @@
+ 		printf(" %s\n", name);
+ 	}
+ 
+-	return;
++	return EXIT_SUCCESS;
+  read_err:
+ 	bb_perror_msg("reading %s", name);
+ #if !ENABLE_PLATFORM_MINGW32
+ 	close(fd);
+ #endif
++	return EXIT_FAILURE;
+ }
+ 
+ static int FAST_FUNC lsattr_dir_proc(const char *dir_name,
+ 		struct dirent *de,
+-		void *private UNUSED_PARAM)
++		void *status)
+ {
+ 	struct stat st;
+ 	char *path;
+ 
+ 	path = concat_path_file(dir_name, de->d_name);
+ 
+-	if (lstat(path, &st) != 0)
++	if (lstat(path, &st) != 0) {
+ 		bb_perror_msg("can't stat '%s'", path);
+-
+-	else if (de->d_name[0] != '.' || (option_mask32 & OPT_ALL)) {
++		*(int *)status = EXIT_FAILURE;
++	} else if (de->d_name[0] != '.' || (option_mask32 & OPT_ALL)) {
+ 	        /* Don't try to open device files, fifos etc */
+ 		if (S_ISREG(st.st_mode) || S_ISLNK(st.st_mode) || S_ISDIR(st.st_mode))
+-			list_attributes(path);
++			*(int *)status |= list_attributes(path);
+ 
+ 		if (S_ISDIR(st.st_mode) && (option_mask32 & OPT_RECUR)
+ 		 && !DOT_OR_DOTDOT(de->d_name)
+ 		) {
+ 			printf("\n%s:\n", path);
+-			if (iterate_on_dir(path, lsattr_dir_proc, NULL) != 0)
++			if (iterate_on_dir(path, lsattr_dir_proc, status) != 0) {
+ 				bb_perror_msg("can't open '%s'", path);
++				*(int *)status = EXIT_FAILURE;
++			}
+ 			bb_putchar('\n');
+ 		}
+ 	}
+@@ -173,23 +176,30 @@
+ 	return 0;
+ }
+ 
+-static void lsattr_args(const char *name)
++static int lsattr_args(const char *name)
+ {
+ 	struct stat st;
++	int status = EXIT_SUCCESS;
+ 
+ 	if (lstat(name, &st) == -1) {
+ 		bb_perror_msg("can't stat '%s'", name);
++		status = EXIT_FAILURE;
+ 	} else if (S_ISDIR(st.st_mode) && !(option_mask32 & OPT_DIRS_OPT)) {
+-		if (iterate_on_dir(name, lsattr_dir_proc, NULL) != 0)
++		if (iterate_on_dir(name, lsattr_dir_proc, &status) != 0) {
+ 			bb_perror_msg("can't open '%s'", name);
++			status = EXIT_FAILURE;
++		}
+ 	} else {
+-		list_attributes(name);
++		status = list_attributes(name);
+ 	}
++	return status;
+ }
+ 
+ int lsattr_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
+ int lsattr_main(int argc UNUSED_PARAM, char **argv)
+ {
++	int status = EXIT_SUCCESS;
++
+ #if ENABLE_PLATFORM_MINGW32
+ 	getopt32(argv, "Radl");
+ #else
+@@ -199,7 +209,7 @@
+ 
+ 	if (!*argv)
+ 		*--argv = (char*)".";
+-	do lsattr_args(*argv++); while (*argv);
++	do status |= lsattr_args(*argv++); while (*argv);
+ 
+-	return EXIT_SUCCESS;
++	return status;
+ }

@@ -1,0 +1,24 @@
+Skip every drive root in a volume's mount point list in getmntent().
+getmntent() lists drive letters first and then, for each volume, the
+folders where it is mounted, skipping drive roots such as "D:\" that
+it has already listed. After skipping one it used the next path
+without checking it, so for a volume with two drive letters in a row
+in its list, the second drive root was listed again as a mounted
+folder, and df showed that drive twice. Keep skipping while the path
+is a drive root.
+
+---
+ win32/mntent.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/win32/mntent.c
++++ b/win32/mntent.c
+@@ -138,7 +138,7 @@
+ 	}
+ 
+ 	/* Skip mount points like 'C:/', we've already done them */
+-	if (strlen(state->mount_ptr) == 3 &&
++	while (strlen(state->mount_ptr) == 3 &&
+ 			state->drives & 1 << (toupper(state->mount_ptr[0]) - 'A')) {
+ 		state->mount_ptr += 4;
+ 		if (state->mount_ptr[0] == '\0')

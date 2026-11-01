@@ -1,0 +1,28 @@
+Fix a one-byte heap overflow in stat's format handling.
+print_it() copies each directive's "%" and modifiers into a buffer
+sized strlen(format)+3, on the assumption that the conversion letter
+is replaced by at most "llu". Where LL_FMT is "I64", as with msvcrt,
+the 64-bit conversions append "I64u", "I64x" or "I64d", one byte more,
+so a format that is a single directive, such as "stat -c %s", wrote
+the terminating NUL one byte past the end of the buffer. Size the
+buffer from LL_FMT.
+
+---
+ coreutils/stat.c |    6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+--- a/coreutils/stat.c
++++ b/coreutils/stat.c
+@@ -443,9 +443,9 @@
+ {
+ 	/* Create a working copy of the format string */
+ 	char *format = xstrdup(masterformat);
+-	/* Add 2 to accommodate our conversion of the stat '%s' format string
+-	 * to the printf '%llu' one.  */
+-	char *dest = xmalloc(strlen(format) + 2 + 1);
++	/* Leave room for our conversion of the stat '%s' format string
++	 * to the printf '%llu' one (LL_FMT may be longer than "ll").  */
++	char *dest = xmalloc(strlen(format) + sizeof(LL_FMT"u"));
+ 	char *b;
+ 
+ 	b = format;

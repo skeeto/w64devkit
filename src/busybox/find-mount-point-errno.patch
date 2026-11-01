@@ -1,0 +1,23 @@
+Set errno when find_mount_point() finds no mount point on Windows.
+The Windows statfs() returns -1 when find_mount_point() fails, and
+"stat -f" then reports errno. When the file existed but no drive or
+mounted folder matched it, errno was whatever an earlier call had left
+there, so stat printed an unrelated reason, such as "can't read file
+system information for 'FILE': Function not implemented". Set errno
+to ENODEV in that case.
+
+---
+ libbb/find_mount_point.c |    2 ++
+ 1 file changed, 2 insertions(+)
+
+--- a/libbb/find_mount_point.c
++++ b/libbb/find_mount_point.c
+@@ -121,6 +121,8 @@
+ 		mountEntry = &data->me;
+ 	}
+ 	endmntent(mtab_fp);
++	if (!mountEntry)
++		errno = ENODEV; /* for statfs() */
+ #endif
+ 
+ 	return mountEntry;

@@ -1,0 +1,24 @@
+Don't pass an 'I' modifier from a stat format to printf on Windows.
+print_it() accepts the glibc 'I' flag (locale digits) between a '%'
+and the directive letter and passes it on to printf. The Windows C
+runtime instead takes 'I' as an integer size prefix (I, I32, I64), so
+"stat -c %Is" built "%II64u" and printed "II64u" instead of the size.
+On Windows, don't treat 'I' as a modifier: like any other letter that
+is not a directive, it is then printed as itself.
+
+---
+ coreutils/stat.c |    3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+--- a/coreutils/stat.c
++++ b/coreutils/stat.c
+@@ -463,7 +463,8 @@
+ 		}
+ 
+ 		/* dest = "%<modifiers>" */
+-		len = 1 + strspn(p + 1, "#-+.I 0123456789");
++		/* (msvcrt printf takes 'I' as a size prefix, not a flag) */
++		len = 1 + strspn(p + 1, "#-+." IF_NOT_PLATFORM_MINGW32("I") " 0123456789");
+ 		memcpy(dest, p, len);
+ 		dest[len] = '\0';
+ 

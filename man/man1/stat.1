@@ -172,7 +172,10 @@ any of the characters
 a space, and digits.
 An
 .B I
-is accepted there too, but makes the directive print wrongly.
+is not one of them but a letter that is not a directive, so
+.B %Is
+prints
+.BR Is .
 Numbers are printed as integers and everything else as strings, so
 .B %\-10s
 pads the size on the right,
@@ -381,9 +384,6 @@ or be the next argument.
 ends the options.
 There are no long options other than
 .BR \-\-help .
-There is no
-.BR \-l ,
-although the usage message shows one.
 .TP
 .BI "\-c " format
 Print
@@ -395,15 +395,14 @@ Every other character is printed as it is, including a backslash, so
 .B \en
 is not a newline.
 A newline follows
-.IR format ,
-except that when
+.IR format .
+When
 .I format
 ends in a
 .B %
 with no letter after it, the
 .B %
-is printed, any flags and digits after it are dropped, and there is no
-newline.
+is printed and any flags and digits after it are dropped.
 If given more than once, the last
 .B \-c
 applies.
@@ -422,8 +421,10 @@ folder where a volume is mounted, whose volume has the file's serial
 number.
 So a link to another volume selects the volume of its target.
 A file on a volume with neither, such as a network share with no drive
-letter, fails, and so, normally, does a file with device 0; see
+letter, fails, and so does a file with device 0; see
 .BR NOTES .
+The reason given for either is
+.BR "No such device" .
 .TP
 .B \-L
 Follow symbolic links: describe the target of a link instead of the link.
@@ -510,6 +511,12 @@ could not be examined, or the command line was invalid: no
 .IR file ,
 an unknown option, or a missing argument.
 An invalid command line gets a usage message on standard error.
+Also an error writing standard output other than a closed pipe, which is
+reported on standard error.
+.TP
+.B 141
+Standard output is a pipe whose reader has exited.
+No message is printed.
 .PP
 A file that cannot be examined is reported on standard error as
 .PP
