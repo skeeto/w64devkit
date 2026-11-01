@@ -1,0 +1,32 @@
+End the Schannel copy loop when close_notify arrives along with data.
+tls_read marks the session closed when DecryptMessage reports the peer's
+close_notify, but if data was decrypted earlier in the same call it
+returns that data, and the copy loop wrote it and went back to poll().
+Nothing more would ever arrive, so a server that waits for the client's
+close_notify before closing the connection left ssl_client, and wget
+reading a body without Content-Length through it, hanging until the
+server timed out or standard input ended. After writing the data, end
+the session if tls_read found it closed.
+
+---
+ networking/tls.c |    6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+--- a/networking/tls.c
++++ b/networking/tls.c
+@@ -3703,11 +3703,13 @@
+ 		}
+ 		if (pfds[1].revents) {
+ 			nread = tls_read(tls, buffer, sizeof(buffer));
+-			if (nread < 1) {
++			if (nread > 0)
++				xwrite(STDOUT_FILENO, buffer, nread);
++			/* the peer's close_notify may arrive along with data */
++			if (nread < 1 || tls->connection_state != BB_SCHANNEL_OPEN) {
+ 				tls_disconnect(tls);
+ 				break;
+ 			}
+-			xwrite(STDOUT_FILENO, buffer, nread);
+ 		}
+ 	}
+ }

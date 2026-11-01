@@ -1,0 +1,23 @@
+Send the last Schannel handshake token on the output descriptor.
+When InitializeSecurityContext completed the handshake and still had a
+token for the peer, tls_handshake wrote it to state->ifd, the descriptor
+it reads from, while every other token goes to state->ofd. ssl_client
+on Windows passes one socket for both, so nothing breaks today, but a
+caller with separate descriptors would have sent the token to the wrong
+place and the peer would never have finished the handshake. Use ofd.
+
+---
+ networking/tls.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/networking/tls.c
++++ b/networking/tls.c
+@@ -3652,7 +3652,7 @@
+ 						: 0;
+ 
+ 				if (out_buffers[0].cbBuffer > 0) {
+-					xwrite(state->ifd, out_buffers[0].pvBuffer, out_buffers[0].cbBuffer);
++					xwrite(state->ofd, out_buffers[0].pvBuffer, out_buffers[0].cbBuffer);
+ 					FreeContextBuffer(out_buffers[0].pvBuffer);
+ 				}
+ 

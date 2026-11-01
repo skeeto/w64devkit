@@ -61,18 +61,11 @@ ways:
 .IP \(bu 2
 The server closes the connection or ends the TLS session.
 The data received so far is written first.
-A connection closed without ending the TLS session is not reported, so a
-truncated reply goes unnoticed.
-.IP
-When the server's close alert arrives together with data, as it often
-does,
-.B ssl_client
-writes the data, but answers the alert, and exits, only when the
-connection is next readable or standard input ends.
-A server that waits for the answer before it closes the connection
-therefore delays the exit until standard input ends.
-Input that arrives in the meantime is an error:
-.BR "schannel: attempted to write to a closed connection" .
+A connection closed between TLS records without ending the TLS session
+is not reported, so a reply truncated there goes unnoticed.
+One closed in the middle of a record is an error,
+.BR "schannel: truncated TLS record" ,
+with exit status 1.
 .IP \(bu 2
 Standard input reaches end of file, or reading it fails.
 .B ssl_client
@@ -84,11 +77,9 @@ With
 it then exits at once.
 Without
 .BR \-e ,
-it waits until the connection is readable, such as when the server
-closes it, then exits.
-Whatever arrives from the server after the alert is discarded, so the
-reply to a request sent just before end of file is lost.
-Keep standard input open until the reply has arrived.
+it goes on copying from the server until the server closes the
+connection or ends the TLS session, so the reply to a request sent just
+before end of file is still written.
 .SH OPTIONS
 Options may be grouped, as in
 .BR \-ce ,
@@ -124,7 +115,7 @@ and never for an ftps URL.
 Exit as soon as standard input reaches end of file, after sending the
 TLS
 .B close_notify
-alert, instead of waiting for the connection to become readable.
+alert, instead of copying from the server until the session ends.
 .B wget
 passes
 .B \-e
@@ -134,12 +125,11 @@ for the control connection of an ftps URL.
 The connected socket to use, as the value of its Windows handle in
 hexadecimal digits.
 Upper and lower case and leading zeros are accepted.
-The value ends at the first character that is not a hexadecimal digit,
-so a
+A
 .B 0x
-prefix reads as handle 0.
-This option is required: without it, or with a value that begins with no
-hexadecimal digit, the message is
+prefix is optional.
+This option is required: without it, or with a value that has any other
+character or does not fit in 32 bits, the message is
 .B ssl_client: invalid handle
 and the exit status is 1.
 .IP
@@ -260,9 +250,6 @@ server cannot be told from an impostor.
 .IP \(bu 2
 Only TLS 1.2 is spoken, with a few cipher suites that use AES and
 SHA-256.
-The name from
-.B \-n
-is sent as the server name indication even when it is an IP address.
 .IP \(bu 2
 Standard input is read in pieces of up to 16 KiB, each sent as one TLS
 record.
@@ -270,12 +257,6 @@ record.
 At the end of standard input no
 .B close_notify
 alert is sent.
-With
-.BR \-e ,
-.B ssl_client
-exits at once.
-Without it, it goes on copying from the server until the server closes
-the connection or ends the TLS session.
 .IP \(bu 2
 Errors have other messages, such as
 .B "ssl_client: TLS error from peer (alert code 40): handshake failure"

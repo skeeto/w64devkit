@@ -1,0 +1,31 @@
+Leave out the TLS server_name extension when the name is an IP address.
+RFC 6066 section 3 does not permit literal IPv4 or IPv6 addresses in
+server_name, but the ClientHello carried whatever name it was given, so
+"wget https://192.0.2.1/" and "ssl_client -n 192.0.2.1" sent the
+address as SNI, which strict servers may reject with a fatal alert.
+wget already had a TODO about this. Omit the extension when the name
+contains a colon, which no host name does, or consists only of digits
+and dots, which no host name does either since top-level domains are
+not all-numeric.
+
+---
+ networking/tls.c |    7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+--- a/networking/tls.c
++++ b/networking/tls.c
+@@ -1619,8 +1619,13 @@
+ 	uint8_t *ptr;
+ 	int len;
+ 	int ext_len;
+-	int sni_len = sni ? strnlen(sni, 127 - 5) : 0;
++	int sni_len;
+ 
++	/* RFC 6066 section 3: literal IPv4 and IPv6 addresses are not permitted */
++	if (sni && (strchr(sni, ':') || sni[strspn(sni, "0123456789.")] == '\0'))
++		sni = NULL;
++	sni_len = sni ? strnlen(sni, 127 - 5) : 0;
++
+ 	ext_len = 0;
+ 	ext_len += sizeof(extensions);
+ 	if (sni_len)

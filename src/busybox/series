@@ -311,3 +311,10 @@ whois-port-range.patch
 whois-read-error.patch
 socket-write-reset-errno.patch
 ping-ttl-range.patch
+schannel-truncated-record.patch
+schannel-close-notify-with-data.patch
+schannel-read-after-local-eof.patch
+schannel-max-record-size.patch
+schannel-handshake-ofd.patch
+ssl-client-handle-parse.patch
+tls-sni-no-ip-literal.patch

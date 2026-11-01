@@ -824,10 +824,7 @@ is not tunneled: the proxy receives the request in clear text, as
 .PP
 Over https, as over http, a response without
 .B Content\-Length
-ends only when the server closes the connection; a server that instead
-waits for the client to end the TLS session makes
-.B wget
-wait too.
+ends only when the server closes the connection or ends the TLS session.
 .PP
 A name derived from the URL must be a valid Windows file name.
 A URL such as

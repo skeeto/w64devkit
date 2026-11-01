@@ -1,0 +1,24 @@
+Report a connection that Schannel sees closed in the middle of a record.
+When the peer closed the connection while part of a TLS record was still
+waiting to be decrypted, tls_read treated it like a clean end of the
+session: the partial record was dropped without a word and ssl_client
+exited with status 0, so a reply cut short in transit looked complete.
+Die with "truncated TLS record" instead, as the internal TLS code does.
+A close at a record boundary without close_notify is still accepted as
+the end of the data, also like the internal TLS code.
+
+---
+ networking/tls.c |    2 ++
+ 1 file changed, 2 insertions(+)
+
+--- a/networking/tls.c
++++ b/networking/tls.c
+@@ -3340,6 +3340,8 @@
+ 						state->in_buffer + state->in_buffer_offset,
+ 						sizeof(state->in_buffer) - state->in_buffer_offset);
+ 					if (result == 0) {
++						if (state->in_buffer_offset != 0)
++							bb_error_msg_and_die("schannel: truncated TLS record");
+ 						state->connection_state = BB_SCHANNEL_CLOSED;
+ 						goto Success;
+ 					} else if (result < 0) {

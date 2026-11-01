@@ -1,0 +1,26 @@
+Make the Schannel input buffer hold the largest TLS 1.2 record.
+The buffer that tls_read and the handshake decrypt from had room for
+16384 + 256 bytes, but a TLS 1.2 record may carry up to 16384 + 2048
+bytes of ciphertext after its 5-byte header (RFC 5246, 6.2.3), and a
+full 16 KiB CBC record with a long MAC and length-hiding padding exceeds
+the old size. Such a record could never be completed: the next read
+asked for 0 bytes and got 0, which looks like the peer closing the
+connection, so the rest of the data was lost (silently, or with a false
+"truncated TLS record" now that a close inside a record is reported).
+Size the buffer for the maximum.
+
+---
+ include/libbb.h |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/include/libbb.h
++++ b/include/libbb.h
+@@ -1018,7 +1018,7 @@
+ 	CtxtHandle ctx_handle;
+ 
+ 	// buffers
+-	char in_buffer[16384 + 256]; // input buffer (to read from server), length is maximum TLS packet size
++	char in_buffer[5 + 16384 + 2048]; // input buffer (to read from server), length is maximum TLS packet size
+ 	unsigned long in_buffer_offset;
+ 
+ 	char *out_buffer; // output buffer (for decrypted data, offset from in_buffer)

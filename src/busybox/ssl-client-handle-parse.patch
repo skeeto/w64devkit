@@ -1,0 +1,28 @@
+Reject an ssl_client -h handle that is not entirely hexadecimal.
+The handle was parsed with sscanf("%p"), which stops at the first
+character that is not a hex digit and ignores the rest, so "0x1a4" was
+taken as handle 0 and "1a4zz" as 0x1a4. The mistake only showed later
+as "write error: Bad file descriptor", or, worse, as I/O on whatever
+other handle the prefix named. Parse it with bb_strtoul in base 16,
+which also accepts an optional 0x prefix, and report "invalid handle"
+for trailing garbage or a value that does not fit in 32 bits, the
+significant size of a Windows handle.
+
+---
+ networking/ssl_client.c |    5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+--- a/networking/ssl_client.c
++++ b/networking/ssl_client.c
+@@ -59,7 +59,10 @@
+ #if ENABLE_PLATFORM_MINGW32
+ 	opt = getopt32(argv, "eh:n:"IF_FEATURE_TLS_SCHANNEL("c"), &hstr, &sni);
+ 
+-	if (!hstr || sscanf(hstr, "%p", &h) != 1)
++	/* hex, as wget writes it with %p; handles have 32 significant bits */
++	if (hstr)
++		h = (HANDLE)(uintptr_t)bb_strtoul(hstr, NULL, 16);
++	if (!hstr || errno)
+ 		bb_error_msg_and_die("invalid handle");
+ 	init_winsock();
+ 	tls->ifd = tls->ofd = _open_osfhandle((intptr_t)h, _O_RDWR|_O_BINARY);

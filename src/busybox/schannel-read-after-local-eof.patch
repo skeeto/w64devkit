@@ -1,0 +1,106 @@
+Keep reading the peer's data after Schannel sends close_notify.
+At the end of standard input, without -e, the Schannel copy loop called
+tls_disconnect, which sends close_notify but also deletes the security
+context and marks the session closed. The loop then waited for the
+connection, and tls_read returned 0 for whatever arrived, so the reply
+to a request sent just before end of file, which servers commonly send
+before they read the alert, was thrown away and ssl_client exited 0
+having printed nothing. Split the sending of close_notify out of
+tls_disconnect, send only that at end of input, and go on copying the
+peer's data until it ends the session or closes the connection, as the
+internal TLS code does (it sends no close_notify at all). A peer may
+answer close_notify by resetting the connection, as when wget closes
+its end after reading a redirect, so take a failed read at a record
+boundary after close_notify as the end of the session, not an error.
+
+---
+ include/libbb.h  |    1 +
+ networking/tls.c |   29 ++++++++++++++++++++++++-----
+ 2 files changed, 25 insertions(+), 5 deletions(-)
+
+--- a/include/libbb.h
++++ b/include/libbb.h
+@@ -1030,6 +1030,7 @@
+ 	SecPkgContext_StreamSizes stream_sizes;
+ 	bool initialized;
+ 	bool no_check_cert;
++	bool close_notify_sent;
+ 	enum schannel_connection_state connection_state;
+ } tls_state_t;
+ #else
+--- a/networking/tls.c
++++ b/networking/tls.c
+@@ -3345,6 +3345,14 @@
+ 						state->connection_state = BB_SCHANNEL_CLOSED;
+ 						goto Success;
+ 					} else if (result < 0) {
++						/* The peer may reset rather than answer
++						 * our close_notify */
++						if (state->close_notify_sent
++						 && state->in_buffer_offset == 0
++						) {
++							state->connection_state = BB_SCHANNEL_CLOSED;
++							goto Success;
++						}
+ 						bb_error_msg_and_die("schannel: read() failed");
+ 					}
+ 
+@@ -3464,7 +3472,7 @@
+ 	}
+ }
+ 
+-static void tls_disconnect(tls_state_t * state) {
++static void tls_send_close_notify(tls_state_t * state) {
+ 	SECURITY_STATUS status;
+ 
+ 	DWORD token = SCHANNEL_SHUTDOWN;
+@@ -3476,9 +3484,9 @@
+ 	SecBuffer out_buffer;
+ 	SecBufferDesc out_buffer_desc;
+ 
+-	if (state->connection_state == BB_SCHANNEL_CLOSED_AND_FREED)
++	if (state->close_notify_sent)
+ 		return;
+-	state->connection_state = BB_SCHANNEL_CLOSED_AND_FREED;
++	state->close_notify_sent = true;
+ 
+ 	init_sec_buffer(&buf_token, &token, sizeof(token), SECBUFFER_TOKEN);
+ 	init_sec_buffer_desc(&buf_token_desc, &buf_token, 1);
+@@ -3505,7 +3513,14 @@
+ 		write(state->ofd, out_buffer.pvBuffer, out_buffer.cbBuffer);
+ 		FreeContextBuffer(out_buffer.pvBuffer);
+ 	}
++}
+ 
++static void tls_disconnect(tls_state_t * state) {
++	if (state->connection_state == BB_SCHANNEL_CLOSED_AND_FREED)
++		return;
++	state->connection_state = BB_SCHANNEL_CLOSED_AND_FREED;
++
++	tls_send_close_notify(state);
+ 	DeleteSecurityContext(&state->ctx_handle);
+ 	FreeCredentialsHandle(&state->cred_handle);
+ 	free(state->hostname);
+@@ -3565,6 +3580,7 @@
+ 
+ 	state->hostname = xstrdup(hostname);
+ 	state->initialized = false;
++	state->close_notify_sent = false;
+ 	state->connection_state = BB_SCHANNEL_OPEN;
+ 
+ 	if (SEC_STATUS_FAIL(status = AcquireCredentialsHandleA(NULL,
+@@ -3694,9 +3710,12 @@
+ 			nread = safe_read(STDIN_FILENO, buffer, sizeof(buffer));
+ 			if (nread < 1) {
+ 				pfds[0].fd = -1;
+-				tls_disconnect(tls);
+-				if (flags & TLSLOOP_EXIT_ON_LOCAL_EOF)
++				if (flags & TLSLOOP_EXIT_ON_LOCAL_EOF) {
++					tls_disconnect(tls);
+ 					break;
++				}
++				/* end our side, but go on reading the peer's */
++				tls_send_close_notify(tls);
+ 			} else {
+ 				tls_write(tls, buffer, nread);
+ 			}
