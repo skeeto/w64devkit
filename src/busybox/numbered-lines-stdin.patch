@@ -1,0 +1,21 @@
+Do not close stdin in print_numbered_lines().
+The function fclose()d whatever it had opened, including stdin for a
+"-" operand. A second "-" in "cat -n - -" or "nl - -" then read from
+a closed stream, which is undefined, and an interactive stdin could not
+be read again after an end of file. Use fclose_if_not_stdin().
+
+---
+ libbb/print_numbered_lines.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/libbb/print_numbered_lines.c
++++ b/libbb/print_numbered_lines.c
+@@ -31,7 +31,7 @@
+ 	}
+ 	ns->start = N;
+ 
+-	fclose(fp);
++	fclose_if_not_stdin(fp);
+ 
+ 	return EXIT_SUCCESS;
+ }

@@ -1,0 +1,21 @@
+Reject an unknown body numbering style in nl.
+nl numbered all lines for -b a, nonempty ones for -b t and none for
+anything else, so a mistyped style, an empty one or the unimplemented
+pBRE style silently numbered nothing. Accept only a, t and n, and fail
+with a message for anything else, as coreutils does.
+
+---
+ coreutils/nl.c |    2 ++
+ 1 file changed, 2 insertions(+)
+
+--- a/coreutils/nl.c
++++ b/coreutils/nl.c
+@@ -66,6 +66,8 @@
+ 	ns.sep = "\t";
+ 	getopt32long(argv, "pw:+s:v:+i:+b:", nl_longopts,
+ 			&ns.width, &ns.sep, &ns.start, &ns.inc, &opt_b);
++	if (!opt_b[0] || !strchr("atn", opt_b[0]))
++		bb_error_msg_and_die("invalid body numbering style: '%s'", opt_b);
+ 	ns.all = (opt_b[0] == 'a');
+ 	ns.nonempty = (opt_b[0] == 't');
+ 	ns.empty_str = xasprintf("%*s", ns.width + (int)strlen(ns.sep), "");

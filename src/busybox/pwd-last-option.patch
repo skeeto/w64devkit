@@ -1,0 +1,21 @@
+Let the last of -L and -P win in pwd.
+pwd used the logical name whenever -L appeared, so "pwd -L -P" printed
+PWD although -P came last. POSIX says the last of the two applies.
+Make each option cancel the other when parsing.
+
+---
+ coreutils/pwd.c |    3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+--- a/coreutils/pwd.c
++++ b/coreutils/pwd.c
+@@ -76,7 +76,8 @@
+ 		 * Rationale:
+ 		 * POSIX requires a default of -L, but most scripts expect -P
+ 		 */
+-		unsigned opt = getopt32(argv, "LP");
++		/* The last of -L and -P wins */
++		unsigned opt = getopt32(argv, "^" "LP" "\0" "L-P:P-L");
+ 		if ((opt & 1) && logical_getcwd())
+ 			fflush_stdout_and_exit_SUCCESS();
+ 	}

@@ -1,0 +1,25 @@
+Do not print a leading space for ignored arguments in ttysize.
+ttysize switched to the space-separated format after every argument,
+including ones other than w and h, which print nothing. So "ttysize x
+h" printed " 24". Switch only after a value has been printed.
+
+---
+ miscutils/ttysize.c |    7 +++----
+ 1 file changed, 3 insertions(+), 4 deletions(-)
+
+--- a/miscutils/ttysize.c
++++ b/miscutils/ttysize.c
+@@ -53,10 +53,9 @@
+ 		fmt = "%u %u" + 3; /* "%u" */
+ 		while ((arg = *++argv) != NULL) {
+ 			char c = arg[0];
+-			if (c == 'w')
+-				printf(fmt, w);
+-			if (c == 'h')
+-				printf(fmt, h);
++			if (c != 'w' && c != 'h')
++				continue;
++			printf(fmt, c == 'w' ? w : h);
+ 			fmt = "%u %u" + 2; /* " %u" */
+ 		}
+ 	}

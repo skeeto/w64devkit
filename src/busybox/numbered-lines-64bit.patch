@@ -1,0 +1,85 @@
+Count numbered lines in 64 bits in nl and cat -n.
+The running line number in print_numbered_lines(), used by nl and by
+cat -n and -b, and in cat's -v path was an unsigned int. Past
+4294967295 the numbers wrapped to 0, which also happens sooner with a
+large -v start or -i increment (nl -v 2147483647 -i 2147483647 printed
+2147483645 on the third line). Keep the number in an unsigned long
+long. The -v value is still parsed as before, into a local.
+
+---
+ coreutils/cat.c              |    4 ++--
+ coreutils/nl.c               |    5 +++--
+ include/libbb.h              |    2 +-
+ libbb/print_numbered_lines.c |    4 ++--
+ 4 files changed, 8 insertions(+), 7 deletions(-)
+
+--- a/coreutils/cat.c
++++ b/coreutils/cat.c
+@@ -115,7 +115,7 @@
+ 	bool eol_seen = (opts & (CAT_OPT_n|CAT_OPT_b));
+ 	unsigned eol_char = (eol_seen ? '\n' : 0x100);
+ 	unsigned skip_num_on = (opts & CAT_OPT_b) ? '\n' : 0x100;
+-	unsigned lineno = 0;
++	unsigned long long lineno = 0;
+ #endif
+ 
+ 	BUILD_BUG_ON(CAT_OPT_e != VISIBLE_ENDLINE);
+@@ -148,7 +148,7 @@
+ 				char buf[sizeof("M-^c")];
+ #if ENABLE_FEATURE_CATN
+ 				if (eol_seen && c != skip_num_on)
+-					printf("%6u  ", ++lineno);
++					printf("%6"LL_FMT"u  ", ++lineno);
+ 				eol_seen = (c == eol_char);
+ #endif
+ 				visible(c, buf, opts);
+--- a/coreutils/nl.c
++++ b/coreutils/nl.c
+@@ -59,13 +59,14 @@
+ 	;
+ #endif
+ 	int exitcode;
++	unsigned start = 1;
+ 
+ 	ns.width = 6;
+-	ns.start = 1;
+ 	ns.inc = 1;
+ 	ns.sep = "\t";
+ 	getopt32long(argv, "pw:+s:v:+i:+b:", nl_longopts,
+-			&ns.width, &ns.sep, &ns.start, &ns.inc, &opt_b);
++			&ns.width, &ns.sep, &start, &ns.inc, &opt_b);
++	ns.start = start;
+ 	if (!opt_b[0] || !strchr("atn", opt_b[0]))
+ 		bb_error_msg_and_die("invalid body numbering style: '%s'", opt_b);
+ 	ns.all = (opt_b[0] == 'a');
+--- a/include/libbb.h
++++ b/include/libbb.h
+@@ -1834,7 +1834,7 @@
+ 
+ struct number_state {
+ 	unsigned width;
+-	unsigned start;
++	unsigned long long start;
+ 	unsigned inc;
+ 	const char *sep;
+ 	const char *empty_str;
+--- a/libbb/print_numbered_lines.c
++++ b/libbb/print_numbered_lines.c
+@@ -11,7 +11,7 @@
+ int FAST_FUNC print_numbered_lines(struct number_state *ns, const char *filename)
+ {
+ 	FILE *fp = fopen_or_warn_stdin(filename);
+-	unsigned N;
++	unsigned long long N;
+ 	char *line;
+ 
+ 	if (!fp)
+@@ -22,7 +22,7 @@
+ 		if (ns->all
+ 		 || (ns->nonempty && line[0])
+ 		) {
+-			printf("%*u%s", ns->width, N, ns->sep);
++			printf("%*"LL_FMT"u%s", ns->width, N, ns->sep);
+ 			N += ns->inc;
+ 		} else if (ns->empty_str)
+ 			fputs_stdout(ns->empty_str);

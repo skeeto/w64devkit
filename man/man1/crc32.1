@@ -30,11 +30,9 @@ With no
 .I file
 operands, the line is the CRC alone.
 .PP
-A file that cannot be opened is reported on standard error, and the
-remaining files are still processed.
-An error reading a file ends the command at once.
-Standard input is closed once it has been read, so naming it a second
-time is a read error.
+A file that cannot be opened or read is reported on standard error, and
+the remaining files are still processed.
+A file with a read error gets no output line.
 .SH OPTIONS
 .B crc32
 takes no options other than
@@ -135,10 +133,6 @@ computes a different CRC, which also covers the file length, and prints
 it in decimal, so its values do not match those of
 .BR crc32 .
 .PP
-The usage message shows
-.I file
-as required, but it is optional.
-.PP
 Files and standard input are read in binary mode, so the CRC of a file
 matches its CRC on other systems.
 Output lines end with LF, not CRLF.
@@ -150,12 +144,6 @@ a busybox-w32 device name such as
 or
 .IR /dev/stdin .
 The name is printed as given, backslashes included.
-.I /dev/stdin
-does not close standard input, unlike
-.BR \- ,
-and cannot be opened after a
-.B \-
-operand.
 A directory operand cannot be opened, and fails with
 .BR "Permission denied" .
 On Windows 10 version 1903 or later, file names may contain any Unicode

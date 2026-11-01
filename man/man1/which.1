@@ -122,10 +122,7 @@ When the shell runs
 .B which
 under that name,
 .B which
-also reports applets, and its message for an unknown option begins with
-.B Which:
-instead of
-.BR which: .
+also reports applets.
 A command that names an applet is printed as the name alone, with no
 directory, except
 .BR busybox ,
@@ -142,11 +139,8 @@ the matches in
 follow the applet.
 Without
 .BR \-a ,
-the first applet ends the search for every remaining command, so
-.B which ls cat
-prints only
-.BR ls .
-The exit status counts only the commands before that one.
+.B PATH
+is not searched for a command that names an applet.
 .PP
 A path such as
 .B /bin/ls

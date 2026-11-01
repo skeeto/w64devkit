@@ -1,0 +1,45 @@
+Use size_t for line lengths in tac.
+The length of each line and the index used while reading it were ints,
+so a line of 2 GiB or more overflowed them. Make both size_t, and size
+the buffers with offsetof() instead of assuming the length field is an
+int.
+
+---
+ coreutils/tac.c |    9 +++++----
+ 1 file changed, 5 insertions(+), 4 deletions(-)
+
+--- a/coreutils/tac.c
++++ b/coreutils/tac.c
+@@ -32,7 +32,7 @@
+ /* This is a NOEXEC applet. Be very careful! */
+ 
+ struct lstring {
+-	int size;
++	size_t size;
+ 	char buf[1];
+ };
+ 
+@@ -68,7 +68,8 @@
+ 		name++;
+ 
+ 	do {
+-		int ch, i;
++		int ch;
++		size_t i;
+ 
+ 		name--;
+ 		f = fopen_or_warn_stdin(*name);
+@@ -84,11 +85,11 @@
+ 			if (ch != EOF) {
+ 				if (!(i & 0x7f))
+ 					/* Grow on every 128th char */
+-					line = xrealloc(line, i + 0x7f + sizeof(int) + 1);
++					line = xrealloc(line, i + 0x7f + offsetof(struct lstring, buf) + 1);
+ 				line->buf[i++] = ch;
+ 			}
+ 			if (ch == '\n' || (ch == EOF && i != 0)) {
+-				line = xrealloc(line, i + sizeof(int));
++				line = xrealloc(line, offsetof(struct lstring, buf) + i);
+ 				line->size = i;
+ 				llist_add_to(&list, line);
+ 				line = NULL;

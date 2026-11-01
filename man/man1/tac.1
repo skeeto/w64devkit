@@ -1,4 +1,4 @@
-.TH TAC 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH TAC 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 tac \- print files with their lines in reverse order
 .SH SYNOPSIS
@@ -184,17 +184,6 @@ and
 .B \-\-version
 are errors, and a line always ends at an LF.
 .PP
-The length of a line is kept in an
-.BR int ,
-so a line of 2 GiB or more is not supported.
-.PP
-.B tac
-does not close a file until it exits, and the C runtime allows about
-500 open files.
-Since operands are opened from last to first, with more operands than
-that the first ones fail with
-.BR "Too many open files" .
-.PP
 Files and standard streams are binary, so CR LF line endings and Ctrl-Z
 characters are copied unchanged.
 .PP
@@ -228,8 +217,6 @@ that is set is
 .BR C .
 Escape sequences, such as those for color, take effect, and busybox
 emulates them on consoles without virtual terminal support.
-A line that contains a NUL byte is written as is, with no conversion or
-emulation.
 .SH SEE ALSO
 .BR busybox (1),
 .BR cat (1),

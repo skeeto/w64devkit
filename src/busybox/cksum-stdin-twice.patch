@@ -1,0 +1,21 @@
+Do not close stdin in cksum and crc32.
+Each operand's descriptor was closed at its end, stdin included, so a
+second "-" operand, as in "cksum - -", failed with "Bad file
+descriptor" and ended the program. Close every descriptor but stdin.
+
+---
+ coreutils/cksum.c |    3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+--- a/coreutils/cksum.c
++++ b/coreutils/cksum.c
+@@ -72,7 +72,8 @@
+ 			} else {
+ 				IF_CKSUM(uoff_t t;)
+ 
+-				close(fd);
++				if (fd != STDIN_FILENO)
++					close(fd);
+ 				if (IS_CRC32)
+ 					break;
+ #if ENABLE_CKSUM

@@ -1,0 +1,29 @@
+Count repeated lines in 64 bits in uniq -c.
+The count of repeated lines was an unsigned long, which is 32 bits on
+Windows and on 32-bit systems, so uniq -c printed a wrong count for a
+line repeated 4294967296 times or more. Use unsigned long long.
+
+---
+ coreutils/uniq.c |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+--- a/coreutils/uniq.c
++++ b/coreutils/uniq.c
+@@ -93,7 +93,7 @@
+ 
+ 	do {
+ 		unsigned i;
+-		unsigned long dups;
++		unsigned long long dups;
+ 		char *old_line;
+ 		const char *old_compare;
+ 
+@@ -129,7 +129,7 @@
+ 			if (!(opt & (OPT_d << !!dups))) { /* (if dups, opt & OPT_u) */
+ 				if (opt & OPT_c) {
+ 					/* %7lu matches GNU coreutils 6.9 */
+-					printf("%7lu ", dups + 1);
++					printf("%7"LL_FMT"u ", dups + 1);
+ 				}
+ 				printf("%s%c", old_line, eol);
+ 			}

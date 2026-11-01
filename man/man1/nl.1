@@ -32,6 +32,7 @@ A
 .I file
 that cannot be opened is reported on standard error and skipped, and the
 remaining files are still written.
+A read error is reported too, and ends its file.
 .PP
 A numbered line is its number in decimal, right-aligned in a field of at
 least
@@ -66,8 +67,7 @@ A CR anywhere else, such as at the end of a file with no final LF, is
 kept.
 Each line is held in memory whole.
 .SS Numbers
-Numbers are unsigned 32-bit decimal values that wrap around to 0 after
-4294967295.
+Numbers are unsigned 64-bit decimal values.
 The
 .I width
 is a minimum, and a longer number is written in full.
@@ -113,15 +113,14 @@ for all lines,
 for nonempty lines, and
 .B n
 for none.
-Any other first character, or an empty
-.IR style ,
-numbers no lines, like
-.BR n .
 The rest of
 .I style
-is ignored, so the GNU form
+is ignored.
+Any other first character, or an empty
+.IR style ,
+is an error, so the GNU form
 .BI p regexp
-is not supported and numbers no lines.
+is not supported.
 The default is
 .BR t .
 .TP
@@ -198,10 +197,13 @@ for console output, are described in
 Success.
 .TP
 .B 1
-An invalid option or number, a
+An invalid option, number, or
+.B \-b
+style, a
 .I file
 could not be opened (a directory is reported as
-.BR "Is a directory" ),
+.BR "Is a directory" )
+or read,
 or standard output could not be written.
 .TP
 .B 141

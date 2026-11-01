@@ -61,7 +61,7 @@ counting from 0, is
 computed as a double, so rounding errors do not accumulate.
 When
 .I incr
-is 0 or positive,
+is positive,
 .B seq
 writes numbers as long as they are at most
 .IR last .
@@ -74,12 +74,7 @@ such as
 is empty: nothing is written, not even a newline, and the status is 0.
 An
 .I incr
-of 0 repeats
-.I first
-forever unless
-.I first
-is above
-.IR last .
+of 0 is an error.
 .PP
 Numbers are written in decimal, never with an exponent.
 Each has as many digits after the period as there are characters after
@@ -88,17 +83,23 @@ the period in
 or
 .IR incr ,
 whichever has more, as typed.
-Every character after the period counts, so
+In an operand with a decimal exponent, the count is that of the digits
+between the period and the exponent, less the exponent, and not below
+0, so
+.B 1.25e1
+gives one digit,
+.B 1e\-2
+gives two, and
 .B 1.5e1
-gives three digits, and an operand with no period, such as
-.BR 1e\-1 ,
 gives none.
+In a hexadecimal operand, every character after the period counts, even
+a
+.B p
+exponent.
 The characters of
 .I last
 do not count.
-Numbers are rounded to that many digits, so
-.B "seq 0 1e\-1 1"
-writes whole numbers only.
+Numbers are rounded to that many digits.
 .PP
 .B seq
 writes
@@ -206,6 +207,11 @@ is out of range for a double.
 The usage message is written to standard error, preceded for an option
 error by a line such as
 .BR "seq: unknown option \-\- x" .
+An
+.I incr
+of 0 is reported as
+.B "seq: increment can\(aqt be zero"
+instead, with no usage message.
 Also an error writing standard output other than a closed pipe, such as
 a closed descriptor, which is reported on standard error.
 .TP
@@ -291,10 +297,6 @@ Each number is rounded to the nearest double, so an
 that is small next to
 .I first
 makes numbers repeat or skip.
-The count of numbers written is a 32-bit value, so a sequence of
-4294967296 numbers or more starts over from
-.I first
-after that many, and never ends.
 .PP
 Standard output is binary, so the newline is a bare LF.
 .PP

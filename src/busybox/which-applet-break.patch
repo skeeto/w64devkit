@@ -1,0 +1,21 @@
+Do not stop at the first applet in which without -a.
+When run from the standalone shell, which reports applets. Without -a,
+finding one ended the search with a break that left the loop over all
+the commands, so "which ls cat" printed only ls, and the exit status
+ignored the commands after it. Continue with the next command instead.
+
+---
+ debianutils/which.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/debianutils/which.c
++++ b/debianutils/which.c
+@@ -61,7 +61,7 @@
+ 			missing = 0;
+ 			puts(applet_to_exe(*argv));
+ 			if (!option_mask32) /* -a not set */
+-				break;
++				continue; /* with the next COMMAND */
+ 		}
+ #endif
+ 

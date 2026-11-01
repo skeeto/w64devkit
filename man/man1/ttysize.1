@@ -1,4 +1,4 @@
-.TH TTYSIZE 1 2026-10-27 "w64devkit" "w64devkit Manual"
+.TH TTYSIZE 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 ttysize \- print the width and height of the console
 .SH SYNOPSIS
@@ -32,12 +32,12 @@ Any other argument prints nothing, including an empty one and one that
 begins with a capital letter.
 .PP
 Each number is decimal.
-A number printed for any argument after the first is preceded by a
-space, even when the arguments before it printed nothing, so
+Numbers are separated by a space, and an argument that prints nothing
+adds no space, so
 .B ttysize x w
-prints a space and the width, while
+and
 .B ttysize w x
-prints the width alone.
+both print the width alone.
 A newline ends the output.
 An argument may be repeated:
 .B ttysize w w

@@ -1,0 +1,20 @@
+Separate the line number from the line with a tab in cat -vn.
+cat -n and -b put a tab after the number, as coreutils does, but the
+same options combined with -v, -e, -t or -A put two spaces there. Use a
+tab in both paths.
+
+---
+ coreutils/cat.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/coreutils/cat.c
++++ b/coreutils/cat.c
+@@ -150,7 +150,7 @@
+ 				char buf[sizeof("M-^c")];
+ #if ENABLE_FEATURE_CATN
+ 				if (eol_seen && c != skip_num_on)
+-					printf("%6"LL_FMT"u  ", ++lineno);
++					printf("%6"LL_FMT"u\t", ++lineno);
+ 				eol_seen = (c == eol_char);
+ #endif
+ 				visible(c, buf, opts);

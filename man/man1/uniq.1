@@ -276,11 +276,6 @@ changes only the end of the lines written, and an LF still ends an
 input line.
 .IP \(bu 2
 A CR directly before an LF is removed, and a NUL byte ends a line.
-.IP \(bu 2
-The count of
-.B \-c
-is 32 bits, in the 64-bit kit too, so a run of more than 4294967295
-lines wraps it.
 .PP
 Lines may be of any length.
 .B uniq
@@ -300,27 +295,16 @@ They may contain any Unicode characters on Windows 10 version 1903 and
 later, and are limited to the system code page on earlier versions.
 The device names that busybox accepts, such as
 .I /dev/null
-for either operand and
+for either operand,
+.I /dev/stdin
+for
+.IR file ,
+and
 .I /dev/stdout
 for
 .IR outfile ,
 work as operands; see
 .BR busybox (1).
-.I /dev/stdin
-and
-.I /dev/fd/0
-fail as
-.IR file ,
-because
-.B uniq
-closes its standard input to open
-.I file
-in its place; give
-.B \-
-instead.
-.I /dev/fd/0
-is reported as
-.BR "No such file or directory" .
 A directory fails as
 .I file
 with
@@ -345,8 +329,8 @@ that is set is
 Escape sequences in the input, such as those for color, take effect.
 With
 .BR \-z ,
-a console receives no line terminators, because the console writer stops
-at the NUL, so the lines run together.
+the lines run together on a console, which shows each NUL terminator as
+a blank.
 .SH SEE ALSO
 .BR busybox (1),
 .BR comm (1),

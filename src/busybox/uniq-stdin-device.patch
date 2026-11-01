@@ -1,0 +1,24 @@
+Let uniq read its input from /dev/stdin.
+uniq closed stdin before opening the input file so that the file would
+get descriptor 0. An input of /dev/stdin or /dev/fd/0 then named the
+descriptor just closed: "uniq /dev/stdin" failed with "Bad file
+descriptor", and /dev/fd/0 read nothing. Open the file first and move
+it to descriptor 0 with xmove_fd(), as is already done for the output.
+
+---
+ coreutils/uniq.c |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+--- a/coreutils/uniq.c
++++ b/coreutils/uniq.c
+@@ -72,8 +72,8 @@
+ 		const char *output;
+ 
+ 		if (input_filename[0] != '-' || input_filename[1]) {
+-			close(STDIN_FILENO); /* == 0 */
+-			xopen(input_filename, O_RDONLY); /* fd will be 0 */
++			/* Open before closing stdin: FILE may be /dev/stdin */
++			xmove_fd(xopen(input_filename, O_RDONLY), STDIN_FILENO);
+ 		}
+ 		output = argv[1];
+ 		if (output) {

@@ -36,9 +36,9 @@ For an operand of
 the name is
 .BR \- .
 .PP
-A file that cannot be opened is reported on standard error and skipped,
-and the remaining files are still read.
-An error while reading a file ends the command at once.
+A file that cannot be opened or read is reported on standard error and
+skipped, and the remaining files are still read.
+A file with a read error gets no output line.
 .SH OPTIONS
 .B cksum
 takes no options other than
@@ -145,16 +145,6 @@ and the related commands for other algorithms and for checking lists.
 The output is the same as that of GNU
 .B cksum
 without options.
-.PP
-The usage message shows
-.I file
-as required, but it is optional.
-.PP
-Standard input is closed after it is read, so a second
-.B \-
-operand fails with
-.BR "Bad file descriptor" ,
-and the command ends there.
 .PP
 Files and standard input are read as binary, so checksums match those
 of the same bytes on other systems, and a text file with CR LF line

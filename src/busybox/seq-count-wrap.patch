@@ -1,0 +1,21 @@
+Keep counting past 2^32 numbers in seq.
+The count of numbers written was an unsigned int, and each number is
+computed as first + n * increment. After 4294967296 numbers the count
+wrapped to zero, so seq started over from the first number and never
+ended. Make the count 64-bit.
+
+---
+ coreutils/seq.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/coreutils/seq.c
++++ b/coreutils/seq.c
+@@ -37,7 +37,7 @@
+ 		OPT_s = (1 << 1),
+ 	};
+ 	double first, last, increment, v;
+-	unsigned n;
++	unsigned long long n;
+ 	unsigned width;
+ 	unsigned frac_part;
+ 	const char *sep, *opt_s = "\n";

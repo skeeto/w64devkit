@@ -1,0 +1,36 @@
+Exit with status 2 for usage errors in cmp.
+cmp set xfunc_error_retval to 2 only after parsing its arguments, so an
+unknown option, a missing operand or an invalid number for -n or a skip
+exited with status 1, which means that the files differ. Set it before
+option parsing, so that every error exits with 2, as POSIX requires.
+
+---
+ editors/cmp.c |    3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+--- a/editors/cmp.c
++++ b/editors/cmp.c
+@@ -64,6 +64,7 @@
+ 	char *max_count_str;
+ 
+ #if !ENABLE_LONG_OPTS
++	xfunc_error_retval = 2;  /* usage error or missing file: exitcode 2 */
+ 	opt = getopt32(argv, "^"
+ 			OPT_STR
+ 			"\0" "-1"
+@@ -79,6 +80,7 @@
+ 		"silent\0"         No_argument        "s"
+ 		"verbose\0"        No_argument        "l"
+ 		;
++	xfunc_error_retval = 2;  /* usage error or missing file: exitcode 2 */
+ 	opt = getopt32long(argv, "^"
+ 			OPT_STR
+ 			"\0" "-1"
+@@ -105,7 +107,6 @@
+ 	if (opt & CMP_OPT_n)
+ 		max_count = xatoull_sfx(max_count_str, kmg_i_suffixes);
+ 
+-	xfunc_error_retval = 2;  /* missing file results in exitcode 2 */
+ 	if (opt & CMP_OPT_s)
+ 		logmode = 0;  /* -s suppresses open error messages */
+ 	fp1 = xfopen_stdin(filename1);

@@ -1,0 +1,22 @@
+Close each file in cat -v.
+The -v, -e, -t and -A path closed its files only with
+FEATURE_CLEAN_UP, so each operand kept a descriptor open. With enough
+operands cat ran out of descriptors and failed to open the rest, as
+with about 2000 files on Windows. Close every file but stdin, as
+bb_cat() does.
+
+---
+ coreutils/cat.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/coreutils/cat.c
++++ b/coreutils/cat.c
+@@ -157,7 +157,7 @@
+ 				fputs_stdout(buf);
+ 			}
+ 		}
+-		if (ENABLE_FEATURE_CLEAN_UP && fd)
++		if (fd != STDIN_FILENO)
+ 			close(fd);
+ 	} while (*++argv);
+ 

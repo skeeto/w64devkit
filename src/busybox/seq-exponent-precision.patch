@@ -1,0 +1,33 @@
+Count an exponent in the number of digits seq prints.
+seq took the precision from the characters after the period in the
+first and increment operands and ignored any exponent. So 1.5e1 asked
+for three digits after the period and 1e-1 for none, which made
+"seq 0 1e-1 1" print its numbers rounded to whole ones. Subtract the
+exponent from the count of digits before it, as coreutils does, never
+going below zero. Hexadecimal operands are left alone, since e is a
+digit there.
+
+---
+ coreutils/seq.c |   11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+--- a/coreutils/seq.c
++++ b/coreutils/seq.c
+@@ -104,6 +104,17 @@
+ 		char *dot = strchrnul(*argv, '.');
+ 		int w = (dot - *argv);
+ 		int f = strlen(dot);
++		char *e = strpbrk(*argv, "eE");
++		if (e && !strpbrk(*argv, "xX")) {
++			/* The exponent moves the period: "1.5e-2" is 0.015 */
++			long x = strtol(e + 1, NULL, 10);
++			if (x > 9999)
++				x = 9999;
++			if (x < -9999)
++				x = -9999;
++			f = (dot < e ? e - dot - 1 : 0) - x;
++			f = (f > 0 ? f + 1 : 0); /* count the period too */
++		}
+ 		if (width < w)
+ 			width = w;
+ 		argv++;

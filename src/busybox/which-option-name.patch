@@ -1,0 +1,22 @@
+Use the real name in which's option errors from the shell.
+The standalone shell passes "Which" as argv[0] to tell which that it
+may report applets. getopt() names the program by argv[0], so an
+unknown option gave "Which: unknown option -- x". Put the applet name
+back in argv[0] once the flag has been read.
+
+---
+ debianutils/which.c |    3 +++
+ 1 file changed, 3 insertions(+)
+
+--- a/debianutils/which.c
++++ b/debianutils/which.c
+@@ -44,6 +44,9 @@
+ #if ENABLE_PLATFORM_MINGW32 && ENABLE_FEATURE_SH_STANDALONE
+ 	/* 'Which' in argv[0] indicates we were run from a standalone shell */
+ 	int sh_standalone = argv[0][0] == 'W';
++
++	if (sh_standalone) /* getopt prints argv[0] in its messages */
++		argv[0] = (char *)applet_name;
+ #endif
+ 
+ 	env_path = getenv("PATH");

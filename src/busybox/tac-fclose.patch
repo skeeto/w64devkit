@@ -1,0 +1,20 @@
+Close each file in tac.
+tac never closed the files it read. tac is a NOEXEC applet, and with
+enough operands it ran out of streams and failed to open the rest, as
+with about 500 files on Windows. Close every file but stdin after
+reading it.
+
+---
+ coreutils/tac.c |    1 +
+ 1 file changed, 1 insertion(+)
+
+--- a/coreutils/tac.c
++++ b/coreutils/tac.c
+@@ -101,6 +101,7 @@
+ 			bb_simple_perror_msg(*name);
+ 			retval = EXIT_FAILURE;
+ 		}
++		fclose_if_not_stdin(f);
+ 	} while (name != argv);
+ 
+ 	while (list) {

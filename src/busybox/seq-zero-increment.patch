@@ -1,0 +1,32 @@
+Reject an increment of zero in seq.
+With an increment of 0, every number is the first one, so seq printed it
+forever unless the first operand was above the last. Fail with a
+message instead, as coreutils does.
+
+---
+ coreutils/seq.c     |    2 ++
+ testsuite/seq.tests |    2 +-
+ 2 files changed, 3 insertions(+), 1 deletion(-)
+
+--- a/coreutils/seq.c
++++ b/coreutils/seq.c
+@@ -92,6 +92,8 @@
+ 		default:
+ 			bb_show_usage();
+ 	}
++	if (increment == 0)
++		bb_simple_error_msg_and_die("increment can't be zero");
+ 
+ #if ENABLE_LOCALE_SUPPORT
+ 	setlocale(LC_NUMERIC, "");
+--- a/testsuite/seq.tests
++++ b/testsuite/seq.tests
+@@ -33,7 +33,7 @@
+ testing "seq count by .30" "seq 3 .30 4" "3.00\n3.30\n3.60\n3.90\n" "" ""
+ testing "seq count by .30 to 4.000" "seq 3 .30 4.000" "3.00\n3.30\n3.60\n3.90\n" "" ""
+ testing "seq count by -.9" "seq .7 -.9 -2.2" "0.7\n-0.2\n-1.1\n-2.0\n" "" ""
+-testing "seq count by zero" "seq 4 0 8 | head -n 10" "4\n4\n4\n4\n4\n4\n4\n4\n4\n4\n" "" ""
++testing "seq count by zero" "seq 4 0 8 2>&1; echo \$?" "seq: increment can't be zero\n1\n" "" ""
+ 
+ testing "seq one argument with padding" "seq -w 003" "001\n002\n003\n" "" ""
+ testing "seq two arguments with padding" "seq -w 005 7" "005\n006\n007\n" "" ""

@@ -1,4 +1,4 @@
-.TH CAT 1 2026-10-19 "w64devkit" "w64devkit Manual"
+.TH CAT 1 2026-10-31 "w64devkit" "w64devkit Manual"
 .SH NAME
 cat \- concatenate files to standard output
 .SH SYNOPSIS
@@ -21,12 +21,7 @@ A
 .I file
 that cannot be opened is reported on standard error and skipped, and the
 remaining files are still written.
-A read error ends that file.
-It is reported only without options, and with
-.B \-n
-or
-.B \-b
-alone it does not affect the exit status.
+A read error is reported too, and ends that file.
 .PP
 Without options, the bytes are copied unchanged.
 The options number the lines, show nonprinting characters, or both.
@@ -50,8 +45,8 @@ is removed, a NUL byte ends a line and is removed, and every line is
 written with a final LF, including the last line of a file that has
 none.
 .PP
-With any of them, the number is followed by two spaces instead of a
-tab, and lines end only at LF: a CR or NUL is shown like any other byte.
+With any of them, lines end only at LF: a CR or NUL is shown like any
+other byte.
 A file that does not end with an LF then runs into the first line of the
 next file, which gets no number.
 .SS Nonprinting characters
@@ -243,14 +238,6 @@ or
 .B \-b
 alone, line endings change, as described under
 .BR "Line numbers" .
-.IP \(bu 2
-With
-.BR \-v ,
-.BR \-t ,
-.BR \-e ,
-or
-.BR \-A ,
-line numbers are followed by two spaces, not a tab.
 .PP
 Standard input and output are binary, so without options CR LF line
 endings and Ctrl-Z characters are copied unchanged.

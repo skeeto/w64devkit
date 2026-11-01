@@ -50,7 +50,8 @@ gives
 .BR C:. ,
 which names the current directory of drive C.
 .PP
-A path that begins with two separators, of either kind, is a UNC path.
+A path that begins with two separators, of either kind, and then
+something other than a separator is a UNC path.
 Its first two components after them, normally a host and a share, are a
 root that is kept like a drive, and the result is never shorter than
 that root and a separator.
@@ -64,6 +65,12 @@ Device paths are UNC paths too:
 .B \e\e?\eC:\edir
 gives
 .BR \e\e?\eC:\e .
+Two separators alone, or three or more, are an ordinary root, so
+.B //
+and
+.B ///usr
+give
+.BR / .
 .PP
 A separator that
 .B dirname
@@ -196,11 +203,7 @@ Backslashes are separators, and drives and UNC paths have roots.
 Leading double separators begin a UNC path, so
 .B dirname //usr
 prints
-.BR //usr/ ,
-and
-.B dirname //
-prints
-.BR /// .
+.BR //usr/ .
 .IP \(bu 2
 It takes exactly one
 .IR path ,

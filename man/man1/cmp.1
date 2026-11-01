@@ -178,16 +178,16 @@ bytes, or both are
 .TP
 .B 1
 A difference was found, or one file ended before the other.
-Also an invalid command line, including an invalid
+.TP
+.B 2
+An invalid command line, including an invalid
 .IR count ,
 .IR skip1 ,
 or
 .IR skip2 ,
 with a message on standard error.
-.TP
-.B 2
-A file could not be opened or read, or standard output could not be
-written.
+Also a file could not be opened or read, or standard output could not
+be written.
 .TP
 .B 141
 Standard output is a pipe whose reader has exited.
@@ -249,9 +249,6 @@ file ends.
 .IP \(bu 2
 .B \-l
 does not pad positions to a common width.
-.IP \(bu 2
-An invalid command line exits with status 1, the same as for differing
-files, not 2.
 .PP
 Files and standard input are read in binary mode, so text with CRLF line
 endings differs from the same text with LF line endings.

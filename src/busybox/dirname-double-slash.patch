@@ -1,0 +1,27 @@
+Do not take a run of slashes for a UNC prefix in dirname().
+Any path starting with two separators was parsed as a UNC path, even
+when no host name followed. The whole of "//" or "///usr" became the
+UNC prefix, and dirname() appended a separator to it, so "dirname //"
+printed "///" and "dirname ///usr" printed "///usr/". Treat the start
+as UNC only when the third character is neither a separator nor the
+end, so that such paths have the root as their directory.
+
+---
+ win32/dirname.c |    6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+--- a/win32/dirname.c
++++ b/win32/dirname.c
+@@ -101,8 +101,10 @@
+     info->base_sep_end = NULL;
+     info->term_sep_begin = NULL;
+ 
+-    if(IS_DIR_SEP(pos[0]) && IS_DIR_SEP(pos[1])) {
+-      /* The path is UNC.  */
++    if(IS_DIR_SEP(pos[0]) && IS_DIR_SEP(pos[1])
++       && pos[2] != 0 && !IS_DIR_SEP(pos[2])) {
++      /* The path is UNC. Two separators alone, or three or more, are
++       * just a root.  */
+       pos += 2;
+ 
+       /* Seek to the end of the share/device name.  */

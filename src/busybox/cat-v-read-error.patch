@@ -1,0 +1,23 @@
+Print a message for a read error in cat -v.
+The -v, -e, -t and -A path set a failure status on a read error but
+printed nothing, so "cat -v <&-" exited with status 1 and no reason.
+Print the error with the file name.
+
+---
+ coreutils/cat.c |    4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+--- a/coreutils/cat.c
++++ b/coreutils/cat.c
+@@ -139,8 +139,10 @@
+ 			int i, res;
+ 
+ 			res = read(fd, read_buf, COMMON_BUFSIZE);
+-			if (res < 0)
++			if (res < 0) {
++				bb_simple_perror_msg(*argv);
+ 				retval = EXIT_FAILURE;
++			}
+ 			if (res <= 0)
+ 				break;
+ 			for (i = 0; i < res; i++) {

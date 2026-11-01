@@ -1,0 +1,33 @@
+Report read errors in print_numbered_lines().
+xmalloc_fgetline() returns NULL on a read error just as at the end of
+the file, so nl and cat -n and -b stopped reading silently and exited
+with status 0, as with "cat -n <&-". Check ferror() at the end, print
+the error with the file name and return a failure.
+
+---
+ libbb/print_numbered_lines.c |    7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+--- a/libbb/print_numbered_lines.c
++++ b/libbb/print_numbered_lines.c
+@@ -13,6 +13,7 @@
+ 	FILE *fp = fopen_or_warn_stdin(filename);
+ 	unsigned long long N;
+ 	char *line;
++	int retval = EXIT_SUCCESS;
+ 
+ 	if (!fp)
+ 		return EXIT_FAILURE;
+@@ -31,7 +32,11 @@
+ 	}
+ 	ns->start = N;
+ 
++	if (ferror(fp)) {
++		bb_simple_perror_msg(filename);
++		retval = EXIT_FAILURE;
++	}
+ 	fclose_if_not_stdin(fp);
+ 
+-	return EXIT_SUCCESS;
++	return retval;
+ }

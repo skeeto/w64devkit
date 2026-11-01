@@ -1,0 +1,19 @@
+Show FILE as optional in the cksum usage message.
+cksum and crc32 read stdin when given no operands, but the usage
+message showed "FILE..." as if one were required. Write "[FILE]...".
+
+---
+ coreutils/cksum.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/coreutils/cksum.c
++++ b/coreutils/cksum.c
+@@ -23,7 +23,7 @@
+ //kbuild:lib-$(CONFIG_CRC32) += cksum.o
+ 
+ //usage:#define cksum_trivial_usage
+-//usage:       "FILE..."
++//usage:       "[FILE]..."
+ //usage:#define cksum_full_usage "\n\n"
+ //usage:       "Calculate CRC32 checksum of FILEs"
+ 

@@ -1,0 +1,36 @@
+Go on to the next file after a read error in cksum and crc32.
+A read error ended the program at once, so the remaining operands were
+never checksummed, as in "cksum - FILE <&-". Print the error, close
+the file, set the failure status and continue with the next operand,
+as is done when a file cannot be opened.
+
+---
+ coreutils/cksum.c |   10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+--- a/coreutils/cksum.c
++++ b/coreutils/cksum.c
+@@ -65,8 +65,13 @@
+ #define read_buf bb_common_bufsiz1
+ 		for (;;) {
+ 			int bytes_read = safe_read(fd, read_buf, COMMON_BUFSIZE);
+-			if (bytes_read < 0)
+-				bb_simple_perror_msg_and_die(fname);
++			if (bytes_read < 0) {
++				bb_simple_perror_msg(fname);
++				exit_code = EXIT_FAILURE;
++				if (fd != STDIN_FILENO)
++					close(fd);
++				goto next_file;
++			}
+ 			if (bytes_read > 0) {
+ 				IF_CKSUM(filesize += bytes_read;)
+ 			} else {
+@@ -101,6 +106,7 @@
+ #endif
+ 			printf((*argv ? "%08x %s\n" : "%08x\n"),
+ 				(unsigned)crc, *argv);
++ next_file: ;
+ 	} while (*argv && *++argv);
+ 
+ 	fflush_stdout_and_exit(exit_code);
