@@ -198,8 +198,8 @@ RUN mkdir cmake \
  && tar xzf cmake-$CMAKE_VERSION.tar.gz -C cmake --strip-components=1
 
 FROM base AS dl-dcmake
-ARG DCMAKE_VERSION=1.8.0 \
-    DCMAKE_SHA256=ef06891678e055788683a92c5edee04066ba54aa00bf4117e47726496833cae3
+ARG DCMAKE_VERSION=1.9.0 \
+    DCMAKE_SHA256=fc79012db469c7c8d757d0559added0ba94459b1fda0c3e2d6cd28771e9e4349
 WORKDIR /dl
 ADD --checksum=sha256:$DCMAKE_SHA256 \
     https://github.com/skeeto/dcmake/releases/download/v$DCMAKE_VERSION/dcmake-$DCMAKE_VERSION.tar.gz ./
