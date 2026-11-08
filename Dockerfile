@@ -161,6 +161,15 @@ ADD --checksum=sha256:$U_CONFIG_SHA256 \
 RUN mkdir u-config \
  && tar xzf u-config-$U_CONFIG_VERSION.tar.gz -C u-config --strip-components=1
 
+FROM base AS dl-unabashed
+ARG UNABASHED_VERSION=0.3.1 \
+    UNABASHED_SHA256=19efd8f540f0c2cfb82da9f52314bf14ba0589c9a0b8e08dde9fed1c159d12ce
+WORKDIR /dl
+ADD --checksum=sha256:$UNABASHED_SHA256 \
+    https://github.com/skeeto/unabashed/releases/download/v$UNABASHED_VERSION/unabashed-$UNABASHED_VERSION.tar.gz ./
+RUN mkdir unabashed \
+ && tar xzf unabashed-$UNABASHED_VERSION.tar.gz -C unabashed --strip-components=1
+
 FROM base AS dl-ccache
 ARG CCACHE_VERSION=4.14.1 \
     CCACHE_SHA256=29f10de481ac2c41c91bfabead63d803bd2fe823e09752aade5b0b8704cc4f30 \
@@ -704,6 +713,24 @@ RUN make amalgamation \
         -Oz -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
         -o /out/bin/$ARCH-pkg-config.exe $PREFIX/src/alias.c -lkernel32
 
+# The shell: one image under four names, since its name picks the mode
+# (sh, ash, lash: native paths; bash: MSYS2 paths), and a stub's extra
+# process would cost every line make runs. Flags as unabashed's
+# CMakeLists.txt; x86 also runs on XP.
+FROM cross AS build-unabashed
+COPY --from=dl-unabashed /dl/ /dl/
+WORKDIR /dl/unabashed
+RUN case $ARCH in \
+      i686-*) XP_FLAG=-Wl,--major-subsystem-version=5,--minor-subsystem-version=1 ;; \
+      *)      XP_FLAG= ;; \
+    esac \
+ && mkdir -p /out/bin /out/share/man/man1 \
+ && $ARCH-g++ -nostartfiles -fno-exceptions -fno-rtti -O2 -s \
+        $XP_FLAG $LARGE_ADDRESS_FLAG \
+        -o /out/bin/sh.exe main_win32.cpp \
+ && for n in ash lash bash; do cp /out/bin/sh.exe /out/bin/$n.exe; done \
+ && cp unabashed.1 /out/share/man/man1/
+
 # Build PDCurses once and reuse it for both gdb and ccmake.
 FROM cross AS build-pdcurses
 COPY --from=dl-pdcurses /dl/pdcurses /dl/pdcurses
@@ -809,17 +836,17 @@ RUN QUILT_PATCHES=$PREFIX/src/busybox quilt push -a \
 # Create BusyBox command aliases (like "busybox --install")
 RUN $ARCH-gcc -Oz -fno-asynchronous-unwind-tables -Wl,--gc-sections -s \
       -nostdlib -o alias.exe $PREFIX/src/busybox-alias.c -lkernel32 \
- && printf '%s\n' arch ash awk base32 base64 basename bc bunzip2 bzcat \
+ && printf '%s\n' arch awk base32 base64 basename bc bunzip2 bzcat \
       bzip2 cal cat cdrop chattr chmod cksum clear cmp comm cp cpio crc32 cut \
-      date dc dd df diff dirname dos2unix drop du echo ed egrep env expand \
+      date dc dd df diff dirname dos2unix du echo ed egrep env expand \
       expr factor false fgrep find flock fold free fsync getopt grep groups \
       hd head hexdump httpd iconv id inotifyd install ipcalc jn join kill \
-      killall lash less ln logname ls lsattr lzcat lzma lzop lzopcat man \
+      killall less ln logname ls lsattr lzcat lzma lzop lzopcat man \
       md5sum mkdir mktemp mv nc nl nproc od paste patch pdrop pgrep pidof \
       ping ping6 pipe_progress pkill printenv printf ps pwd readlink realpath \
       reset rev \
-      rm rmdir sed seq sh sha1sum sha256sum sha384sum sha3sum sha512sum shred \
-      shuf sleep sort split ssl_client stat stty su sum sync tac tail tar tee \
+      rm rmdir sed seq sha1sum sha256sum sha384sum sha3sum sha512sum shred \
+      shuf sleep sort split ssl_client stat stty sum sync tac tail tar tee \
       test time timeout touch \
       tr true truncate ts ttysize uname uncompress unexpand uniq unix2dos \
       unlzma unlzop unxz uptime usleep uudecode uuencode watch \
@@ -1168,6 +1195,7 @@ COPY --from=dl-zstd /dl/*.* /source/
 COPY --from=dl-tugz /dl/*.* /source/
 COPY --from=dl-quilt /dl/*.* /source/
 COPY --from=dl-u-config /dl/*.* /source/
+COPY --from=dl-unabashed /dl/*.* /source/
 COPY --from=dl-ccache /dl/*.* /source/
 COPY --from=dl-ninja /dl/*.* /source/
 COPY --from=dl-cmake /dl/*.* /source/
@@ -1184,6 +1212,7 @@ ARG VERSION
 COPY --from=build-gendef /out/ $PREFIX/
 COPY --from=build-quilt /out/ $PREFIX/
 COPY --from=build-u-config /out/ $PREFIX/
+COPY --from=build-unabashed /out/ $PREFIX/
 COPY --from=build-gdb /out/ $PREFIX/
 COPY --from=build-make /out/ $PREFIX/
 COPY --from=build-busybox /out/ $PREFIX/

@@ -10,7 +10,8 @@ Included tools:
 * [GDB][gdb] : debugger
 * [GNU Make][make] : standard build tool
 * [CMake][cmake] with [Ninja][ninja] and [a debugger][dcmake] : build system
-* [busybox-w32][bb] : standard unix utilities, including sh
+* [unabashed][ub] : a bash for Windows, as sh and bash
+* [busybox-w32][bb] : standard unix utilities
 * [Vim][vim] : powerful text editor
 * [quicktags][ctags] : source navigation (ctags)
 * [Ccache][ccache] : compiler cache
@@ -301,6 +302,7 @@ binaries.
 [san2]: https://groups.google.com/forum/#!topic/address-sanitizer/q0e5EBVKZT4
 [san]: http://mingw-w64.org/doku.php/contribute#sanitizers_asan_tsan_usan
 [sus]: https://pubs.opengroup.org/onlinepubs/9799919799/download/
+[ub]: https://github.com/skeeto/unabashed
 [vim]: https://www.vim.org/
 [w64]: http://mingw-w64.org/
 [w64devkit]: https://github.com/skeeto/w64devkit

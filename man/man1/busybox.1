@@ -1,6 +1,6 @@
-.TH BUSYBOX 1 2026-10-31 "w64devkit" "w64devkit Manual"
+.TH BUSYBOX 1 2026-11-08 "w64devkit" "w64devkit Manual"
 .SH NAME
-busybox \- one program providing the shell and many Unix commands
+busybox \- one program providing many Unix commands
 .SH SYNOPSIS
 .I applet
 .RI [ argument ...]
@@ -34,7 +34,7 @@ busybox \- one program providing the shell and many Unix commands
 .B busybox
 is a single program,
 .IR busybox.exe ,
-that contains the shell and most of the Unix commands in w64devkit.
+that contains most of the Unix commands in w64devkit.
 Each command it contains is called an applet.
 An applet is a small implementation of the command of the same name,
 usually with fewer options than its GNU or BSD namesake.
@@ -65,7 +65,7 @@ and
 .B true
 prints its usage on standard output and exits with status 0, ignoring
 any further arguments.
-In the shell, a builtin of the same name, such as
+In the kit's shell, a builtin of the same name, such as
 .B printf
 or
 .BR kill ,
@@ -78,19 +78,20 @@ Its
 .I bin
 directory holds the compilers and other tools, and
 .B busybox
-provides the shell and the Unix commands beside them.
+provides the Unix commands beside them.
 .PP
 .I w64devkit.exe
 puts
 .I bin
 at the front of
 .B PATH
-and starts
-.B busybox
-as a login shell,
+and starts the kit's shell, which is not part of busybox, as a login
+shell,
 .BR "sh \-l" ;
 see
-.BR w64devkit (1).
+.BR w64devkit (1)
+and
+.BR sh (1).
 For most applets, the kit's
 .I bin
 directory also holds a launcher, so that programs other than
@@ -99,9 +100,7 @@ such as
 .B make
 or
 .BR cmd.exe ,
-find
-.B sh
-and the applets through
+find the applets through
 .B PATH
 like any other program; see
 .BR Launchers .
@@ -114,10 +113,14 @@ Some applets in turn run other programs of the kit:
 .B man
 formats pages with
 .BR nroff ,
-and automatic decompression runs
+automatic decompression runs
 .B gunzip
 and
-.BR unzstd .
+.BR unzstd ,
+and applets that run a shell command run the kit's
+.BR sh ;
+see
+.BR "Running commands" .
 .SS Choosing the applet
 .B busybox
 runs the applet named by its first command-line word, the name it was
@@ -214,16 +217,6 @@ is a builtin, and elsewhere it runs as
 .BR "busybox [" .
 .SS Applets
 This build has these applets.
-.BR sh ,
-.BR ash ,
-and
-.B lash
-are names of the same shell.
-.TP
-Shell
-.BR ash ,
-.BR lash ,
-.B sh
 .TP
 Files
 .BR chattr ,
@@ -340,14 +333,12 @@ Processes
 System and users
 .BR arch ,
 .BR cdrop ,
-.BR drop ,
 .BR free ,
 .BR groups ,
 .BR id ,
 .BR logname ,
 .BR nproc ,
 .BR pdrop ,
-.BR su ,
 .BR uname ,
 .BR uptime ,
 .B whoami
@@ -397,7 +388,6 @@ Scripting
 .B yes
 .TP
 Other
-.BR busybox ,
 .B man
 .SS Applets left out
 The kit builds
@@ -433,6 +423,18 @@ GNU make; see
 .TP
 .BR ar ", " strings
 GNU binutils.
+.TP
+.BR sh ", " ash ", " lash ", " bash
+unabashed; see
+.BR sh (1).
+busybox is built without its shell at all, and so without
+.BR drop ,
+which runs that shell without administrator rights, and
+.BR su ,
+which runs it with them.
+.B cdrop sh
+runs the kit's shell without administrator rights; see
+.BR cdrop (1).
 .PP
 The kit also leaves out these applets, with no replacement:
 .BR ascii ,
@@ -452,25 +454,14 @@ and
 .PP
 There is no
 .B [[
-applet, and the shell has no
+applet.
+The kit's
+.B sh
+has
 .B [[
-command; use
-.B test
-or
-.B [
-instead, as described in
-.BR test (1).
-.PP
-busybox-w32 also offers the shell under the name
-.BR bash ,
-which adds no bash features.
-The kit leaves that name out, so that the shell never takes the place
-of a real bash in
-.BR PATH ;
-run the shell as
-.BR sh .
+as a builtin.
 .SS Running commands
-When the shell, or an applet such as
+When an applet such as
 .BR env ,
 .BR find ,
 .BR time ,
@@ -493,11 +484,9 @@ or
 .I /usr/sbin/name
 runs the applet
 .IR name .
-The shell does so only when no such file exists, and otherwise runs the
-file.
 For a
 .I name
-that is not an applet, the other applets run the file, or else look up
+that is not an applet, the applet runs the file, or else looks up
 .I name
 in
 .BR PATH .
@@ -535,18 +524,49 @@ so that
 and
 .B #!/usr/bin/env
 lines work.
-When the shell runs the file, this search uses
-.B PATH
-as it was when the shell started, ignoring changes made in the shell.
+Since busybox has no
+.B sh
+applet,
+.B #!/bin/sh
+runs the
+.B sh
+in
+.BR PATH ,
+which in the kit is its own shell.
 A file whose name ends in
 .B .sh
 and that has no
 .B #!\&
-line runs under
-.BR sh .
+line runs under that
+.B sh
+too.
+.PP
+Applets that run a shell command, such as the
+.B system
+function and pipes of
+.BR awk ,
+the formatting pipeline of
+.BR man ,
+and
+.BR watch ,
+run
+.B sh \-c
+with the command, finding
+.B sh
+in
+.B PATH
+the same way.
+These applets fail when no
+.B sh
+is in
+.BR PATH ,
+which can happen when busybox runs outside the kit's shell with a
+.B PATH
+that lacks the kit's
+.IR bin .
 .PP
 busybox starts from a native Windows environment when its environment
-has not passed through the busybox shell, as when
+has not passed through the kit's shell, as when
 .B cmd.exe
 or Explorer starts it.
 It recognizes such an environment by the mixed-case names that Windows
@@ -580,9 +600,12 @@ but precede each name with two fields: an 8-column field that holds
 .BR noexec ,
 or nothing, and the applet's conventional Unix directory, such as
 .BR usr/bin/ .
-The shell runs
+.B xargs
+and
+.B find \-exec
+run
 .B NOFORK
-applets within its own process.
+applets within their own process.
 Any longer argument that begins with
 .B \-\-list
 has the same effect.
@@ -704,14 +727,11 @@ are added by busybox-w32; upstream BusyBox has none of them.
 busybox reads them from its environment, when it starts or when an
 applet runs, so a variable set in the shell takes effect only once it is
 exported.
-The shell applies
-.BR BB_CRITICAL_ERROR_DIALOGS ,
-.BR BB_OVERRIDE_APPLETS ,
-.BR BB_SKIP_ANSI_EMULATION ,
-.BR BB_SYSTEMROOT ,
-and
-.B BB_TERMINAL_MODE
-to itself as soon as they are exported; see
+The kit's
+.B sh
+reads only
+.BR BB_OVERRIDE_APPLETS ;
+see
 .BR sh (1).
 .TP
 .B BB_CRITICAL_ERROR_DIALOGS
@@ -746,7 +766,7 @@ so that the busybox programs it starts, such as those that the shell
 runs, do not expand their arguments a second time.
 .TP
 .B BB_OVERRIDE_APPLETS
-The applets that the shell and other applets do not run by name, so that
+The applets that the kit's shell and applets do not run by name, so that
 a program in
 .B PATH
 runs instead.
@@ -794,9 +814,7 @@ Windows system directory.
 A directory works too.
 The system drive is where
 .B "\-\-install \-u"
-installs, where the login shell looks for
-.IR /etc/profile ,
-and where
+installs, and where
 .B man
 looks for its configuration files in
 .IR /etc .
@@ -847,9 +865,6 @@ makes new files read-only.
 The group and other write bits,
 .BR 022 ,
 only remove those bits from the permissions that busybox reports.
-The shell's
-.B umask
-command sets and exports this variable.
 .TP
 .BR COLUMNS ", " LINES
 The terminal width and height for applets that fit their output to the
@@ -917,9 +932,7 @@ such as when it is missing from the launcher's directory.
 The launcher writes a message that begins with
 .B w64devkit:
 to standard error.
-The kit's shell writes a message that ends in
-.BR "Error 0x17e" ,
-and sees the status as 126, its low byte.
+The kit's shell sees the status as 126, its low byte.
 .PP
 Otherwise the exit status is that of the applet.
 .SH EXAMPLES
@@ -947,7 +960,11 @@ $ busybox sha384sum kit.zip
 .EE
 .RE
 .PP
-List the applets that the shell runs in its own process:
+List the applets that
+.B xargs
+and
+.B find \-exec
+run in their own process:
 .PP
 .RS 4
 .EX
@@ -1070,47 +1087,18 @@ console, it changes them to 858, which adds the euro sign.
 .PP
 w64devkit makes these changes to busybox-w32:
 .IP \(bu 2
-The login shell reads the kit's
-.IR etc/profile ,
-in the directory above
-.IR bin ,
-after
-.I /etc/profile
-on the system drive.
-busybox-w32 looks for
-.I etc/profile
-in the directory that holds
-.I busybox.exe
-instead; see
-.BR w64devkit (1).
-.IP \(bu 2
-A login shell does not change to
-.B HOME
-before it reads the profiles.
-.IP \(bu 2
-Line editing in the shell never beeps.
-.IP \(bu 2
-In the shell, Tab does nothing where a command name should be typed but
-none has been.
-busybox-w32 offers every applet, builtin, and program in
+busybox has no shell, so applets run the kit's
+.B sh
+from
 .B PATH
-there, which takes seconds on Windows.
+for shell commands and scripts; see
+.BR "Running commands" .
 .IP \(bu 2
-The shell keeps 1024 lines of history by default, and
-.B HISTSIZE
-may raise this to 16384.
-busybox-w32 keeps 384 lines, and at most 1023.
-.IP \(bu 2
-The shell's
-.B noiconify
-option is on by default, so that
-.B noconsole
-hides the console window instead of minimizing it; see
-.BR sh (1).
-.IP \(bu 2
-The shell has no
-.B [[
-command.
+Line editing, as in
+.B bc
+and
+.BR ed ,
+never beeps.
 .IP \(bu 2
 Automatic decompression, as in
 .B tar
@@ -1165,10 +1153,8 @@ Bugs are fixed in
 .BR ping ,
 .BR ping6 ,
 .BR stty ,
-.BR wget ,
-and the shell's
-.B wait
-command.
+and
+.BR wget .
 .IP \(bu 2
 The 64-bit
 .B busybox
@@ -1176,9 +1162,7 @@ also runs on Windows older than 10 version 1903, with the system's
 ANSI code page.
 The 64-bit Unicode build of busybox-w32 refuses to run there.
 .IP \(bu 2
-Some applets are left out, and the shell is not available as
-.BR bash ;
-see
+Some applets are left out; see
 .BR "Applets left out" .
 .IP \(bu 2
 Every applet except
@@ -1188,6 +1172,7 @@ has a launcher in
 see
 .BR Launchers .
 .SH SEE ALSO
+.BR cdrop (1),
 .BR gzip (1),
 .BR less (1),
 .BR ls (1),

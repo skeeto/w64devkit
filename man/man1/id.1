@@ -180,8 +180,8 @@ uid=4095(alice) gid=4095(alice) groups=4095(alice)
 .EE
 .RE
 .PP
-In an elevated process, such as a shell started by
-.BR su :
+In an elevated process, such as a shell in a console opened with Run as
+administrator:
 .PP
 .RS 4
 .EX
@@ -215,8 +215,7 @@ It does not report Windows security identifiers or group memberships.
 The Administrators group only decides whether the process is
 .BR root .
 A command started by
-.BR drop ,
-.BR cdrop ,
+.B cdrop
 or
 .B pdrop
 runs with reduced privileges and is not
@@ -259,7 +258,7 @@ code page for display.
 Output lines end with LF, not CRLF.
 .SH SEE ALSO
 .BR busybox (1),
+.BR cdrop (1),
 .BR groups (1),
 .BR logname (1),
-.BR su (1),
 .BR whoami (1)

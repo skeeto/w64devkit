@@ -4,7 +4,7 @@
 // * Maybe sets $HOME according to w64devkit.ini
 // * Maybe sets $PATH according to w64devkit.ini
 // * Changes to the home directory
-// * Starts a login shell with "sh -l"
+// * Starts a login shell, bin/sh.exe, with "sh -l"
 //
 // $ gcc -DVERSION="$VERSION" -nostartfiles -o w64devkit.exe
 //       w64devkit.c -lmemory
@@ -662,10 +662,11 @@ static i32 w64devkit()
     SetCurrentDirectoryW(home.buf);  // ignore errors
 
     path = moduledir;
-    buf16cat(&path, U(u"\\bin\\busybox.exe"));
+    buf16cat(&path, U(u"\\bin\\sh.exe"));
     buf16c16(&path, 0);  // null terminator
 
-    // Start a BusyBox login shell
+    // Start a login shell: sh.exe is unabashed, or in an older kit a
+    // BusyBox alias, either taking the same command line
     Si si = {};
     si.cb = sizeof(si);
     Pi pi;

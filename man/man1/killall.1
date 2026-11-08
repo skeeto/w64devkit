@@ -397,8 +397,13 @@ number shifted left 24 bits, such as
 .B 0x0F000000
 for
 .BR TERM .
-The busybox shell reports that as death by the signal, with status 128
-plus the signal number.
+Some busybox programs that wait for the process take that as death by
+the signal:
+.B cdrop
+exits with status 128 plus the signal number, and
+.B xargs
+reports the signal.
+The kit's shell sees the low byte of the exit code, 0.
 Only the matched process is signaled, not its children.
 A thread that cannot be created is not reported, so a successful exit
 status does not prove that the process exited.
@@ -414,13 +419,11 @@ process or one of another user, fails the same way.
 Only the process running
 .B killall
 is excluded.
-In the kit's shell that is the shell itself, because the shell runs
+The kit's shell starts
 .B killall
-without starting a process, so
+as a separate busybox process, so
 .B killall sh
-spares the shell that runs it but signals every other busybox shell.
-A subshell or a pipeline element is a separate process, so there the
-shell it was started from is signaled too.
+signals the shell that runs it too.
 Started from
 .B cmd.exe
 through the launcher

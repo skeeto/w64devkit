@@ -18,9 +18,7 @@ Windows has no Unix user ids, so busybox supplies fixed ones, and
 prints the name of the effective user:
 .IP \(bu 2
 In a process that is elevated and has the Administrators group enabled,
-such as one started by
-.BR su (1),
-the user is
+such as one in a console opened with Run as administrator, the user is
 .BR root .
 .IP \(bu 2
 In any other process the user is the Windows account, named as the
@@ -134,7 +132,7 @@ $ c:/windows/system32/whoami
 Tell whether the process runs as
 .BR root ,
 which a process started by
-.B drop
+.B cdrop
 does not, though Windows still reports it as elevated:
 .PP
 .RS 4
@@ -166,8 +164,7 @@ is therefore not told apart from an elevated process by its name, whereas
 .B "id \-u"
 prints 0 only when the process is elevated.
 A command started by
-.BR drop ,
-.BR cdrop ,
+.B cdrop
 or
 .B pdrop
 runs with reduced privileges and is not root, even from an elevated
@@ -180,21 +177,17 @@ Windows has its own
 which prints the domain as well, as in
 .IR domain \e account ,
 and has options of its own.
-The kit's shell runs
-.B whoami
-as an applet without consulting
-.BR PATH ,
-so it runs the busybox one, unless
-.B BB_OVERRIDE_APPLETS
-says otherwise; see
-.BR busybox (1).
-It does so inside its own process, without starting another; see
-.BR sh (1).
-From
+In the kit's shell, as in
 .BR cmd.exe ,
 the order of directories in
 .B PATH
 decides which one runs.
+The kit puts its
+.I bin
+first, so a bare
+.B whoami
+runs the busybox one; see
+.BR busybox (1).
 .PP
 The user name is read in the ANSI code page, which is UTF-8 on Windows 10
 version 1903 and later, so on those versions it may contain any Unicode
@@ -212,5 +205,4 @@ say otherwise.
 .BR busybox (1),
 .BR id (1),
 .BR logname (1),
-.BR sh (1),
-.BR su (1)
+.BR sh (1)

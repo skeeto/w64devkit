@@ -363,8 +363,7 @@ sends and receives through a raw ICMP socket.
 Recent versions of Windows, such as Windows 11, let a process that is
 not elevated send echo requests this way, but some versions require an
 elevated process,
-such as one started by
-.BR su (1).
+such as one in a console opened with Run as administrator.
 Otherwise
 .B ping
 fails with a message such as
@@ -462,6 +461,5 @@ not
 .BR kill (1),
 .BR nc (1),
 .BR sh (1),
-.BR su (1),
 .BR timeout (1),
 .BR wget (1)
