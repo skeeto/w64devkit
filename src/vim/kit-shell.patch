@@ -1,0 +1,386 @@
+--- a/runtime/doc/options.txt
++++ b/runtime/doc/options.txt
+@@ -6768,6 +6768,15 @@ A jump table for the options with a short description can be found at |Q_op|.
+ 	See |option-backslash| about including spaces and backslashes.
+ 	Environment variables are expanded |:set_env|.
+ 
++	In w64devkit the Win32 default is the kit's shell, the full path of
++	its bin\sh.exe, unless $SHELL is set; it is "cmd.exe" only when that
++	file is missing.  A Unix-like shell, one with "sh" in its name other
++	than PowerShell, runs directly rather than through cmd.exe.  When
++	'shellxquote' is a double quote, the quotes and backslashes in the
++	command are escaped by the C runtime rules, so the shell receives it
++	as typed.  |shellescape()| uses single quotes for such a shell, and
++	'shellslash' defaults on.
++
+ 	In |restricted-mode| shell commands will not be possible.  This mode
+ 	is used if the value of $SHELL ends in "false" or "nologin".
+ 
+@@ -6894,7 +6903,7 @@ A jump table for the options with a short description can be found at |Q_op|.
+ 	security reasons.
+ 
+ 			*'shellslash'* *'ssl'* *'noshellslash'* *'nossl'*
+-'shellslash' 'ssl'	boolean	(default off)
++'shellslash' 'ssl'	boolean	(default off, w64devkit: see below)
+ 			global
+ 			{only for MS-Windows}
+ 	When set, a forward slash is used when expanding file names.  This is
+@@ -6908,6 +6917,9 @@ A jump table for the options with a short description can be found at |Q_op|.
+ 	separator.  To test if this is so use: >
+ 		if exists('+shellslash')
+ <	Also see 'completeslash'.
++	In w64devkit it is on by default when 'shell' is a Unix-like shell,
++	one with "sh" in its name other than PowerShell, such as the kit's
++	sh.exe, unless it was set in a vimrc file.
+ 
+ 			*'shelltemp'* *'stmp'* *'noshelltemp'* *'nostmp'*
+ 'shelltemp' 'stmp'	boolean	(Vi default off, Vim default on)
+--- a/src/option.c
++++ b/src/option.c
+@@ -98,6 +98,7 @@ set_init_1(int clean_arg)
+      */
+     if (((p = mch_getenv((char_u *)"SHELL")) != NULL && *p != NUL)
+ #if defined(MSWIN)
++	    || ((p = (char_u *)kit_shell()) != NULL && *p != NUL)
+ 	    || ((p = mch_getenv((char_u *)"COMSPEC")) != NULL && *p != NUL)
+ 	    || ((p = (char_u *)default_shell()) != NULL && *p != NUL)
+ #endif
+@@ -1057,6 +1058,18 @@ set_init_3(void)
+ 	    p_sxq = (char_u *)"\"";
+ 	    options[idx3].def_val[VI_DEFAULT] = p_sxq;
+ 	}
++
++	// A Unix-like shell takes "\" as an escape, so give it file names
++	// with forward slashes.  Setting the option adjusts the names
++	// already known, such as those of the arguments.
++	idx3 = findoption((char_u *)"ssl");
++	if (sh_like_shell() && idx3 >= 0
++				    && !(options[idx3].flags & P_WAS_SET))
++	{
++	    set_option_value_give_err((char_u *)"ssl", 1L, NULL, 0);
++	    options[idx3].flags &= ~P_WAS_SET;
++	    options[idx3].def_val[VI_DEFAULT] = (char_u *)TRUE;
++	}
+     }
+     else if (strstr((char *)gettail(p_sh), "cmd.exe") != NULL)
+     {
+--- a/src/os_win32.c
++++ b/src/os_win32.c
+@@ -4644,6 +4644,29 @@ mch_system_g(char *cmd, int options)
+ #endif
+ 
+ #if !defined(FEAT_GUI_MSWIN) || defined(VIMDLL)
++    static int
++mch_system_direct(char *cmd)
++{
++    STARTUPINFO		si;
++    PROCESS_INFORMATION pi;
++    DWORD		ret = 0;
++
++    ZeroMemory(&si, sizeof(si));
++    si.cb = sizeof(si);
++    if (!vim_create_process(cmd, TRUE, 0, &si, &pi, NULL, NULL))
++    {
++# ifdef FEAT_GUI_MSWIN
++	emsg(_(e_command_not_found));
++# endif
++	return -1;
++    }
++    WaitForSingleObject(pi.hProcess, INFINITE);
++    GetExitCodeProcess(pi.hProcess, &ret);
++    CloseHandle(pi.hThread);
++    CloseHandle(pi.hProcess);
++    return (int)ret;
++}
++
+     static int
+ mch_system_c(char *cmd, int options UNUSED)
+ {
+@@ -4652,6 +4675,12 @@ mch_system_c(char *cmd, int options UNUSED)
+     char_u	*buf;
+     size_t	len;
+ 
++    // Run the command line, which starts with a Unix-like 'shell', as a
++    // process in this console.  system() would hand it to cmd.exe, which
++    // interprets it again and breaks its quoting.
++    if (sh_like_shell())
++	return mch_system_direct(cmd);
++
+     // If the command starts and ends with double quotes, enclose the command
+     // in parentheses.
+     len = STRLEN(cmd);
+@@ -4777,6 +4806,52 @@ mch_call_shell_terminal(
+ }
+ #endif
+ 
++/*
++ * Given a command wrapped in double quotes, return it as one argument by
++ * the C runtime rules: the same quotes around it, a backslash before each
++ * quote inside, and doubled backslashes where they precede a quote.
++ * Returns NULL, in allocated memory otherwise, when "cmd" is not wrapped.
++ */
++    static char_u *
++crt_requote(char_u *cmd)
++{
++    size_t	len = STRLEN(cmd);
++    size_t	i;
++    int		nslash = 0;
++    char_u	*buf, *d;
++
++    if (len < 2 || cmd[0] != '"' || cmd[len - 1] != '"')
++	return NULL;
++    buf = alloc(len * 2 + 1);	// worst case: every byte becomes two
++    if (buf == NULL)
++	return NULL;
++    d = buf;
++    *d++ = '"';
++    for (i = 1; i < len - 1; ++i)
++    {
++	if (cmd[i] == '\\')
++	    ++nslash;
++	else
++	{
++	    if (cmd[i] == '"')
++	    {
++		// double the backslashes before it, and escape it
++		for (; nslash > 0; --nslash)
++		    *d++ = '\\';
++		*d++ = '\\';
++	    }
++	    nslash = 0;
++	}
++	*d++ = cmd[i];
++    }
++    // double the backslashes before the closing quote
++    for (; nslash > 0; --nslash)
++	*d++ = '\\';
++    *d++ = '"';
++    *d = NUL;
++    return buf;
++}
++
+ /*
+  * Either execute a command by calling the shell or start a new shell
+  */
+@@ -5011,6 +5086,18 @@ mch_call_shell(
+ 	}
+ 	else
+ 	{
++	    char_u	*qcmd = NULL;
++
++	    // 'shellxquote' " makes the command one argument for the shell,
++	    // but a Unix-like shell splits its command line by the C runtime
++	    // rules, so quotes and backslashes inside need escaping.
++	    if (sh_like_shell() && STRCMP(p_sxq, "\"") == 0)
++	    {
++		qcmd = crt_requote(cmd);
++		if (qcmd != NULL)
++		    cmd = qcmd;
++	    }
++
+ 	    cmdlen =
+ #ifdef FEAT_GUI_MSWIN
+ 		((gui.in_use || gui.starting) ?
+@@ -5018,7 +5105,7 @@ mch_call_shell(
+ 			STRLEN(vimrun_path) : STRLEN(p_sh) + STRLEN(p_shcf))
+ 		    : 0) +
+ #endif
+-		STRLEN(p_sh) + STRLEN(p_shcf) + STRLEN(cmd) + 10;
++		STRLEN(p_sh) + STRLEN(p_shcf) + STRLEN(cmd) + 13;
+ 
+ 	    newcmd = alloc(cmdlen);
+ 	    if (newcmd != NULL)
+@@ -5049,11 +5136,13 @@ mch_call_shell(
+ # endif
+ 		    !s_dont_use_vimrun && p_stmp)
+ 		    // Use vimrun to execute the command.  It opens a console
+-		    // window, which can be closed without killing Vim.
+-		    vim_snprintf((char *)newcmd, cmdlen, "%s%s%s %s %s",
++		    // window, which can be closed without killing Vim.  With
++		    // "-d" it runs a Unix-like shell directly, not via cmd.exe.
++		    vim_snprintf((char *)newcmd, cmdlen, "%s%s%s%s %s %s",
+ 			    vimrun_path,
+ 			    (msg_silent != 0 || (options & SHELL_DOOUT))
+ 								 ? "-s " : "",
++			    sh_like_shell() ? "-d " : "",
+ 			    p_sh, p_shcf, cmd);
+ 		else if (
+ # ifdef VIMDLL
+@@ -5070,6 +5159,7 @@ mch_call_shell(
+ 		x = mch_system((char *)newcmd, options);
+ 		vim_free(newcmd);
+ 	    }
++	    vim_free(qcmd);
+ 	}
+     }
+ 
+@@ -7041,6 +7131,54 @@ default_shell(void)
+     return "cmd.exe";
+ }
+ 
++/*
++ * Get the w64devkit shell, bin\sh.exe in the kit, whose share\vim holds
++ * this executable.  Returns NULL when there is no such file.
++ */
++    char *
++kit_shell(void)
++{
++    static char	path[MAX_PATH * 3];
++    WCHAR	exe[MAX_PATH + 16];
++    WCHAR	full[MAX_PATH];
++    WCHAR	*tail;
++    DWORD	len, attr;
++
++    len = GetModuleFileNameW(NULL, exe, MAX_PATH);
++    if (len == 0 || len >= MAX_PATH)
++	return NULL;
++    tail = wcsrchr(exe, L'\\');
++    if (tail == NULL)
++	return NULL;
++    wcscpy(tail + 1, L"..\\..\\bin\\sh.exe");
++    len = GetFullPathNameW(exe, MAX_PATH, full, NULL);
++    if (len == 0 || len >= MAX_PATH)
++	return NULL;
++    attr = GetFileAttributesW(full);
++    if (attr == INVALID_FILE_ATTRIBUTES || (attr & FILE_ATTRIBUTE_DIRECTORY))
++	return NULL;
++    // 'encoding' is not set yet, and defaults to utf-8
++    if (!WideCharToMultiByte(CP_UTF8, 0, full, -1, path, sizeof(path),
++								  NULL, NULL))
++	return NULL;
++    return path;
++}
++
++/*
++ * Return TRUE when 'shell' is a Unix-like shell, such as sh or bash, that
++ * splits its command line by the C runtime rules and takes "\" as an
++ * escape.  PowerShell, which also has "sh" in its name, is not one.
++ */
++    int
++sh_like_shell(void)
++{
++    char *tail = (char *)gettail(p_sh);
++
++    return strstr(tail, "sh") != NULL
++	&& strstr(tail, "powershell") == NULL
++	&& strstr(tail, "pwsh") == NULL;
++}
++
+ /*
+  * mch_access() extends access() to do more detailed check on network drives.
+  * Returns 0 if file "n" has access rights according to "p", -1 otherwise.
+--- a/src/proto/os_win32.pro
++++ b/src/proto/os_win32.pro
+@@ -61,6 +61,8 @@ long_u mch_total_mem(int special);
+ int mch_wrename(WCHAR *wold, WCHAR *wnew);
+ int mch_rename(const char *pszOldFile, const char *pszNewFile);
+ char *default_shell(void);
++char *kit_shell(void);
++int sh_like_shell(void);
+ int mch_access(char *n, int p);
+ int mch_open(const char *name, int flags, int mode);
+ FILE *mch_fopen(const char *name, const char *mode);
+--- a/src/strings.c
++++ b/src/strings.c
+@@ -176,8 +176,9 @@ vim_strsave_shellescape(char_u *string, int do_special, int do_newline)
+     powershell = strstr((char *)shname, "pwsh") != NULL;
+ # ifdef MSWIN
+     powershell = powershell || strstr((char *)shname, "powershell") != NULL;
+-    // PowerShell only accepts single quotes so override shellslash.
+-    double_quotes = !powershell && !p_ssl;
++    // PowerShell only accepts single quotes so override shellslash.  So does
++    // a Unix-like shell, for which double quotes do not protect "$" or "\".
++    double_quotes = !powershell && !p_ssl && !sh_like_shell();
+ # endif
+ 
+     // First count the number of extra bytes required.
+--- a/src/vimrun.c
++++ b/src/vimrun.c
+@@ -23,6 +23,38 @@
+ #endif
+ #include <windows.h>
+ 
++/*
++ * Run a command line as a process and return its exit code, or -1.
++ */
++    static int
++run_direct(const wchar_t *p)
++{
++    STARTUPINFOW	si;
++    PROCESS_INFORMATION pi;
++    DWORD		code = (DWORD)-1;
++    wchar_t		*cmd = _wcsdup(p);  // CreateProcessW() may modify it
++
++    if (cmd == NULL)
++    {
++	perror("vimrun malloc(): ");
++	return -1;
++    }
++    ZeroMemory(&si, sizeof(si));
++    si.cb = sizeof(si);
++    if (CreateProcessW(NULL, cmd, NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi))
++    {
++	WaitForSingleObject(pi.hProcess, INFINITE);
++	GetExitCodeProcess(pi.hProcess, &code);
++	CloseHandle(pi.hThread);
++	CloseHandle(pi.hProcess);
++    }
++    else
++	printf("vimrun: cannot run the command (error %lu)\n",
++						  (unsigned long)GetLastError());
++    free(cmd);
++    return (int)code;
++}
++
+     int
+ main(void)
+ {
+@@ -32,6 +64,7 @@ main(void)
+     int		    retval;
+     int		    inquote = 0;
+     int		    silent = 0;
++    int		    direct = 0;
+     HANDLE	    hstdout;
+     DWORD	    written;
+ 
+@@ -65,11 +98,32 @@ main(void)
+ 	    ++p;
+     }
+ 
++    /*
++     * "-d" argument: run the command directly, not through cmd.exe.
++     */
++    if (p[0] == L'-' && p[1] == L'd' && p[2] == L' ')
++    {
++	direct = 1;
++	p += 3;
++	while (*p == L' ')
++	    ++p;
++    }
++
+     // Print the command, including quotes and redirection.
+     hstdout = GetStdHandle(STD_OUTPUT_HANDLE);
+     WriteConsoleW(hstdout, p, wcslen(p), &written, NULL);
+     WriteConsoleW(hstdout, L"\r\n", 2, &written, NULL);
+ 
++    if (direct)
++    {
++	// The command line starts with a Unix-like shell, which would not
++	// receive it intact through cmd.exe.
++	retval = run_direct(p);
++	if (retval != 0)
++	    printf("shell returned %d\n", retval);
++	goto done;
++    }
++
+     // If the command starts and ends with double quotes,
+     // Enclose the command in parentheses.
+     cmd = NULL;
+@@ -100,6 +154,7 @@ main(void)
+     else if (retval != 0)
+ 	printf("shell returned %d\n", retval);
+ 
++done:
+     if (!silent)
+     {
+ 	puts("Hit any key to close this window...");
