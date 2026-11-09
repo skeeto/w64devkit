@@ -1,3 +1,4 @@
 guifont.patch
 qml.patch
 kit-shell.patch
+gvim-detach.patch

@@ -871,7 +871,7 @@ RUN QUILT_PATCHES=$PREFIX/src/vim quilt push -a \
  && cp -r runtime /out/share/vim \
  && cp src/vimrun.exe src/gvim.exe src/vim.exe src/*.dll /out/share/vim/ \
  && $ARCH-gcc -DEXE=../share/vim/gvim.exe -DCMD=gvim -DUNSET=SHELL \
-        -DNOWAIT -mwindows \
+        -mwindows \
         -Oz -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
         -o /out/bin/gvim.exe $PREFIX/src/alias.c -lkernel32 \
  && printf '%s\n' vim vi \

@@ -1,0 +1,133 @@
+--- a/runtime/doc/options.txt
++++ b/runtime/doc/options.txt
+@@ -3973,7 +3973,8 @@ A jump table for the options with a short description can be found at |Q_op|.
+ 		can use "gvim -f" or ":gui -f" to start the GUI in the
+ 		foreground.  |gui-fork|
+ 		Note: Set this option in the vimrc file.  The forking may have
+-		happened already when the |gvimrc| file is read.
++		happened already when the |gvimrc| file is read.  In w64devkit
++		on MS-Windows it always has, so use "gvim -f" there.
+ 								*'go-i'*
+ 	  'i'	Use a Vim icon.  For GTK with KDE it is used in the left-upper
+ 		corner of the window.  It's black&white on non-GTK, because of
+--- a/runtime/doc/starting.txt
++++ b/runtime/doc/starting.txt
+@@ -470,9 +470,10 @@ a slash.  Thus "-R" means recovery and "-/R" readonly.
+ 		will wait for the edit session to finish (e.g., mail or
+ 		readnews).  See |amiga-window|.
+ 
+-		MS-Windows: This option is not supported.  However, when
+-		running Vim with an installed vim.bat or gvim.bat file it
+-		works.
++		MS-Windows: In w64devkit gvim works as on Unix, except that it
++		starts a copy of itself with "-f" instead of forking, before
++		reading any vimrc, so 'f' in 'guioptions' does not keep it in
++		the foreground.  "--nofork" and "--remote-wait" do.
+ 
+ 
+ 							*--nofork*
+--- a/src/main.c
++++ b/src/main.c
+@@ -212,6 +212,20 @@ main
+     command_line_scan(&params);
+     TIME_MSG("parsing arguments");
+ 
++#if defined(FEAT_GUI_MSWIN)
++    /*
++     * Like the fork() in gui_start() on Unix: unless "-f" was given, return
++     * control to whoever started gvim and continue in a copy of it.  This
++     * happens before any vimrc, so 'f' in 'guioptions' does not prevent it.
++     */
++    if (gui.starting && gui.dofork
++# ifdef VIMDLL
++	    && mch_is_gui_executable()
++# endif
++	    )
++	mch_gui_detach();
++#endif
++
+     /*
+      * On some systems, when we compile with the GUI, we always use it.  On Mac
+      * there is no terminal version, and on Windows we can't fork one off with
+--- a/src/os_win32.c
++++ b/src/os_win32.c
+@@ -7164,6 +7164,69 @@ kit_shell(void)
+     return path;
+ }
+ 
++#if defined(FEAT_GUI_MSWIN) || defined(PROTO)
++/*
++ * Start a copy of this process with "-f" after the program name, so that
++ * it stays, and exit.  The copy leaves any job object, as a forked child
++ * on Unix leaves the shell.  Returns only if the copy could not start, so
++ * that this process carries on instead.
++ */
++    void
++mch_gui_detach(void)
++{
++    WCHAR		*line = GetCommandLineW();
++    WCHAR		*rest = line;
++    WCHAR		*cmd;
++    size_t		len;
++    STARTUPINFOW	si;
++    PROCESS_INFORMATION pi;
++    DWORD		flags = CREATE_BREAKAWAY_FROM_JOB;
++    BOOL		ok;
++
++    // The program name ends at the closing quote or the first blank.
++    if (*rest == L'"')
++    {
++	for (++rest; *rest != NUL && *rest != L'"'; ++rest)
++	    ;
++	if (*rest == L'"')
++	    ++rest;
++    }
++    else
++	while (*rest != NUL && *rest != L' ' && *rest != L'\t')
++	    ++rest;
++
++    len = wcslen(line) + 4;
++    cmd = malloc(len * sizeof(WCHAR));
++    if (cmd == NULL)
++	return;
++    wcsncpy(cmd, line, rest - line);
++    cmd[rest - line] = NUL;
++    wcscat(cmd, L" -f");
++    wcscat(cmd, rest);
++
++    // Pass on the window state and standard handles this process got.
++    GetStartupInfoW(&si);
++    si.lpReserved = NULL;
++    si.cbReserved2 = 0;
++    si.lpReserved2 = NULL;
++
++    ok = CreateProcessW(NULL, cmd, NULL, NULL, TRUE, flags, NULL, NULL,
++								    &si, &pi);
++    if (!ok && GetLastError() == ERROR_ACCESS_DENIED)
++	// The job does not allow breaking away, stay in it.
++	ok = CreateProcessW(NULL, cmd, NULL, NULL, TRUE, 0, NULL, NULL,
++								    &si, &pi);
++    free(cmd);
++    if (!ok)
++	return;
++    // Let the copy's window come to the front, as this one's would.
++    AllowSetForegroundWindow(pi.dwProcessId);
++    CloseHandle(pi.hThread);
++    CloseHandle(pi.hProcess);
++    ExitProcess(0);
++}
++#endif
++
+ /*
+  * Return TRUE when 'shell' is a Unix-like shell, such as sh or bash, that
+  * splits its command line by the C runtime rules and takes "\" as an
+--- a/src/proto/os_win32.pro
++++ b/src/proto/os_win32.pro
+@@ -63,6 +63,7 @@ int mch_rename(const char *pszOldFile, const char *pszNewFile);
+ char *default_shell(void);
+ char *kit_shell(void);
+ int sh_like_shell(void);
++void mch_gui_detach(void);
+ int mch_access(char *n, int p);
+ int mch_open(const char *name, int flags, int mode);
+ FILE *mch_fopen(const char *name, const char *mode);

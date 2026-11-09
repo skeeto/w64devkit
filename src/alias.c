@@ -5,8 +5,7 @@
 // EXE as the target executable (relative or absolute path), and define CMD
 // as the argv[0] replacement, including additional arguments. Optionally
 // define UNSET as an environment variable to remove before starting the
-// target, and define NOWAIT to exit without waiting for the target, as
-// for a GUI program.
+// target. Link with -mwindows to alias a GUI program without a console.
 //
 //   $ gcc -DEXE="target.exe" -DCMD="argv0 argv1"
 //         -nostartfiles -fno-builtin -o alias.exe alias.c
@@ -226,10 +225,6 @@ static i32 aliasmain(void)
         return fatal((u8 *)msg, lengthof(msg));
     }
 
-    #ifdef NOWAIT
-    return 0;
-    #endif
-
     // Wait for child to exit
     VirtualFree(heap_start, 0, 0x8000);
     u32 ret;
@@ -245,6 +240,6 @@ void mainCRTStartup(void)
     ExitProcess(r);
 }
 
-// Entry point for -mwindows, as for a GUI program with NOWAIT
+// Entry point for -mwindows, as for a GUI program
 __attribute((alias("mainCRTStartup")))
 void WinMainCRTStartup(void);
