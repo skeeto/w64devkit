@@ -870,15 +870,21 @@ RUN QUILT_PATCHES=$PREFIX/src/vim quilt push -a \
  && mkdir -p /out/bin /out/share \
  && cp -r runtime /out/share/vim \
  && cp src/vimrun.exe src/gvim.exe src/vim.exe src/*.dll /out/share/vim/ \
- && printf '@set SHELL=\r\n@start "" "%%~dp0/../share/vim/gvim.exe" %%*\r\n' \
-        >/out/bin/gvim.bat \
- && printf '@set SHELL=\r\n@"%%~dp0/../share/vim/vim.exe" %%*\r\n' \
-        >/out/bin/vim.bat \
- && printf '@set SHELL=\r\n@"%%~dp0/../share/vim/vim.exe" %%*\r\n' \
-        >/out/bin/vi.bat \
- && printf '@vim -N -u NONE "+read %s" "+write" "%s"\r\n' \
-        '$VIMRUNTIME/tutor/tutor' '%TMP%/tutor%RANDOM%' \
-        >/out/bin/vimtutor.bat \
+ && $ARCH-gcc -DEXE=../share/vim/gvim.exe -DCMD=gvim -DUNSET=SHELL \
+        -DNOWAIT -mwindows \
+        -Oz -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
+        -o /out/bin/gvim.exe $PREFIX/src/alias.c -lkernel32 \
+ && printf '%s\n' vim vi \
+    | xargs -I{} -P$(nproc) \
+          $ARCH-gcc -DEXE=../share/vim/vim.exe -DCMD=vim -DUNSET=SHELL \
+            -Oz -fno-asynchronous-unwind-tables \
+            -Wl,--gc-sections -s -nostdlib \
+            -o /out/bin/{}.exe $PREFIX/src/alias.c -lkernel32 \
+ && $ARCH-gcc -DEXE=../share/vim/vim.exe -DUNSET=SHELL \
+        -DCMD='vim -N -u NONE "+e `=tempname()`" \
+               "+r $VIMRUNTIME/tutor/tutor" +1d +w' \
+        -Oz -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
+        -o /out/bin/vimtutor.exe $PREFIX/src/alias.c -lkernel32 \
  && $ARCH-gcc -nostartfiles -O2 -funroll-loops -s -o /out/bin/xxd.exe \
         $PREFIX/src/rexxd.c -lmemory
 

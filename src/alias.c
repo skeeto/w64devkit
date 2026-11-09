@@ -3,7 +3,10 @@
 // Unlike batch script aliases, this program will not produce an annoying
 // and useless "Terminate batch job (Y/N)" prompt. When compiling, define
 // EXE as the target executable (relative or absolute path), and define CMD
-// as the argv[0] replacement, including additional arguments.
+// as the argv[0] replacement, including additional arguments. Optionally
+// define UNSET as an environment variable to remove before starting the
+// target, and define NOWAIT to exit without waiting for the target, as
+// for a GUI program.
 //
 //   $ gcc -DEXE="target.exe" -DCMD="argv0 argv1"
 //         -nostartfiles -fno-builtin -o alias.exe alias.c
@@ -64,6 +67,7 @@ W32 u32    GetFullPathNameW(c16 *, u32, c16 *, c16 *);
 W32 u32    GetModuleFileNameW(handle, c16 *, u32);
 W32 handle GetStdHandle(u32);
 W32 b32    SetConsoleCtrlHandler(handler, b32);
+W32 b32    SetEnvironmentVariableW(c16 *, c16 *);
 W32 byte  *VirtualAlloc(byte *, usize, u32, u32);
 W32 b32    VirtualFree(byte *, usize, u32);
 W32 u32    WaitForSingleObject(handle, u32);
@@ -210,6 +214,10 @@ static i32 aliasmain(void)
         return fatal((u8 *)msg, lengthof(msg));
     }
 
+    #ifdef UNSET
+    SetEnvironmentVariableW(LSTR(UNSET), 0);
+    #endif
+
     si *si = newstartupinfo(&heap);
     pi pi;
     SetConsoleCtrlHandler(ignorectrlc, 1);  // NOTE: set as late a possible
@@ -217,6 +225,10 @@ static i32 aliasmain(void)
         static const u8 msg[] = ERR("could not start process\n");
         return fatal((u8 *)msg, lengthof(msg));
     }
+
+    #ifdef NOWAIT
+    return 0;
+    #endif
 
     // Wait for child to exit
     VirtualFree(heap_start, 0, 0x8000);
@@ -232,3 +244,7 @@ void mainCRTStartup(void)
     u32 r = aliasmain();
     ExitProcess(r);
 }
+
+// Entry point for -mwindows, as for a GUI program with NOWAIT
+__attribute((alias("mainCRTStartup")))
+void WinMainCRTStartup(void);

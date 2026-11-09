@@ -1,37 +1,38 @@
-.TH VIMTUTOR 1 2026-10-31 "w64devkit" "w64devkit Manual"
+.TH VIMTUTOR 1 2026-11-08 "w64devkit" "w64devkit Manual"
 .SH NAME
 vimtutor \- start the Vim tutor on a scratch copy
 .SH SYNOPSIS
 .B vimtutor
+.RI [ argument ...]
 .SH DESCRIPTION
 .B vimtutor
 starts
 .BR vim (1)
 on a new copy of the Vim tutor, a lesson file to read and edit, so the
 original is never changed.
-The copy is a file in the directory named by
-.BR TMP ,
-named
-.B tutor
-followed by a random number, and it is not deleted afterwards.
+The copy is a new file with a
+.B .tmp
+name, made by Vim's
+.B tempname()
+in the Windows temporary directory, and it is not deleted afterwards.
 .PP
 Vim runs with
 .BR "\-N \-u NONE" ,
 so it is not Vi compatible and reads no initialization files.
 .SH OPTIONS
-None.
-.B vimtutor
-is a batch file that ignores its arguments.
+None of its own.
+Arguments are passed to Vim after the commands that make the copy.
 .SH ENVIRONMENT
 .TP
-.B TMP
-The directory for the copy.
+.BR TMP ", " TEMP
+The directory for the copy, chosen as Windows chooses a temporary
+directory.
 .TP
-.B PATH
-Where
-.B cmd.exe
-finds
-.BR vim .
+.B SHELL
+Removed before Vim starts, as for
+.BR vim ,
+so that Vim's shell is
+.BR cmd.exe .
 .SH NOTES
 Only the English tutor is installed, and there is no
 .B \-g
