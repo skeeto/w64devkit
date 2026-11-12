@@ -91,8 +91,8 @@ The x86 kit requires Windows XP or later and an SSE2-capable processor
 the same by default, with floating point math in SSE2 rather than x87
 (`-mfpmath=sse`), as on x64. Runtimes contain SSE2 instructions, so GCC
 `-march` will not reliably target less capable processors when runtimes
-are linked (exceptions: `-lmemory`, `-lchkstk`). CMake, Ninja, and
-CCache require at least Windows 7.
+are linked (exceptions: `-lmemory`, `-lchkstk`). CMake, Ninja, CCache, and
+aas-sign require at least Windows 7.
 
 ## Build cache
 
