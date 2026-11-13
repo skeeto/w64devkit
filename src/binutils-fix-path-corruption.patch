@@ -1,0 +1,17 @@
+diff --git a/bfd/bfdio.c b/bfd/bfdio.c
+index ea0d1389cd1..187763eb444 100644
+--- a/bfd/bfdio.c
++++ b/bfd/bfdio.c
+@@ -189,11 +189,7 @@ _bfd_real_fopen (const char *filename, const char *modes)
+     }
+ 
+ #ifdef __MINGW32__
+-#if !HAVE_DECL____LC_CODEPAGE_FUNC
+-  /* This prototype was added to locale.h in version 9.0 of MinGW-w64.  */
+-  _CRTIMP unsigned int __cdecl ___lc_codepage_func (void);
+-#endif
+-  const unsigned int cp = ___lc_codepage_func ();
++  const unsigned int cp = CP_ACP;
+ #else
+   const unsigned int cp = CP_UTF8;
+ #endif

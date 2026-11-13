@@ -1,0 +1,18 @@
+diff --git a/gdb/charset.c b/gdb/charset.c
+index 5835fd40872..21d7ad03728 100644
+--- a/gdb/charset.c
++++ b/gdb/charset.c
+@@ -1029,8 +1029,11 @@ _initialize_charset (void)
+     /* "CP" + x<=5 digits + paranoia.  */
+     static char w32_host_default_charset[16];
+ 
+-    snprintf (w32_host_default_charset, sizeof w32_host_default_charset,
+-	      "CP%d", GetACP());
++    if (GetACP () == CP_UTF8)
++      strncpy (w32_host_default_charset, "UTF-8", sizeof w32_host_default_charset);
++    else
++      snprintf (w32_host_default_charset, sizeof w32_host_default_charset,
++                "CP%d", GetACP());
+     auto_host_charset_name = w32_host_default_charset;
+     auto_target_charset_name = auto_host_charset_name;
+   }
