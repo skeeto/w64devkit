@@ -162,8 +162,8 @@ RUN mkdir u-config \
  && tar xzf u-config-$U_CONFIG_VERSION.tar.gz -C u-config --strip-components=1
 
 FROM base AS dl-unabashed
-ARG UNABASHED_VERSION=0.3.1 \
-    UNABASHED_SHA256=19efd8f540f0c2cfb82da9f52314bf14ba0589c9a0b8e08dde9fed1c159d12ce
+ARG UNABASHED_VERSION=0.3.2 \
+    UNABASHED_SHA256=730d029dad64b7e274a8f137fc46b0cbb0c428a7a1b7b0682a3c9318b48b7d31
 WORKDIR /dl
 ADD --checksum=sha256:$UNABASHED_SHA256 \
     https://github.com/skeeto/unabashed/releases/download/v$UNABASHED_VERSION/unabashed-$UNABASHED_VERSION.tar.gz ./
