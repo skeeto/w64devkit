@@ -384,7 +384,6 @@ RUN mkdir -p $PREFIX/lib \
 WORKDIR /x-mingw-crt
 RUN /dl/mingw/mingw-w64-crt/configure \
         --prefix=/bootstrap \
-        --with-sysroot=/bootstrap \
         --host=$ARCH \
         --with-default-msvcrt=msvcrt-os \
         --disable-dependency-tracking \
@@ -398,7 +397,6 @@ RUN /dl/mingw/mingw-w64-crt/configure \
 WORKDIR /x-winpthreads
 RUN /dl/mingw/mingw-w64-libraries/winpthreads/configure \
         --prefix=/bootstrap \
-        --with-sysroot=/bootstrap \
         --host=$ARCH \
         --enable-static \
         --disable-shared \
@@ -412,7 +410,6 @@ RUN if [ "$GCC_MULTILIB" = enable ]; then \
         /dl/mingw/mingw-w64-libraries/winpthreads/configure \
             --prefix=/bootstrap \
             --libdir=/bootstrap/lib32 \
-            --with-sysroot=/bootstrap \
             --host=$ARCH \
             --enable-static \
             --disable-shared \
@@ -504,7 +501,6 @@ RUN /dl/mingw/mingw-w64-headers/configure \
 WORKDIR /mingw-crt
 RUN /dl/mingw/mingw-w64-crt/configure \
         --prefix=$PREFIX \
-        --with-sysroot=$PREFIX \
         --host=$ARCH \
         --with-default-msvcrt=msvcrt-os \
         --disable-dependency-tracking \
@@ -530,7 +526,6 @@ RUN $ARCH-gcc -c -Oz -I$PREFIX/include/ \
 WORKDIR /winpthreads
 RUN /dl/mingw/mingw-w64-libraries/winpthreads/configure \
         --prefix=$PREFIX \
-        --with-sysroot=$PREFIX \
         --host=$ARCH \
         --enable-static \
         --disable-shared \
@@ -544,7 +539,6 @@ RUN if [ "$GCC_MULTILIB" = enable ]; then \
         /dl/mingw/mingw-w64-libraries/winpthreads/configure \
             --prefix=$PREFIX \
             --libdir=$PREFIX/lib32 \
-            --with-sysroot=$PREFIX \
             --host=$ARCH \
             --enable-static \
             --disable-shared \
