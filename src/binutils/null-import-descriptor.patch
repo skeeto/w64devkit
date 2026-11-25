@@ -1,0 +1,281 @@
+Supply the null import descriptor in import libraries (issue #135)
+
+Microsoft link.exe does not terminate the import directory table on its
+own. It relies on import libraries to supply the terminator: each import
+descriptor references __NULL_IMPORT_DESCRIPTOR, whose archive member
+contributes 20 zero bytes in .idata$3, sorted after every descriptor in
+.idata$2. Binutils import libraries lack this member, so when link.exe
+is given only Binutils import libraries it quietly produces an image with
+an unterminated import directory, running into the .idata$4 lookup table
+that follows. GNU ld and lld are unaffected because they emit their own
+terminator.
+
+Do the same as MSVC: make dlltool and ld --out-implib add an archive
+member defining __NULL_IMPORT_DESCRIPTOR, and reference it from the head
+member. A link pulls in exactly one copy no matter how many import
+libraries are involved, and an MSVC import library's definition serves
+just as well. Delay-import libraries are unchanged, as is ld's direct
+linking against DLLs, which doesn't go through an import library.
+
+---
+ binutils/dlltool.c |   63 ++++++++++++++++++++++++++++++++++++++++++++++-
+ ld/pe-dll.c        |   71 ++++++++++++++++++++++++++++++++++++++++++++++++-----
+ 2 files changed, 127 insertions(+), 7 deletions(-)
+
+--- a/binutils/dlltool.c
++++ b/binutils/dlltool.c
+@@ -483,6 +483,8 @@
+ static char *tmp_head_o_buf;
+ static char *tmp_tail_s_buf;
+ static char *tmp_tail_o_buf;
++static char *tmp_null_s_buf;
++static char *tmp_null_o_buf;
+ static char *tmp_stub_buf;
+ 
+ #define TMP_ASM		dlltmp (&tmp_asm_buf, "%sc.s")
+@@ -490,6 +492,8 @@
+ #define TMP_HEAD_O	dlltmp (&tmp_head_o_buf, "%sh.o")
+ #define TMP_TAIL_S	dlltmp (&tmp_tail_s_buf, "%st.s")
+ #define TMP_TAIL_O	dlltmp (&tmp_tail_o_buf, "%st.o")
++#define TMP_NULL_S	dlltmp (&tmp_null_s_buf, "%sn.s")
++#define TMP_NULL_O	dlltmp (&tmp_null_o_buf, "%sn.o")
+ #define TMP_STUB	dlltmp (&tmp_stub_buf, "%ssnnnnn.o")
+ 
+ /* This bit of assembly does jmp * ....  */
+@@ -1926,12 +1930,14 @@
+   free (cmd);
+ }
+ 
+-static const char * temp_file_to_remove[5];
++static const char * temp_file_to_remove[7];
+ #define TEMP_EXPORT_FILE 0
+ #define TEMP_HEAD_FILE   1
+ #define TEMP_TAIL_FILE   2
+ #define TEMP_HEAD_O_FILE 3
+ #define TEMP_TAIL_O_FILE 4
++#define TEMP_NULL_FILE   5
++#define TEMP_NULL_O_FILE 6
+ 
+ static void
+ unlink_temp_files (void)
+@@ -2728,6 +2734,9 @@
+ 
+   fprintf (f, "%s:\n", head_label);
+ 
++  /* Pull in the member supplying the import directory terminator.  */
++  fprintf (f, "\t%s\t__NULL_IMPORT_DESCRIPTOR\n", ASM_GLOBAL);
++
+   fprintf (f, "\t%shname%s\t%sPtr to image import by name list\n",
+ 	   ASM_RVA_BEFORE, ASM_RVA_AFTER, ASM_C);
+ 
+@@ -2933,7 +2942,50 @@
+   return abfd;
+ }
+ 
++/* The null entry terminating the import directory table.  GNU ld emits
++   one through its linker script, but MSVC link.exe relies on import
++   libraries to supply it, and without it produces an image with an
++   unterminated import directory.  Every import library head references
++   this symbol, so a link pulls in exactly one copy, and an MSVC import
++   library's definition serves just as well.  The .idata$3 input
++   sections sort after all .idata$2 descriptors.  */
++
+ static bfd *
++make_null_import_descriptor (void)
++{
++  FILE *f = fopen (TMP_NULL_S, FOPEN_WT);
++  bfd *abfd;
++
++  if (f == NULL)
++    {
++      fatal (_("failed to open temporary null descriptor file: %s"),
++	     TMP_NULL_S);
++      return NULL;
++    }
++
++  temp_file_to_remove[TEMP_NULL_FILE] = TMP_NULL_S;
++
++  fprintf (f, "\t.section\t.idata$3\n");
++  fprintf (f, "\t%s\t__NULL_IMPORT_DESCRIPTOR\n", ASM_GLOBAL);
++  fprintf (f, "__NULL_IMPORT_DESCRIPTOR:\n");
++  fprintf (f, "\t%s\t0\n\t%s\t0\n\t%s\t0\n\t%s\t0\n\t%s\t0\n",
++	   ASM_LONG, ASM_LONG, ASM_LONG, ASM_LONG, ASM_LONG);
++
++  fclose (f);
++
++  assemble_file (TMP_NULL_S, TMP_NULL_O);
++
++  abfd = bfd_openr (TMP_NULL_O, HOW_BFD_READ_TARGET);
++  if (abfd == NULL)
++    /* xgettext:c-format */
++    fatal (_("failed to open temporary null descriptor file: %s: %s"),
++	   TMP_NULL_O, bfd_get_errmsg ());
++
++  temp_file_to_remove[TEMP_NULL_O_FILE] = TMP_NULL_O;
++  return abfd;
++}
++
++static bfd *
+ make_delay_tail (void)
+ {
+   FILE *f = fopen (TMP_TAIL_S, FOPEN_WT);
+@@ -2991,6 +3043,7 @@
+   export_type *exp;
+   bfd *ar_head;
+   bfd *ar_tail;
++  bfd *ar_null = NULL;
+   bfd *outarch;
+   bfd * head  = 0;
+ 
+@@ -3025,6 +3078,9 @@
+     {
+       ar_head = make_head ();
+       ar_tail = make_tail();
++      ar_null = make_null_import_descriptor ();
++      if (ar_null == NULL)
++	return;
+     }
+ 
+   if (ar_head == NULL || ar_tail == NULL)
+@@ -3066,6 +3122,11 @@
+   ar_head->archive_next = head;
+   ar_tail->archive_next = ar_head;
+   head = ar_tail;
++  if (ar_null)
++    {
++      ar_null->archive_next = head;
++      head = ar_null;
++    }
+ 
+   if (! bfd_set_archive_head (outarch, head))
+     bfd_fatal ("bfd_set_archive_head");
+--- a/ld/pe-dll.c
++++ b/ld/pe-dll.c
+@@ -2155,10 +2155,13 @@
+ 
+ 	.section	.idata$4
+ 	.long		0
+-   hname:                              */
++   hname:
+ 
++   For an import library, also reference __NULL_IMPORT_DESCRIPTOR so
++   that a linker pulls in the archive member defining it.  */
++
+ static bfd *
+-make_head (bfd *parent)
++make_head (bfd *parent, bool implib)
+ {
+   asection *id2, *id5, *id4;
+   unsigned char *d2, *d5, *d4;
+@@ -2183,6 +2186,9 @@
+   id4 = quick_section (abfd, ".idata$4", SEC_HAS_CONTENTS, 2);
+   quick_symbol (abfd, U ("_head_"), dll_symname, "", id2, BSF_GLOBAL, 0);
+   quick_symbol (abfd, U (""), dll_symname, "_iname", UNDSEC, BSF_GLOBAL, 0);
++  if (implib)
++    quick_symbol (abfd, "", "__NULL_IMPORT_DESCRIPTOR", "", UNDSEC,
++		  BSF_GLOBAL, 0);
+ 
+   /* OK, pay attention here.  I got confused myself looking back at
+      it.  We create a four-byte section to mark the beginning of the
+@@ -2304,6 +2310,56 @@
+   return abfd;
+ }
+ 
++/*	.section	.idata$3
++	.global		__NULL_IMPORT_DESCRIPTOR
++   __NULL_IMPORT_DESCRIPTOR:
++	.long		0, 0, 0, 0, 0
++
++   The null entry terminating the import directory table.  GNU ld
++   emits one through its linker script, but MSVC link.exe relies on
++   import libraries to supply it, and without it produces an image
++   with an unterminated import directory.  Every import library head
++   references this symbol, so a link pulls in exactly one copy, and an
++   MSVC import library's definition serves just as well.  The .idata$3
++   input sections sort after all .idata$2 descriptors.  */
++
++static bfd *
++make_null_import_descriptor (bfd *parent)
++{
++  asection *id3;
++  unsigned char *d3;
++  char *oname;
++  bfd *abfd;
++
++  oname = xasprintf ("%s_d%06d.o", dll_symname, tmp_seq);
++  tmp_seq++;
++
++  abfd = bfd_create (oname, parent);
++  free (oname);
++  bfd_find_target (pe_details->object_target, abfd);
++  bfd_make_writable (abfd);
++
++  bfd_set_format (abfd, bfd_object);
++  bfd_set_arch_mach (abfd, pe_details->bfd_arch, 0);
++
++  symptr = 0;
++  symtab = xmalloc (2 * sizeof (asymbol *));
++  id3 = quick_section (abfd, ".idata$3", SEC_HAS_CONTENTS, 2);
++  quick_symbol (abfd, "", "__NULL_IMPORT_DESCRIPTOR", "", id3, BSF_GLOBAL, 0);
++
++  bfd_set_section_size (id3, 20);
++  d3 = xmalloc (20);
++  id3->contents = d3;
++  memset (d3, 0, 20);
++
++  bfd_set_symtab (abfd, symtab, symptr);
++
++  bfd_set_section_contents (abfd, id3, d3, 0, 20);
++
++  bfd_make_readable (abfd);
++  return abfd;
++}
++
+ /*	.text
+ 	.global		_function
+ 	.global		___imp_function
+@@ -2925,6 +2981,7 @@
+   int i;
+   bfd *ar_head;
+   bfd *ar_tail;
++  bfd *ar_null;
+   bfd *outarch;
+   bfd *ibfd;
+   bfd *head = 0;
+@@ -2948,7 +3005,7 @@
+   outarch->has_armap = 1;
+ 
+   /* Work out a reasonable size of things to put onto one line.  */
+-  ar_head = make_head (outarch);
++  ar_head = make_head (outarch, true);
+ 
+   /* Iterate the input BFDs, looking for exclude-modules-for-implib.  */
+   for (ibfd = info->input_bfds; ibfd; ibfd = ibfd->link.next)
+@@ -3063,14 +3120,16 @@
+     }
+ 
+   ar_tail = make_tail (outarch);
++  ar_null = make_null_import_descriptor (outarch);
+ 
+-  if (ar_head == NULL || ar_tail == NULL)
++  if (ar_head == NULL || ar_tail == NULL || ar_null == NULL)
+     return;
+ 
+   /* Now stick them all into the archive.  */
+   ar_head->archive_next = head;
+   ar_tail->archive_next = ar_head;
+-  head = ar_tail;
++  ar_null->archive_next = ar_tail;
++  head = ar_null;
+ 
+   if (! bfd_set_archive_head (outarch, head))
+     einfo ("%X%P: bfd_set_archive_head: %E\n");
+@@ -3349,7 +3408,7 @@
+ 		  /* We do.  */
+ 		  if (!do_this_dll)
+ 		    {
+-		      bfd *ar_head = make_head (output_bfd);
++		      bfd *ar_head = make_head (output_bfd, false);
+ 		      add_bfd_to_link (ar_head, bfd_get_filename (ar_head),
+ 				       linfo);
+ 		      do_this_dll = 1;
