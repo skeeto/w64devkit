@@ -6,7 +6,7 @@ Default to Ninja even if Visual Studio is installed.
 
 --- a/Source/cmake.cxx
 +++ b/Source/cmake.cxx
-@@ -2897,6 +2897,7 @@
+@@ -2951,6 +2951,7 @@
      }
    }
  #if defined(_WIN32) && !defined(__CYGWIN__) && !defined(CMAKE_BOOT_MINGW)

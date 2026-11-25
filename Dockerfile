@@ -198,8 +198,8 @@ RUN mkdir ninja \
  && tar xzf ninja-$NINJA_VERSION.tar.gz -C ninja --strip-components=1
 
 FROM base AS dl-cmake
-ARG CMAKE_VERSION=4.4.4 \
-    CMAKE_SHA256=bd24c30d80a7744ae84b845ff080cc8453b06c622ef01066564108e9cefc44cf
+ARG CMAKE_VERSION=4.5.1 \
+    CMAKE_SHA256=a79bf33cbe05686fdf79c2bbbcfe5e8e62ad16d3d540fa737cbedfeed41fb69e
 WORKDIR /dl
 ADD --checksum=sha256:$CMAKE_SHA256 \
     https://github.com/Kitware/CMake/releases/download/v$CMAKE_VERSION/cmake-$CMAKE_VERSION.tar.gz ./
