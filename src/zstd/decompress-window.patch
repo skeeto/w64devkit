@@ -13,7 +13,7 @@ zstd builds. The value is clamped to ZSTD_WINDOWLOG_MAX.
 
 --- a/programs/zstdcli.c
 +++ b/programs/zstdcli.c
-@@ -84,6 +84,9 @@
+@@ -86,6 +86,9 @@
  static const int      g_defaultDictCLevel = 3;
  static const unsigned g_defaultSelectivityLevel = 9;
  static const unsigned g_defaultMaxWindowLog = 27;
@@ -23,7 +23,7 @@ zstd builds. The value is clamped to ZSTD_WINDOWLOG_MAX.
  #define OVERLAP_LOG_DEFAULT 9999
  #define LDM_PARAM_DEFAULT 9999  /* Default for parameters where 0 is valid */
  static U32 g_overlapLog = OVERLAP_LOG_DEFAULT;
-@@ -1572,6 +1575,10 @@
+@@ -1617,6 +1620,10 @@
      if (memLimit == 0) {
          if (compressionParams.windowLog == 0) {
              memLimit = (U32)1 << g_defaultMaxWindowLog;

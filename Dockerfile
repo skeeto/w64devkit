@@ -126,8 +126,8 @@ RUN mkdir quicktags \
  && tar xzf quicktags-$QUICKTAGS_VERSION.tar.gz -C quicktags --strip-components=1
 
 FROM base AS dl-zstd
-ARG ZSTD_VERSION=1.5.7 \
-    ZSTD_SHA256=eb33e51f49a15e023950cd7825ca74a4a2b43db8354825ac24fc1b7ee09e6fa3
+ARG ZSTD_VERSION=1.6.0 \
+    ZSTD_SHA256=2ba599ae2a257976278e7e71e998433a387bfd18aa7b78678229fd5d84f5e9b8
 WORKDIR /dl
 ADD --checksum=sha256:$ZSTD_SHA256 \
     https://github.com/facebook/zstd/releases/download/v$ZSTD_VERSION/zstd-$ZSTD_VERSION.tar.gz ./
