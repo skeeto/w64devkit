@@ -171,8 +171,8 @@ RUN mkdir unabashed \
  && tar xzf unabashed-$UNABASHED_VERSION.tar.gz -C unabashed --strip-components=1
 
 FROM base AS dl-ccache
-ARG CCACHE_VERSION=4.14.1 \
-    CCACHE_SHA256=29f10de481ac2c41c91bfabead63d803bd2fe823e09752aade5b0b8704cc4f30 \
+ARG CCACHE_VERSION=4.14.3 \
+    CCACHE_SHA256=e1999132cf7dbce48de7d946b767f3e26ea09adcb5daa4a7103a8fa09ee0637d \
     XXHASH_VERSION=0.8.4 \
     XXHASH_SHA256=5738270935e7c3d38a79b3adf7c9692566ce7895a25f67de43ad52ab504acd32
 WORKDIR /dl
@@ -942,10 +942,6 @@ RUN cmake -P /dl/tugz/cmake/amalgamate.cmake \
 FROM cross AS build-ccache
 COPY --from=dl-ccache /dl/ /dl/
 COPY --from=build-zstd /deps/ /deps/
-COPY src/ccache/ $PREFIX/src/ccache/
-RUN cd /dl/ccache \
- && QUILT_PATCHES=$PREFIX/src/ccache quilt push -a \
- && rm -rf .pc
 
 WORKDIR /dl/xxhash
 RUN make -j$(nproc) CC=$ARCH-gcc AR=$ARCH-ar CFLAGS="-O2" libxxhash.a \
