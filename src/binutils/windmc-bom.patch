@@ -19,14 +19,24 @@ around, which is also how mc.exe behaves. UTF-16BE is not handled: it
 would require byte swapping the whole input, and it does not occur in
 practice.
 
+---
+ binutils/windmc.c |   22 +++++++++++++++++++---
+ 1 file changed, 19 insertions(+), 3 deletions(-)
+
 --- a/binutils/windmc.c
 +++ b/binutils/windmc.c
-@@ -1109,3 +1109,3 @@
+@@ -1107,7 +1107,7 @@
+   {
+     unichar *u = NULL;
      rc_uint_type ul;
 -    char *buff;
 +    char *buff, *cont;
      bfd_size_type flen;
-@@ -1124,5 +1124,21 @@
+     FILE *fp = fopen (input_filename, "rb");
+ 
+@@ -1122,9 +1122,25 @@
+     if (fread (buff, 1, flen, fp) < flen)
+       fatal (_("unable to read contents of %s"), input_filename);
      fclose (fp);
 +    /* A byte order mark identifies the encoding authoritatively, so
 +       consume it and let it override the command line switches.  */
@@ -49,8 +59,14 @@ practice.
 -	unicode_from_codepage (&ul, &u, buff, mcset_codepage_in);
 +	unicode_from_codepage (&ul, &u, cont, mcset_codepage_in);
  	if (! u)
-@@ -1135,3 +1151,3 @@
+ 	  fatal ("Failed to convert input to UFT16\n");
+ 	mc_set_content (u);
+@@ -1133,7 +1149,7 @@
+       {
+ 	if ((flen & 1) != 0)
  	  fatal (_("input file does not seems to be UFT16.\n"));
 -	mc_set_content ((unichar *) buff);
 +	mc_set_content ((unichar *) cont);
        }
+     free (buff);
+   }

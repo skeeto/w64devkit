@@ -11,14 +11,26 @@ and ought to be a syntax error, as it is with MSVC lib.exe. (This patch
 should probably make it so.) I could find no examples of this situation
 in the wild.
 
+---
+ binutils/dlltool.c |    3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
 --- a/binutils/dlltool.c
 +++ b/binutils/dlltool.c
-@@ -3701,2 +3701,3 @@
+@@ -3665,6 +3665,7 @@
+ 		goto done;
+ 	      }
  	done:;
 +	  d_export_vec[i]->ordinal = 0;
  	}
-@@ -3759,3 +3760,3 @@
+     }
+ 
+@@ -3724,7 +3725,7 @@
+   /* Fill exp entries with their hint values.  */
+   for (i = 0; i < d_nfuncs; i++)
      if (!d_exports_lexically[i]->noname || show_allnames)
 -      d_exports_lexically[i]->hint = hint++;
 +      d_exports_lexically[i]->hint = hint;
  
+   inform (_("Processed definitions"));
+ }

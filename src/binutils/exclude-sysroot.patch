@@ -26,15 +26,22 @@ of adding each library to the list, blanket-exclude all libraries that
 come from the sysroot. Since libpthread is so important, also add it to
 the known list. Its absence is essentially a Binutils bug.
 
+---
+ ld/pe-dll.c |   13 +++++++++++++
+ 1 file changed, 13 insertions(+)
+
 --- a/ld/pe-dll.c
 +++ b/ld/pe-dll.c
-@@ -347,4 +347,5 @@
+@@ -394,6 +394,7 @@
+ /* Do not specify library suffix explicitly, to allow for dllized versions.  */
  static const autofilter_entry_type autofilter_liblist[] =
  {
 +  { STRING_COMMA_LEN ("libpthread") },
    { STRING_COMMA_LEN ("libcegcc") },
    { STRING_COMMA_LEN ("libcygwin") },
-@@ -575,4 +576,16 @@
+   { STRING_COMMA_LEN ("libgcc") },
+@@ -625,6 +626,18 @@
+   if (abfd && abfd->my_archive)
      libname = lbasename (bfd_get_filename (abfd->my_archive));
  
 +  if (abfd && abfd->my_archive && ld_canon_sysroot)
@@ -51,3 +58,4 @@ the known list. Its absence is essentially a Binutils bug.
 +
    key.name = key.its_name = (char *) n;
  
+   /* Return false if n is in the d->exports table.  */

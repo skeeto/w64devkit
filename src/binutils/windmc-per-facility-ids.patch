@@ -37,6 +37,11 @@ order they appear, so this leaves the generated parser newer than the
 grammar. The other way round make thinks mcparse.c is stale and tries to
 regenerate it, and the build then needs bison.
 
+---
+ binutils/mcparse.c |   22 ++++++++++++++++------
+ binutils/mcparse.y |   22 ++++++++++++++++------
+ 2 files changed, 32 insertions(+), 12 deletions(-)
+
 --- a/binutils/mcparse.y
 +++ b/binutils/mcparse.y
 @@ -31,7 +31,11 @@
