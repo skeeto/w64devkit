@@ -1,0 +1,519 @@
+crt: run main-thread TLS destructors before atexit handlers on msvcrt
+
+On msvcrt, _register_thread_local_exe_atexit_callback is emulated with
+atexit(), and tls_atexit.c calls it from its process-attach TLS callback,
+before anything else can register. Since atexit handlers run in reverse,
+the main thread's thread_local destructors ran after every static
+destructor, violating [basic.start.term]. Wrap exit() so that it registers
+the callback once more just before calling msvcrt's exit, so it runs
+first.
+
+Backport of upstream a394c23a51 ("crt: Improve mingw-w64
+_register_thread_local_exe_atexit_callback implementation which is used
+for msvcrt builds"), merged after v14.0.0. Upstream puts the wrapper in a
+new misc/exit.c, which requires regenerating Makefile.in. Instead it is
+appended to misc/register_tls_atexit.c, which is in the same source list,
+so the build is unchanged. Since crtexe.c always references exit(), every
+msvcrt program now links this small object. Drop this patch when updating
+to a release that includes the upstream commit.
+
+---
+ mingw-w64-crt/lib-common/msvcr120_app.def.in |    2 -
+ mingw-w64-crt/lib-common/msvcrt.def.in       |    2 -
+ mingw-w64-crt/lib32/crtdll.def.in            |    2 -
+ mingw-w64-crt/lib32/msvcr100.def.in          |    2 -
+ mingw-w64-crt/lib32/msvcr100d.def.in         |    2 -
+ mingw-w64-crt/lib32/msvcr110.def.in          |    2 -
+ mingw-w64-crt/lib32/msvcr110d.def.in         |    2 -
+ mingw-w64-crt/lib32/msvcr120.def.in          |    2 -
+ mingw-w64-crt/lib32/msvcr120d.def.in         |    2 -
+ mingw-w64-crt/lib32/msvcr40d.def.in          |    2 -
+ mingw-w64-crt/lib32/msvcr70.def.in           |    2 -
+ mingw-w64-crt/lib32/msvcr70d.def.in          |    2 -
+ mingw-w64-crt/lib32/msvcr71.def.in           |    2 -
+ mingw-w64-crt/lib32/msvcr71d.def.in          |    2 -
+ mingw-w64-crt/lib32/msvcr80.def.in           |    2 -
+ mingw-w64-crt/lib32/msvcr80d.def.in          |    2 -
+ mingw-w64-crt/lib32/msvcr90.def.in           |    2 -
+ mingw-w64-crt/lib32/msvcr90d.def.in          |    2 -
+ mingw-w64-crt/lib32/msvcrt10.def.in          |    2 -
+ mingw-w64-crt/lib32/msvcrt20.def.in          |    2 -
+ mingw-w64-crt/lib32/msvcrt40.def.in          |    2 -
+ mingw-w64-crt/lib32/msvcrtd.def.in           |    2 -
+ mingw-w64-crt/lib64/msvcr100.def.in          |    2 -
+ mingw-w64-crt/lib64/msvcr100d.def.in         |    2 -
+ mingw-w64-crt/lib64/msvcr110.def.in          |    2 -
+ mingw-w64-crt/lib64/msvcr110d.def.in         |    2 -
+ mingw-w64-crt/lib64/msvcr120.def.in          |    2 -
+ mingw-w64-crt/lib64/msvcr120d.def.in         |    2 -
+ mingw-w64-crt/lib64/msvcr80.def.in           |    2 -
+ mingw-w64-crt/lib64/msvcr80d.def.in          |    2 -
+ mingw-w64-crt/lib64/msvcr90.def.in           |    2 -
+ mingw-w64-crt/lib64/msvcr90d.def.in          |    2 -
+ mingw-w64-crt/libarm32/msvcr110.def.in       |    2 -
+ mingw-w64-crt/libarm32/msvcr110d.def.in      |    2 -
+ mingw-w64-crt/libarm32/msvcr120.def.in       |    2 -
+ mingw-w64-crt/libarm32/msvcr120d.def.in      |    2 -
+ mingw-w64-crt/misc/register_tls_atexit.c     |   41 +++++++++++++++++++++++----
+ 37 files changed, 72 insertions(+), 41 deletions(-)
+
+--- a/mingw-w64-crt/lib-common/msvcr120_app.def.in
++++ b/mingw-w64-crt/lib-common/msvcr120_app.def.in
+@@ -1970,7 +1970,7 @@
+ F_ARM32(erfcl) ; Can't use long double functions from the CRT on x86
+ erff
+ F_ARM32(erfl) ; Can't use long double functions from the CRT on x86
+-exit
++__msvcrt_exit DATA == exit ; mingw-w64 provides exit() function as wrapper around renamed __msvcrt_exit symbol
+ exp
+ exp2
+ exp2f
+--- a/mingw-w64-crt/lib-common/msvcrt.def.in
++++ b/mingw-w64-crt/lib-common/msvcrt.def.in
+@@ -953,7 +953,7 @@
+ ctime
+ difftime
+ div
+-exit
++__msvcrt_exit DATA == exit ; mingw-w64 provides exit() function as wrapper around renamed __msvcrt_exit symbol
+ exp F_X86_NATIVE(DATA)
+ fabs DATA
+ fclose
+--- a/mingw-w64-crt/lib32/crtdll.def.in
++++ b/mingw-w64-crt/lib32/crtdll.def.in
+@@ -350,7 +350,7 @@
+ ctime
+ difftime
+ div
+-exit
++__msvcrt_exit DATA == exit ; mingw-w64 provides exit() function as wrapper around renamed __msvcrt_exit symbol
+ exp DATA
+ fabs DATA
+ fclose
+--- a/mingw-w64-crt/lib32/msvcr100.def.in
++++ b/mingw-w64-crt/lib32/msvcr100.def.in
+@@ -1672,7 +1672,7 @@
+ ; If we implement cosh too, we can set it to DATA only.
+ cosh
+ div
+-exit
++__msvcrt_exit DATA == exit ; mingw-w64 provides exit() function as wrapper around renamed __msvcrt_exit symbol
+ exp DATA
+ fabs DATA
+ fclose
+--- a/mingw-w64-crt/lib32/msvcr100d.def.in
++++ b/mingw-w64-crt/lib32/msvcr100d.def.in
+@@ -1738,7 +1738,7 @@
+ cos DATA ; overwritten
+ cosh
+ div
+-exit
++__msvcrt_exit DATA == exit ; mingw-w64 provides exit() function as wrapper around renamed __msvcrt_exit symbol
+ exp DATA ; overwritten
+ fabs DATA ; overwritten
+ fclose
+--- a/mingw-w64-crt/lib32/msvcr110.def.in
++++ b/mingw-w64-crt/lib32/msvcr110.def.in
+@@ -1804,7 +1804,7 @@
+ cos DATA
+ cosh ; If we implement cosh, we can set it to DATA only.
+ div
+-exit
++__msvcrt_exit DATA == exit ; mingw-w64 provides exit() function as wrapper around renamed __msvcrt_exit symbol
+ exp DATA
+ fabs DATA
+ fclose
+--- a/mingw-w64-crt/lib32/msvcr110d.def.in
++++ b/mingw-w64-crt/lib32/msvcr110d.def.in
+@@ -1871,7 +1871,7 @@
+ cos DATA ; overwritten
+ cosh
+ div
+-exit
++__msvcrt_exit DATA == exit ; mingw-w64 provides exit() function as wrapper around renamed __msvcrt_exit symbol
+ exp DATA ; overwritten
+ fabs DATA ; overwritten
+ fclose
+--- a/mingw-w64-crt/lib32/msvcr120.def.in
++++ b/mingw-w64-crt/lib32/msvcr120.def.in
+@@ -1943,7 +1943,7 @@
+ ; erfcl ; Can't use long double functions from the CRT on x86
+ erff
+ ; erfl ; Can't use long double functions from the CRT on x86
+-exit
++__msvcrt_exit DATA == exit ; mingw-w64 provides exit() function as wrapper around renamed __msvcrt_exit symbol
+ exp
+ exp2
+ exp2f
+--- a/mingw-w64-crt/lib32/msvcr120d.def.in
++++ b/mingw-w64-crt/lib32/msvcr120d.def.in
+@@ -2010,7 +2010,7 @@
+ ; erfcl ; Can't use long double functions from the CRT on x86
+ erff
+ ; erfl ; Can't use long double functions from the CRT on x86
+-exit
++__msvcrt_exit DATA == exit ; mingw-w64 provides exit() function as wrapper around renamed __msvcrt_exit symbol
+ exp
+ exp2
+ exp2f
+--- a/mingw-w64-crt/lib32/msvcr40d.def.in
++++ b/mingw-w64-crt/lib32/msvcr40d.def.in
+@@ -1475,7 +1475,7 @@
+ ctime
+ difftime
+ div
+-exit
++__msvcrt_exit DATA == exit ; mingw-w64 provides exit() function as wrapper around renamed __msvcrt_exit symbol
+ exp
+ fabs
+ fclose
+--- a/mingw-w64-crt/lib32/msvcr70.def.in
++++ b/mingw-w64-crt/lib32/msvcr70.def.in
+@@ -725,7 +725,7 @@
+ ctime
+ difftime
+ div
+-exit
++__msvcrt_exit DATA == exit ; mingw-w64 provides exit() function as wrapper around renamed __msvcrt_exit symbol
+ exp
+ fabs
+ fclose
+--- a/mingw-w64-crt/lib32/msvcr70d.def.in
++++ b/mingw-w64-crt/lib32/msvcr70d.def.in
+@@ -769,7 +769,7 @@
+ ctime
+ difftime
+ div
+-exit
++__msvcrt_exit DATA == exit ; mingw-w64 provides exit() function as wrapper around renamed __msvcrt_exit symbol
+ exp
+ fabs
+ fclose
+--- a/mingw-w64-crt/lib32/msvcr71.def.in
++++ b/mingw-w64-crt/lib32/msvcr71.def.in
+@@ -719,7 +719,7 @@
+ ctime
+ difftime
+ div
+-exit
++__msvcrt_exit DATA == exit ; mingw-w64 provides exit() function as wrapper around renamed __msvcrt_exit symbol
+ exp
+ fabs
+ fclose
+--- a/mingw-w64-crt/lib32/msvcr71d.def.in
++++ b/mingw-w64-crt/lib32/msvcr71d.def.in
+@@ -763,7 +763,7 @@
+ ctime
+ difftime
+ div
+-exit
++__msvcrt_exit DATA == exit ; mingw-w64 provides exit() function as wrapper around renamed __msvcrt_exit symbol
+ exp
+ fabs
+ fclose
+--- a/mingw-w64-crt/lib32/msvcr80.def.in
++++ b/mingw-w64-crt/lib32/msvcr80.def.in
+@@ -1312,7 +1312,7 @@
+ cos DATA
+ cosh ; If we implement cosh, we can set it to DATA only.
+ div
+-exit
++__msvcrt_exit DATA == exit ; mingw-w64 provides exit() function as wrapper around renamed __msvcrt_exit symbol
+ exp DATA
+ fabs DATA
+ fclose
+--- a/mingw-w64-crt/lib32/msvcr80d.def.in
++++ b/mingw-w64-crt/lib32/msvcr80d.def.in
+@@ -1395,7 +1395,7 @@
+ cos DATA ; overwritten
+ cosh
+ div
+-exit
++__msvcrt_exit DATA == exit ; mingw-w64 provides exit() function as wrapper around renamed __msvcrt_exit symbol
+ exp DATA ; overwritten
+ fabs DATA ; overwritten
+ fclose
+--- a/mingw-w64-crt/lib32/msvcr90.def.in
++++ b/mingw-w64-crt/lib32/msvcr90.def.in
+@@ -1306,7 +1306,7 @@
+ ; If we have cosh implementation, we can set it to DATA only.
+ cosh
+ div
+-exit
++__msvcrt_exit DATA == exit ; mingw-w64 provides exit() function as wrapper around renamed __msvcrt_exit symbol
+ exp DATA
+ fabs DATA
+ fclose
+--- a/mingw-w64-crt/lib32/msvcr90d.def.in
++++ b/mingw-w64-crt/lib32/msvcr90d.def.in
+@@ -1378,7 +1378,7 @@
+ ; If we implement cosh too, we can set it to DATA only.
+ cosh
+ div
+-exit
++__msvcrt_exit DATA == exit ; mingw-w64 provides exit() function as wrapper around renamed __msvcrt_exit symbol
+ exp DATA
+ fabs DATA
+ fclose
+--- a/mingw-w64-crt/lib32/msvcrt10.def.in
++++ b/mingw-w64-crt/lib32/msvcrt10.def.in
+@@ -1126,7 +1126,7 @@
+ ctime
+ difftime
+ div
+-exit
++__msvcrt_exit DATA == exit ; mingw-w64 provides exit() function as wrapper around renamed __msvcrt_exit symbol
+ exp
+ fabs
+ fclose
+--- a/mingw-w64-crt/lib32/msvcrt20.def.in
++++ b/mingw-w64-crt/lib32/msvcrt20.def.in
+@@ -1343,7 +1343,7 @@
+ ctime
+ difftime
+ div
+-exit
++__msvcrt_exit DATA == exit ; mingw-w64 provides exit() function as wrapper around renamed __msvcrt_exit symbol
+ exp
+ fabs
+ fclose
+--- a/mingw-w64-crt/lib32/msvcrt40.def.in
++++ b/mingw-w64-crt/lib32/msvcrt40.def.in
+@@ -1443,7 +1443,7 @@
+ ctime
+ difftime
+ div
+-exit
++__msvcrt_exit DATA == exit ; mingw-w64 provides exit() function as wrapper around renamed __msvcrt_exit symbol
+ exp
+ fabs
+ fclose
+--- a/mingw-w64-crt/lib32/msvcrtd.def.in
++++ b/mingw-w64-crt/lib32/msvcrtd.def.in
+@@ -669,7 +669,7 @@
+ ctime
+ difftime
+ div
+-exit
++__msvcrt_exit DATA == exit ; mingw-w64 provides exit() function as wrapper around renamed __msvcrt_exit symbol
+ exp
+ fabs
+ fclose
+--- a/mingw-w64-crt/lib64/msvcr100.def.in
++++ b/mingw-w64-crt/lib64/msvcr100.def.in
+@@ -1624,7 +1624,7 @@
+ cosh
+ coshf DATA
+ div
+-exit
++__msvcrt_exit DATA == exit ; mingw-w64 provides exit() function as wrapper around renamed __msvcrt_exit symbol
+ exp DATA
+ expf DATA
+ fabs DATA
+--- a/mingw-w64-crt/lib64/msvcr100d.def.in
++++ b/mingw-w64-crt/lib64/msvcr100d.def.in
+@@ -1689,7 +1689,7 @@
+ cosh
+ coshf DATA ; overwritten
+ div
+-exit
++__msvcrt_exit DATA == exit ; mingw-w64 provides exit() function as wrapper around renamed __msvcrt_exit symbol
+ exp DATA ; overwritten
+ expf DATA ; overwritten
+ fabs DATA ; overwritten
+--- a/mingw-w64-crt/lib64/msvcr110.def.in
++++ b/mingw-w64-crt/lib64/msvcr110.def.in
+@@ -1748,7 +1748,7 @@
+ cosh
+ coshf
+ div
+-exit
++__msvcrt_exit DATA == exit ; mingw-w64 provides exit() function as wrapper around renamed __msvcrt_exit symbol
+ exp
+ expf
+ fabs
+--- a/mingw-w64-crt/lib64/msvcr110d.def.in
++++ b/mingw-w64-crt/lib64/msvcr110d.def.in
+@@ -1813,7 +1813,7 @@
+ cosh
+ coshf
+ div
+-exit
++__msvcrt_exit DATA == exit ; mingw-w64 provides exit() function as wrapper around renamed __msvcrt_exit symbol
+ exp
+ expf
+ fabs
+--- a/mingw-w64-crt/lib64/msvcr120.def.in
++++ b/mingw-w64-crt/lib64/msvcr120.def.in
+@@ -1886,7 +1886,7 @@
+ ; erfcl ; Can't use long double functions from the CRT on x86
+ erff
+ ; erfl ; Can't use long double functions from the CRT on x86
+-exit
++__msvcrt_exit DATA == exit ; mingw-w64 provides exit() function as wrapper around renamed __msvcrt_exit symbol
+ exp
+ exp2
+ exp2f
+--- a/mingw-w64-crt/lib64/msvcr120d.def.in
++++ b/mingw-w64-crt/lib64/msvcr120d.def.in
+@@ -1951,7 +1951,7 @@
+ ; erfcl ; Can't use long double functions from the CRT on x86
+ erff
+ ; erfl ; Can't use long double functions from the CRT on x86
+-exit
++__msvcrt_exit DATA == exit ; mingw-w64 provides exit() function as wrapper around renamed __msvcrt_exit symbol
+ exp
+ exp2
+ exp2f
+--- a/mingw-w64-crt/lib64/msvcr80.def.in
++++ b/mingw-w64-crt/lib64/msvcr80.def.in
+@@ -1247,7 +1247,7 @@
+ cosh
+ coshf
+ div
+-exit
++__msvcrt_exit DATA == exit ; mingw-w64 provides exit() function as wrapper around renamed __msvcrt_exit symbol
+ exp DATA
+ expf DATA
+ fabs
+--- a/mingw-w64-crt/lib64/msvcr80d.def.in
++++ b/mingw-w64-crt/lib64/msvcr80d.def.in
+@@ -1324,7 +1324,7 @@
+ cosh
+ coshf
+ div
+-exit
++__msvcrt_exit DATA == exit ; mingw-w64 provides exit() function as wrapper around renamed __msvcrt_exit symbol
+ exp DATA ; overwritten
+ expf DATA ; overwritten
+ fabs
+--- a/mingw-w64-crt/lib64/msvcr90.def.in
++++ b/mingw-w64-crt/lib64/msvcr90.def.in
+@@ -1244,7 +1244,7 @@
+ cosh
+ coshf DATA
+ div
+-exit
++__msvcrt_exit DATA == exit ; mingw-w64 provides exit() function as wrapper around renamed __msvcrt_exit symbol
+ exp DATA
+ expf DATA
+ fabs DATA
+--- a/mingw-w64-crt/lib64/msvcr90d.def.in
++++ b/mingw-w64-crt/lib64/msvcr90d.def.in
+@@ -1310,7 +1310,7 @@
+ cosh
+ coshf
+ div
+-exit
++__msvcrt_exit DATA == exit ; mingw-w64 provides exit() function as wrapper around renamed __msvcrt_exit symbol
+ exp DATA
+ expf DATA
+ fabs
+--- a/mingw-w64-crt/libarm32/msvcr110.def.in
++++ b/mingw-w64-crt/libarm32/msvcr110.def.in
+@@ -1734,7 +1734,7 @@
+ cosh
+ coshf
+ div
+-exit
++__msvcrt_exit DATA == exit ; mingw-w64 provides exit() function as wrapper around renamed __msvcrt_exit symbol
+ exp
+ expf
+ fabs
+--- a/mingw-w64-crt/libarm32/msvcr110d.def.in
++++ b/mingw-w64-crt/libarm32/msvcr110d.def.in
+@@ -1799,7 +1799,7 @@
+ cosh
+ coshf
+ div
+-exit
++__msvcrt_exit DATA == exit ; mingw-w64 provides exit() function as wrapper around renamed __msvcrt_exit symbol
+ exp
+ expf
+ fabs
+--- a/mingw-w64-crt/libarm32/msvcr120.def.in
++++ b/mingw-w64-crt/libarm32/msvcr120.def.in
+@@ -1853,7 +1853,7 @@
+ erfcl
+ erff
+ erfl
+-exit
++__msvcrt_exit DATA == exit ; mingw-w64 provides exit() function as wrapper around renamed __msvcrt_exit symbol
+ exp
+ exp2
+ exp2f
+--- a/mingw-w64-crt/libarm32/msvcr120d.def.in
++++ b/mingw-w64-crt/libarm32/msvcr120d.def.in
+@@ -1918,7 +1918,7 @@
+ erfcl
+ erff
+ erfl
+-exit
++__msvcrt_exit DATA == exit ; mingw-w64 provides exit() function as wrapper around renamed __msvcrt_exit symbol
+ exp
+ exp2
+ exp2f
+--- a/mingw-w64-crt/misc/register_tls_atexit.c
++++ b/mingw-w64-crt/misc/register_tls_atexit.c
+@@ -5,25 +5,56 @@
+  */
+ 
+ #include <process.h>
+-#include <windows.h>
+-#include <winnt.h>
+ #include <stdlib.h>
++#include <internal.h>
+ 
+ static _tls_callback_type callback;
+ 
+-static void run_callback(void)
++static void __cdecl run_callback(void)
+ {
++  /* Ensure that callback is called only once. */
++  static int called = 0;
++  if (called)
++    return;
++  called = 1;
+   if (callback)
+     callback(NULL, DLL_PROCESS_DETACH, 0);
+-  callback = NULL;
+ }
+ 
++/* mingw-w64 exit() wrapper calls this function pointer prior CRT atexit() call
++ * to ensure that the registered callback is called before any other callback.
++ * If some other code calls the exported exit DLL function directly then the
++ * atexit() call inside _register_thread_local_exe_atexit_callback guarantees
++ * at least that the callback is called (but does not have to as a first one). */
++static void __cdecl set_atexit_callback(void)
++{
++  atexit(run_callback);
++}
++void (__cdecl *__mingw_prepare_thread_local_exe_atexit_callback_ptr)(void) = set_atexit_callback;
++
+ void __cdecl _register_thread_local_exe_atexit_callback(_tls_callback_type cb)
+ {
++  /* _register_thread_local_exe_atexit_callback cannot be called multiple times. */
++  if (callback)
++    _amsg_exit(10); /* _RT_ABORT */
+   callback = cb;
+   /* This should guarantee that the callback is called. It won't be run in the
+    * exact right spot as intended to, but it will be run. */
+-  atexit(run_callback);
++  set_atexit_callback();
+ }
+ 
+ typeof(_register_thread_local_exe_atexit_callback) *__MINGW_IMP_SYMBOL(_register_thread_local_exe_atexit_callback) = _register_thread_local_exe_atexit_callback;
++
++/* Upstream misc/exit.c, merged here to avoid regenerating Makefile.in. */
++extern void (__cdecl *__MINGW_IMP_SYMBOL(__msvcrt_exit))(int code) __MINGW_ATTRIB_NORETURN;
++
++__MINGW_ATTRIB_NORETURN void __cdecl exit(int code)
++{
++  /* __mingw_prepare_thread_local_exe_atexit_callback_ptr is thread safe and
++   * also can be called multiple times. Registration is done under CRT lock
++   * and execution of the registered callback is done exactly once. */
++  if (__mingw_prepare_thread_local_exe_atexit_callback_ptr)
++    __mingw_prepare_thread_local_exe_atexit_callback_ptr();
++  __MINGW_IMP_SYMBOL(__msvcrt_exit)(code);
++}
++typeof(exit) *__MINGW_IMP_SYMBOL(exit) = exit;
